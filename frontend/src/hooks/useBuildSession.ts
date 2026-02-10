@@ -1,11 +1,12 @@
 import { useState, useCallback } from 'react';
 import type { ProjectSpec } from '../components/BlockCanvas/blockInterpreter';
-import type { UIState, Task, Agent, WSEvent } from '../types';
+import type { UIState, Task, Agent, Commit, WSEvent } from '../types';
 
 export function useBuildSession() {
   const [uiState, setUiState] = useState<UIState>('design');
   const [tasks, setTasks] = useState<Task[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [commits, setCommits] = useState<Commit[]>([]);
   const [events, setEvents] = useState<WSEvent[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
 
@@ -41,6 +42,16 @@ export function useBuildSession() {
           a.status === 'working' ? { ...a, status: 'error' as const } : a
         ));
         break;
+      case 'commit_created':
+        setCommits(prev => [...prev, {
+          sha: event.sha,
+          message: event.message,
+          agent_name: event.agent_name,
+          task_id: event.task_id,
+          timestamp: event.timestamp,
+          files_changed: event.files_changed,
+        }]);
+        break;
       case 'session_complete':
         setUiState('done');
         setAgents(prev => prev.map(a => ({ ...a, status: 'done' as const })));
@@ -53,6 +64,7 @@ export function useBuildSession() {
     setEvents([]);
     setTasks([]);
     setAgents([]);
+    setCommits([]);
 
     const res = await fetch('/api/sessions', { method: 'POST' });
     const { session_id } = await res.json();
@@ -68,5 +80,5 @@ export function useBuildSession() {
     });
   }, []);
 
-  return { uiState, tasks, agents, events, sessionId, handleEvent, startBuild };
+  return { uiState, tasks, agents, commits, events, sessionId, handleEvent, startBuild };
 }

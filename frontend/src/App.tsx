@@ -9,7 +9,7 @@ import { useBuildSession } from './hooks/useBuildSession';
 
 export default function App() {
   const [spec, setSpec] = useState<ProjectSpec | null>(null);
-  const { uiState, tasks, agents, events, sessionId, handleEvent, startBuild } = useBuildSession();
+  const { uiState, tasks, agents, commits, events, sessionId, handleEvent, startBuild } = useBuildSession();
   const { connected } = useWebSocket({ sessionId, onEvent: handleEvent });
 
   const handleWorkspaceChange = useCallback((json: Record<string, unknown>) => {
@@ -56,7 +56,7 @@ export default function App() {
       </div>
 
       {/* Bottom bar */}
-      <BottomBar />
+      <BottomBar commits={commits} />
 
       {/* Footer with GO button */}
       <footer className="flex items-center justify-center px-4 py-3 bg-white border-t border-gray-200">

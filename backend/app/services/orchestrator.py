@@ -1,5 +1,6 @@
 """Orchestrates the build pipeline: planning, execution, testing, deployment."""
 
+import json
 import logging
 import os
 import tempfile
@@ -9,7 +10,9 @@ from typing import Any, Callable, Awaitable
 from app.models.session import BuildSession, SessionState
 from app.prompts import builder_agent, tester_agent, reviewer_agent
 from app.services.agent_runner import AgentRunner
+from app.services.git_service import GitService, CommitInfo
 from app.services.meta_planner import MetaPlanner
+from app.utils.context_manager import ContextManager
 from app.utils.dag import TaskDAG
 
 logger = logging.getLogger(__name__)
@@ -40,6 +43,9 @@ class Orchestrator:
         self._agent_map: dict[str, dict] = {}
         self._task_summaries: dict[str, str] = {}
         self._project_dir = tempfile.mkdtemp(prefix="elisa-project-")
+        self._git: GitService | None = GitService()
+        self._context = ContextManager()
+        self._commits: list[CommitInfo] = []
 
     async def run(self, spec: dict) -> None:
         """Execute the full build pipeline for a session."""
@@ -139,10 +145,15 @@ class Orchestrator:
                 task_id=task_id,
             )
 
+            # Transitive predecessors instead of direct-only
+            all_predecessor_ids = self._context.get_transitive_predecessors(
+                task_id, self._task_map
+            )
             predecessor_summaries = []
-            for dep_id in task.get("dependencies", []):
+            for dep_id in all_predecessor_ids:
                 if dep_id in self._task_summaries:
-                    predecessor_summaries.append(self._task_summaries[dep_id])
+                    capped = ContextManager.cap_summary(self._task_summaries[dep_id])
+                    predecessor_summaries.append(capped)
 
             user_prompt = prompt_module.format_task_prompt(
                 agent_name=agent_name,
@@ -153,6 +164,11 @@ class Orchestrator:
                 predecessors=predecessor_summaries,
                 style=self._session.spec.get("style") if self._session.spec else None,
             )
+
+            # Append file manifest to prompt
+            file_manifest = self._context.build_file_manifest(self._project_dir)
+            if file_manifest:
+                user_prompt += f"\n\n## FILES IN WORKSPACE\n{file_manifest}"
 
             retry_count = 0
             max_retries = 2
@@ -184,6 +200,57 @@ class Orchestrator:
                 task["status"] = "done"
                 if agent:
                     agent["status"] = "idle"
+
+                # Read comms file if agent wrote one (real communication channel)
+                comms_path = os.path.join(
+                    self._project_dir, ".elisa", "comms", f"{task_id}_summary.md"
+                )
+                if os.path.isfile(comms_path):
+                    try:
+                        with open(comms_path, "r", encoding="utf-8", errors="replace") as f:
+                            self._task_summaries[task_id] = f.read()
+                    except Exception:
+                        pass
+
+                # Update project_context.md
+                context_path = os.path.join(
+                    self._project_dir, ".elisa", "context", "project_context.md"
+                )
+                context_text = self._context.build_project_context(
+                    self._task_summaries, completed | {task_id}
+                )
+                with open(context_path, "w", encoding="utf-8") as f:
+                    f.write(context_text)
+
+                # Update current_state.json
+                state_path = os.path.join(
+                    self._project_dir, ".elisa", "status", "current_state.json"
+                )
+                state = self._context.build_current_state(self._tasks, self._agents)
+                with open(state_path, "w", encoding="utf-8") as f:
+                    json.dump(state, f, indent=2)
+
+                # Git commit
+                if self._git:
+                    commit_msg = f"{agent_name}: {task.get('name', task_id)}"
+                    try:
+                        commit_info = self._git.commit(
+                            self._project_dir, commit_msg, agent_name, task_id
+                        )
+                        if commit_info.sha:
+                            self._commits.append(commit_info)
+                            await self._send({
+                                "type": "commit_created",
+                                "sha": commit_info.short_sha,
+                                "message": commit_info.message,
+                                "agent_name": commit_info.agent_name,
+                                "task_id": commit_info.task_id,
+                                "timestamp": commit_info.timestamp,
+                                "files_changed": commit_info.files_changed,
+                            })
+                    except Exception:
+                        logger.warning("Git commit failed for %s", task_id, exc_info=True)
+
                 await self._send({
                     "type": "task_completed",
                     "task_id": task_id,
@@ -227,9 +294,10 @@ class Orchestrator:
         })
 
     def _setup_workspace(self) -> None:
-        """Create project workspace directories."""
+        """Create project workspace directories and init git repo."""
         dirs = [
             os.path.join(self._project_dir, ".elisa", "comms"),
+            os.path.join(self._project_dir, ".elisa", "comms", "reviews"),
             os.path.join(self._project_dir, ".elisa", "context"),
             os.path.join(self._project_dir, ".elisa", "status"),
             os.path.join(self._project_dir, "src"),
@@ -237,6 +305,32 @@ class Orchestrator:
         ]
         for d in dirs:
             os.makedirs(d, exist_ok=True)
+
+        # Init git repo with README from project spec
+        if self._git:
+            try:
+                goal = (self._session.spec or {}).get("project", {}).get(
+                    "goal", "Elisa project"
+                )
+                self._git.init_repo(self._project_dir, goal)
+            except Exception:
+                logger.warning("Git not available, continuing without version control")
+                self._git = None
+
+    def get_commits(self) -> list[dict]:
+        """Return commit history for REST endpoint."""
+        return [
+            {
+                "sha": c.sha,
+                "short_sha": c.short_sha,
+                "message": c.message,
+                "agent_name": c.agent_name,
+                "task_id": c.task_id,
+                "timestamp": c.timestamp,
+                "files_changed": c.files_changed,
+            }
+            for c in self._commits
+        ]
 
     def _make_output_handler(
         self, agent_name: str

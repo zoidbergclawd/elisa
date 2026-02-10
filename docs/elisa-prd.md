@@ -1063,7 +1063,17 @@ Respond with:
 | Database | SQLite | Simple, file-based, you know it well |
 | Git operations | GitPython | Programmatic git from Python |
 | Hardware flash | mpremote / arduino-cli | Standard ESP32 toolchain |
-| Testing | pytest + coverage | Standard Python testing |
+| Testing (backend) | pytest + pytest-asyncio + httpx | Standard Python testing |
+| Testing (frontend) | Vitest + React Testing Library | Vite-native, fast, same config as build |
+
+### 11.1.1 Test-Driven Development (Mandatory)
+
+All future work **must** follow TDD: write failing tests before writing implementation code. PRs without corresponding test coverage will not be merged.
+
+- **Backend:** pytest with `backend/tests/` mirroring `backend/app/`. Run: `pytest backend/tests/`.
+- **Frontend:** Vitest with co-located `*.test.ts(x)` files. Run: `npm test` from `frontend/`.
+- **Process:** Red (write failing test) -> Green (minimal implementation) -> Refactor.
+- **Coverage target:** 80%+ on all new code. No merging PRs that decrease coverage.
 
 ### 11.2 Project Structure
 

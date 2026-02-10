@@ -34,6 +34,7 @@ class ConnectionManager:
 manager = ConnectionManager()
 sessions: dict[str, BuildSession] = {}
 running_tasks: dict[str, asyncio.Task] = {}
+orchestrators: dict[str, Orchestrator] = {}
 
 
 @asynccontextmanager
@@ -89,6 +90,7 @@ async def start_session(session_id: str, req: StartRequest):
         session=session,
         send_event=lambda evt: manager.send_event(session_id, evt),
     )
+    orchestrators[session_id] = orchestrator
 
     task = asyncio.create_task(orchestrator.run(req.spec))
     running_tasks[session_id] = task
@@ -121,6 +123,14 @@ async def get_session_tasks(session_id: str):
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     return session.tasks
+
+
+@app.get("/api/sessions/{session_id}/git")
+async def get_session_git(session_id: str):
+    orch = orchestrators.get(session_id)
+    if not orch:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return orch.get_commits()
 
 
 @app.get("/api/templates")

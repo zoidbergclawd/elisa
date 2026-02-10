@@ -24,6 +24,15 @@ export interface BuildSession {
   agents: Agent[];
 }
 
+export interface Commit {
+  sha: string;
+  message: string;
+  agent_name: string;
+  task_id: string;
+  timestamp: string;
+  files_changed: string[];
+}
+
 export type WSEvent =
   | { type: 'session_started'; session_id: string }
   | { type: 'planning_started' }
@@ -38,5 +47,6 @@ export type WSEvent =
   | { type: 'deploy_progress'; target: string; message: string }
   | { type: 'deploy_complete'; target: string; url?: string }
   | { type: 'teaching_moment'; concept: string; explanation: string }
+  | { type: 'commit_created'; sha: string; message: string; agent_name: string; task_id: string; timestamp: string; files_changed: string[] }
   | { type: 'error'; message: string; recoverable: boolean }
   | { type: 'session_complete'; summary: string };
