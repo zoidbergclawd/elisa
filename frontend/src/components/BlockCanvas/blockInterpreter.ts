@@ -1,8 +1,8 @@
 import type { Skill, Rule } from '../Skills/types';
 import type { Portal } from '../Portals/types';
 
-export interface ProjectSpec {
-  project: {
+export interface NuggetSpec {
+  nugget: {
     goal: string;
     description: string;
     type: string;
@@ -79,17 +79,46 @@ function walkInputChain(block: BlockJson, inputName: string): BlockJson[] {
   return walkNextChain(inputBlock);
 }
 
+const BLOCK_TYPE_MIGRATIONS: Record<string, string> = {
+  project_goal: 'nugget_goal',
+  project_template: 'nugget_template',
+};
+
+/** Migrate old workspace JSON block types to their new names. Mutates in place. */
+export function migrateWorkspace(json: Record<string, unknown>): Record<string, unknown> {
+  const ws = json as unknown as WorkspaceJson;
+  const blocks = ws.blocks?.blocks;
+  if (!blocks) return json;
+
+  function migrateBlock(block: BlockJson): void {
+    if (BLOCK_TYPE_MIGRATIONS[block.type]) {
+      block.type = BLOCK_TYPE_MIGRATIONS[block.type];
+    }
+    if (block.next?.block) migrateBlock(block.next.block);
+    if (block.inputs) {
+      for (const input of Object.values(block.inputs)) {
+        if (input.block) migrateBlock(input.block);
+      }
+    }
+  }
+
+  for (const block of blocks) {
+    migrateBlock(block);
+  }
+  return json;
+}
+
 export function interpretWorkspace(
   json: Record<string, unknown>,
   skills?: Skill[],
   rules?: Rule[],
   portals?: Portal[],
-): ProjectSpec {
+): NuggetSpec {
   const ws = json as unknown as WorkspaceJson;
   const topBlocks = ws.blocks?.blocks ?? [];
 
-  const spec: ProjectSpec = {
-    project: { goal: '', description: '', type: 'general' },
+  const spec: NuggetSpec = {
+    nugget: { goal: '', description: '', type: 'general' },
     requirements: [],
     agents: [],
     deployment: { target: 'preview', auto_flash: false },
@@ -102,7 +131,7 @@ export function interpretWorkspace(
     },
   };
 
-  const goalBlock = topBlocks.find((b) => b.type === 'project_goal');
+  const goalBlock = topBlocks.find((b) => b.type === 'nugget_goal');
   if (!goalBlock) return spec;
 
   const chain = walkNextChain(goalBlock);
@@ -112,15 +141,15 @@ export function interpretWorkspace(
 
   for (const block of chain) {
     switch (block.type) {
-      case 'project_goal': {
+      case 'nugget_goal': {
         const text = (block.fields?.GOAL_TEXT as string) ?? '';
-        spec.project.goal = text;
-        spec.project.description = text;
+        spec.nugget.goal = text;
+        spec.nugget.description = text;
         break;
       }
-      case 'project_template': {
+      case 'nugget_template': {
         const tmpl = (block.fields?.TEMPLATE_TYPE as string) ?? 'general';
-        spec.project.type = tmpl;
+        spec.nugget.type = tmpl;
         break;
       }
       case 'feature': {
@@ -325,7 +354,7 @@ export function interpretWorkspace(
         break;
       case 'deploy_esp32':
         hasEsp32 = true;
-        spec.project.type = 'hardware';
+        spec.nugget.type = 'hardware';
         break;
       case 'deploy_both':
         hasWeb = true;

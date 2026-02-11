@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { ProjectSpec } from '../BlockCanvas/blockInterpreter';
+import type { NuggetSpec } from '../BlockCanvas/blockInterpreter';
 import type { UIState, Task, Agent, WSEvent, TokenUsage } from '../../types';
 import TaskDAG from './TaskDAG';
 import CommsFeed from './CommsFeed';
@@ -7,7 +7,7 @@ import MetricsPanel from './MetricsPanel';
 import AgentAvatar from '../shared/AgentAvatar';
 
 interface MissionControlProps {
-  spec: ProjectSpec | null;
+  spec: NuggetSpec | null;
   tasks: Task[];
   agents: Agent[];
   events: WSEvent[];

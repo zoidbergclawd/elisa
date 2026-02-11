@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import BlockCanvas from './components/BlockCanvas/BlockCanvas';
 import type { BlockCanvasHandle } from './components/BlockCanvas/BlockCanvas';
-import { interpretWorkspace, type ProjectSpec } from './components/BlockCanvas/blockInterpreter';
+import { interpretWorkspace, migrateWorkspace, type NuggetSpec } from './components/BlockCanvas/blockInterpreter';
 import MissionControl from './components/MissionControl/MissionControl';
 import BottomBar from './components/BottomBar/BottomBar';
 import GoButton from './components/shared/GoButton';
@@ -12,7 +12,7 @@ import SkillsRulesModal from './components/Skills/SkillsRulesModal';
 import PortalsModal from './components/Portals/PortalsModal';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useBuildSession } from './hooks/useBuildSession';
-import { saveProjectFile, loadProjectFile, downloadBlob } from './lib/projectFile';
+import { saveNuggetFile, loadNuggetFile, downloadBlob } from './lib/nuggetFile';
 import type { TeachingMoment } from './types';
 import elisaLogo from '../assets/Elisa.png';
 import type { Skill, Rule } from './components/Skills/types';
@@ -34,7 +34,7 @@ function readLocalStorageJson<T>(key: string): T | null {
 }
 
 export default function App() {
-  const [spec, setSpec] = useState<ProjectSpec | null>(null);
+  const [spec, setSpec] = useState<NuggetSpec | null>(null);
   const {
     uiState, tasks, agents, commits, events, sessionId,
     teachingMoments, testResults, coveragePct, tokenUsage,
@@ -50,12 +50,16 @@ export default function App() {
   const [skillsModalOpen, setSkillsModalOpen] = useState(false);
   const [portalsModalOpen, setPortalsModalOpen] = useState(false);
 
-  // The latest workspace JSON for saving projects
+  // The latest workspace JSON for saving nuggets
   const [workspaceJson, setWorkspaceJson] = useState<Record<string, unknown> | null>(null);
 
   // Saved workspace loaded from localStorage (read once on mount, passed to BlockCanvas)
   const [initialWorkspace] = useState<Record<string, unknown> | null>(
-    () => readLocalStorageJson<Record<string, unknown>>(LS_WORKSPACE),
+    () => {
+      const ws = readLocalStorageJson<Record<string, unknown>>(LS_WORKSPACE);
+      if (ws) migrateWorkspace(ws);
+      return ws;
+    },
   );
 
   const blockCanvasRef = useRef<BlockCanvasHandle>(null);
@@ -107,36 +111,39 @@ export default function App() {
     await startBuild(spec);
   };
 
-  // -- Save Project --
-  const handleSaveProject = async () => {
+  // -- Save Nugget --
+  const handleSaveNugget = async () => {
     if (!workspaceJson) return;
 
-    let projectArchive: Blob | undefined;
+    let outputArchive: Blob | undefined;
     if (sessionId) {
       try {
         const resp = await fetch(`/api/sessions/${sessionId}/export`);
         if (resp.ok) {
-          projectArchive = await resp.blob();
+          outputArchive = await resp.blob();
         }
       } catch {
         // no generated code available -- that's fine
       }
     }
 
-    const blob = await saveProjectFile(workspaceJson, skills, rules, portals, projectArchive);
-    const name = spec?.project.goal
-      ? spec.project.goal.slice(0, 40).replace(/[^a-zA-Z0-9]+/g, '-').replace(/-+$/, '')
-      : 'project';
+    const blob = await saveNuggetFile(workspaceJson, skills, rules, portals, outputArchive);
+    const name = spec?.nugget.goal
+      ? spec.nugget.goal.slice(0, 40).replace(/[^a-zA-Z0-9]+/g, '-').replace(/-+$/, '')
+      : 'nugget';
     downloadBlob(blob, `${name}.elisa`);
   };
 
-  // -- Open Project --
-  const handleOpenProject = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // -- Open Nugget --
+  const handleOpenNugget = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     try {
-      const data = await loadProjectFile(file);
+      const data = await loadNuggetFile(file);
+
+      // Migrate old block types in workspace
+      migrateWorkspace(data.workspace);
 
       // Restore skills, rules, and portals
       setSkills(data.skills);
@@ -153,7 +160,7 @@ export default function App() {
       localStorage.setItem(LS_RULES, JSON.stringify(data.rules));
       localStorage.setItem(LS_PORTALS, JSON.stringify(data.portals));
     } catch (err) {
-      console.error('Failed to open project file:', err);
+      console.error('Failed to open nugget file:', err);
     }
 
     // Reset input so the same file can be selected again
@@ -180,10 +187,10 @@ export default function App() {
             type="file"
             accept=".elisa"
             className="hidden"
-            onChange={handleOpenProject}
+            onChange={handleOpenNugget}
           />
           <button
-            onClick={handleSaveProject}
+            onClick={handleSaveNugget}
             disabled={!workspaceJson}
             className={`px-3 py-1 text-sm rounded ${
               workspaceJson
@@ -297,11 +304,11 @@ export default function App() {
       {uiState === 'done' && (
         <div className="fixed inset-0 bg-black/50 z-40 flex items-center justify-center">
           <div className="bg-white rounded-xl shadow-2xl p-8 max-w-md mx-4 text-center">
-            <h2 className="text-2xl font-bold mb-4">Project Complete!</h2>
+            <h2 className="text-2xl font-bold mb-4">Nugget Complete!</h2>
             <p className="text-gray-600 mb-4">
               {events.find(e => e.type === 'session_complete')?.type === 'session_complete'
                 ? (events.find(e => e.type === 'session_complete') as { type: 'session_complete'; summary: string }).summary
-                : 'Your project has been built successfully.'}
+                : 'Your nugget has been built successfully.'}
             </p>
             {teachingMoments.length > 0 && (
               <div className="text-left mb-4 bg-blue-50 rounded-lg p-3">
@@ -331,7 +338,7 @@ export default function App() {
       {/* Footer with GO button */}
       <footer className="flex items-center justify-center px-4 py-3 bg-white border-t border-gray-200">
         <GoButton
-          disabled={uiState !== 'design' || !spec?.project.goal}
+          disabled={uiState !== 'design' || !spec?.nugget.goal}
           onClick={handleGo}
         />
       </footer>

@@ -27,7 +27,7 @@ App.tsx
 ## BlockCanvas Subsystem
 
 - `blockDefinitions.ts`: 25+ custom block types across 9 categories (Goal, Requirements, Style, Agents, Flow, Hardware, Deploy, Skills)
-- `blockInterpreter.ts`: Walks Blockly workspace JSON, extracts fields, builds ProjectSpec. This is the bridge between visual blocks and the backend API.
+- `blockInterpreter.ts`: Walks Blockly workspace JSON, extracts fields, builds NuggetSpec. This is the bridge between visual blocks and the backend API.
 - `toolbox.ts`: Defines Blockly sidebar categories and their block contents.
 
 ## Key Patterns

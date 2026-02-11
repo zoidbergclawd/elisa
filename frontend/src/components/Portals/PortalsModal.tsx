@@ -110,7 +110,7 @@ export default function PortalsModal({ portals, onPortalsChange, onClose }: Prop
                 </div>
               ))}
               {portals.length === 0 && (
-                <p className="text-gray-400 text-sm text-center py-4">No portals yet. Add one to connect your project to the outside world.</p>
+                <p className="text-gray-400 text-sm text-center py-4">No portals yet. Add one to connect your nugget to the outside world.</p>
               )}
               <div className="flex gap-2 mt-2">
                 <button

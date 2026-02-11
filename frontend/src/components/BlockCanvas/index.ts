@@ -1,3 +1,3 @@
 export { default as BlockCanvas } from './BlockCanvas';
-export { interpretWorkspace } from './blockInterpreter';
-export type { ProjectSpec } from './blockInterpreter';
+export { interpretWorkspace, migrateWorkspace } from './blockInterpreter';
+export type { NuggetSpec } from './blockInterpreter';
