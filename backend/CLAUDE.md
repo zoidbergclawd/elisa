@@ -42,6 +42,7 @@ src/
 ### REST Endpoints
 | Method | Path | Purpose |
 |--------|------|---------|
+| GET | /api/health | Readiness check (API key + CLI status) |
 | POST | /api/sessions | Create session |
 | POST | /api/sessions/:id/start | Start build with NuggetSpec |
 | POST | /api/sessions/:id/stop | Cancel build |

@@ -14,6 +14,8 @@ import ExamplePickerModal from './components/shared/ExamplePickerModal';
 import { EXAMPLE_NUGGETS } from './lib/examples';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useBuildSession } from './hooks/useBuildSession';
+import { useHealthCheck } from './hooks/useHealthCheck';
+import ReadinessBadge from './components/shared/ReadinessBadge';
 import { saveNuggetFile, loadNuggetFile, downloadBlob } from './lib/nuggetFile';
 import type { TeachingMoment } from './types';
 import elisaLogo from '../assets/Elisa.png';
@@ -43,7 +45,8 @@ export default function App() {
     serialLines, deployProgress, gateRequest, questionRequest,
     handleEvent, startBuild, clearGateRequest, clearQuestionRequest,
   } = useBuildSession();
-  const { connected } = useWebSocket({ sessionId, onEvent: handleEvent });
+  useWebSocket({ sessionId, onEvent: handleEvent });
+  const { health, loading: healthLoading } = useHealthCheck(uiState === 'design');
 
   // Restore skills/rules from localStorage on mount
   const [skills, setSkills] = useState<Skill[]>(() => readLocalStorageJson<Skill[]>(LS_SKILLS) ?? []);
@@ -245,9 +248,7 @@ export default function App() {
             Help
           </button>
         </nav>
-        <span className={`text-xs px-2 py-1 rounded ${connected ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-          {connected ? 'Connected' : 'Disconnected'}
-        </span>
+        <ReadinessBadge health={health} loading={healthLoading} />
       </header>
 
       {/* Main area */}
