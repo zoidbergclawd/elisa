@@ -1,5 +1,5 @@
 {
-  "project": { "goal": "A weather app", "description": "Show weather with refresh", "type": "general" },
+  "nugget": { "goal": "A weather app", "description": "Show weather with refresh", "type": "general" },
   "requirements": [
     { "type": "feature", "description": "show current temperature" },
     { "type": "feature", "description": "show a 5-day forecast" },

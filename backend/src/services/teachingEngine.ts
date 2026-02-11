@@ -33,7 +33,7 @@ export class TeachingEngine {
   async getMoment(
     eventType: string,
     eventDetails = '',
-    projectType = '',
+    nuggetType = '',
   ): Promise<TeachingMomentData | null> {
     let actualEvent = eventType;
     if (eventType === 'commit_created') {
@@ -80,13 +80,13 @@ export class TeachingEngine {
   private async apiFallback(
     eventType: string,
     eventDetails: string,
-    projectType: string,
+    nuggetType: string,
   ): Promise<TeachingMomentData | null> {
     if (!this.client) {
       this.client = new Anthropic();
     }
 
-    const prompt = teachingUserPrompt(eventType, eventDetails, projectType || 'software');
+    const prompt = teachingUserPrompt(eventType, eventDetails, nuggetType || 'software');
 
     const response = await this.client.messages.create({
       model: 'claude-sonnet-4-20250514',

@@ -199,8 +199,8 @@ export function firstIndexWhere(
 
 // -- Cleanup --
 
-export function cleanupProjectDir(orchestrator: Orchestrator): void {
-  const dir = orchestrator.projectDir;
+export function cleanupNuggetDir(orchestrator: Orchestrator): void {
+  const dir = orchestrator.nuggetDir;
   if (fs.existsSync(dir)) {
     fs.rmSync(dir, { recursive: true, force: true });
   }

@@ -6,17 +6,17 @@ import { simpleGit } from 'simple-git';
 import type { CommitInfo } from '../models/session.js';
 
 export class GitService {
-  async initRepo(repoPath: string, projectGoal: string): Promise<void> {
+  async initRepo(repoPath: string, nuggetGoal: string): Promise<void> {
     const git = simpleGit(repoPath);
     await git.init();
     await git.addConfig('user.name', 'Elisa');
     await git.addConfig('user.email', 'elisa@local');
 
     const readmePath = path.join(repoPath, 'README.md');
-    fs.writeFileSync(readmePath, `# ${projectGoal}\n\nBuilt with Elisa.\n`, 'utf-8');
+    fs.writeFileSync(readmePath, `# ${nuggetGoal}\n\nBuilt with Elisa.\n`, 'utf-8');
 
     await git.add('README.md');
-    await git.commit('Project started!');
+    await git.commit('Nugget started!');
   }
 
   async commit(

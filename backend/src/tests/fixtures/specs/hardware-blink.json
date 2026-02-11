@@ -1,5 +1,5 @@
 {
-  "project": { "goal": "Blink an LED", "description": "Make the LED blink on my board", "type": "hardware" },
+  "nugget": { "goal": "Blink an LED", "description": "Make the LED blink on my board", "type": "hardware" },
   "requirements": [{ "type": "feature", "description": "blink the LED on and off" }],
   "hardware": {
     "target": "esp32",

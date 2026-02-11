@@ -201,19 +201,19 @@ app.post('/api/sessions/:id/question', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-// Export session project as zip
+// Export session nugget as zip
 app.get('/api/sessions/:id/export', (req, res) => {
   const orch = orchestrators.get(req.params.id);
   if (!orch) { res.status(404).json({ detail: 'Session not found' }); return; }
 
-  const dir = orch.projectDir;
+  const dir = orch.nuggetDir;
   if (!fs.existsSync(dir)) {
-    res.status(404).json({ detail: 'Project directory not found' });
+    res.status(404).json({ detail: 'Nugget directory not found' });
     return;
   }
 
   res.setHeader('Content-Type', 'application/zip');
-  res.setHeader('Content-Disposition', 'attachment; filename="project.zip"');
+  res.setHeader('Content-Disposition', 'attachment; filename="nugget.zip"');
 
   const archive = archiver('zip', { zlib: { level: 5 } });
   archive.on('error', (err) => {
@@ -325,7 +325,7 @@ app.post('/api/hardware/detect', async (_req, res) => {
 app.post('/api/hardware/flash/:id', async (req, res) => {
   const orch = orchestrators.get(req.params.id);
   if (!orch) { res.status(404).json({ detail: 'Session not found' }); return; }
-  const result = await hardwareService.flash(orch.projectDir);
+  const result = await hardwareService.flash(orch.nuggetDir);
   res.json({ success: result.success, message: result.message });
 });
 

@@ -67,7 +67,7 @@ import {
   eventsOfType,
   firstIndexOf,
   firstIndexWhere,
-  cleanupProjectDir,
+  cleanupNuggetDir,
 } from './helpers.js';
 
 // -- Fixtures --
@@ -94,7 +94,7 @@ beforeEach(() => {
 
 afterEach(() => {
   if (currentOrchestrator) {
-    cleanupProjectDir(currentOrchestrator.orchestrator);
+    cleanupNuggetDir(currentOrchestrator.orchestrator);
     currentOrchestrator = null;
   }
 });

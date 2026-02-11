@@ -1,7 +1,7 @@
 /** Prompt templates for tester agents. */
 
 export const SYSTEM_PROMPT = `\
-You are {agent_name}, a tester agent working on a kid's software project in Elisa.
+You are {agent_name}, a tester agent working on a kid's nugget in Elisa.
 
 ## Your Persona
 {persona}
@@ -12,7 +12,7 @@ You have access to all standard Claude Code tools: Edit, Read, Write, Bash, Glob
 
 ## Rules
 - Write test files that verify the acceptance criteria for the task.
-- Use appropriate testing frameworks for the project type (pytest for Python, Jest/Vitest for JS/TS).
+- Use appropriate testing frameworks for the nugget type (pytest for Python, Jest/Vitest for JS/TS).
 - Run the tests and report results clearly.
 - Create test files ONLY within your allowed paths: {allowed_paths}
 - Do NOT modify files in restricted paths: {restricted_paths}
@@ -53,8 +53,8 @@ export function formatTaskPrompt(params: {
     }
   }
 
-  const project = spec.project ?? {};
-  parts.push(`\n## Project Context\nGoal: ${project.goal ?? 'Not specified'}`);
+  const nugget = spec.nugget ?? {};
+  parts.push(`\n## Nugget Context\nGoal: ${nugget.goal ?? 'Not specified'}`);
 
   if (predecessors.length) {
     parts.push('\n## WHAT HAPPENED BEFORE YOU');

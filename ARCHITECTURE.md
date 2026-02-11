@@ -1,6 +1,6 @@
 # Elisa Architecture
 
-Elisa is a kid-friendly IDE that orchestrates AI agent teams to build real software and hardware projects. Kids compose project specs using visual blocks (Blockly); the backend decomposes specs into task DAGs, executes them via Claude Code CLI agents, and streams results back in real-time.
+Elisa is a kid-friendly IDE that orchestrates AI agent teams to build real software and hardware nuggets. Kids compose nugget specs using visual blocks (Blockly); the backend decomposes specs into task DAGs, executes them via Claude Code CLI agents, and streams results back in real-time.
 
 ## System Topology
 
@@ -39,7 +39,7 @@ No npm workspaces. Frontend and backend are independent Node.js projects.
 
 ```
 1. User arranges blocks in Blockly editor
-2. Click GO -> blockInterpreter converts workspace to ProjectSpec JSON
+2. Click GO -> blockInterpreter converts workspace to NuggetSpec JSON
 3. POST /api/sessions (create) -> POST /api/sessions/:id/start (with spec)
 4. Backend Orchestrator.run():
    a. PLAN:    MetaPlanner calls Claude API to decompose spec into task DAG
@@ -68,7 +68,7 @@ Frontend dev server (Vite port 5173) proxies `/api/*` and `/ws/*` to backend (po
 
 ## Core Abstractions
 
-### ProjectSpec
+### NuggetSpec
 JSON schema produced by blockInterpreter from Blockly workspace. Drives the entire pipeline. Contains: goal, requirements, style, agents, hardware config, deployment target, workflow flags, skills, rules.
 
 ### Task DAG
@@ -97,16 +97,16 @@ idle -> planning -> executing -> testing -> reviewing -> deploying -> done
 
 - **Event-driven UI**: All frontend state updates flow through WebSocket event handlers. No polling.
 - **Subprocess isolation**: Each agent task runs as a separate `claude` CLI process. No shared state between agents except via context summaries written to `.elisa/` in the workspace.
-- **Context chain**: After each task, a summary is written to `.elisa/context/project_context.md`. Subsequent agents receive this as input, creating a chain of context.
+- **Context chain**: After each task, a summary is written to `.elisa/context/nugget_context.md`. Subsequent agents receive this as input, creating a chain of context.
 - **Graceful degradation**: Missing tools (git, pytest, mpremote, serialport) cause warnings, not crashes.
 - **No auth**: Local-only development tool. CORS locked to localhost.
 
 ## Storage
 
 - **Session state**: In-memory `Map<sessionId, Session>`
-- **Workspace**: Temp directory per session (`/tmp/elisa-project-{timestamp}`) containing generated code, tests, git repo, and `.elisa/` metadata
+- **Workspace**: Temp directory per session (`/tmp/elisa-nugget-{timestamp}`) containing generated code, tests, git repo, and `.elisa/` metadata
 - **localStorage**: Workspace JSON, skills, and rules auto-saved in browser (`elisa:workspace`, `elisa:skills`, `elisa:rules`). Restored on page load.
-- **Project files**: `.elisa` zip format for export/import (workspace + skills + rules + generated code)
+- **Nugget files**: `.elisa` zip format for export/import (workspace + skills + rules + generated code)
 - **No database**
 
 ## Hardware Path

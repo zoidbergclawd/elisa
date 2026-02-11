@@ -1,4 +1,4 @@
-/** Decomposes a project spec into a task DAG using Claude. */
+/** Decomposes a nugget spec into a task DAG using Claude. */
 
 import Anthropic from '@anthropic-ai/sdk';
 import { META_PLANNER_SYSTEM, metaPlannerUser } from '../prompts/metaPlanner.js';

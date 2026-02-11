@@ -1,5 +1,5 @@
 {
-  "project": { "goal": "A calculator", "description": "A simple calculator", "type": "general" },
+  "nugget": { "goal": "A calculator", "description": "A simple calculator", "type": "general" },
   "requirements": [{ "type": "feature", "description": "add and subtract numbers" }],
   "agents": [
     { "name": "Builder Bot", "role": "builder", "persona": "A friendly robot" }

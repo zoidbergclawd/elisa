@@ -43,4 +43,4 @@ cd frontend && npm install && npm run dev   # port 5173 (proxies to 8000)
 - No database. All session state is in-memory.
 - Each agent task runs as a separate `claude` CLI subprocess.
 - Frontend communicates via REST (commands) + WebSocket (events).
-- Blockly workspace -> ProjectSpec JSON -> backend orchestration pipeline.
+- Blockly workspace -> NuggetSpec JSON -> backend orchestration pipeline.

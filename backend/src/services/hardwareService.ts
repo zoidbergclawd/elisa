@@ -15,9 +15,9 @@ const KNOWN_BOARDS: Map<string, string> = new Map([
 ]);
 
 export class HardwareService {
-  async compile(projectPath: string): Promise<CompileResult> {
+  async compile(workDir: string): Promise<CompileResult> {
     const errors: string[] = [];
-    const pyFiles = collectPyFiles(projectPath);
+    const pyFiles = collectPyFiles(workDir);
 
     if (pyFiles.length === 0) {
       return { success: false, errors: ['No Python files found'], outputPath: '' };
@@ -34,11 +34,11 @@ export class HardwareService {
     return {
       success: errors.length === 0,
       errors,
-      outputPath: projectPath,
+      outputPath: workDir,
     };
   }
 
-  async flash(projectPath: string, port?: string): Promise<FlashResult> {
+  async flash(workDir: string, port?: string): Promise<FlashResult> {
     if (!port) {
       const board = await this.detectBoard();
       if (!board) {
@@ -50,7 +50,7 @@ export class HardwareService {
       port = board.port;
     }
 
-    const pyFiles = collectPyFiles(projectPath);
+    const pyFiles = collectPyFiles(workDir);
     if (pyFiles.length === 0) {
       return { success: false, message: 'No Python files to flash' };
     }
@@ -62,7 +62,7 @@ export class HardwareService {
 
     const cmd = ['mpremote', 'connect', port, 'cp', ...cpArgs];
 
-    const mainPy = path.join(projectPath, 'main.py');
+    const mainPy = path.join(workDir, 'main.py');
     if (fs.existsSync(mainPy)) {
       cmd.push('+', 'run', mainPy);
     }
@@ -140,7 +140,7 @@ export class HardwareService {
   }
 }
 
-function collectPyFiles(projectPath: string): string[] {
+function collectPyFiles(workDir: string): string[] {
   const pyFiles: string[] = [];
 
   function walk(dir: string): void {
@@ -167,7 +167,7 @@ function collectPyFiles(projectPath: string): string[] {
     }
   }
 
-  walk(projectPath);
+  walk(workDir);
   return pyFiles;
 }
 
