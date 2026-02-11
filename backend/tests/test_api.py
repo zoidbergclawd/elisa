@@ -92,3 +92,51 @@ class TestTemplatesEndpoint:
         resp = await client.get("/api/templates")
         assert resp.status_code == 200
         assert resp.json() == []
+
+
+class TestGateEndpoint:
+    async def test_gate_not_found(self, client):
+        resp = await client.post(
+            "/api/sessions/nonexistent/gate",
+            json={"approved": True},
+        )
+        assert resp.status_code == 404
+
+    async def test_gate_with_orchestrator(self, client):
+        resp = await client.post("/api/sessions")
+        sid = resp.json()["session_id"]
+        await client.post(
+            f"/api/sessions/{sid}/start",
+            json={"spec": {"project": {"goal": "test"}}},
+        )
+        resp = await client.post(
+            f"/api/sessions/{sid}/gate",
+            json={"approved": True},
+        )
+        assert resp.status_code == 200
+        assert resp.json() == {"status": "ok"}
+
+    async def test_gate_with_feedback(self, client):
+        resp = await client.post("/api/sessions")
+        sid = resp.json()["session_id"]
+        await client.post(
+            f"/api/sessions/{sid}/start",
+            json={"spec": {"project": {"goal": "test"}}},
+        )
+        resp = await client.post(
+            f"/api/sessions/{sid}/gate",
+            json={"approved": False, "feedback": "Make it blue"},
+        )
+        assert resp.status_code == 200
+
+
+class TestHardwareDetectEndpoint:
+    async def test_detect_board(self, client):
+        resp = await client.post("/api/hardware/detect")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "detected" in data
+
+    async def test_flash_not_found(self, client):
+        resp = await client.post("/api/hardware/flash/nonexistent")
+        assert resp.status_code == 404

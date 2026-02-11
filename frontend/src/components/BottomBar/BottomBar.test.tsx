@@ -8,6 +8,7 @@ const defaultProps = {
   testResults: [],
   coveragePct: null,
   teachingMoments: [],
+  serialLines: [],
 };
 
 describe('BottomBar', () => {
@@ -24,11 +25,11 @@ describe('BottomBar', () => {
     expect(screen.getByText('Commits will appear here as agents work')).toBeInTheDocument();
   });
 
-  it('disables only Board tab', () => {
+  it('all tabs are enabled', () => {
     render(<BottomBar {...defaultProps} />);
     expect(screen.getByText('Timeline')).not.toBeDisabled();
     expect(screen.getByText('Tests')).not.toBeDisabled();
-    expect(screen.getByText('Board')).toBeDisabled();
+    expect(screen.getByText('Board')).not.toBeDisabled();
     expect(screen.getByText('Learn')).not.toBeDisabled();
   });
 
@@ -55,6 +56,22 @@ describe('BottomBar', () => {
     render(<BottomBar {...defaultProps} />);
     fireEvent.click(screen.getByText('Learn'));
     expect(screen.getByText('Teaching moments will appear as you build')).toBeInTheDocument();
+  });
+
+  it('clicking Board tab renders BoardOutput empty state', () => {
+    render(<BottomBar {...defaultProps} />);
+    fireEvent.click(screen.getByText('Board'));
+    expect(screen.getByText('Connect your board to see its output')).toBeInTheDocument();
+  });
+
+  it('Board tab shows serial lines', () => {
+    const props = {
+      ...defaultProps,
+      serialLines: [{ line: 'Hello from board', timestamp: '2026-02-10T12:00:00Z' }],
+    };
+    render(<BottomBar {...props} />);
+    fireEvent.click(screen.getByText('Board'));
+    expect(screen.getByText('Hello from board')).toBeInTheDocument();
   });
 
   it('Tests tab shows test results', () => {

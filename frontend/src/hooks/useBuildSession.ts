@@ -2,6 +2,22 @@ import { useState, useCallback } from 'react';
 import type { ProjectSpec } from '../components/BlockCanvas/blockInterpreter';
 import type { UIState, Task, Agent, Commit, WSEvent, TeachingMoment, TestResult, TokenUsage } from '../types';
 
+export interface SerialLine {
+  line: string;
+  timestamp: string;
+}
+
+export interface DeployProgress {
+  step: string;
+  progress: number;
+}
+
+export interface GateRequest {
+  task_id: string;
+  question: string;
+  context: string;
+}
+
 export function useBuildSession() {
   const [uiState, setUiState] = useState<UIState>('design');
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -13,6 +29,9 @@ export function useBuildSession() {
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [coveragePct, setCoveragePct] = useState<number | null>(null);
   const [tokenUsage, setTokenUsage] = useState<TokenUsage>({ input: 0, output: 0, total: 0, perAgent: {} });
+  const [serialLines, setSerialLines] = useState<SerialLine[]>([]);
+  const [deployProgress, setDeployProgress] = useState<DeployProgress | null>(null);
+  const [gateRequest, setGateRequest] = useState<GateRequest | null>(null);
 
   const handleEvent = useCallback((event: WSEvent) => {
     setEvents(prev => [...prev, event]);
@@ -55,6 +74,23 @@ export function useBuildSession() {
           timestamp: event.timestamp,
           files_changed: event.files_changed,
         }]);
+        break;
+      case 'deploy_started':
+        setUiState('building');
+        setDeployProgress({ step: 'Starting deployment...', progress: 0 });
+        break;
+      case 'deploy_progress':
+        setDeployProgress({ step: event.step, progress: event.progress });
+        break;
+      case 'deploy_complete':
+        setDeployProgress(null);
+        break;
+      case 'serial_data':
+        setSerialLines(prev => [...prev, { line: event.line, timestamp: event.timestamp }]);
+        break;
+      case 'human_gate':
+        setUiState('review');
+        setGateRequest({ task_id: event.task_id, question: event.question, context: event.context });
         break;
       case 'session_complete':
         setUiState('done');
@@ -111,6 +147,9 @@ export function useBuildSession() {
     setTestResults([]);
     setCoveragePct(null);
     setTokenUsage({ input: 0, output: 0, total: 0, perAgent: {} });
+    setSerialLines([]);
+    setDeployProgress(null);
+    setGateRequest(null);
 
     const res = await fetch('/api/sessions', { method: 'POST' });
     const { session_id } = await res.json();
@@ -126,5 +165,14 @@ export function useBuildSession() {
     });
   }, []);
 
-  return { uiState, tasks, agents, commits, events, sessionId, teachingMoments, testResults, coveragePct, tokenUsage, handleEvent, startBuild };
+  const clearGateRequest = useCallback(() => {
+    setGateRequest(null);
+  }, []);
+
+  return {
+    uiState, tasks, agents, commits, events, sessionId,
+    teachingMoments, testResults, coveragePct, tokenUsage,
+    serialLines, deployProgress, gateRequest,
+    handleEvent, startBuild, clearGateRequest,
+  };
 }

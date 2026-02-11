@@ -10,6 +10,7 @@ class SessionState(str, Enum):
     executing = "executing"
     testing = "testing"
     deploying = "deploying"
+    reviewing = "reviewing"
     done = "done"
 
 

@@ -23,6 +23,10 @@ _TRIGGER_MAP: dict[str, tuple[str, str]] = {
     "coverage_update": ("testing", "coverage"),
     "tester_task_completed": ("testing", "first_test_run"),
     "reviewer_task_completed": ("code_review", "first_review"),
+    "hardware_compile": ("hardware", "compilation"),
+    "hardware_flash": ("hardware", "flashing"),
+    "hardware_led": ("hardware", "gpio"),
+    "hardware_lora": ("hardware", "lora"),
 }
 
 

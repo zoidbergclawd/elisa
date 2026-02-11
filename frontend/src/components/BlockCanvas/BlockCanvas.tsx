@@ -7,9 +7,10 @@ registerBlocks();
 
 interface BlockCanvasProps {
   onWorkspaceChange: (json: Record<string, unknown>) => void;
+  readOnly?: boolean;
 }
 
-export default function BlockCanvas({ onWorkspaceChange }: BlockCanvasProps) {
+export default function BlockCanvas({ onWorkspaceChange, readOnly = false }: BlockCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const workspaceRef = useRef<Blockly.WorkspaceSvg | null>(null);
 
@@ -51,5 +52,26 @@ export default function BlockCanvas({ onWorkspaceChange }: BlockCanvasProps) {
     };
   }, [handleChange]);
 
-  return <div ref={containerRef} className="w-full h-full" />;
+  useEffect(() => {
+    if (!workspaceRef.current) return;
+    const workspace = workspaceRef.current;
+    if (readOnly) {
+      workspace.options.readOnly = true;
+    } else {
+      workspace.options.readOnly = false;
+    }
+  }, [readOnly]);
+
+  return (
+    <div className="w-full h-full relative">
+      <div ref={containerRef} className="w-full h-full" />
+      {readOnly && (
+        <div className="absolute inset-0 bg-white/30 z-10 flex items-start justify-center pt-4">
+          <span className="bg-blue-100 text-blue-700 text-sm px-3 py-1 rounded-full font-medium">
+            Building in progress...
+          </span>
+        </div>
+      )}
+    </div>
+  );
 }

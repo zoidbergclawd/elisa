@@ -1,5 +1,6 @@
 """Tests for Orchestrator (workspace setup, git integration, context flow)."""
 
+import asyncio
 import json
 import os
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -152,3 +153,105 @@ class TestRunPipeline:
     def test_project_type_default(self):
         orch, _ = make_orchestrator()
         assert orch._project_type == "software"
+
+    def test_run_includes_deploy_hardware(self):
+        orch, _ = make_orchestrator()
+        assert hasattr(orch, '_deploy_hardware')
+        assert hasattr(orch, '_should_deploy_hardware')
+
+
+class TestHumanGate:
+    def test_gate_event_exists(self):
+        orch, _ = make_orchestrator()
+        assert isinstance(orch._gate_event, asyncio.Event)
+
+    def test_gate_response_initially_none(self):
+        orch, _ = make_orchestrator()
+        assert orch._gate_response is None
+
+    def test_respond_to_gate_sets_event(self):
+        orch, _ = make_orchestrator()
+        orch.respond_to_gate(True)
+        assert orch._gate_event.is_set()
+        assert orch._gate_response == {"approved": True, "feedback": ""}
+
+    def test_respond_to_gate_with_feedback(self):
+        orch, _ = make_orchestrator()
+        orch.respond_to_gate(False, "Make it blue")
+        assert orch._gate_response == {"approved": False, "feedback": "Make it blue"}
+
+    def test_should_fire_gate_no_gates(self):
+        orch, _ = make_orchestrator({"workflow": {"human_gates": []}})
+        task = {"id": "task-1"}
+        assert orch._should_fire_gate(task, set()) is False
+
+    def test_should_fire_gate_with_gates(self):
+        spec = {"workflow": {"human_gates": ["before deploying"]}}
+        orch, _ = make_orchestrator(spec)
+        orch._tasks = [{"id": f"task-{i}"} for i in range(4)]
+        # Midpoint is 2, so should fire when 2 tasks are done
+        assert orch._should_fire_gate({"id": "task-1"}, {"task-0"}) is True
+
+    async def test_fire_human_gate_sends_event(self):
+        orch, send_event = make_orchestrator()
+        # Don't actually wait -- set gate immediately
+        async def auto_approve():
+            await asyncio.sleep(0.01)
+            orch.respond_to_gate(True)
+        asyncio.create_task(auto_approve())
+        await orch._fire_human_gate({"id": "task-1", "name": "Build UI"})
+        calls = [c.args[0] for c in send_event.call_args_list]
+        gate_events = [c for c in calls if c.get("type") == "human_gate"]
+        assert len(gate_events) == 1
+        assert gate_events[0]["task_id"] == "task-1"
+
+    async def test_fire_human_gate_rejection_creates_revision(self):
+        orch, send_event = make_orchestrator()
+        orch._tasks = [{"id": "task-1", "name": "Build UI", "agent_name": "Sparky"}]
+        orch._task_map = {"task-1": orch._tasks[0]}
+
+        async def auto_reject():
+            await asyncio.sleep(0.01)
+            orch.respond_to_gate(False, "Make it blue")
+        asyncio.create_task(auto_reject())
+        await orch._fire_human_gate(orch._tasks[0])
+
+        # Check revision task was added
+        assert len(orch._tasks) == 2
+        revision = orch._tasks[1]
+        assert revision["id"] == "task-revision-task-1"
+        assert "Make it blue" in revision["description"]
+        assert revision["agent_name"] == "Sparky"
+
+
+class TestHardwareDeploy:
+    def test_should_deploy_hardware_esp32(self):
+        spec = {"deployment": {"target": "esp32"}}
+        orch, _ = make_orchestrator(spec)
+        assert orch._should_deploy_hardware() is True
+
+    def test_should_deploy_hardware_both(self):
+        spec = {"deployment": {"target": "both"}}
+        orch, _ = make_orchestrator(spec)
+        assert orch._should_deploy_hardware() is True
+
+    def test_should_not_deploy_hardware_web(self):
+        spec = {"deployment": {"target": "web"}}
+        orch, _ = make_orchestrator(spec)
+        assert orch._should_deploy_hardware() is False
+
+    def test_should_not_deploy_hardware_preview(self):
+        spec = {"deployment": {"target": "preview"}}
+        orch, _ = make_orchestrator(spec)
+        assert orch._should_deploy_hardware() is False
+
+    def test_hardware_service_exists(self):
+        from app.services.hardware_service import HardwareService
+        orch, _ = make_orchestrator()
+        assert isinstance(orch._hardware_service, HardwareService)
+
+
+class TestCustomAgentFallback:
+    def test_custom_role_in_prompt_modules(self):
+        from app.services.orchestrator import PROMPT_MODULES
+        assert "custom" in PROMPT_MODULES

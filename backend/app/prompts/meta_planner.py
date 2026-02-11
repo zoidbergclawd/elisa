@@ -77,6 +77,22 @@ can execute sequentially.
 - estimated_time_minutes: total estimated wall-clock time
 - critical_path: the longest chain of dependent tasks (determines total time)
 
+## Hardware Project Rules
+
+If the project spec includes hardware components or deployment target "esp32" or "both":
+- Use the `elisa_hardware` library (ElisaBoard class) for all hardware interactions.
+- Include a "compile MicroPython code" task that verifies syntax before flashing.
+- Include a "flash to board" task as the final deployment step.
+- Hardware files go in the project root (main.py, lib/elisa_hardware.py).
+- Test tasks should verify code compiles cleanly (py_compile).
+
+## Workflow Hints
+
+- If `workflow.human_gates` is non-empty, insert a review checkpoint task after the main build tasks complete. The review task should have all build tasks as dependencies.
+- If `workflow.flow_hints` contains sequential hints, order those tasks accordingly in dependencies.
+- If `workflow.flow_hints` contains parallel hints, those tasks should share the same dependencies (can run concurrently).
+- If `workflow.iteration_conditions` is non-empty, note the conditions in the final review/testing task descriptions.
+
 ## Important
 
 - Output ONLY the JSON object. No markdown code fences, no commentary.

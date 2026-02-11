@@ -7,7 +7,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from app.models.session import BuildSession, SessionState
+from app.services.hardware_service import HardwareService
 from app.services.orchestrator import Orchestrator
+
+hardware_service = HardwareService()
 
 
 class ConnectionManager:
@@ -55,6 +58,11 @@ app.add_middleware(
 
 class StartRequest(BaseModel):
     spec: dict
+
+
+class GateResponse(BaseModel):
+    approved: bool
+    feedback: str = ""
 
 
 @app.get("/api/health")
@@ -144,6 +152,32 @@ async def get_session_tests(session_id: str):
 @app.get("/api/templates")
 async def list_templates():
     return []
+
+
+@app.post("/api/sessions/{session_id}/gate")
+async def respond_to_gate(session_id: str, req: GateResponse):
+    orch = orchestrators.get(session_id)
+    if not orch:
+        raise HTTPException(status_code=404, detail="Session not found")
+    orch.respond_to_gate(req.approved, req.feedback)
+    return {"status": "ok"}
+
+
+@app.post("/api/hardware/detect")
+async def detect_board():
+    board = await hardware_service.detect_board()
+    if board:
+        return {"detected": True, "port": board.port, "board_type": board.board_type}
+    return {"detected": False}
+
+
+@app.post("/api/hardware/flash/{session_id}")
+async def flash_hardware(session_id: str):
+    orch = orchestrators.get(session_id)
+    if not orch:
+        raise HTTPException(status_code=404, detail="Session not found")
+    result = await hardware_service.flash(orch._project_dir)
+    return {"success": result.success, "message": result.message}
 
 
 @app.websocket("/ws/session/{session_id}")

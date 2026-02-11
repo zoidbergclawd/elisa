@@ -1,5 +1,6 @@
 """Orchestrates the build pipeline: planning, execution, testing, deployment."""
 
+import asyncio
 import json
 import logging
 import os
@@ -11,6 +12,7 @@ from app.models.session import BuildSession, SessionState
 from app.prompts import builder_agent, tester_agent, reviewer_agent
 from app.services.agent_runner import AgentRunner
 from app.services.git_service import GitService, CommitInfo
+from app.services.hardware_service import HardwareService
 from app.services.meta_planner import MetaPlanner
 from app.services.teaching_engine import TeachingEngine
 from app.services.test_runner import TestRunner
@@ -24,6 +26,7 @@ PROMPT_MODULES = {
     "builder": builder_agent,
     "tester": tester_agent,
     "reviewer": reviewer_agent,
+    "custom": builder_agent,
 }
 
 
@@ -52,8 +55,12 @@ class Orchestrator:
         self._token_tracker = TokenTracker()
         self._teaching_engine = TeachingEngine()
         self._test_runner = TestRunner()
+        self._hardware_service = HardwareService()
         self._project_type: str = "software"
         self._test_results: dict = {}
+        self._gate_event = asyncio.Event()
+        self._gate_response: dict | None = None
+        self._serial_task: asyncio.Task | None = None
 
     async def run(self, spec: dict) -> None:
         """Execute the full build pipeline for a session."""
@@ -61,6 +68,8 @@ class Orchestrator:
             await self._plan(spec)
             await self._execute()
             await self._run_tests()
+            if self._should_deploy_hardware():
+                await self._deploy_hardware()
             await self._complete()
         except Exception as e:
             logger.exception("Orchestrator error")
@@ -306,6 +315,10 @@ class Orchestrator:
                 elif agent_role == "reviewer":
                     summary = result.summary if result else ""
                     await self._maybe_teach("reviewer_task_completed", summary)
+
+                # Check if a human gate should fire after this task
+                if self._should_fire_gate(task, completed):
+                    await self._fire_human_gate(task)
             else:
                 task["status"] = "failed"
                 if agent:
@@ -316,13 +329,174 @@ class Orchestrator:
                     "error": result.summary if result else "Unknown error",
                     "retry_count": retry_count,
                 })
-                await self._send({
-                    "type": "error",
-                    "message": f"Agent couldn't complete task: {task.get('name', task_id)}",
-                    "recoverable": True,
-                })
+
+                # Retry exhaustion triggers automatic human gate (PRD 5.4)
+                if retry_count > max_retries:
+                    await self._fire_human_gate(
+                        task,
+                        question="We're having trouble with this part. Can you help us figure it out?",
+                        context=result.summary if result else "Task failed after retries",
+                    )
+                else:
+                    await self._send({
+                        "type": "error",
+                        "message": f"Agent couldn't complete task: {task.get('name', task_id)}",
+                        "recoverable": True,
+                    })
 
             completed.add(task_id)
+
+    def _should_fire_gate(self, task: dict, completed: set[str]) -> bool:
+        """Check if a human gate should fire after this task completes."""
+        spec = self._session.spec or {}
+        human_gates = spec.get("workflow", {}).get("human_gates", [])
+        if not human_gates:
+            return False
+        # Fire gate when past the midpoint of tasks (all build tasks done)
+        midpoint = len(self._tasks) // 2
+        done_count = len(completed) + 1  # +1 for current task
+        return done_count == midpoint and done_count > 0
+
+    async def _fire_human_gate(
+        self,
+        task: dict,
+        question: str = "",
+        context: str = "",
+    ) -> None:
+        """Pause execution and wait for human approval."""
+        self._session.state = SessionState.reviewing
+        self._gate_event.clear()
+        self._gate_response = None
+
+        if not question:
+            question = "I've made some progress. Want to take a look before I continue?"
+        if not context:
+            context = f"Just completed: {task.get('name', task['id'])}"
+
+        await self._send({
+            "type": "human_gate",
+            "task_id": task["id"],
+            "question": question,
+            "context": context,
+        })
+
+        # Block until REST endpoint responds
+        await self._gate_event.wait()
+
+        response = self._gate_response or {"approved": True}
+        if not response.get("approved", True):
+            # Create a revision task with kid's feedback (PRD 5.3)
+            feedback = response.get("feedback", "")
+            revision_task = {
+                "id": f"task-revision-{task['id']}",
+                "name": f"Revise: {task.get('name', task['id'])}",
+                "description": f"Revise based on feedback: {feedback}",
+                "acceptance_criteria": [f"Address feedback: {feedback}"],
+                "dependencies": [task["id"]],
+                "agent_name": task.get("agent_name", ""),
+                "status": "pending",
+            }
+            self._tasks.append(revision_task)
+            self._task_map[revision_task["id"]] = revision_task
+            self._dag.add_task(revision_task["id"], revision_task["dependencies"])
+
+        # Resume execution
+        self._session.state = SessionState.executing
+
+    def respond_to_gate(self, approved: bool, feedback: str = "") -> None:
+        """Called by REST endpoint to respond to a human gate."""
+        self._gate_response = {"approved": approved, "feedback": feedback}
+        self._gate_event.set()
+
+    def _should_deploy_hardware(self) -> bool:
+        """Check if the project targets hardware deployment."""
+        spec = self._session.spec or {}
+        target = spec.get("deployment", {}).get("target", "preview")
+        return target in ("esp32", "both")
+
+    async def _deploy_hardware(self) -> None:
+        """Compile and flash project to ESP32."""
+        self._session.state = SessionState.deploying
+        await self._send({"type": "deploy_started", "target": "esp32"})
+
+        # Step 1: Compile
+        await self._send({
+            "type": "deploy_progress",
+            "step": "Compiling MicroPython code...",
+            "progress": 25,
+        })
+        compile_result = await self._hardware_service.compile(self._project_dir)
+        await self._maybe_teach("hardware_compile", "")
+
+        if not compile_result.success:
+            await self._send({
+                "type": "deploy_progress",
+                "step": f"Compile failed: {', '.join(compile_result.errors)}",
+                "progress": 25,
+            })
+            await self._send({
+                "type": "error",
+                "message": f"Compilation failed: {', '.join(compile_result.errors)}",
+                "recoverable": True,
+            })
+            return
+
+        # Step 2: Flash
+        await self._send({
+            "type": "deploy_progress",
+            "step": "Flashing to board...",
+            "progress": 60,
+        })
+        flash_result = await self._hardware_service.flash(self._project_dir)
+        await self._maybe_teach("hardware_flash", "")
+
+        if not flash_result.success:
+            await self._send({
+                "type": "deploy_progress",
+                "step": flash_result.message,
+                "progress": 60,
+            })
+            await self._send({
+                "type": "error",
+                "message": flash_result.message,
+                "recoverable": True,
+            })
+            return
+
+        # Step 3: Serial monitor
+        await self._send({
+            "type": "deploy_progress",
+            "step": "Starting serial monitor...",
+            "progress": 90,
+        })
+
+        board = await self._hardware_service.detect_board()
+        if board:
+            async def serial_callback(line: str) -> None:
+                from datetime import datetime, timezone
+                await self._send({
+                    "type": "serial_data",
+                    "line": line,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                })
+
+            self._serial_task = await self._hardware_service.start_serial_monitor(
+                board.port, serial_callback
+            )
+
+        # Check for hardware-specific teaching moments
+        hw_components = (self._session.spec or {}).get("hardware", {}).get("components", [])
+        for comp in hw_components:
+            comp_type = comp.get("type", "")
+            if comp_type in ("led", "button", "sensor", "buzzer"):
+                await self._maybe_teach("hardware_led", "")
+                break
+        for comp in hw_components:
+            if comp.get("type", "") in ("lora_send", "lora_receive"):
+                await self._maybe_teach("hardware_lora", "")
+                break
+
+        await self._send({"type": "deploy_complete", "target": "esp32"})
 
     async def _run_tests(self) -> None:
         """Run tests on the generated project."""

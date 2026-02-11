@@ -5,6 +5,7 @@ import MissionControl from './components/MissionControl/MissionControl';
 import BottomBar from './components/BottomBar/BottomBar';
 import GoButton from './components/shared/GoButton';
 import TeachingToast from './components/shared/TeachingToast';
+import HumanGateModal from './components/shared/HumanGateModal';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useBuildSession } from './hooks/useBuildSession';
 import type { TeachingMoment } from './types';
@@ -14,7 +15,8 @@ export default function App() {
   const {
     uiState, tasks, agents, commits, events, sessionId,
     teachingMoments, testResults, coveragePct, tokenUsage,
-    handleEvent, startBuild,
+    serialLines, deployProgress, gateRequest,
+    handleEvent, startBuild, clearGateRequest,
   } = useBuildSession();
   const { connected } = useWebSocket({ sessionId, onEvent: handleEvent });
 
@@ -70,7 +72,7 @@ export default function App() {
       <div className="flex flex-1 overflow-hidden">
         {/* Left: BlockCanvas */}
         <div className="flex-1 relative">
-          <BlockCanvas onWorkspaceChange={handleWorkspaceChange} />
+          <BlockCanvas onWorkspaceChange={handleWorkspaceChange} readOnly={uiState !== 'design'} />
         </div>
 
         {/* Right: Mission Control */}
@@ -82,6 +84,7 @@ export default function App() {
             events={events}
             uiState={uiState}
             tokenUsage={tokenUsage}
+            deployProgress={deployProgress}
           />
         </div>
       </div>
@@ -92,7 +95,51 @@ export default function App() {
         testResults={testResults}
         coveragePct={coveragePct}
         teachingMoments={teachingMoments}
+        serialLines={serialLines}
       />
+
+      {/* Human gate modal */}
+      {gateRequest && sessionId && (
+        <HumanGateModal
+          taskId={gateRequest.task_id}
+          question={gateRequest.question}
+          context={gateRequest.context}
+          sessionId={sessionId}
+          onClose={clearGateRequest}
+        />
+      )}
+
+      {/* Done mode overlay */}
+      {uiState === 'done' && (
+        <div className="fixed inset-0 bg-black/50 z-40 flex items-center justify-center">
+          <div className="bg-white rounded-xl shadow-2xl p-8 max-w-md mx-4 text-center">
+            <h2 className="text-2xl font-bold mb-4">Project Complete!</h2>
+            <p className="text-gray-600 mb-4">
+              {events.find(e => e.type === 'session_complete')?.type === 'session_complete'
+                ? (events.find(e => e.type === 'session_complete') as { type: 'session_complete'; summary: string }).summary
+                : 'Your project has been built successfully.'}
+            </p>
+            {teachingMoments.length > 0 && (
+              <div className="text-left mb-4 bg-blue-50 rounded-lg p-3">
+                <h3 className="text-sm font-semibold text-blue-800 mb-2">What you learned:</h3>
+                <ul className="text-sm text-blue-700 space-y-1">
+                  {teachingMoments.map((m, i) => (
+                    <li key={i}>- {m.headline}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <button
+              onClick={() => {
+                window.location.reload();
+              }}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+            >
+              Build something new
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Teaching toast overlay */}
       <TeachingToast moment={currentToast} onDismiss={handleDismissToast} />

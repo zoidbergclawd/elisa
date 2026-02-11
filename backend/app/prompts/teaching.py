@@ -126,6 +126,63 @@ CONCEPT_CURRICULUM = {
             ),
         },
     },
+    "hardware": {
+        "gpio": {
+            "concept": "hardware",
+            "headline": "GPIO -- your board's connections to the world!",
+            "explanation": (
+                "GPIO stands for 'General Purpose Input/Output' -- they're the pins on your "
+                "board that can either send signals out (like turning on an LED) or read signals "
+                "in (like checking if a button is pressed)."
+            ),
+            "tell_me_more": (
+                "Each pin has a number, and you can set it to be an input or output in your code. "
+                "When it's an output, you can turn it on (high voltage) or off (low voltage). "
+                "When it's an input, you can read whether something is connected or pressed."
+            ),
+        },
+        "lora": {
+            "concept": "hardware",
+            "headline": "LoRa -- long-range walkie-talkies for electronics!",
+            "explanation": (
+                "LoRa is a way for your boards to talk to each other wirelessly -- even from "
+                "really far away! It's like walkie-talkies for your electronics."
+            ),
+            "tell_me_more": (
+                "LoRa can send messages over a kilometer away, even through walls! "
+                "It uses very little power, so your board's battery lasts a long time. "
+                "The tradeoff is that it can only send small messages, not big files or videos."
+            ),
+        },
+        "compilation": {
+            "concept": "hardware",
+            "headline": "Compiling -- translating code for your board!",
+            "explanation": (
+                "Before your code can run on the ESP32, it needs to be translated into a language "
+                "the chip understands. That's called compiling. It's like translating English into "
+                "Spanish -- same meaning, different language."
+            ),
+            "tell_me_more": (
+                "The compiler checks your code for errors before sending it to the board. "
+                "If it finds a mistake, it tells you exactly where it is so you can fix it. "
+                "This saves you from uploading broken code to your board!"
+            ),
+        },
+        "flashing": {
+            "concept": "hardware",
+            "headline": "Flashing -- sending code to your board!",
+            "explanation": (
+                "Flashing means sending your compiled code to the board. It goes through the USB "
+                "cable and gets stored in the board's memory. Once it's there, the board runs your "
+                "code every time it turns on!"
+            ),
+            "tell_me_more": (
+                "The word 'flash' comes from 'flash memory' -- a type of storage that keeps data "
+                "even when the power is off. It's the same technology in USB drives and SD cards. "
+                "You can flash your board as many times as you want with new code."
+            ),
+        },
+    },
     "code_review": {
         "first_review": {
             "concept": "code_review",

@@ -71,12 +71,14 @@ export type WSEvent =
   | { type: 'agent_status'; agent: Agent }
   | { type: 'agent_message'; from: string; to: string; content: string }
   | { type: 'deploy_started'; target: string }
-  | { type: 'deploy_progress'; target: string; message: string }
+  | { type: 'deploy_progress'; step: string; progress: number }
   | { type: 'deploy_complete'; target: string; url?: string }
   | { type: 'teaching_moment'; concept: string; headline: string; explanation: string; tell_me_more?: string; related_concepts?: string[] }
   | { type: 'commit_created'; sha: string; message: string; agent_name: string; task_id: string; timestamp: string; files_changed: string[] }
   | { type: 'test_result'; test_name: string; passed: boolean; details: string }
   | { type: 'coverage_update'; percentage: number; details?: CoverageReport }
   | { type: 'token_usage'; agent_name: string; input_tokens: number; output_tokens: number }
+  | { type: 'serial_data'; line: string; timestamp: string }
+  | { type: 'human_gate'; task_id: string; question: string; context: string }
   | { type: 'error'; message: string; recoverable: boolean }
   | { type: 'session_complete'; summary: string };

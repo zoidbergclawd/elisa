@@ -218,5 +218,84 @@ describe('useBuildSession', () => {
     expect(result.current.testResults).toEqual([]);
     expect(result.current.coveragePct).toBeNull();
     expect(result.current.tokenUsage).toEqual({ input: 0, output: 0, total: 0, perAgent: {} });
+    expect(result.current.serialLines).toEqual([]);
+    expect(result.current.deployProgress).toBeNull();
+    expect(result.current.gateRequest).toBeNull();
+  });
+
+  it('handles serial_data event', () => {
+    const { result } = renderHook(() => useBuildSession());
+    act(() => {
+      result.current.handleEvent({
+        type: 'serial_data',
+        line: 'Hello from board',
+        timestamp: '2026-02-10T12:00:00Z',
+      });
+    });
+    expect(result.current.serialLines).toHaveLength(1);
+    expect(result.current.serialLines[0].line).toBe('Hello from board');
+  });
+
+  it('handles deploy_started event', () => {
+    const { result } = renderHook(() => useBuildSession());
+    act(() => {
+      result.current.handleEvent({ type: 'deploy_started', target: 'esp32' });
+    });
+    expect(result.current.uiState).toBe('building');
+    expect(result.current.deployProgress).toEqual({ step: 'Starting deployment...', progress: 0 });
+  });
+
+  it('handles deploy_progress event', () => {
+    const { result } = renderHook(() => useBuildSession());
+    act(() => {
+      result.current.handleEvent({ type: 'deploy_progress', step: 'Flashing...', progress: 60 });
+    });
+    expect(result.current.deployProgress).toEqual({ step: 'Flashing...', progress: 60 });
+  });
+
+  it('handles deploy_complete event', () => {
+    const { result } = renderHook(() => useBuildSession());
+    act(() => {
+      result.current.handleEvent({ type: 'deploy_started', target: 'esp32' });
+    });
+    act(() => {
+      result.current.handleEvent({ type: 'deploy_complete', target: 'esp32' });
+    });
+    expect(result.current.deployProgress).toBeNull();
+  });
+
+  it('handles human_gate event', () => {
+    const { result } = renderHook(() => useBuildSession());
+    act(() => {
+      result.current.handleEvent({
+        type: 'human_gate',
+        task_id: 'task-3',
+        question: 'Check this out?',
+        context: 'Built the UI',
+      });
+    });
+    expect(result.current.uiState).toBe('review');
+    expect(result.current.gateRequest).toEqual({
+      task_id: 'task-3',
+      question: 'Check this out?',
+      context: 'Built the UI',
+    });
+  });
+
+  it('clearGateRequest clears gate request', () => {
+    const { result } = renderHook(() => useBuildSession());
+    act(() => {
+      result.current.handleEvent({
+        type: 'human_gate',
+        task_id: 'task-3',
+        question: 'Check?',
+        context: 'ctx',
+      });
+    });
+    expect(result.current.gateRequest).not.toBeNull();
+    act(() => {
+      result.current.clearGateRequest();
+    });
+    expect(result.current.gateRequest).toBeNull();
   });
 });
