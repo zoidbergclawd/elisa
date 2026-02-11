@@ -13,6 +13,7 @@ import { useWebSocket } from './hooks/useWebSocket';
 import { useBuildSession } from './hooks/useBuildSession';
 import { saveProjectFile, loadProjectFile, downloadBlob } from './lib/projectFile';
 import type { TeachingMoment } from './types';
+import elisaLogo from '../assets/Elisa.png';
 import type { Skill, Rule } from './components/Skills/types';
 
 const LS_WORKSPACE = 'elisa:workspace';
@@ -152,7 +153,10 @@ export default function App() {
     <div className="flex flex-col h-screen bg-gray-50 text-gray-900">
       {/* Header */}
       <header className="flex items-center justify-between px-4 py-2 bg-white border-b border-gray-200">
-        <h1 className="text-xl font-bold tracking-tight">Elisa</h1>
+        <div className="flex items-center gap-2">
+          <img src={elisaLogo} alt="Elisa logo" className="h-8 w-8 rounded-full" />
+          <h1 className="text-xl font-bold tracking-tight">Elisa</h1>
+        </div>
         <nav className="flex gap-2">
           <button
             onClick={() => fileInputRef.current?.click()}
