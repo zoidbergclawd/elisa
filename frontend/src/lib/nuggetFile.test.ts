@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import JSZip from 'jszip';
-import { saveProjectFile, loadProjectFile } from './projectFile';
+import { saveNuggetFile, loadNuggetFile } from './nuggetFile';
 import type { Skill, Rule } from '../components/Skills/types';
 import type { Portal } from '../components/Portals/types';
 
 const workspace: Record<string, unknown> = {
-  blocks: { languageVersion: 0, blocks: [{ type: 'project_goal', fields: { GOAL: 'test' } }] },
+  blocks: { languageVersion: 0, blocks: [{ type: 'nugget_goal', fields: { GOAL: 'test' } }] },
 };
 
 const skills: Skill[] = [
@@ -45,9 +45,9 @@ function blobToFile(blob: Blob, name: string): File {
   return new File([blob], name);
 }
 
-describe('saveProjectFile', () => {
+describe('saveNuggetFile', () => {
   it('produces a zip with workspace.json, skills.json, rules.json, and portals.json', async () => {
-    const blob = await saveProjectFile(workspace, skills, rules, portals);
+    const blob = await saveNuggetFile(workspace, skills, rules, portals);
     const zip = await JSZip.loadAsync(await blobToArrayBuffer(blob));
 
     expect(zip.file('workspace.json')).not.toBeNull();
@@ -56,7 +56,7 @@ describe('saveProjectFile', () => {
     expect(zip.file('portals.json')).not.toBeNull();
 
     const ws = JSON.parse(await zip.file('workspace.json')!.async('string'));
-    expect(ws.blocks.blocks[0].type).toBe('project_goal');
+    expect(ws.blocks.blocks[0].type).toBe('nugget_goal');
 
     const sk = JSON.parse(await zip.file('skills.json')!.async('string'));
     expect(sk).toHaveLength(1);
@@ -71,24 +71,24 @@ describe('saveProjectFile', () => {
     expect(po[0].name).toBe('My ESP32');
   });
 
-  it('includes project archive files under project/ when provided', async () => {
+  it('includes output archive files under output/ when provided', async () => {
     const innerZip = new JSZip();
     innerZip.file('src/main.py', 'print("hello")');
     innerZip.file('tests/test_main.py', 'assert True');
     const archiveBlob = await innerZip.generateAsync({ type: 'blob' });
 
-    const blob = await saveProjectFile(workspace, skills, rules, portals, archiveBlob);
+    const blob = await saveNuggetFile(workspace, skills, rules, portals, archiveBlob);
     const zip = await JSZip.loadAsync(await blobToArrayBuffer(blob));
 
-    expect(zip.file('project/src/main.py')).not.toBeNull();
-    expect(zip.file('project/tests/test_main.py')).not.toBeNull();
+    expect(zip.file('output/src/main.py')).not.toBeNull();
+    expect(zip.file('output/tests/test_main.py')).not.toBeNull();
 
-    const content = await zip.file('project/src/main.py')!.async('string');
+    const content = await zip.file('output/src/main.py')!.async('string');
     expect(content).toBe('print("hello")');
   });
 
   it('works with empty skills, rules, and portals arrays', async () => {
-    const blob = await saveProjectFile(workspace, [], [], []);
+    const blob = await saveNuggetFile(workspace, [], [], []);
     const zip = await JSZip.loadAsync(await blobToArrayBuffer(blob));
 
     const sk = JSON.parse(await zip.file('skills.json')!.async('string'));
@@ -99,43 +99,61 @@ describe('saveProjectFile', () => {
   });
 });
 
-describe('loadProjectFile', () => {
+describe('loadNuggetFile', () => {
   it('round-trips workspace, skills, rules, and portals', async () => {
-    const blob = await saveProjectFile(workspace, skills, rules, portals);
+    const blob = await saveNuggetFile(workspace, skills, rules, portals);
     const file = blobToFile(blob, 'test.elisa');
 
-    const result = await loadProjectFile(file);
+    const result = await loadNuggetFile(file);
 
     expect(result.workspace).toEqual(workspace);
     expect(result.skills).toEqual(skills);
     expect(result.rules).toEqual(rules);
     expect(result.portals).toEqual(portals);
-    expect(result.projectArchive).toBeUndefined();
+    expect(result.outputArchive).toBeUndefined();
   });
 
-  it('round-trips project archive', async () => {
+  it('round-trips output archive', async () => {
     const innerZip = new JSZip();
     innerZip.file('src/index.ts', 'console.log("hi")');
     const archiveBlob = await innerZip.generateAsync({ type: 'blob' });
 
-    const blob = await saveProjectFile(workspace, skills, rules, portals, archiveBlob);
+    const blob = await saveNuggetFile(workspace, skills, rules, portals, archiveBlob);
     const file = blobToFile(blob, 'test.elisa');
 
-    const result = await loadProjectFile(file);
-    expect(result.projectArchive).toBeDefined();
+    const result = await loadNuggetFile(file);
+    expect(result.outputArchive).toBeDefined();
 
-    const restored = await JSZip.loadAsync(await blobToArrayBuffer(result.projectArchive!));
+    const restored = await JSZip.loadAsync(await blobToArrayBuffer(result.outputArchive!));
     const content = await restored.file('src/index.ts')!.async('string');
     expect(content).toBe('console.log("hi")');
   });
 
+  it('loads legacy .elisa files with project/ folder', async () => {
+    const zip = new JSZip();
+    zip.file('workspace.json', JSON.stringify(workspace));
+    zip.file('skills.json', JSON.stringify(skills));
+    zip.file('rules.json', JSON.stringify(rules));
+    zip.file('portals.json', JSON.stringify(portals));
+    zip.folder('project')!.file('src/main.py', 'print("legacy")');
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const file = blobToFile(blob, 'legacy.elisa');
+
+    const result = await loadNuggetFile(file);
+    expect(result.outputArchive).toBeDefined();
+
+    const restored = await JSZip.loadAsync(await blobToArrayBuffer(result.outputArchive!));
+    const content = await restored.file('src/main.py')!.async('string');
+    expect(content).toBe('print("legacy")');
+  });
+
   it('throws on invalid zip (missing workspace.json)', async () => {
     const zip = new JSZip();
-    zip.file('random.txt', 'not a project');
+    zip.file('random.txt', 'not a nugget');
     const blob = await zip.generateAsync({ type: 'blob' });
     const file = blobToFile(blob, 'bad.elisa');
 
-    await expect(loadProjectFile(file)).rejects.toThrow('Invalid .elisa file: missing workspace.json');
+    await expect(loadNuggetFile(file)).rejects.toThrow('Invalid .elisa file: missing workspace.json');
   });
 
   it('defaults to empty arrays when skills.json, rules.json, and portals.json are missing', async () => {
@@ -144,7 +162,7 @@ describe('loadProjectFile', () => {
     const blob = await zip.generateAsync({ type: 'blob' });
     const file = blobToFile(blob, 'minimal.elisa');
 
-    const result = await loadProjectFile(file);
+    const result = await loadNuggetFile(file);
     expect(result.workspace).toEqual(workspace);
     expect(result.skills).toEqual([]);
     expect(result.rules).toEqual([]);

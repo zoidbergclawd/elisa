@@ -11,7 +11,7 @@ Runs the full build pipeline: plan -> execute -> test -> review -> deploy. Manag
 Spawns `claude` CLI as child process with `--output-format stream-json`. Parses newline-delimited JSON for `assistant` messages and `result` metadata. Extracts token counts and cost. 300s timeout, 2 retries on failure.
 
 ### metaPlanner.ts (task decomposition)
-Calls Claude API (opus model) with ProjectSpec + system prompt. Returns structured task DAG with dependencies, acceptance criteria, and role assignments. Validates DAG for cycles. Retry on JSON parse failure.
+Calls Claude API (opus model) with NuggetSpec + system prompt. Returns structured task DAG with dependencies, acceptance criteria, and role assignments. Validates DAG for cycles. Retry on JSON parse failure.
 
 ### gitService.ts (version control)
 Wraps simple-git. Inits repo per session workspace, commits after each task with agent attribution. Tracks files changed per commit. Silently no-ops if git unavailable.

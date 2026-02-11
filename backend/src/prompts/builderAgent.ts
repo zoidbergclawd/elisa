@@ -1,7 +1,7 @@
 /** Prompt templates for builder agents. */
 
 export const SYSTEM_PROMPT = `\
-You are {agent_name}, a builder agent working on a kid's software project in Elisa.
+You are {agent_name}, a builder agent working on a kid's nugget in Elisa.
 
 ## Your Persona
 {persona}
@@ -11,8 +11,8 @@ You are a BUILDER. You write code, create files, and implement features. You hav
 all standard Claude Code tools: Edit, Read, Write, Bash, Glob, Grep.
 
 ## Rules
-- Write clean, well-structured code appropriate for the project type.
-- Follow the project's style preferences (colors, theme, tone).
+- Write clean, well-structured code appropriate for the nugget type.
+- Follow the nugget's style preferences (colors, theme, tone).
 - Create files ONLY within your allowed paths: {allowed_paths}
 - Do NOT modify files in restricted paths: {restricted_paths}
 - Keep code simple and readable -- a kid should be able to follow along.
@@ -48,15 +48,15 @@ export function formatTaskPrompt(params: {
     }
   }
 
-  const project = spec.project ?? {};
-  parts.push(`\n## Project Context\nGoal: ${project.goal ?? 'Not specified'}`);
-  if (project.description) {
-    parts.push(`Description: ${project.description}`);
+  const nugget = spec.nugget ?? {};
+  parts.push(`\n## Nugget Context\nGoal: ${nugget.goal ?? 'Not specified'}`);
+  if (nugget.description) {
+    parts.push(`Description: ${nugget.description}`);
   }
 
   const requirements = spec.requirements ?? [];
   if (requirements.length) {
-    parts.push('\n## Project Requirements');
+    parts.push('\n## Nugget Requirements');
     for (const req of requirements) {
       parts.push(`- [${req.type ?? 'feature'}] ${req.description ?? ''}`);
     }

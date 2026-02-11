@@ -1,4 +1,4 @@
-/** Context management -- file manifest, project context, state building. */
+/** Context management -- file manifest, nugget context, state building. */
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -27,7 +27,7 @@ export class ContextManager {
     return words.slice(0, maxWords).join(' ') + ' [truncated]';
   }
 
-  static buildFileManifest(projectDir: string, maxEntries = 200): string {
+  static buildFileManifest(workDir: string, maxEntries = 200): string {
     const entries: string[] = [];
 
     function walk(dir: string): void {
@@ -49,7 +49,7 @@ export class ContextManager {
           if (!SKIP_DIRS.has(item)) walk(full);
         } else {
           if (entries.length >= maxEntries) return;
-          const rel = path.relative(projectDir, full).replace(/\\/g, '/');
+          const rel = path.relative(workDir, full).replace(/\\/g, '/');
           let hint = '';
           try {
             const fd = fs.openSync(full, 'r');
@@ -66,15 +66,15 @@ export class ContextManager {
       }
     }
 
-    walk(projectDir);
+    walk(workDir);
     return entries.join('\n');
   }
 
-  static buildProjectContext(
+  static buildNuggetContext(
     taskSummaries: Record<string, string>,
     completedTaskIds: Set<string>,
   ): string {
-    const lines = ['# Project Context', ''];
+    const lines = ['# Nugget Context', ''];
     for (const taskId of [...completedTaskIds].sort()) {
       const summary = taskSummaries[taskId];
       if (summary) {

@@ -1,5 +1,5 @@
 {
-  "project": { "goal": "A todo list", "description": "A todo list app with tests", "type": "general" },
+  "nugget": { "goal": "A todo list", "description": "A todo list app with tests", "type": "general" },
   "requirements": [
     { "type": "feature", "description": "add items to a list" },
     { "type": "feature", "description": "mark items as done" }

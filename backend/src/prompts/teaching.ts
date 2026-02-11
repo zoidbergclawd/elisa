@@ -15,7 +15,7 @@ export const CONCEPT_CURRICULUM: Record<string, Record<string, TeachingMomentDat
       explanation:
         "Your helpers are saving their work to a place called GitHub. " +
         "Think of it like a shared notebook -- everyone can see what changed and when. " +
-        "Each save is called a 'commit' -- it's like a snapshot of your project at that moment.",
+        "Each save is called a 'commit' -- it's like a snapshot of your nugget at that moment.",
       tell_me_more:
         'Every commit has a short message that says what changed. ' +
         'This way, if something breaks, the team can look back and find exactly when it happened. ' +
@@ -37,7 +37,7 @@ export const CONCEPT_CURRICULUM: Record<string, Record<string, TeachingMomentDat
       headline: 'Good commit messages tell a story',
       explanation:
         'Notice how each save has a message? Good messages explain *what* changed and *why*. ' +
-        "This helps everyone on the team understand the project's history.",
+        "This helps everyone on the team understand the nugget's history.",
       tell_me_more:
         "A great commit message is short but clear, like 'Add login button to homepage'. " +
         "Avoid vague messages like 'fixed stuff' -- future you will thank present you!",
@@ -46,10 +46,10 @@ export const CONCEPT_CURRICULUM: Record<string, Record<string, TeachingMomentDat
   testing: {
     first_test_run: {
       concept: 'testing',
-      headline: 'Your project is being tested!',
+      headline: 'Your nugget is being tested!',
       explanation:
-        'A tester agent is checking that your project works correctly. ' +
-        'Tests are like a checklist -- they try out different parts of your project ' +
+        'A tester agent is checking that your nugget works correctly. ' +
+        'Tests are like a checklist -- they try out different parts of your nugget ' +
         "and make sure each one does what it's supposed to.",
       tell_me_more:
         'Automated tests run the same checks every time, so you never forget to test something. ' +
@@ -59,7 +59,7 @@ export const CONCEPT_CURRICULUM: Record<string, Record<string, TeachingMomentDat
       concept: 'testing',
       headline: 'Tests are passing!',
       explanation:
-        'Great news -- the tests show that your project is working correctly! ' +
+        'Great news -- the tests show that your nugget is working correctly! ' +
         'A passing test means the code does exactly what was expected. ' +
         'Green checkmarks mean everything is on track.',
       tell_me_more:
@@ -72,7 +72,7 @@ export const CONCEPT_CURRICULUM: Record<string, Record<string, TeachingMomentDat
       explanation:
         "Some tests didn't pass, which means there might be a bug. " +
         "Don't worry -- finding bugs is exactly what tests are for! " +
-        "It's better to catch problems now than after your project is finished.",
+        "It's better to catch problems now than after your nugget is finished.",
       tell_me_more:
         'When a test fails, developers look at which test broke and what it expected. ' +
         'Then they fix the code and run the tests again. This cycle of test-fix-test is totally normal.',
@@ -82,7 +82,7 @@ export const CONCEPT_CURRICULUM: Record<string, Record<string, TeachingMomentDat
       headline: 'Test coverage -- how much is tested?',
       explanation:
         'Coverage tells you what percentage of your code is being tested. ' +
-        'Higher coverage means more of your project has been checked. ' +
+        'Higher coverage means more of your nugget has been checked. ' +
         "It's like knowing how many rooms in a house have been inspected.",
       tell_me_more:
         "100% coverage doesn't mean zero bugs, but it means every line of code " +
@@ -94,7 +94,7 @@ export const CONCEPT_CURRICULUM: Record<string, Record<string, TeachingMomentDat
       concept: 'decomposition',
       headline: 'Breaking a big job into smaller pieces!',
       explanation:
-        'Your project has been broken down into smaller tasks. ' +
+        'Your nugget has been broken down into smaller tasks. ' +
         "This is called 'decomposition' -- taking a big, complicated goal " +
         'and splitting it into manageable pieces that different helpers can work on.',
       tell_me_more:
@@ -112,7 +112,7 @@ export const CONCEPT_CURRICULUM: Record<string, Record<string, TeachingMomentDat
       tell_me_more:
         "Figuring out the right order is called 'topological sorting'. " +
         'Tasks with no dependencies can run at the same time (in parallel), ' +
-        'which makes the whole project finish faster.',
+        'which makes the whole nugget finish faster.',
     },
   },
   hardware: {
@@ -234,17 +234,17 @@ export function getCurriculumMoment(
 
 export const TEACHING_SYSTEM_PROMPT =
   'You are a friendly teaching assistant for kids aged 8-14 who are learning about ' +
-  'software engineering by watching AI agents build their projects. ' +
+  'software engineering by watching AI agents build their nuggets. ' +
   'Explain concepts in simple, encouraging language. Use analogies kids can relate to. ' +
   'Keep explanations to 2-3 sentences. Always be encouraging and never condescending.';
 
 export function teachingUserPrompt(
   eventType: string,
   eventDetails: string,
-  projectType = 'software',
+  nuggetType = 'software',
 ): string {
   return (
-    `A kid is watching their ${projectType} project being built by AI agents. ` +
+    `A kid is watching their ${nuggetType} nugget being built by AI agents. ` +
     `The following event just happened: ${eventType}. ` +
     `Details: ${eventDetails}. ` +
     'Generate a short, kid-friendly teaching moment about this. ' +

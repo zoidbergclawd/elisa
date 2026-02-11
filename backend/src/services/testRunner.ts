@@ -1,4 +1,4 @@
-/** Runs tests for generated projects. */
+/** Runs tests for generated nuggets. */
 
 import { execFile } from 'node:child_process';
 import fs from 'node:fs';
@@ -9,8 +9,8 @@ import { promisify } from 'node:util';
 const execFileAsync = promisify(execFile);
 
 export class TestRunner {
-  async runTests(projectPath: string): Promise<TestRunResult> {
-    const testsDir = path.join(projectPath, 'tests');
+  async runTests(workDir: string): Promise<TestRunResult> {
+    const testsDir = path.join(workDir, 'tests');
     if (!fs.existsSync(testsDir) || !fs.statSync(testsDir).isDirectory()) {
       return { tests: [], passed: 0, failed: 0, total: 0, coverage_pct: null, coverage_details: null };
     }
@@ -18,7 +18,7 @@ export class TestRunner {
     const args = ['-m', 'pytest', testsDir, '-v', '--tb=short'];
 
     let covJsonPath: string | null = null;
-    const srcDir = path.join(projectPath, 'src');
+    const srcDir = path.join(workDir, 'src');
     if (fs.existsSync(srcDir) && fs.statSync(srcDir).isDirectory()) {
       covJsonPath = path.join(os.tmpdir(), `elisa-cov-${Date.now()}.json`);
       args.push(
@@ -32,7 +32,7 @@ export class TestRunner {
     let stderr = '';
     try {
       const result = await withTimeout(
-        execFileAsync('python', args, { cwd: projectPath }),
+        execFileAsync('python', args, { cwd: workDir }),
         120_000,
       );
       stdout = result.stdout ?? '';

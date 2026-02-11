@@ -51,7 +51,7 @@ export class Orchestrator {
   private taskMap: Record<string, Record<string, any>> = {};
   private agentMap: Record<string, Record<string, any>> = {};
   private taskSummaries: Record<string, string> = {};
-  projectDir = path.join(os.tmpdir(), `elisa-project-${Date.now()}`);
+  nuggetDir = path.join(os.tmpdir(), `elisa-nugget-${Date.now()}`);
   private git: GitService | null = new GitService();
   private context = new ContextManager();
   private commits: CommitInfo[] = [];
@@ -60,7 +60,7 @@ export class Orchestrator {
   private testRunner = new TestRunner();
   private hardwareService = new HardwareService();
   private portalService = new PortalService(this.hardwareService);
-  private projectType = 'software';
+  private nuggetType = 'software';
   private testResults: Record<string, any> = {};
   private serialHandle: { close: () => void } | null = null;
 
@@ -107,8 +107,8 @@ export class Orchestrator {
     this.session.state = 'planning';
     await this.send({ type: 'planning_started' });
 
-    this.projectType =
-      (this.session.spec ?? {}).project?.type ?? 'software';
+    this.nuggetType =
+      (this.session.spec ?? {}).nugget?.type ?? 'software';
 
     const plan = await this.metaPlanner.plan(spec);
 
@@ -237,7 +237,7 @@ export class Orchestrator {
       });
 
       // Append file manifest
-      const fileManifest = ContextManager.buildFileManifest(this.projectDir);
+      const fileManifest = ContextManager.buildFileManifest(this.nuggetDir);
       if (fileManifest) {
         userPrompt += `\n\n## FILES IN WORKSPACE\n${fileManifest}`;
       }
@@ -254,7 +254,7 @@ export class Orchestrator {
           prompt: userPrompt,
           systemPrompt,
           onOutput: this.makeOutputHandler(agentName),
-          workingDir: this.projectDir,
+          workingDir: this.nuggetDir,
           ...(mcpServers.length > 0 ? { mcpServers } : {}),
         });
 
@@ -305,7 +305,7 @@ export class Orchestrator {
 
         // Read comms file
         const commsPath = path.join(
-          this.projectDir, '.elisa', 'comms', `${taskId}_summary.md`,
+          this.nuggetDir, '.elisa', 'comms', `${taskId}_summary.md`,
         );
         if (fs.existsSync(commsPath)) {
           try {
@@ -323,11 +323,11 @@ export class Orchestrator {
           });
         }
 
-        // Update project_context.md
+        // Update nugget_context.md
         const contextPath = path.join(
-          this.projectDir, '.elisa', 'context', 'project_context.md',
+          this.nuggetDir, '.elisa', 'context', 'nugget_context.md',
         );
-        const contextText = ContextManager.buildProjectContext(
+        const contextText = ContextManager.buildNuggetContext(
           this.taskSummaries,
           new Set([...completed, taskId]),
         );
@@ -335,7 +335,7 @@ export class Orchestrator {
 
         // Update current_state.json
         const statePath = path.join(
-          this.projectDir, '.elisa', 'status', 'current_state.json',
+          this.nuggetDir, '.elisa', 'status', 'current_state.json',
         );
         const state = ContextManager.buildCurrentState(this.tasks, this.agents);
         fs.writeFileSync(statePath, JSON.stringify(state, null, 2), 'utf-8');
@@ -345,7 +345,7 @@ export class Orchestrator {
           const commitMsg = `${agentName}: ${task.name ?? taskId}`;
           try {
             const commitInfo = await this.git.commit(
-              this.projectDir, commitMsg, agentName, taskId,
+              this.nuggetDir, commitMsg, agentName, taskId,
             );
             if (commitInfo.sha) {
               this.commits.push(commitInfo);
@@ -510,7 +510,7 @@ export class Orchestrator {
       step: 'Compiling MicroPython code...',
       progress: 25,
     });
-    const compileResult = await this.hardwareService.compile(this.projectDir);
+    const compileResult = await this.hardwareService.compile(this.nuggetDir);
     await this.maybeTeach('hardware_compile', '');
 
     if (!compileResult.success) {
@@ -533,7 +533,7 @@ export class Orchestrator {
       step: 'Flashing to board...',
       progress: 60,
     });
-    const flashResult = await this.hardwareService.flash(this.projectDir);
+    const flashResult = await this.hardwareService.flash(this.nuggetDir);
     await this.maybeTeach('hardware_flash', '');
 
     if (!flashResult.success) {
@@ -617,7 +617,7 @@ export class Orchestrator {
         step: 'Compiling code for serial portal...',
         progress: 25,
       });
-      const compileResult = await this.hardwareService.compile(this.projectDir);
+      const compileResult = await this.hardwareService.compile(this.nuggetDir);
 
       if (!compileResult.success) {
         await this.send({
@@ -638,7 +638,7 @@ export class Orchestrator {
         step: 'Flashing to board...',
         progress: 60,
       });
-      const flashResult = await this.hardwareService.flash(this.projectDir);
+      const flashResult = await this.hardwareService.flash(this.nuggetDir);
 
       if (!flashResult.success) {
         await this.send({
@@ -683,7 +683,7 @@ export class Orchestrator {
 
   private async runTests(): Promise<void> {
     this.session.state = 'testing';
-    const results = await this.testRunner.runTests(this.projectDir);
+    const results = await this.testRunner.runTests(this.nuggetDir);
     this.testResults = results;
 
     for (const test of results.tests ?? []) {
@@ -743,7 +743,7 @@ export class Orchestrator {
     const moment = await this.teachingEngine.getMoment(
       eventType,
       eventDetails,
-      this.projectType,
+      this.nuggetType,
     );
     if (moment) {
       await this.send({ type: 'teaching_moment', ...moment });
@@ -753,14 +753,14 @@ export class Orchestrator {
   // -- Workspace --
 
   private async setupWorkspace(): Promise<void> {
-    fs.mkdirSync(this.projectDir, { recursive: true });
+    fs.mkdirSync(this.nuggetDir, { recursive: true });
     const dirs = [
-      path.join(this.projectDir, '.elisa', 'comms'),
-      path.join(this.projectDir, '.elisa', 'comms', 'reviews'),
-      path.join(this.projectDir, '.elisa', 'context'),
-      path.join(this.projectDir, '.elisa', 'status'),
-      path.join(this.projectDir, 'src'),
-      path.join(this.projectDir, 'tests'),
+      path.join(this.nuggetDir, '.elisa', 'comms'),
+      path.join(this.nuggetDir, '.elisa', 'comms', 'reviews'),
+      path.join(this.nuggetDir, '.elisa', 'context'),
+      path.join(this.nuggetDir, '.elisa', 'status'),
+      path.join(this.nuggetDir, 'src'),
+      path.join(this.nuggetDir, 'tests'),
     ];
     for (const d of dirs) {
       fs.mkdirSync(d, { recursive: true });
@@ -769,8 +769,8 @@ export class Orchestrator {
     if (this.git) {
       try {
         const goal =
-          (this.session.spec ?? {}).project?.goal ?? 'Elisa project';
-        await this.git.initRepo(this.projectDir, goal);
+          (this.session.spec ?? {}).nugget?.goal ?? 'Elisa nugget';
+        await this.git.initRepo(this.nuggetDir, goal);
       } catch {
         console.warn('Git not available, continuing without version control');
         this.git = null;

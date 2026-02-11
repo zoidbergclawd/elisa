@@ -15,24 +15,24 @@ function readBlobAsArrayBuffer(blob: Blob): Promise<ArrayBuffer> {
   });
 }
 
-export interface ProjectFileData {
+export interface NuggetFileData {
   workspace: Record<string, unknown>;
   skills: Skill[];
   rules: Rule[];
   portals: Portal[];
-  projectArchive?: Blob;
+  outputArchive?: Blob;
 }
 
 /**
- * Create a .elisa project file (zip) from workspace state.
+ * Create a .elisa nugget file (zip) from workspace state.
  * Optionally includes a generated-code archive blob from the backend.
  */
-export async function saveProjectFile(
+export async function saveNuggetFile(
   workspace: Record<string, unknown>,
   skills: Skill[],
   rules: Rule[],
   portals: Portal[],
-  projectArchive?: Blob,
+  outputArchive?: Blob,
 ): Promise<Blob> {
   const zip = new JSZip();
   zip.file('workspace.json', JSON.stringify(workspace, null, 2));
@@ -40,14 +40,14 @@ export async function saveProjectFile(
   zip.file('rules.json', JSON.stringify(rules, null, 2));
   zip.file('portals.json', JSON.stringify(portals, null, 2));
 
-  if (projectArchive) {
-    const archiveData = await readBlobAsArrayBuffer(projectArchive);
+  if (outputArchive) {
+    const archiveData = await readBlobAsArrayBuffer(outputArchive);
     const innerZip = await JSZip.loadAsync(archiveData);
-    const projectFolder = zip.folder('project')!;
+    const outputFolder = zip.folder('output')!;
     for (const [relativePath, file] of Object.entries(innerZip.files)) {
       if (!file.dir) {
         const content = await file.async('uint8array');
-        projectFolder.file(relativePath, content);
+        outputFolder.file(relativePath, content);
       }
     }
   }
@@ -56,9 +56,10 @@ export async function saveProjectFile(
 }
 
 /**
- * Extract a .elisa project file and return its contents.
+ * Extract a .elisa nugget file and return its contents.
+ * Reads both output/ and project/ prefixes for backward compatibility.
  */
-export async function loadProjectFile(file: File): Promise<ProjectFileData> {
+export async function loadNuggetFile(file: File): Promise<NuggetFileData> {
   const zip = await JSZip.loadAsync(await readBlobAsArrayBuffer(file));
 
   const workspaceJson = await zip.file('workspace.json')?.async('string');
@@ -73,22 +74,22 @@ export async function loadProjectFile(file: File): Promise<ProjectFileData> {
   const rules: Rule[] = rulesJson ? JSON.parse(rulesJson) : [];
   const portals: Portal[] = portalsJson ? JSON.parse(portalsJson) : [];
 
-  // Extract project/ folder back into a zip blob if present
-  let projectArchive: Blob | undefined;
-  const projectFiles = Object.entries(zip.files).filter(
-    ([path]) => path.startsWith('project/') && !zip.files[path].dir,
+  // Extract output/ or project/ folder back into a zip blob if present (backward compat)
+  let outputArchive: Blob | undefined;
+  const outputFiles = Object.entries(zip.files).filter(
+    ([path]) => (path.startsWith('output/') || path.startsWith('project/')) && !zip.files[path].dir,
   );
-  if (projectFiles.length > 0) {
+  if (outputFiles.length > 0) {
     const innerZip = new JSZip();
-    for (const [path, file] of projectFiles) {
-      const relativePath = path.replace(/^project\//, '');
+    for (const [path, file] of outputFiles) {
+      const relativePath = path.replace(/^(output|project)\//, '');
       const content = await file.async('uint8array');
       innerZip.file(relativePath, content);
     }
-    projectArchive = await innerZip.generateAsync({ type: 'blob' });
+    outputArchive = await innerZip.generateAsync({ type: 'blob' });
   }
 
-  return { workspace, skills, rules, portals, projectArchive };
+  return { workspace, skills, rules, portals, outputArchive };
 }
 
 /**

@@ -27,15 +27,17 @@ const BlockCanvas = forwardRef<BlockCanvasHandle, BlockCanvasProps>(
     const containerRef = useRef<HTMLDivElement>(null);
     const workspaceRef = useRef<Blockly.WorkspaceSvg | null>(null);
     const initialWorkspaceRef = useRef(initialWorkspace);
+    const onWorkspaceChangeRef = useRef(onWorkspaceChange);
 
-    // Keep a stable reference so the inject effect can read the latest value
+    // Keep stable references so the inject effect can read the latest values
     initialWorkspaceRef.current = initialWorkspace;
+    onWorkspaceChangeRef.current = onWorkspaceChange;
 
     const handleChange = useCallback(() => {
       if (!workspaceRef.current) return;
       const json = Blockly.serialization.workspaces.save(workspaceRef.current);
-      onWorkspaceChange(json);
-    }, [onWorkspaceChange]);
+      onWorkspaceChangeRef.current(json);
+    }, []);
 
     useImperativeHandle(ref, () => ({
       loadWorkspace(json: Record<string, unknown>) {

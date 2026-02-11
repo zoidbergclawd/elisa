@@ -6,8 +6,8 @@ export const toolbox = {
       name: 'Goals',
       colour: '210',
       contents: [
-        { kind: 'block', type: 'project_goal' },
-        { kind: 'block', type: 'project_template' },
+        { kind: 'block', type: 'nugget_goal' },
+        { kind: 'block', type: 'nugget_template' },
       ],
     },
     {

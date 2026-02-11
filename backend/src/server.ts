@@ -5,12 +5,15 @@ import express from 'express';
 import { WebSocketServer, WebSocket } from 'ws';
 import http from 'node:http';
 import fs from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import archiver from 'archiver';
+import Anthropic from '@anthropic-ai/sdk';
 import type { BuildSession, SessionState } from './models/session.js';
 import { Orchestrator } from './services/orchestrator.js';
 import { HardwareService } from './services/hardwareService.js';
 import { AgentRunner } from './services/agentRunner.js';
 import { SkillRunner } from './services/skillRunner.js';
+import { which } from './utils/which.js';
 
 // -- State --
 
@@ -19,6 +22,48 @@ const orchestrators = new Map<string, Orchestrator>();
 const runningTasks = new Map<string, { cancel: () => void }>();
 const skillRunners = new Map<string, SkillRunner>();
 const hardwareService = new HardwareService();
+
+// -- Health --
+
+interface HealthStatus {
+  apiKey: 'valid' | 'invalid' | 'missing' | 'unchecked';
+  apiKeyError?: string;
+  claudeCli: 'available' | 'not_found';
+  claudeCliVersion?: string;
+}
+
+const healthStatus: HealthStatus = {
+  apiKey: 'unchecked',
+  claudeCli: 'not_found',
+};
+
+async function validateStartupHealth(): Promise<void> {
+  // Check Claude CLI
+  const claudePath = which('claude');
+  if (claudePath) {
+    healthStatus.claudeCli = 'available';
+    try {
+      const version = execFileSync(claudePath, ['--version'], { encoding: 'utf-8', timeout: 5000 }).trim();
+      healthStatus.claudeCliVersion = version;
+    } catch {
+      // CLI found but --version failed; still mark as available
+    }
+  }
+
+  // Check API key
+  if (!process.env.ANTHROPIC_API_KEY) {
+    healthStatus.apiKey = 'missing';
+    return;
+  }
+
+  try {
+    await new Anthropic().models.list({ limit: 1 });
+    healthStatus.apiKey = 'valid';
+  } catch (err: any) {
+    healthStatus.apiKey = 'invalid';
+    healthStatus.apiKeyError = err.message ?? String(err);
+  }
+}
 
 // -- WebSocket Connection Manager --
 
@@ -70,7 +115,14 @@ app.use((_req, res, next) => {
 
 // Health
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok' });
+  const ready = healthStatus.apiKey === 'valid' && healthStatus.claudeCli === 'available';
+  res.json({
+    status: ready ? 'ready' : 'degraded',
+    apiKey: healthStatus.apiKey,
+    apiKeyError: healthStatus.apiKeyError,
+    claudeCli: healthStatus.claudeCli,
+    claudeCliVersion: healthStatus.claudeCliVersion,
+  });
 });
 
 // Create session
@@ -201,19 +253,19 @@ app.post('/api/sessions/:id/question', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-// Export session project as zip
+// Export session nugget as zip
 app.get('/api/sessions/:id/export', (req, res) => {
   const orch = orchestrators.get(req.params.id);
   if (!orch) { res.status(404).json({ detail: 'Session not found' }); return; }
 
-  const dir = orch.projectDir;
+  const dir = orch.nuggetDir;
   if (!fs.existsSync(dir)) {
-    res.status(404).json({ detail: 'Project directory not found' });
+    res.status(404).json({ detail: 'Nugget directory not found' });
     return;
   }
 
   res.setHeader('Content-Type', 'application/zip');
-  res.setHeader('Content-Disposition', 'attachment; filename="project.zip"');
+  res.setHeader('Content-Disposition', 'attachment; filename="nugget.zip"');
 
   const archive = archiver('zip', { zlib: { level: 5 } });
   archive.on('error', (err) => {
@@ -325,7 +377,7 @@ app.post('/api/hardware/detect', async (_req, res) => {
 app.post('/api/hardware/flash/:id', async (req, res) => {
   const orch = orchestrators.get(req.params.id);
   if (!orch) { res.status(404).json({ detail: 'Session not found' }); return; }
-  const result = await hardwareService.flash(orch.projectDir);
+  const result = await hardwareService.flash(orch.nuggetDir);
   res.json({ success: result.success, message: result.message });
 });
 
@@ -356,4 +408,7 @@ server.on('upgrade', (request, socket, head) => {
 const PORT = Number(process.env.PORT ?? 8000);
 server.listen(PORT, () => {
   console.log(`Elisa backend listening on port ${PORT}`);
+  validateStartupHealth().then(() => {
+    console.log(`Health: API key=${healthStatus.apiKey}, CLI=${healthStatus.claudeCli}`);
+  });
 });

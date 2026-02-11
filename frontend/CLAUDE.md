@@ -1,12 +1,12 @@
 # Frontend Module
 
-React 19 + TypeScript + Vite SPA. Visual block editor (Blockly) for composing project specs, real-time dashboard for monitoring agent execution.
+React 19 + TypeScript + Vite SPA. Visual block editor (Blockly) for composing nugget specs, real-time dashboard for monitoring agent execution.
 
 ## Stack
 
 - React 19.2, Vite 7.3, TypeScript 5.9, Tailwind CSS 4
 - Blockly 12.3 (block editor), @xyflow/react 12.10 (task DAG viz), elkjs (graph layout)
-- JSZip 3 (project file save/load)
+- JSZip 3 (nugget file save/load)
 - Vitest + Testing Library (tests)
 
 ## Structure
@@ -16,18 +16,20 @@ src/
   App.tsx                    Root component. Owns all session state. Orchestrates layout + overlays.
   main.tsx                   Entry point. React 19 createRoot.
   components/
-    BlockCanvas/             Blockly editor + block-to-ProjectSpec conversion
+    BlockCanvas/             Blockly editor + block-to-NuggetSpec conversion
     MissionControl/          Right sidebar: agent status, task DAG, comms, metrics
     BottomBar/               Bottom tabs: git timeline, tests, board output, teaching
     Skills/                  Skills & Rules editor modal + registry
-    shared/                  GoButton, HumanGateModal, QuestionModal, TeachingToast, AgentAvatar
+    shared/                  GoButton, HumanGateModal, QuestionModal, TeachingToast, AgentAvatar, ReadinessBadge
   hooks/
     useBuildSession.ts       All build session state (tasks, agents, commits, events, etc.)
+    useHealthCheck.ts        Polls /api/health for backend readiness (API key + CLI status)
     useWebSocket.ts          WebSocket connection with auto-reconnect (3s interval)
   lib/
-    projectFile.ts           .elisa project file save/load utilities (JSZip-based)
+    nuggetFile.ts            .elisa nugget file save/load utilities (JSZip-based)
+    examples/                Bundled example nuggets (ES modules, offline-ready)
   types/
-    index.ts                 All TypeScript interfaces (ProjectSpec, Task, Agent, WSEvent, etc.)
+    index.ts                 All TypeScript interfaces (NuggetSpec, Task, Agent, WSEvent, etc.)
 ```
 
 ## State Management

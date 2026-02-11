@@ -4,13 +4,13 @@ import { getCurrentPortals } from '../Portals/portalRegistry';
 
 const blockDefs = [
   {
-    type: 'project_goal',
+    type: 'nugget_goal',
     message0: 'I want to build... %1',
     args0: [
       {
         type: 'field_input',
         name: 'GOAL_TEXT',
-        text: 'describe your project here',
+        text: 'describe your nugget here',
       },
     ],
     nextStatement: null,
@@ -82,7 +82,7 @@ const blockDefs = [
     previousStatement: null,
     nextStatement: null,
     colour: 180,
-    tooltip: 'Deploy your project to the web',
+    tooltip: 'Deploy your nugget to the web',
     helpUrl: '',
   },
   {
@@ -91,12 +91,12 @@ const blockDefs = [
     previousStatement: null,
     nextStatement: null,
     colour: 180,
-    tooltip: 'Flash your project to an ESP32 board',
+    tooltip: 'Flash your nugget to an ESP32 board',
     helpUrl: '',
   },
   // Goals category additions
   {
-    type: 'project_template',
+    type: 'nugget_template',
     message0: 'Start from a template: %1',
     args0: [
       {
@@ -105,15 +105,16 @@ const blockDefs = [
         options: [
           ['Game', 'game'],
           ['Website', 'website'],
-          ['Hardware Project', 'hardware'],
+          ['Hardware Nugget', 'hardware'],
           ['Story', 'story'],
           ['Tool', 'tool'],
         ],
       },
     ],
+    previousStatement: null,
     nextStatement: null,
     colour: 210,
-    tooltip: 'Start from a project template',
+    tooltip: 'Start from a template',
     helpUrl: '',
   },
   // Requirements category additions
@@ -167,7 +168,7 @@ const blockDefs = [
     previousStatement: null,
     nextStatement: null,
     colour: 135,
-    tooltip: 'Add data the project needs',
+    tooltip: 'Add data the nugget needs',
     helpUrl: '',
   },
   // Style category (NEW - colour 270)
@@ -310,7 +311,7 @@ const blockDefs = [
       {
         type: 'field_input',
         name: 'GATE_DESCRIPTION',
-        text: 'finishing the project',
+        text: 'finishing the nugget',
       },
     ],
     previousStatement: null,

@@ -21,13 +21,15 @@ App.tsx
   shared/QuestionModal.tsx           Multi-choice from agent, user picks answer
   shared/TeachingToast.tsx           Floating notification for learning moments
   shared/AgentAvatar.tsx             Status dot + role icon
+  shared/ReadinessBadge.tsx         Backend readiness indicator (Ready/Not Ready/Offline)
+  shared/ExamplePickerModal.tsx     Card grid to choose bundled example nuggets
   Skills/SkillsRulesModal.tsx        CRUD editor for custom skills and rules
 ```
 
 ## BlockCanvas Subsystem
 
 - `blockDefinitions.ts`: 25+ custom block types across 9 categories (Goal, Requirements, Style, Agents, Flow, Hardware, Deploy, Skills)
-- `blockInterpreter.ts`: Walks Blockly workspace JSON, extracts fields, builds ProjectSpec. This is the bridge between visual blocks and the backend API.
+- `blockInterpreter.ts`: Walks Blockly workspace JSON, extracts fields, builds NuggetSpec. This is the bridge between visual blocks and the backend API.
 - `toolbox.ts`: Defines Blockly sidebar categories and their block contents.
 
 ## Key Patterns

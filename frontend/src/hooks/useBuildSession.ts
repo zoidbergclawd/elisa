@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { ProjectSpec } from '../components/BlockCanvas/blockInterpreter';
+import type { NuggetSpec } from '../components/BlockCanvas/blockInterpreter';
 import type { UIState, Task, Agent, Commit, WSEvent, TeachingMoment, TestResult, TokenUsage, QuestionPayload } from '../types';
 
 export interface SerialLine {
@@ -161,7 +161,7 @@ export function useBuildSession() {
     }
   }, []);
 
-  const startBuild = useCallback(async (spec: ProjectSpec) => {
+  const startBuild = useCallback(async (spec: NuggetSpec) => {
     setUiState('building');
     setEvents([]);
     setTasks([]);

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { interpretWorkspace, type ProjectSpec } from './blockInterpreter';
+import { interpretWorkspace, migrateWorkspace, type NuggetSpec } from './blockInterpreter';
 import type { Skill, Rule } from '../Skills/types';
 import type { Portal } from '../Portals/types';
 
@@ -9,7 +9,7 @@ function makeWorkspace(blocks: unknown[]) {
 
 function goalBlock(text: string, next?: unknown) {
   return {
-    type: 'project_goal',
+    type: 'nugget_goal',
     fields: { GOAL_TEXT: text },
     ...(next ? { next: { block: next } } : {}),
   };
@@ -18,19 +18,19 @@ function goalBlock(text: string, next?: unknown) {
 describe('blockInterpreter', () => {
   it('returns empty spec when no goal block', () => {
     const spec = interpretWorkspace(makeWorkspace([]));
-    expect(spec.project.goal).toBe('');
+    expect(spec.nugget.goal).toBe('');
   });
 
-  it('parses project_goal', () => {
+  it('parses nugget_goal', () => {
     const spec = interpretWorkspace(makeWorkspace([goalBlock('Build a game')]));
-    expect(spec.project.goal).toBe('Build a game');
+    expect(spec.nugget.goal).toBe('Build a game');
   });
 
-  it('parses project_template', () => {
+  it('parses nugget_template', () => {
     const spec = interpretWorkspace(makeWorkspace([
-      goalBlock('My project', { type: 'project_template', fields: { TEMPLATE_TYPE: 'game' } }),
+      goalBlock('My nugget', { type: 'nugget_template', fields: { TEMPLATE_TYPE: 'game' } }),
     ]));
-    expect(spec.project.type).toBe('game');
+    expect(spec.nugget.type).toBe('game');
   });
 
   it('parses constraint block', () => {
@@ -361,6 +361,37 @@ describe('blockInterpreter', () => {
         portals,
       );
       expect(spec.portals![0].serialConfig).toEqual({ baudRate: 115200, boardType: 'esp32' });
+    });
+  });
+
+  describe('migrateWorkspace', () => {
+    it('renames project_goal to nugget_goal', () => {
+      const ws = makeWorkspace([{ type: 'project_goal', fields: { GOAL_TEXT: 'hi' } }]);
+      migrateWorkspace(ws as Record<string, unknown>);
+      expect((ws as any).blocks.blocks[0].type).toBe('nugget_goal');
+    });
+
+    it('renames project_template in next chain', () => {
+      const ws = makeWorkspace([{
+        type: 'project_goal',
+        fields: { GOAL_TEXT: 'hi' },
+        next: { block: { type: 'project_template', fields: { TEMPLATE_TYPE: 'game' } } },
+      }]);
+      migrateWorkspace(ws as Record<string, unknown>);
+      expect((ws as any).blocks.blocks[0].type).toBe('nugget_goal');
+      expect((ws as any).blocks.blocks[0].next.block.type).toBe('nugget_template');
+    });
+
+    it('leaves non-project block types unchanged', () => {
+      const ws = makeWorkspace([{ type: 'feature', fields: { FEATURE_TEXT: 'test' } }]);
+      migrateWorkspace(ws as Record<string, unknown>);
+      expect((ws as any).blocks.blocks[0].type).toBe('feature');
+    });
+
+    it('handles empty workspace', () => {
+      const ws = { blocks: {} };
+      migrateWorkspace(ws as Record<string, unknown>);
+      expect(ws).toEqual({ blocks: {} });
     });
   });
 });
