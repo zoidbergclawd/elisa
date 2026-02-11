@@ -35,4 +35,4 @@ App.tsx
 - All state lives in App.tsx via `useBuildSession` hook. Components receive state and callbacks as props.
 - WSEvent discriminated union ensures exhaustive handling of all event types.
 - Modals use fixed positioning with backdrop overlay. Only one modal shows at a time.
-- Skills/Rules registry is in-memory only (not persisted across reloads).
+- Skills/Rules and workspace state are persisted to localStorage and restored on page load.

@@ -6,6 +6,7 @@ React 19 + TypeScript + Vite SPA. Visual block editor (Blockly) for composing pr
 
 - React 19.2, Vite 7.3, TypeScript 5.9, Tailwind CSS 4
 - Blockly 12.3 (block editor), @xyflow/react 12.10 (task DAG viz), elkjs (graph layout)
+- JSZip 3 (project file save/load)
 - Vitest + Testing Library (tests)
 
 ## Structure
@@ -23,6 +24,8 @@ src/
   hooks/
     useBuildSession.ts       All build session state (tasks, agents, commits, events, etc.)
     useWebSocket.ts          WebSocket connection with auto-reconnect (3s interval)
+  lib/
+    projectFile.ts           .elisa project file save/load utilities (JSZip-based)
   types/
     index.ts                 All TypeScript interfaces (ProjectSpec, Task, Agent, WSEvent, etc.)
 ```
@@ -31,11 +34,13 @@ src/
 
 No state library. `useBuildSession` hook holds all session state as `useState` variables. WebSocket events arrive and are dispatched through `handleEvent()` which updates the relevant state slices.
 
+Workspace JSON, skills, and rules auto-save to `localStorage` on every change and restore on page load. Keys: `elisa:workspace`, `elisa:skills`, `elisa:rules`.
+
 UI phases: `design` | `building` | `review` | `deploy` | `done`
 
 ## Communication with Backend
 
-- **REST**: `POST /api/sessions`, `POST /api/sessions/:id/start`, `POST /api/sessions/:id/gate`, `POST /api/sessions/:id/answer`
+- **REST**: `POST /api/sessions`, `POST /api/sessions/:id/start`, `POST /api/sessions/:id/gate`, `POST /api/sessions/:id/answer`, `GET /api/sessions/:id/export`
 - **WebSocket**: `ws://localhost:8000/ws/session/:sessionId` - receives all streaming events
 - Vite proxies both `/api/*` and `/ws/*` to backend in dev mode
 

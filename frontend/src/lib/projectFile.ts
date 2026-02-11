@@ -1,6 +1,19 @@
 import JSZip from 'jszip';
 import type { Skill, Rule } from '../components/Skills/types';
 
+/** Read a Blob as ArrayBuffer, with FileReader fallback for jsdom. */
+function readBlobAsArrayBuffer(blob: Blob): Promise<ArrayBuffer> {
+  if (typeof blob.arrayBuffer === 'function') {
+    return blob.arrayBuffer();
+  }
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as ArrayBuffer);
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(blob);
+  });
+}
+
 export interface ProjectFileData {
   workspace: Record<string, unknown>;
   skills: Skill[];
@@ -24,7 +37,7 @@ export async function saveProjectFile(
   zip.file('rules.json', JSON.stringify(rules, null, 2));
 
   if (projectArchive) {
-    const archiveData = await projectArchive.arrayBuffer();
+    const archiveData = await readBlobAsArrayBuffer(projectArchive);
     const innerZip = await JSZip.loadAsync(archiveData);
     const projectFolder = zip.folder('project')!;
     for (const [relativePath, file] of Object.entries(innerZip.files)) {
@@ -42,7 +55,7 @@ export async function saveProjectFile(
  * Extract a .elisa project file and return its contents.
  */
 export async function loadProjectFile(file: File): Promise<ProjectFileData> {
-  const zip = await JSZip.loadAsync(await file.arrayBuffer());
+  const zip = await JSZip.loadAsync(await readBlobAsArrayBuffer(file));
 
   const workspaceJson = await zip.file('workspace.json')?.async('string');
   if (!workspaceJson) throw new Error('Invalid .elisa file: missing workspace.json');

@@ -105,6 +105,8 @@ idle -> planning -> executing -> testing -> reviewing -> deploying -> done
 
 - **Session state**: In-memory `Map<sessionId, Session>`
 - **Workspace**: Temp directory per session (`/tmp/elisa-project-{timestamp}`) containing generated code, tests, git repo, and `.elisa/` metadata
+- **localStorage**: Workspace JSON, skills, and rules auto-saved in browser (`elisa:workspace`, `elisa:skills`, `elisa:rules`). Restored on page load.
+- **Project files**: `.elisa` zip format for export/import (workspace + skills + rules + generated code)
 - **No database**
 
 ## Hardware Path

@@ -6,6 +6,7 @@ Express 5 + TypeScript server. Orchestrates AI agent teams via Claude Code CLI s
 
 - Express 5, TypeScript 5.9, Node.js (ES modules)
 - ws 8 (WebSocket), simple-git 3, serialport 12, @anthropic-ai/sdk
+- archiver 7 (zip streaming for project export)
 - Vitest (tests)
 
 ## Structure
@@ -50,6 +51,7 @@ src/
 | GET | /api/sessions/:id/tasks | Task list |
 | GET | /api/sessions/:id/git | Commit history |
 | GET | /api/sessions/:id/tests | Test results |
+| GET | /api/sessions/:id/export | Export project directory as zip |
 | POST | /api/hardware/detect | Detect ESP32 |
 | POST | /api/hardware/flash/:id | Flash to board |
 

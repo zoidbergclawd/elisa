@@ -23,6 +23,7 @@
     "@types/archiver": "^7.0.0",
     "@types/express": "^5",
     "@types/ws": "^8",
+    "@vitest/coverage-v8": "^4.0.18",
     "tsx": "^4",
     "typescript": "~5.9",
     "vitest": "^4"
