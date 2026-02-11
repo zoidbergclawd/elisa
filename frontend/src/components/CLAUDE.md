@@ -21,6 +21,7 @@ App.tsx
   shared/QuestionModal.tsx           Multi-choice from agent, user picks answer
   shared/TeachingToast.tsx           Floating notification for learning moments
   shared/AgentAvatar.tsx             Status dot + role icon
+  shared/ExamplePickerModal.tsx     Card grid to choose bundled example nuggets
   Skills/SkillsRulesModal.tsx        CRUD editor for custom skills and rules
 ```
 

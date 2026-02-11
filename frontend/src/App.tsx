@@ -10,6 +10,8 @@ import HumanGateModal from './components/shared/HumanGateModal';
 import QuestionModal from './components/shared/QuestionModal';
 import SkillsRulesModal from './components/Skills/SkillsRulesModal';
 import PortalsModal from './components/Portals/PortalsModal';
+import ExamplePickerModal from './components/shared/ExamplePickerModal';
+import { EXAMPLE_NUGGETS } from './lib/examples';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useBuildSession } from './hooks/useBuildSession';
 import { saveNuggetFile, loadNuggetFile, downloadBlob } from './lib/nuggetFile';
@@ -49,6 +51,7 @@ export default function App() {
   const [portals, setPortals] = useState<Portal[]>(() => readLocalStorageJson<Portal[]>(LS_PORTALS) ?? []);
   const [skillsModalOpen, setSkillsModalOpen] = useState(false);
   const [portalsModalOpen, setPortalsModalOpen] = useState(false);
+  const [examplePickerOpen, setExamplePickerOpen] = useState(false);
 
   // The latest workspace JSON for saving nuggets
   const [workspaceJson, setWorkspaceJson] = useState<Record<string, unknown> | null>(null);
@@ -61,6 +64,13 @@ export default function App() {
       return ws;
     },
   );
+
+  // Open example picker on first launch (no saved workspace)
+  useEffect(() => {
+    if (!initialWorkspace) {
+      setExamplePickerOpen(true);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const blockCanvasRef = useRef<BlockCanvasHandle>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -167,6 +177,19 @@ export default function App() {
     e.target.value = '';
   };
 
+  const handleSelectExample = useCallback((example: typeof EXAMPLE_NUGGETS[number]) => {
+    setSkills(example.skills);
+    setRules(example.rules);
+    setPortals(example.portals);
+    setWorkspaceJson(example.workspace);
+    blockCanvasRef.current?.loadWorkspace(example.workspace);
+    localStorage.setItem(LS_WORKSPACE, JSON.stringify(example.workspace));
+    localStorage.setItem(LS_SKILLS, JSON.stringify(example.skills));
+    localStorage.setItem(LS_RULES, JSON.stringify(example.rules));
+    localStorage.setItem(LS_PORTALS, JSON.stringify(example.portals));
+    setExamplePickerOpen(false);
+  }, []);
+
   return (
     <div className="flex flex-col h-screen bg-gray-50 text-gray-900">
       {/* Header */}
@@ -211,6 +234,12 @@ export default function App() {
             className="px-3 py-1 text-sm rounded bg-teal-100 text-teal-700 hover:bg-teal-200"
           >
             Portals
+          </button>
+          <button
+            onClick={() => setExamplePickerOpen(true)}
+            className="px-3 py-1 text-sm rounded bg-amber-100 text-amber-700 hover:bg-amber-200"
+          >
+            Examples
           </button>
           <button className="px-3 py-1 text-sm rounded bg-gray-100 text-gray-500 cursor-not-allowed">
             Help
@@ -297,6 +326,15 @@ export default function App() {
           portals={portals}
           onPortalsChange={setPortals}
           onClose={() => setPortalsModalOpen(false)}
+        />
+      )}
+
+      {/* Example picker modal */}
+      {examplePickerOpen && (
+        <ExamplePickerModal
+          examples={EXAMPLE_NUGGETS}
+          onSelect={handleSelectExample}
+          onClose={() => setExamplePickerOpen(false)}
         />
       )}
 
