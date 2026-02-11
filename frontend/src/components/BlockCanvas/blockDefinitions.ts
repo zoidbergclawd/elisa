@@ -6,7 +6,7 @@ const blockDefs = [
     message0: 'I want to build... %1',
     args0: [
       {
-        type: 'field_multilinetext',
+        type: 'field_input',
         name: 'GOAL_TEXT',
         text: 'describe your project here',
       },
