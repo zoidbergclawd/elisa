@@ -20,9 +20,10 @@ src/
     MissionControl/          Right sidebar: agent status, task DAG, comms, metrics
     BottomBar/               Bottom tabs: git timeline, tests, board output, teaching
     Skills/                  Skills & Rules editor modal + registry
-    shared/                  GoButton, HumanGateModal, QuestionModal, TeachingToast, AgentAvatar
+    shared/                  GoButton, HumanGateModal, QuestionModal, TeachingToast, AgentAvatar, ReadinessBadge
   hooks/
     useBuildSession.ts       All build session state (tasks, agents, commits, events, etc.)
+    useHealthCheck.ts        Polls /api/health for backend readiness (API key + CLI status)
     useWebSocket.ts          WebSocket connection with auto-reconnect (3s interval)
   lib/
     nuggetFile.ts            .elisa nugget file save/load utilities (JSZip-based)
