@@ -111,6 +111,7 @@ const blockDefs = [
         ],
       },
     ],
+    previousStatement: null,
     nextStatement: null,
     colour: 210,
     tooltip: 'Start from a template',
