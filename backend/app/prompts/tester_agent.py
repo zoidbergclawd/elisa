@@ -69,4 +69,25 @@ def format_task_prompt(
         "4. Report results in your summary file."
     )
 
+    # Feature skills
+    feature_skills = [s for s in spec.get("skills", []) if s.get("category") == "feature"]
+    if feature_skills:
+        parts.append("\n## Detailed Feature Instructions (kid's skills)")
+        for s in feature_skills:
+            parts.append(f"### {s['name']}\n{s['prompt']}")
+
+    # Style skills
+    style_skills = [s for s in spec.get("skills", []) if s.get("category") == "style"]
+    if style_skills:
+        parts.append("\n## Detailed Style Instructions (kid's skills)")
+        for s in style_skills:
+            parts.append(f"### {s['name']}\n{s['prompt']}")
+
+    # Trigger-specific rules for this context
+    on_complete_rules = [r for r in spec.get("rules", []) if r.get("trigger") == "on_task_complete"]
+    if on_complete_rules:
+        parts.append("\n## Validation Rules (kid's rules)")
+        for r in on_complete_rules:
+            parts.append(f"### {r['name']}\n{r['prompt']}")
+
     return "\n".join(parts)

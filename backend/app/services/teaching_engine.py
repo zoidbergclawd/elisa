@@ -27,6 +27,8 @@ _TRIGGER_MAP: dict[str, tuple[str, str]] = {
     "hardware_flash": ("hardware", "flashing"),
     "hardware_led": ("hardware", "gpio"),
     "hardware_lora": ("hardware", "lora"),
+    "skill_used": ("prompt_engineering", "first_skill"),
+    "rule_used": ("prompt_engineering", "first_rule"),
 }
 
 

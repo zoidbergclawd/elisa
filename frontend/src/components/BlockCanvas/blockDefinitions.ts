@@ -1,4 +1,5 @@
 import * as Blockly from 'blockly';
+import { getCurrentSkills, getCurrentRules } from '../Skills/skillsRegistry';
 
 const blockDefs = [
   {
@@ -480,12 +481,78 @@ const blockDefs = [
     tooltip: 'Deploy to both web and hardware',
     helpUrl: '',
   },
+  // Skills category (NEW - colour 315)
+  {
+    type: 'use_skill',
+    message0: 'Use skill: %1',
+    args0: [
+      {
+        type: 'field_dropdown',
+        name: 'SKILL_ID',
+        options: [['(no skills yet)', '']],
+      },
+    ],
+    previousStatement: null,
+    nextStatement: null,
+    colour: 315,
+    tooltip: 'Use a skill from your prompt library',
+    helpUrl: '',
+    extensions: ['skill_dropdown_extension'],
+  },
+  {
+    type: 'use_rule',
+    message0: 'Apply rule: %1',
+    args0: [
+      {
+        type: 'field_dropdown',
+        name: 'RULE_ID',
+        options: [['(no rules yet)', '']],
+      },
+    ],
+    previousStatement: null,
+    nextStatement: null,
+    colour: 345,
+    tooltip: 'Apply a rule from your prompt library',
+    helpUrl: '',
+    extensions: ['rule_dropdown_extension'],
+  },
 ];
 
 let registered = false;
 
 export function registerBlocks(): void {
   if (registered) return;
+
+  // Register dynamic dropdown extensions before defining blocks
+  Blockly.Extensions.register('skill_dropdown_extension', function (this: Blockly.Block) {
+    const dropdown = this.getField('SKILL_ID') as Blockly.FieldDropdown;
+    if (!dropdown) return;
+    const originalMenuGenerator = dropdown.getOptions;
+    dropdown.getOptions = function () {
+      const skills = getCurrentSkills();
+      if (skills.length === 0) {
+        return [['(no skills yet)', '']];
+      }
+      return skills.map((s) => [s.name, s.id] as [string, string]);
+    };
+    // Trigger initial options refresh
+    originalMenuGenerator.call(dropdown);
+  });
+
+  Blockly.Extensions.register('rule_dropdown_extension', function (this: Blockly.Block) {
+    const dropdown = this.getField('RULE_ID') as Blockly.FieldDropdown;
+    if (!dropdown) return;
+    const originalMenuGenerator = dropdown.getOptions;
+    dropdown.getOptions = function () {
+      const rules = getCurrentRules();
+      if (rules.length === 0) {
+        return [['(no rules yet)', '']];
+      }
+      return rules.map((r) => [r.name, r.id] as [string, string]);
+    };
+    originalMenuGenerator.call(dropdown);
+  });
+
   Blockly.common.defineBlocks(
     Blockly.common.createBlockDefinitionsFromJsonArray(blockDefs)
   );

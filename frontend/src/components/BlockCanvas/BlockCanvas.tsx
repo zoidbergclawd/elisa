@@ -2,15 +2,19 @@ import { useRef, useEffect, useCallback } from 'react';
 import * as Blockly from 'blockly';
 import { registerBlocks } from './blockDefinitions';
 import { toolbox } from './toolbox';
+import { updateSkillOptions, updateRuleOptions } from '../Skills/skillsRegistry';
+import type { Skill, Rule } from '../Skills/types';
 
 registerBlocks();
 
 interface BlockCanvasProps {
   onWorkspaceChange: (json: Record<string, unknown>) => void;
   readOnly?: boolean;
+  skills?: Skill[];
+  rules?: Rule[];
 }
 
-export default function BlockCanvas({ onWorkspaceChange, readOnly = false }: BlockCanvasProps) {
+export default function BlockCanvas({ onWorkspaceChange, readOnly = false, skills = [], rules = [] }: BlockCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const workspaceRef = useRef<Blockly.WorkspaceSvg | null>(null);
 
@@ -51,6 +55,11 @@ export default function BlockCanvas({ onWorkspaceChange, readOnly = false }: Blo
       workspaceRef.current = null;
     };
   }, [handleChange]);
+
+  useEffect(() => {
+    updateSkillOptions(skills);
+    updateRuleOptions(rules);
+  }, [skills, rules]);
 
   useEffect(() => {
     if (!workspaceRef.current) return;

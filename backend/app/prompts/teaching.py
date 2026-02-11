@@ -183,6 +183,34 @@ CONCEPT_CURRICULUM = {
             ),
         },
     },
+    "prompt_engineering": {
+        "first_skill": {
+            "concept": "prompt_engineering",
+            "headline": "You just wrote your first skill -- that's prompt engineering!",
+            "explanation": (
+                "When you write detailed instructions for your AI helpers, that's called "
+                "'prompt engineering'. The better your instructions, the better the result. "
+                "It's like giving really clear directions to a friend."
+            ),
+            "tell_me_more": (
+                "Prompt engineering is one of the newest and most important skills in tech. "
+                "The trick is being specific: instead of 'make it cool', try 'use bright neon "
+                "colors on a dark background with smooth animations'."
+            ),
+        },
+        "first_rule": {
+            "concept": "prompt_engineering",
+            "headline": "Rules help your agents stay on track!",
+            "explanation": (
+                "Rules are like guardrails for your AI helpers. They make sure your agents "
+                "follow important guidelines every time, not just when they remember to."
+            ),
+            "tell_me_more": (
+                "In real software teams, these are called 'linting rules' or 'code standards'. "
+                "They catch mistakes automatically so the team can focus on building cool stuff."
+            ),
+        },
+    },
     "code_review": {
         "first_review": {
             "concept": "code_review",

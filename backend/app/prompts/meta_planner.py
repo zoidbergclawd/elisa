@@ -93,6 +93,14 @@ If the project spec includes hardware components or deployment target "esp32" or
 - If `workflow.flow_hints` contains parallel hints, those tasks should share the same dependencies (can run concurrently).
 - If `workflow.iteration_conditions` is non-empty, note the conditions in the final review/testing task descriptions.
 
+## Skills and Rules
+
+The spec may include `skills` and `rules` arrays containing the kid's custom instructions.
+- Skills provide detailed instructions (agent behavior, features, style)
+- Rules provide constraints and validation criteria
+These are injected into agent prompts automatically. Factor them into task planning
+when relevant (e.g., a "before_deploy" rule means the deploy task should include validation).
+
 ## Important
 
 - Output ONLY the JSON object. No markdown code fences, no commentary.

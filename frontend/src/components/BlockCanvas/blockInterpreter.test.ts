@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { interpretWorkspace, type ProjectSpec } from './blockInterpreter';
+import type { Skill, Rule } from '../Skills/types';
 
 function makeWorkspace(blocks: unknown[]) {
   return { blocks: { blocks } };
@@ -196,5 +197,71 @@ describe('blockInterpreter', () => {
     const spec = interpretWorkspace(makeWorkspace([goalBlock('Test')]));
     expect(spec.workflow.flow_hints).toEqual([]);
     expect(spec.workflow.iteration_conditions).toEqual([]);
+  });
+
+  // Skills and Rules blocks
+  it('parses use_skill block and resolves skill from array', () => {
+    const skills: Skill[] = [
+      { id: 'skill-1', name: 'Be Creative', prompt: 'Use bright colors', category: 'style' },
+    ];
+    const spec = interpretWorkspace(
+      makeWorkspace([goalBlock('Test', { type: 'use_skill', fields: { SKILL_ID: 'skill-1' } })]),
+      skills,
+    );
+    expect(spec.skills).toHaveLength(1);
+    expect(spec.skills![0]).toEqual({
+      id: 'skill-1',
+      name: 'Be Creative',
+      prompt: 'Use bright colors',
+      category: 'style',
+    });
+  });
+
+  it('parses use_rule block and resolves rule from array', () => {
+    const rules: Rule[] = [
+      { id: 'rule-1', name: 'Always Comment', prompt: 'Add comments everywhere', trigger: 'always' },
+    ];
+    const spec = interpretWorkspace(
+      makeWorkspace([goalBlock('Test', { type: 'use_rule', fields: { RULE_ID: 'rule-1' } })]),
+      undefined,
+      rules,
+    );
+    expect(spec.rules).toHaveLength(1);
+    expect(spec.rules![0]).toEqual({
+      id: 'rule-1',
+      name: 'Always Comment',
+      prompt: 'Add comments everywhere',
+      trigger: 'always',
+    });
+  });
+
+  it('ignores use_skill with unknown ID', () => {
+    const skills: Skill[] = [
+      { id: 'skill-1', name: 'Be Creative', prompt: 'Use bright colors', category: 'style' },
+    ];
+    const spec = interpretWorkspace(
+      makeWorkspace([goalBlock('Test', { type: 'use_skill', fields: { SKILL_ID: 'nonexistent' } })]),
+      skills,
+    );
+    expect(spec.skills).toBeUndefined();
+  });
+
+  it('ignores use_rule with unknown ID', () => {
+    const rules: Rule[] = [
+      { id: 'rule-1', name: 'Always Comment', prompt: 'Add comments', trigger: 'always' },
+    ];
+    const spec = interpretWorkspace(
+      makeWorkspace([goalBlock('Test', { type: 'use_rule', fields: { RULE_ID: 'nonexistent' } })]),
+      undefined,
+      rules,
+    );
+    expect(spec.rules).toBeUndefined();
+  });
+
+  it('ignores use_skill when no skills array provided', () => {
+    const spec = interpretWorkspace(
+      makeWorkspace([goalBlock('Test', { type: 'use_skill', fields: { SKILL_ID: 'skill-1' } })]),
+    );
+    expect(spec.skills).toBeUndefined();
   });
 });

@@ -32,6 +32,15 @@ export const toolbox = {
     },
     {
       kind: 'category',
+      name: 'Skills',
+      colour: '315',
+      contents: [
+        { kind: 'block', type: 'use_skill' },
+        { kind: 'block', type: 'use_rule' },
+      ],
+    },
+    {
+      kind: 'category',
       name: 'Agents',
       colour: '30',
       contents: [

@@ -1,3 +1,5 @@
+import type { Skill, Rule } from '../Skills/types';
+
 export interface ProjectSpec {
   project: {
     goal: string;
@@ -32,6 +34,8 @@ export interface ProjectSpec {
     flow_hints?: Array<{ type: 'sequential' | 'parallel'; descriptions: string[] }>;
     iteration_conditions?: string[];
   };
+  skills?: Array<{ id: string; name: string; prompt: string; category: string }>;
+  rules?: Array<{ id: string; name: string; prompt: string; trigger: string }>;
 }
 
 interface BlockJson {
@@ -63,7 +67,11 @@ function walkInputChain(block: BlockJson, inputName: string): BlockJson[] {
   return walkNextChain(inputBlock);
 }
 
-export function interpretWorkspace(json: Record<string, unknown>): ProjectSpec {
+export function interpretWorkspace(
+  json: Record<string, unknown>,
+  skills?: Skill[],
+  rules?: Rule[],
+): ProjectSpec {
   const ws = json as unknown as WorkspaceJson;
   const topBlocks = ws.blocks?.blocks ?? [];
 
@@ -236,6 +244,28 @@ export function interpretWorkspace(json: Record<string, unknown>): ProjectSpec {
         if (!spec.hardware) spec.hardware = { target: 'esp32', components: [] };
         spec.hardware.components.push({ type: 'buzzer', frequency: freq, duration });
         hasEsp32 = true;
+        break;
+      }
+      case 'use_skill': {
+        const skillId = (block.fields?.SKILL_ID as string) ?? '';
+        if (skillId && skills) {
+          const skill = skills.find(s => s.id === skillId);
+          if (skill) {
+            if (!spec.skills) spec.skills = [];
+            spec.skills.push({ id: skill.id, name: skill.name, prompt: skill.prompt, category: skill.category });
+          }
+        }
+        break;
+      }
+      case 'use_rule': {
+        const ruleId = (block.fields?.RULE_ID as string) ?? '';
+        if (ruleId && rules) {
+          const rule = rules.find(r => r.id === ruleId);
+          if (rule) {
+            if (!spec.rules) spec.rules = [];
+            spec.rules.push({ id: rule.id, name: rule.name, prompt: rule.prompt, trigger: rule.trigger });
+          }
+        }
         break;
       }
       case 'deploy_web':

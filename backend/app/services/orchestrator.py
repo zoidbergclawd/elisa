@@ -130,6 +130,12 @@ class Orchestrator:
         # Teaching moment for task decomposition
         await self._maybe_teach("plan_ready", plan_explanation)
 
+        # Teaching moments for skills and rules
+        if spec.get("skills"):
+            await self._maybe_teach("skill_used", "")
+        if spec.get("rules"):
+            await self._maybe_teach("rule_used", "")
+
     async def _execute(self) -> None:
         """Execute tasks in dependency order."""
         self._session.state = SessionState.executing
@@ -172,6 +178,23 @@ class Orchestrator:
                 restricted_paths=", ".join(agent.get("restricted_paths", [".elisa/"])),
                 task_id=task_id,
             )
+
+            # Inject agent-category skills and always-on rules
+            spec_data = self._session.spec or {}
+            agent_skills = [
+                s for s in spec_data.get("skills", [])
+                if s.get("category") == "agent"
+            ]
+            always_rules = [
+                r for r in spec_data.get("rules", [])
+                if r.get("trigger") == "always"
+            ]
+            if agent_skills or always_rules:
+                system_prompt += "\n\n## Kid's Custom Instructions\n"
+                for s in agent_skills:
+                    system_prompt += f"### Skill: {s['name']}\n{s['prompt']}\n\n"
+                for r in always_rules:
+                    system_prompt += f"### Rule: {r['name']}\n{r['prompt']}\n\n"
 
             # Transitive predecessors instead of direct-only
             all_predecessor_ids = self._context.get_transitive_predecessors(
@@ -217,6 +240,15 @@ class Orchestrator:
                 else:
                     retry_count += 1
                     if retry_count <= max_retries:
+                        # Inject on_test_fail rules into retry prompt
+                        on_fail_rules = [
+                            r for r in spec_data.get("rules", [])
+                            if r.get("trigger") == "on_test_fail"
+                        ]
+                        if on_fail_rules:
+                            user_prompt += "\n\n## Retry Rules (kid's rules)\n"
+                            for r in on_fail_rules:
+                                user_prompt += f"### {r['name']}\n{r['prompt']}\n"
                         await self._send({
                             "type": "agent_output",
                             "task_id": task_id,
@@ -418,6 +450,18 @@ class Orchestrator:
         """Compile and flash project to ESP32."""
         self._session.state = SessionState.deploying
         await self._send({"type": "deploy_started", "target": "esp32"})
+
+        # Log before_deploy rules for awareness (injected into final task prompts)
+        spec_data = self._session.spec or {}
+        deploy_rules = [
+            r for r in spec_data.get("rules", [])
+            if r.get("trigger") == "before_deploy"
+        ]
+        if deploy_rules:
+            checklist = "\n".join(
+                f"- {r['name']}: {r['prompt']}" for r in deploy_rules
+            )
+            logger.info("Before-deploy rules:\n%s", checklist)
 
         # Step 1: Compile
         await self._send({

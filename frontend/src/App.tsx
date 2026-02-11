@@ -6,9 +6,11 @@ import BottomBar from './components/BottomBar/BottomBar';
 import GoButton from './components/shared/GoButton';
 import TeachingToast from './components/shared/TeachingToast';
 import HumanGateModal from './components/shared/HumanGateModal';
+import SkillsRulesModal from './components/Skills/SkillsRulesModal';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useBuildSession } from './hooks/useBuildSession';
 import type { TeachingMoment } from './types';
+import type { Skill, Rule } from './components/Skills/types';
 
 export default function App() {
   const [spec, setSpec] = useState<ProjectSpec | null>(null);
@@ -19,6 +21,10 @@ export default function App() {
     handleEvent, startBuild, clearGateRequest,
   } = useBuildSession();
   const { connected } = useWebSocket({ sessionId, onEvent: handleEvent });
+
+  const [skills, setSkills] = useState<Skill[]>([]);
+  const [rules, setRules] = useState<Rule[]>([]);
+  const [skillsModalOpen, setSkillsModalOpen] = useState(false);
 
   const [currentToast, setCurrentToast] = useState<TeachingMoment | null>(null);
   const lastToastIndexRef = useRef(-1);
@@ -37,8 +43,8 @@ export default function App() {
   }, []);
 
   const handleWorkspaceChange = useCallback((json: Record<string, unknown>) => {
-    setSpec(interpretWorkspace(json));
-  }, []);
+    setSpec(interpretWorkspace(json, skills, rules));
+  }, [skills, rules]);
 
   const handleGo = async () => {
     if (!spec) return;
@@ -56,8 +62,11 @@ export default function App() {
           <button className="px-3 py-1 text-sm rounded bg-gray-100 text-gray-500 cursor-not-allowed">
             My Projects
           </button>
-          <button className="px-3 py-1 text-sm rounded bg-gray-100 text-gray-500 cursor-not-allowed">
-            Settings
+          <button
+            onClick={() => setSkillsModalOpen(true)}
+            className="px-3 py-1 text-sm rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
+          >
+            Skills
           </button>
           <button className="px-3 py-1 text-sm rounded bg-gray-100 text-gray-500 cursor-not-allowed">
             Help
@@ -72,7 +81,7 @@ export default function App() {
       <div className="flex flex-1 overflow-hidden">
         {/* Left: BlockCanvas */}
         <div className="flex-1 relative">
-          <BlockCanvas onWorkspaceChange={handleWorkspaceChange} readOnly={uiState !== 'design'} />
+          <BlockCanvas onWorkspaceChange={handleWorkspaceChange} readOnly={uiState !== 'design'} skills={skills} rules={rules} />
         </div>
 
         {/* Right: Mission Control */}
@@ -106,6 +115,17 @@ export default function App() {
           context={gateRequest.context}
           sessionId={sessionId}
           onClose={clearGateRequest}
+        />
+      )}
+
+      {/* Skills & Rules modal */}
+      {skillsModalOpen && (
+        <SkillsRulesModal
+          skills={skills}
+          rules={rules}
+          onSkillsChange={setSkills}
+          onRulesChange={setRules}
+          onClose={() => setSkillsModalOpen(false)}
         />
       )}
 
