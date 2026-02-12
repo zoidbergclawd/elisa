@@ -21,6 +21,83 @@ export interface PortalSpec {
   serialConfig?: Record<string, unknown>;
 }
 
+// ── Security: command injection prevention ──────────────────────────
+
+/** Commands allowed for MCP portal servers and CLI portals. */
+export const ALLOWED_COMMANDS: ReadonlySet<string> = new Set([
+  'node',
+  'npx',
+  'python',
+  'python3',
+  'uvx',
+  'docker',
+  'deno',
+  'bun',
+  'bunx',
+]);
+
+/** Shell metacharacters that must not appear in args. */
+const SHELL_META_RE = /[;&|`$(){}[\]<>!\n\r\\'"]/;
+
+/** Control characters (C0 range except tab) that must not appear in env values. */
+const CONTROL_CHAR_RE = /[\x00-\x08\x0b\x0c\x0e-\x1f]/;
+
+export function validateCommand(command: string): void {
+  if (!command || typeof command !== 'string') {
+    throw new Error('Portal command must be a non-empty string');
+  }
+  // Extract the base command name (strip any path prefix)
+  const base = command.replace(/\\/g, '/').split('/').pop()!;
+  // Strip .exe/.cmd/.bat suffixes on Windows
+  const normalized = base.replace(/\.(exe|cmd|bat)$/i, '');
+  if (!ALLOWED_COMMANDS.has(normalized)) {
+    throw new Error(
+      `Portal command "${command}" is not allowed. Allowed commands: ${[...ALLOWED_COMMANDS].join(', ')}`,
+    );
+  }
+}
+
+export function validateArgs(args: unknown): string[] | undefined {
+  if (args === undefined || args === null) return undefined;
+  if (!Array.isArray(args)) {
+    throw new Error('Portal args must be an array of strings');
+  }
+  for (const arg of args) {
+    if (typeof arg !== 'string') {
+      throw new Error('Each portal arg must be a string');
+    }
+    if (SHELL_META_RE.test(arg)) {
+      throw new Error(
+        `Portal arg "${arg}" contains forbidden shell metacharacters`,
+      );
+    }
+  }
+  return args as string[];
+}
+
+export function validateEnv(env: unknown): Record<string, string> | undefined {
+  if (env === undefined || env === null) return undefined;
+  if (typeof env !== 'object' || Array.isArray(env)) {
+    throw new Error('Portal env must be a plain object');
+  }
+  const sanitized: Record<string, string> = {};
+  for (const [key, value] of Object.entries(env as Record<string, unknown>)) {
+    if (typeof key !== 'string' || typeof value !== 'string') {
+      throw new Error(`Portal env entry "${key}" must have a string value`);
+    }
+    if (SHELL_META_RE.test(key)) {
+      throw new Error(`Portal env key "${key}" contains forbidden characters`);
+    }
+    if (CONTROL_CHAR_RE.test(value)) {
+      throw new Error(
+        `Portal env value for "${key}" contains forbidden control characters`,
+      );
+    }
+    sanitized[key] = value;
+  }
+  return sanitized;
+}
+
 export interface PortalRuntime {
   id: string;
   name: string;
@@ -68,11 +145,11 @@ export class McpPortalAdapter implements PortalAdapter {
   }
 
   async initialize(config: Record<string, unknown>): Promise<void> {
-    this.mcpConfig = {
-      command: (config.command as string) ?? '',
-      args: (config.args as string[]) ?? undefined,
-      env: (config.env as Record<string, string>) ?? undefined,
-    };
+    const command = (config.command as string) ?? '';
+    validateCommand(command);
+    const args = validateArgs(config.args);
+    const env = validateEnv(config.env);
+    this.mcpConfig = { command, args, env };
   }
 
   getCapabilities(): PortalCapability[] {
@@ -98,7 +175,9 @@ export class CliPortalAdapter implements PortalAdapter {
   }
 
   async initialize(config: Record<string, unknown>): Promise<void> {
-    this.command = (config.command as string) ?? '';
+    const command = (config.command as string) ?? '';
+    validateCommand(command);
+    this.command = command;
   }
 
   getCapabilities(): PortalCapability[] {
