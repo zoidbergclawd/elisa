@@ -42,7 +42,7 @@ export function useBuildSession() {
   const [teachingMoments, setTeachingMoments] = useState<TeachingMoment[]>([]);
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [coveragePct, setCoveragePct] = useState<number | null>(null);
-  const [tokenUsage, setTokenUsage] = useState<TokenUsage>({ input: 0, output: 0, total: 0, perAgent: {} });
+  const [tokenUsage, setTokenUsage] = useState<TokenUsage>({ input: 0, output: 0, total: 0, costUsd: 0, maxBudget: 500_000, perAgent: {} });
   const [serialLines, setSerialLines] = useState<SerialLine[]>([]);
   const [deployProgress, setDeployProgress] = useState<DeployProgress | null>(null);
   const [gateRequest, setGateRequest] = useState<GateRequest | null>(null);
@@ -167,11 +167,14 @@ export function useBuildSession() {
         setTokenUsage(prev => {
           const newInput = prev.input + event.input_tokens;
           const newOutput = prev.output + event.output_tokens;
+          const newCost = prev.costUsd + (event.cost_usd ?? 0);
           const agentPrev = prev.perAgent[event.agent_name] || { input: 0, output: 0 };
           return {
             input: newInput,
             output: newOutput,
             total: newInput + newOutput,
+            costUsd: newCost,
+            maxBudget: prev.maxBudget,
             perAgent: {
               ...prev.perAgent,
               [event.agent_name]: {
@@ -180,6 +183,13 @@ export function useBuildSession() {
               },
             },
           };
+        });
+        break;
+      case 'budget_warning':
+        setErrorNotification({
+          message: `Token budget warning: ${Math.round((event.total_tokens / event.max_budget) * 100)}% used ($${event.cost_usd.toFixed(2)})`,
+          recoverable: true,
+          timestamp: Date.now(),
         });
         break;
       // Skill execution events (within a build session)
@@ -220,7 +230,7 @@ export function useBuildSession() {
     setTeachingMoments([]);
     setTestResults([]);
     setCoveragePct(null);
-    setTokenUsage({ input: 0, output: 0, total: 0, perAgent: {} });
+    setTokenUsage({ input: 0, output: 0, total: 0, costUsd: 0, maxBudget: 500_000, perAgent: {} });
     setSerialLines([]);
     setDeployProgress(null);
     setGateRequest(null);

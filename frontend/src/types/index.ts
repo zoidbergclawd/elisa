@@ -57,6 +57,8 @@ export interface TokenUsage {
   input: number;
   output: number;
   total: number;
+  costUsd: number;
+  maxBudget: number;
   perAgent: Record<string, { input: number; output: number }>;
 }
 
@@ -84,7 +86,8 @@ export type WSEvent =
   | { type: 'commit_created'; sha: string; message: string; agent_name: string; task_id: string; timestamp: string; files_changed: string[] }
   | { type: 'test_result'; test_name: string; passed: boolean; details: string }
   | { type: 'coverage_update'; percentage: number; details?: CoverageReport }
-  | { type: 'token_usage'; agent_name: string; input_tokens: number; output_tokens: number }
+  | { type: 'token_usage'; agent_name: string; input_tokens: number; output_tokens: number; cost_usd: number }
+  | { type: 'budget_warning'; total_tokens: number; max_budget: number; cost_usd: number }
   | { type: 'serial_data'; line: string; timestamp: string }
   | { type: 'human_gate'; task_id: string; question: string; context: string }
   | { type: 'user_question'; task_id: string; questions: QuestionPayload[] }
