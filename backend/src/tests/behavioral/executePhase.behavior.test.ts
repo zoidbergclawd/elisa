@@ -47,6 +47,7 @@ import { ExecutePhase } from '../../services/phases/executePhase.js';
 import type { ExecuteDeps } from '../../services/phases/executePhase.js';
 import { TaskDAG } from '../../utils/dag.js';
 import { ContextManager } from '../../utils/contextManager.js';
+import { TokenTracker } from '../../utils/tokenTracker.js';
 import type { PhaseContext } from '../../services/phases/types.js';
 import type { BuildSession } from '../../models/session.js';
 
@@ -123,7 +124,7 @@ function makeDeps(
     agentRunner: { execute: executeMock } as any,
     git: null,
     teachingEngine: { getMoment: vi.fn().mockResolvedValue(null) } as any,
-    tokenTracker: { addForAgent: vi.fn() } as any,
+    tokenTracker: overrides.tokenTracker ?? new TokenTracker(),
     portalService: { getMcpServers: vi.fn().mockReturnValue([]) } as any,
     context: new ContextManager(),
     tasks,
@@ -641,14 +642,18 @@ describe('token budget enforcement', () => {
     const executeMock = makeExecuteMock();
     const tasks = [makeTask('task-1', 'Build UI', 'Builder Bot')];
     const agents = [makeAgent('Builder Bot')];
-    // Create context manager with a very low budget
-    const context = new ContextManager(10);
-    // Token tracker that reports high usage
-    const tokenTracker = { total: 1000, addForAgent: vi.fn() } as any;
+    // Mock a token tracker that reports budget exceeded
+    const tokenTracker = {
+      total: 1000,
+      maxBudget: 500,
+      budgetExceeded: true,
+      budgetRemaining: 0,
+      addForAgent: vi.fn(),
+      checkWarning: vi.fn().mockReturnValue(false),
+    } as any;
     const deps = makeDeps(executeMock, {
       tasks,
       agents,
-      context,
       tokenTracker,
     });
     const ctx = makeCtx();
@@ -666,6 +671,46 @@ describe('token budget enforcement', () => {
     const failedEvents = events.filter((e) => e.type === 'task_failed');
     expect(failedEvents.length).toBe(1);
     expect(failedEvents[0].error).toContain('Token budget exceeded');
+  });
+
+  it('includes cost_usd in token_usage event', async () => {
+    const executeMock = vi.fn().mockResolvedValue({
+      success: true,
+      summary: 'Task completed with all requirements met and verified by automated checks',
+      inputTokens: 100,
+      outputTokens: 50,
+      costUsd: 0.025,
+    });
+    const tasks = [makeTask('task-1', 'Build UI', 'Builder Bot')];
+    const agents = [makeAgent('Builder Bot')];
+    const deps = makeDeps(executeMock, { tasks, agents });
+    const ctx = makeCtx();
+    const phase = new ExecutePhase(deps);
+
+    await phase.execute(ctx);
+
+    const tokenEvents = events.filter((e) => e.type === 'token_usage');
+    expect(tokenEvents.length).toBe(1);
+    expect(tokenEvents[0].cost_usd).toBe(0.025);
+  });
+
+  it('emits budget_warning when threshold crossed', async () => {
+    // Use a tracker with low budget so 150 tokens (100+50) exceeds 80% of 180
+    const tokenTracker = new TokenTracker(180);
+    const executeMock = makeExecuteMock();
+    const tasks = [makeTask('task-1', 'Build UI', 'Builder Bot')];
+    const agents = [makeAgent('Builder Bot')];
+    const deps = makeDeps(executeMock, { tasks, agents, tokenTracker });
+    const ctx = makeCtx();
+    const phase = new ExecutePhase(deps);
+
+    await phase.execute(ctx);
+
+    // After addForAgent(100, 50) the tracker total is 150, which is >= 80% of 180 (=144)
+    const warningEvents = events.filter((e) => e.type === 'budget_warning');
+    expect(warningEvents.length).toBe(1);
+    expect(warningEvents[0].total_tokens).toBe(150);
+    expect(warningEvents[0].max_budget).toBe(180);
   });
 });
 

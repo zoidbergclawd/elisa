@@ -273,11 +273,11 @@ describe('checkBudget', () => {
     expect(result.remaining).toBe(1);
   });
 
-  it('uses default maxTokens of 100_000', () => {
+  it('uses default maxTokens of 500_000', () => {
     const cm = new ContextManager();
     const result = cm.checkBudget(50_000);
     expect(result.withinBudget).toBe(true);
-    expect(result.remaining).toBe(50_000);
+    expect(result.remaining).toBe(450_000);
   });
 
   it('remaining never goes below 0', () => {
