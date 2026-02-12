@@ -201,6 +201,34 @@ export class DeployPhase {
       }
     }
 
+    // Deploy CLI portals by executing their commands
+    const cliPortals = this.portalService.getCliPortals();
+    for (const { name, adapter } of cliPortals) {
+      await ctx.send({
+        type: 'deploy_progress',
+        step: `Running CLI portal "${name}"...`,
+        progress: 80,
+      });
+
+      const result = await adapter.execute(ctx.nuggetDir);
+
+      if (result.stdout) {
+        await ctx.send({
+          type: 'deploy_progress',
+          step: result.stdout.slice(0, 500),
+          progress: 85,
+        });
+      }
+
+      if (!result.success) {
+        await ctx.send({
+          type: 'error',
+          message: `CLI portal "${name}" failed: ${result.stderr.slice(0, 500)}`,
+          recoverable: true,
+        });
+      }
+    }
+
     await maybeTeach(this.teachingEngine, ctx, 'portal_used', '');
     await ctx.send({ type: 'deploy_complete', target: 'portals' });
     return { serialHandle };

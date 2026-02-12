@@ -1,6 +1,16 @@
 /** Manages portal adapters per session -- connects agents to external things. */
 
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import type { HardwareService } from './hardwareService.js';
+
+const execFileAsync = promisify(execFile);
+
+export interface CliExecResult {
+  success: boolean;
+  stdout: string;
+  stderr: string;
+}
 
 export interface PortalCapability {
   id: string;
@@ -169,6 +179,8 @@ export class McpPortalAdapter implements PortalAdapter {
 export class CliPortalAdapter implements PortalAdapter {
   private capabilities: PortalCapability[] = [];
   private command = '';
+  private args: string[] = [];
+  private env: Record<string, string> | undefined;
 
   constructor(capabilities: PortalCapability[]) {
     this.capabilities = capabilities;
@@ -178,6 +190,8 @@ export class CliPortalAdapter implements PortalAdapter {
     const command = (config.command as string) ?? '';
     validateCommand(command);
     this.command = command;
+    this.args = (config.args as string[]) ?? [];
+    this.env = (config.env as Record<string, string>) ?? undefined;
   }
 
   getCapabilities(): PortalCapability[] {
@@ -186,6 +200,31 @@ export class CliPortalAdapter implements PortalAdapter {
 
   getCommand(): string {
     return this.command;
+  }
+
+  getArgs(): string[] {
+    return this.args;
+  }
+
+  /** Execute the CLI command (no shell) and return result. */
+  async execute(cwd: string, timeoutMs = 60_000): Promise<CliExecResult> {
+    if (!this.command) {
+      return { success: false, stdout: '', stderr: 'No command configured' };
+    }
+    try {
+      const { stdout, stderr } = await execFileAsync(this.command, this.args, {
+        cwd,
+        timeout: timeoutMs,
+        env: this.env ? { ...process.env, ...this.env } : undefined,
+      });
+      return { success: true, stdout, stderr };
+    } catch (err: any) {
+      return {
+        success: false,
+        stdout: err.stdout ?? '',
+        stderr: err.stderr ?? err.message ?? String(err),
+      };
+    }
   }
 
   async teardown(): Promise<void> {}
@@ -253,6 +292,17 @@ export class PortalService {
       }
     }
     return servers;
+  }
+
+  /** Collect CLI portals for execution during deploy. */
+  getCliPortals(): Array<{ name: string; adapter: CliPortalAdapter }> {
+    const portals: Array<{ name: string; adapter: CliPortalAdapter }> = [];
+    for (const runtime of this.runtimes.values()) {
+      if (runtime.adapter instanceof CliPortalAdapter) {
+        portals.push({ name: runtime.name, adapter: runtime.adapter });
+      }
+    }
+    return portals;
   }
 
   /** Check if any portals use serial mechanism. */
