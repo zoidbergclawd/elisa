@@ -181,6 +181,23 @@ export class Orchestrator {
       const agent = this.agentMap[agentName] ?? {};
       const agentRole: string = agent.role ?? 'builder';
 
+      // Skip deploy tasks that have no concrete deployment target
+      if (this.isUndeployableTask(task)) {
+        task.status = 'done';
+        if (agent.status !== undefined) agent.status = 'idle';
+        completed.add(taskId);
+        this.taskSummaries[taskId] = 'Skipped: no deployment target configured. Add a deployment portal to enable this.';
+        await this.send({ type: 'task_started', task_id: taskId, agent_name: agentName });
+        await this.send({
+          type: 'agent_output',
+          task_id: taskId,
+          agent_name: agentName,
+          content: 'No deployment target configured. Skipping deploy task. You can add a deployment portal later.',
+        });
+        await this.send({ type: 'task_completed', task_id: taskId, agent_name: agentName });
+        continue;
+      }
+
       task.status = 'in_progress';
       if (agent.status !== undefined) agent.status = 'working';
 
@@ -479,6 +496,25 @@ export class Orchestrator {
       resolver(answers);
       this.questionResolvers.delete(taskId);
     }
+  }
+
+  // -- Deploy task filtering --
+
+  /** Returns true if a task looks like a deploy task but has no concrete deployment target. */
+  private isUndeployableTask(task: Record<string, any>): boolean {
+    const name = (task.name ?? '').toLowerCase();
+    const desc = (task.description ?? '').toLowerCase();
+    const isDeployTask = name.includes('deploy') || desc.includes('deploy to the web') || desc.includes('deploy to production');
+    if (!isDeployTask) return false;
+
+    // Hardware deploy tasks are handled by the hardware service
+    if (this.shouldDeployHardware()) return false;
+
+    // Portal deploy tasks are handled by portal service
+    if (this.shouldDeployPortals()) return false;
+
+    // No concrete deployment target -- skip this task
+    return true;
   }
 
   // -- Hardware Deployment --

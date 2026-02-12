@@ -75,6 +75,15 @@ can execute sequentially.
 - estimated_time_minutes: total estimated wall-clock time
 - critical_path: the longest chain of dependent tasks (determines total time)
 
+## Deployment Rules
+
+**IMPORTANT: Do NOT generate a "deploy" task unless there is a concrete deployment target.**
+
+- If deployment target is "esp32" or "both": include compile + flash tasks (see Hardware Rules below).
+- If deployment target is "web" but NO portal provides deployment tools: do NOT include a deploy task. The build ends at the review/test phase. The kid can deploy later when they add a deployment portal.
+- If a portal with deployment capabilities exists (e.g., a CLI portal for gcloud/firebase/vercel): include a deploy task that uses that portal.
+- If deployment target is "preview" or absent: no deploy task needed.
+
 ## Hardware Nugget Rules
 
 If the nugget spec includes hardware components or deployment target "esp32" or "both":
