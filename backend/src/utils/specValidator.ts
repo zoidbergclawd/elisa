@@ -14,12 +14,38 @@ const InteractionSchema = z.object({
   capabilityId: z.string().max(200).optional(),
 }).passthrough();
 
+/** Shell metacharacters forbidden in portal args. */
+const SHELL_META_RE = /[;&|`$(){}[\]<>!\n\r\\'"]/;
+const noShellMeta = z.string().max(500).refine(
+  (s) => !SHELL_META_RE.test(s),
+  { message: 'Arg contains forbidden shell metacharacters' },
+);
+
+const McpConfigSchema = z.object({
+  command: z.string().max(200),
+  args: z.array(noShellMeta).max(50).optional(),
+  env: z.record(z.string().max(200), z.string().max(1000)).optional(),
+}).strict();
+
+const CliConfigSchema = z.object({
+  command: z.string().max(200),
+  args: z.array(noShellMeta).max(50).optional(),
+}).strict();
+
+const SerialConfigSchema = z.object({
+  port: z.string().max(200).optional(),
+  baudRate: z.number().int().positive().optional(),
+}).strict();
+
 const PortalSchema = z.object({
   name: z.string().max(200).optional(),
   description: z.string().max(2000).optional(),
   mechanism: z.string().max(50).optional(),
   capabilities: z.array(CapabilitySchema).max(50).optional(),
   interactions: z.array(InteractionSchema).max(50).optional(),
+  mcpConfig: McpConfigSchema.optional(),
+  cliConfig: CliConfigSchema.optional(),
+  serialConfig: SerialConfigSchema.optional(),
 }).strict();
 
 const SkillSchema = z.object({
