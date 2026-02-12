@@ -870,6 +870,90 @@ describe('concurrent task limits', () => {
 });
 
 // ============================================================
+// Streaming-parallel scheduling (Issue #18 regression)
+// ============================================================
+
+describe('streaming-parallel scheduling (issue #18)', () => {
+  it('does not schedule tasks when all slots are occupied (bug #1: Math.max fix)', async () => {
+    // With the old Math.max(1, batchSize), even when inFlight.size >= MAX_CONCURRENT,
+    // at least 1 extra task would be scheduled, exceeding the concurrency limit.
+    let peakConcurrent = 0;
+    let currentConcurrent = 0;
+
+    const executeMock = vi.fn().mockImplementation(async () => {
+      currentConcurrent++;
+      if (currentConcurrent > peakConcurrent) peakConcurrent = currentConcurrent;
+      // Use a longer delay to ensure overlap is measurable
+      await new Promise((r) => setTimeout(r, 50));
+      currentConcurrent--;
+      return { success: true, summary: 'Completed the full task with implementation and verification', inputTokens: 100, outputTokens: 50, costUsd: 0.01 };
+    });
+
+    // 6 independent tasks -- more than 2x MAX_CONCURRENT to stress the scheduler
+    const tasks = Array.from({ length: 6 }, (_, i) =>
+      makeTask(`task-${i + 1}`, `Task ${i + 1}`, `Agent-${i + 1}`),
+    );
+    const agents = Array.from({ length: 6 }, (_, i) =>
+      makeAgent(`Agent-${i + 1}`),
+    );
+    const deps = makeDeps(executeMock, { tasks, agents });
+    const ctx = makeCtx();
+    const phase = new ExecutePhase(deps);
+
+    await phase.execute(ctx);
+
+    // Must never exceed MAX_CONCURRENT (3)
+    expect(peakConcurrent).toBeLessThanOrEqual(3);
+    // All tasks should have completed
+    expect(events.filter((e) => e.type === 'task_completed').length).toBe(6);
+  });
+
+  it('fills freed slot immediately when a task completes (bug #2: streaming vs batch)', async () => {
+    // With the old Promise.all batch approach, tasks 4+ would not start until
+    // the entire first batch of 3 finished. With streaming-parallel, task-4
+    // should start as soon as the first of tasks 1-3 completes.
+    const taskTimeline: { taskId: string; event: string; time: number }[] = [];
+    const start = Date.now();
+
+    const executeMock = vi.fn().mockImplementation(async (opts: any) => {
+      taskTimeline.push({ taskId: opts.taskId, event: 'start', time: Date.now() - start });
+      // task-1 finishes quickly; tasks 2-3 take longer
+      const delay = opts.taskId === 'task-1' ? 20 : 80;
+      await new Promise((r) => setTimeout(r, delay));
+      taskTimeline.push({ taskId: opts.taskId, event: 'end', time: Date.now() - start });
+      return { success: true, summary: 'Full implementation with tests verified and passing correctly', inputTokens: 100, outputTokens: 50, costUsd: 0.01 };
+    });
+
+    // 4 independent tasks: 3 fill the pool, task-4 should fill the slot freed by task-1
+    const tasks = Array.from({ length: 4 }, (_, i) =>
+      makeTask(`task-${i + 1}`, `Task ${i + 1}`, `Agent-${i + 1}`),
+    );
+    const agents = Array.from({ length: 4 }, (_, i) =>
+      makeAgent(`Agent-${i + 1}`),
+    );
+    const deps = makeDeps(executeMock, { tasks, agents });
+    const ctx = makeCtx();
+    const phase = new ExecutePhase(deps);
+
+    await phase.execute(ctx);
+
+    // task-4 should start BEFORE tasks 2 and 3 finish (streaming behavior)
+    const task4Start = taskTimeline.find((e) => e.taskId === 'task-4' && e.event === 'start');
+    const task2End = taskTimeline.find((e) => e.taskId === 'task-2' && e.event === 'end');
+    const task3End = taskTimeline.find((e) => e.taskId === 'task-3' && e.event === 'end');
+
+    expect(task4Start).toBeDefined();
+    expect(task2End).toBeDefined();
+    expect(task3End).toBeDefined();
+
+    // With batch-parallel (old behavior), task-4 would start AFTER both task-2 and task-3 end.
+    // With streaming-parallel, task-4 starts before at least one of the slow tasks finishes.
+    const latestSlowEnd = Math.max(task2End!.time, task3End!.time);
+    expect(task4Start!.time).toBeLessThan(latestSlowEnd);
+  });
+});
+
+// ============================================================
 // Context chain
 // ============================================================
 
