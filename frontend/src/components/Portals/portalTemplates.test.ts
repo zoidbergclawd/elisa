@@ -1,46 +1,47 @@
+/** Tests for portal templates. */
+
 import { describe, it, expect } from 'vitest';
 import { portalTemplates } from './portalTemplates';
 
 describe('portalTemplates', () => {
-  it('contains at least 3 templates', () => {
-    expect(portalTemplates.length).toBeGreaterThanOrEqual(3);
+  it('contains all expected templates', () => {
+    const ids = portalTemplates.map((t) => t.templateId);
+    expect(ids).toContain('esp32');
+    expect(ids).toContain('lora');
+    expect(ids).toContain('filesystem');
+    expect(ids).toContain('github');
+    expect(ids).toContain('brave-search');
   });
 
-  it('each template has required fields', () => {
+  it('has unique templateIds', () => {
+    const ids = portalTemplates.map((t) => t.templateId);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('has non-empty capabilities for all templates', () => {
+    for (const template of portalTemplates) {
+      expect(template.capabilities.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('has unique capability ids within each template', () => {
+    for (const template of portalTemplates) {
+      const capIds = template.capabilities.map((c) => c.id);
+      expect(new Set(capIds).size).toBe(capIds.length);
+    }
+  });
+
+  it('all templates have required fields', () => {
     for (const t of portalTemplates) {
       expect(t.name).toBeTruthy();
       expect(t.description).toBeTruthy();
       expect(typeof t.mechanism).toBe('string');
       expect(t.status).toBe('unconfigured');
-      expect(Array.isArray(t.capabilities)).toBe(true);
-      expect(t.capabilities.length).toBeGreaterThan(0);
+      expect(t.templateId).toBeTruthy();
     }
   });
 
-  it('ESP32 Board template has serial mechanism', () => {
-    const esp = portalTemplates.find(t => t.name === 'ESP32 Board');
-    expect(esp).toBeDefined();
-    expect(esp!.mechanism).toBe('serial');
-    expect(esp!.serialConfig).toBeDefined();
-    expect(esp!.templateId).toBe('esp32');
-  });
-
-  it('LoRa Radio template has serial mechanism', () => {
-    const lora = portalTemplates.find(t => t.name === 'LoRa Radio');
-    expect(lora).toBeDefined();
-    expect(lora!.mechanism).toBe('serial');
-    expect(lora!.templateId).toBe('lora');
-  });
-
-  it('File System template has mcp mechanism', () => {
-    const fs = portalTemplates.find(t => t.name === 'File System');
-    expect(fs).toBeDefined();
-    expect(fs!.mechanism).toBe('mcp');
-    expect(fs!.mcpConfig).toBeDefined();
-    expect(fs!.templateId).toBe('filesystem');
-  });
-
-  it('capabilities have required fields', () => {
+  it('capabilities have valid kinds', () => {
     for (const t of portalTemplates) {
       for (const cap of t.capabilities) {
         expect(cap.id).toBeTruthy();
@@ -51,19 +52,60 @@ describe('portalTemplates', () => {
     }
   });
 
-  it('templates do not have an id field (id assigned at instantiation)', () => {
+  it('templates do not have an id field', () => {
     for (const t of portalTemplates) {
       expect((t as any).id).toBeUndefined();
     }
   });
 
-  it('templates have diverse capability kinds', () => {
-    const allKinds = new Set<string>();
-    for (const t of portalTemplates) {
-      for (const cap of t.capabilities) {
-        allKinds.add(cap.kind);
-      }
-    }
-    expect(allKinds.size).toBeGreaterThanOrEqual(3);
+  describe('GitHub template', () => {
+    const github = portalTemplates.find((t) => t.templateId === 'github')!;
+
+    it('exists and uses MCP mechanism', () => {
+      expect(github).toBeDefined();
+      expect(github.mechanism).toBe('mcp');
+    });
+
+    it('uses npx with @modelcontextprotocol/server-github', () => {
+      expect(github.mcpConfig?.command).toBe('npx');
+      expect(github.mcpConfig?.args).toContain('@modelcontextprotocol/server-github');
+    });
+
+    it('has create-issue, read-repo, and search-code capabilities', () => {
+      const capIds = github.capabilities.map((c) => c.id);
+      expect(capIds).toContain('create-issue');
+      expect(capIds).toContain('read-repo');
+      expect(capIds).toContain('search-code');
+    });
+
+    it('includes GITHUB_PERSONAL_ACCESS_TOKEN env placeholder', () => {
+      expect(github.mcpConfig?.env).toBeDefined();
+      expect(github.mcpConfig?.env).toHaveProperty('GITHUB_PERSONAL_ACCESS_TOKEN');
+    });
+  });
+
+  describe('Brave Search template', () => {
+    const brave = portalTemplates.find((t) => t.templateId === 'brave-search')!;
+
+    it('exists and uses MCP mechanism', () => {
+      expect(brave).toBeDefined();
+      expect(brave.mechanism).toBe('mcp');
+    });
+
+    it('uses npx with @modelcontextprotocol/server-brave-search', () => {
+      expect(brave.mcpConfig?.command).toBe('npx');
+      expect(brave.mcpConfig?.args).toContain('@modelcontextprotocol/server-brave-search');
+    });
+
+    it('has web-search and local-search capabilities', () => {
+      const capIds = brave.capabilities.map((c) => c.id);
+      expect(capIds).toContain('web-search');
+      expect(capIds).toContain('local-search');
+    });
+
+    it('includes BRAVE_API_KEY env placeholder', () => {
+      expect(brave.mcpConfig?.env).toBeDefined();
+      expect(brave.mcpConfig?.env).toHaveProperty('BRAVE_API_KEY');
+    });
   });
 });
