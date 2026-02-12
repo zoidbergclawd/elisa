@@ -217,7 +217,7 @@ describe('useBuildSession', () => {
     expect(result.current.teachingMoments).toEqual([]);
     expect(result.current.testResults).toEqual([]);
     expect(result.current.coveragePct).toBeNull();
-    expect(result.current.tokenUsage).toMatchObject({ input: 0, output: 0, total: 0, perAgent: {} });
+    expect(result.current.tokenUsage).toEqual({ input: 0, output: 0, total: 0, costUsd: 0, maxBudget: 500_000, perAgent: {} });
     expect(result.current.serialLines).toEqual([]);
     expect(result.current.deployProgress).toBeNull();
     expect(result.current.gateRequest).toBeNull();

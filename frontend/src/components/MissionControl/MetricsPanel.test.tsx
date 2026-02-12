@@ -5,7 +5,7 @@ import type { TokenUsage } from '../../types';
 
 describe('MetricsPanel', () => {
   it('shows empty state when total is 0', () => {
-    const usage: TokenUsage = { input: 0, output: 0, total: 0, perAgent: {} };
+    const usage: TokenUsage = { input: 0, output: 0, total: 0, costUsd: 0, maxBudget: 500_000, perAgent: {} };
     render(<MetricsPanel tokenUsage={usage} />);
     expect(screen.getByText('No token data yet')).toBeInTheDocument();
   });
@@ -15,6 +15,8 @@ describe('MetricsPanel', () => {
       input: 1000,
       output: 500,
       total: 1500,
+      costUsd: 0.01,
+      maxBudget: 500_000,
       perAgent: { Sparky: { input: 1000, output: 500 } },
     };
     render(<MetricsPanel tokenUsage={usage} />);
@@ -26,6 +28,8 @@ describe('MetricsPanel', () => {
       input: 2000,
       output: 1000,
       total: 3000,
+      costUsd: 0,
+      maxBudget: 500_000,
       perAgent: {},
     };
     render(<MetricsPanel tokenUsage={usage} />);
@@ -38,6 +42,8 @@ describe('MetricsPanel', () => {
       input: 300,
       output: 150,
       total: 450,
+      costUsd: 0.005,
+      maxBudget: 500_000,
       perAgent: {
         Sparky: { input: 100, output: 50 },
         Checkers: { input: 200, output: 100 },
