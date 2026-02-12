@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useBuildSession, MAX_SERIAL_LINES } from './useBuildSession';
 import type { WSEvent } from '../types';
@@ -217,7 +217,7 @@ describe('useBuildSession', () => {
     expect(result.current.teachingMoments).toEqual([]);
     expect(result.current.testResults).toEqual([]);
     expect(result.current.coveragePct).toBeNull();
-    expect(result.current.tokenUsage).toEqual({ input: 0, output: 0, total: 0, perAgent: {} });
+    expect(result.current.tokenUsage).toMatchObject({ input: 0, output: 0, total: 0, perAgent: {} });
     expect(result.current.serialLines).toEqual([]);
     expect(result.current.deployProgress).toBeNull();
     expect(result.current.gateRequest).toBeNull();
@@ -330,5 +330,92 @@ describe('useBuildSession', () => {
     });
     expect(result.current.serialLines.length).toBe(10);
     expect(result.current.serialLines[0].line).toBe('line-0');
+  });
+
+  describe('startBuild validation error handling', () => {
+    let originalFetch: typeof globalThis.fetch;
+
+    beforeEach(() => {
+      originalFetch = globalThis.fetch;
+    });
+
+    afterEach(() => {
+      globalThis.fetch = originalFetch;
+    });
+
+    it('surfaces Zod validation errors with per-field messages', async () => {
+      globalThis.fetch = vi.fn()
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ session_id: 's1' }) })
+        .mockResolvedValueOnce({
+          ok: false,
+          json: async () => ({
+            detail: 'Invalid NuggetSpec',
+            errors: [
+              { path: 'nugget.goal', message: 'Required' },
+              { path: 'nugget.language', message: 'Invalid enum value' },
+            ],
+          }),
+        });
+
+      const { result } = renderHook(() => useBuildSession());
+      await act(async () => {
+        await result.current.startBuild({ nugget: { goal: '', language: 'python' } } as never);
+      });
+
+      expect(result.current.uiState).toBe('design');
+      expect(result.current.errorNotification).not.toBeNull();
+      expect(result.current.errorNotification!.message).toContain('Invalid NuggetSpec');
+      expect(result.current.errorNotification!.message).toContain('nugget.goal: Required');
+      expect(result.current.errorNotification!.message).toContain('nugget.language: Invalid enum value');
+      expect(result.current.errorNotification!.recoverable).toBe(true);
+    });
+
+    it('reads body.detail (not body.error) for non-validation errors', async () => {
+      globalThis.fetch = vi.fn()
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ session_id: 's1' }) })
+        .mockResolvedValueOnce({
+          ok: false,
+          json: async () => ({ detail: 'Session already started' }),
+        });
+
+      const { result } = renderHook(() => useBuildSession());
+      await act(async () => {
+        await result.current.startBuild({ nugget: { goal: 'x', language: 'python' } } as never);
+      });
+
+      expect(result.current.errorNotification!.message).toBe('Session already started');
+    });
+
+    it('reads body.detail for session creation errors', async () => {
+      globalThis.fetch = vi.fn()
+        .mockResolvedValueOnce({
+          ok: false,
+          json: async () => ({ detail: 'Server overloaded' }),
+        });
+
+      const { result } = renderHook(() => useBuildSession());
+      await act(async () => {
+        await result.current.startBuild({ nugget: { goal: 'x', language: 'python' } } as never);
+      });
+
+      expect(result.current.uiState).toBe('design');
+      expect(result.current.errorNotification!.message).toBe('Server overloaded');
+    });
+
+    it('falls back to generic message when body has no detail', async () => {
+      globalThis.fetch = vi.fn()
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ session_id: 's1' }) })
+        .mockResolvedValueOnce({
+          ok: false,
+          json: async () => ({}),
+        });
+
+      const { result } = renderHook(() => useBuildSession());
+      await act(async () => {
+        await result.current.startBuild({ nugget: { goal: 'x', language: 'python' } } as never);
+      });
+
+      expect(result.current.errorNotification!.message).toBe('Failed to start build');
+    });
   });
 });

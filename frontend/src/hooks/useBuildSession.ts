@@ -230,9 +230,9 @@ export function useBuildSession() {
 
     const res = await fetch('/api/sessions', { method: 'POST' });
     if (!res.ok) {
-      const body = await res.json().catch(() => ({ error: res.statusText }));
+      const body = await res.json().catch(() => ({ detail: res.statusText }));
       setUiState('design');
-      setErrorNotification({ message: body.error || 'Failed to create session', recoverable: true, timestamp: Date.now() });
+      setErrorNotification({ message: body.detail || 'Failed to create session', recoverable: true, timestamp: Date.now() });
       return;
     }
     const { session_id } = await res.json();
@@ -249,9 +249,16 @@ export function useBuildSession() {
       body: JSON.stringify({ spec }),
     });
     if (!startRes.ok) {
-      const body = await startRes.json().catch(() => ({ error: startRes.statusText }));
+      const body = await startRes.json().catch(() => ({ detail: startRes.statusText }));
+      let message = body.detail || 'Failed to start build';
+      if (Array.isArray(body.errors) && body.errors.length > 0) {
+        const fieldErrors = body.errors.map((e: { path: string; message: string }) =>
+          e.path ? `${e.path}: ${e.message}` : e.message
+        );
+        message += '\n' + fieldErrors.join('\n');
+      }
       setUiState('design');
-      setErrorNotification({ message: body.error || 'Failed to start build', recoverable: true, timestamp: Date.now() });
+      setErrorNotification({ message, recoverable: true, timestamp: Date.now() });
     }
   }, []);
 
