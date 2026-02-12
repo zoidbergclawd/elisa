@@ -13,7 +13,7 @@ Express 5 + TypeScript server. Orchestrates AI agent teams via the Claude Agent 
 
 ```
 src/
-  server.ts              Express + WS server. Routes, session management, connection tracking.
+  server.ts              Express + WS server. Exports startServer(port, staticDir?). Routes, session management, connection tracking.
   models/
     session.ts           Type definitions: Session, Task, Agent, BuildPhase, WSEvent
   services/
@@ -66,8 +66,15 @@ src/
 - **Graceful degradation**: Missing external tools (git, pytest, mpremote) produce warnings, not crashes.
 - **Timeouts**: Agent=300s, Tests=120s, Flash=60s. Task retry limit=2.
 
+## Server Modes
+
+`server.ts` exports `startServer(port, staticDir?)` for use by Electron. When run standalone (`tsx src/server.ts`), it auto-detects direct execution and starts on `process.env.PORT` (default 8000).
+
+- **Dev mode** (no `staticDir`): CORS enabled for `http://localhost:5173`. Frontend served by Vite separately.
+- **Production** (with `staticDir`): No CORS. Express serves frontend static files + SPA fallback (`index.html` for non-API routes).
+
 ## Configuration
 
-- Port: `process.env.PORT` (default 8000)
-- CORS: `http://localhost:5173`
+- Port: `process.env.PORT` (default 8000), or Electron picks a free port
+- CORS: Conditional -- enabled in dev mode only (`http://localhost:5173`)
 - Claude models: claude-opus-4-6 (agents via SDK + meta-planner via API), claude-sonnet-4 (teaching via API)

@@ -23,18 +23,21 @@ Do NOT update docs for internal implementation changes that don't affect the str
 
 ## Tech Stack
 
+- **Desktop**: Electron 35, electron-builder (packaging), electron-store + safeStorage (API key encryption)
 - **Frontend**: React 19, Vite 7, TypeScript 5.9, Tailwind CSS 4, Blockly 12
 - **Backend**: Express 5, TypeScript 5.9, ws 8, Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`)
 - **Hardware**: MicroPython on ESP32 via serialport + mpremote
+- **Build**: esbuild (backend bundling), tsc (Electron), Vite (frontend)
 - **Testing**: Vitest + Testing Library (frontend), Vitest (backend)
 
 ## Dev Setup
 
 ```
-# Terminal 1: Backend
-cd backend && npm install && npm run dev    # port 8000
+# Option 1: Electron (recommended)
+npm install && npm run dev    # runs backend + frontend + Electron window
 
-# Terminal 2: Frontend
+# Option 2: Without Electron (two terminals)
+cd backend && npm install && npm run dev    # port 8000
 cd frontend && npm install && npm run dev   # port 5173 (proxies to 8000)
 ```
 
