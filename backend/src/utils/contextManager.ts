@@ -9,7 +9,7 @@ export class ContextManager {
   maxTokens: number;
   private usage: Map<string, number> = new Map();
 
-  constructor(maxTokens = 100_000) {
+  constructor(maxTokens = 500_000) {
     this.maxTokens = maxTokens;
   }
 
