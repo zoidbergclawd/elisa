@@ -20,7 +20,7 @@ Wraps simple-git. Inits repo per session workspace, commits after each task with
 Board detection via USB VID:PID matching. Compiles MicroPython with py_compile. Flashes via mpremote. Serial monitor via serialport at 115200 baud. 60s flash timeout.
 
 ### testRunner.ts (test execution)
-Runs `pytest tests/ -v --cov=src --cov-report=json`. Parses verbose output for pass/fail/error/skip. Extracts coverage percentage. 120s timeout.
+Detects project type from file extensions in `tests/`. Runs `pytest` for `.py` files, `node` for `.js`/`.mjs` files, merges results if both exist. Parses PASS/FAIL and TAP output formats for JS; pytest verbose output for Python. Extracts coverage for Python only. 120s timeout per runner.
 
 ### teachingEngine.ts (educational moments)
 Fast-path curriculum lookup maps events to concepts. Deduplicates per concept per session. Falls back to Claude Sonnet API for dynamic generation. Targets ages 8-14.
