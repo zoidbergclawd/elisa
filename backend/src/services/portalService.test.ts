@@ -64,11 +64,9 @@ describe('McpPortalAdapter', () => {
     expect(config.env).toEqual({ HOME: '/tmp' });
   });
 
-  it('defaults to empty command when config is empty', async () => {
+  it('rejects empty command during initialize', async () => {
     const adapter = new McpPortalAdapter([]);
-    await adapter.initialize({});
-    const config = adapter.getMcpServerConfig();
-    expect(config.command).toBe('');
+    await expect(adapter.initialize({})).rejects.toThrow('Portal command must be a non-empty string');
   });
 
   it('getMcpServerConfig returns initial defaults before initialize', () => {
@@ -98,10 +96,9 @@ describe('CliPortalAdapter', () => {
     expect(adapter.getCommand()).toBe('python3');
   });
 
-  it('defaults to empty command', async () => {
+  it('rejects empty command during initialize', async () => {
     const adapter = new CliPortalAdapter([]);
-    await adapter.initialize({});
-    expect(adapter.getCommand()).toBe('');
+    await expect(adapter.initialize({})).rejects.toThrow('Portal command must be a non-empty string');
   });
 
   it('teardown is a no-op', async () => {
@@ -162,6 +159,7 @@ describe('PortalService', () => {
       const spec: PortalSpec = {
         id: 'p4', name: 'Unknown', description: '', mechanism: 'something-else',
         capabilities: [], interactions: [],
+        cliConfig: { command: 'python3' },
       };
       await service.initializePortals([spec]);
       const rt = service.getRuntime('p4');
@@ -170,8 +168,8 @@ describe('PortalService', () => {
 
     it('initializes multiple portals', async () => {
       const specs: PortalSpec[] = [
-        { id: 'a', name: 'A', description: '', mechanism: 'cli', capabilities: [], interactions: [] },
-        { id: 'b', name: 'B', description: '', mechanism: 'mcp', capabilities: [], interactions: [], mcpConfig: { command: 'x' } },
+        { id: 'a', name: 'A', description: '', mechanism: 'cli', capabilities: [], interactions: [], cliConfig: { command: 'python3' } },
+        { id: 'b', name: 'B', description: '', mechanism: 'mcp', capabilities: [], interactions: [], mcpConfig: { command: 'npx' } },
       ];
       await service.initializePortals(specs);
       expect(service.getAllRuntimes()).toHaveLength(2);
@@ -225,13 +223,13 @@ describe('PortalService', () => {
       expect(service.getRuntime('auto-c')!.mechanism).toBe('cli');
     });
 
-    it('falls back to cli when no config present', async () => {
+    it('falls back to cli when no config present (rejects empty command)', async () => {
       const spec: PortalSpec = {
         id: 'auto-f', name: 'Auto', description: '', mechanism: 'auto',
         capabilities: [], interactions: [],
       };
-      await service.initializePortals([spec]);
-      expect(service.getRuntime('auto-f')!.mechanism).toBe('cli');
+      // Falls back to CLI but empty command fails validation
+      await expect(service.initializePortals([spec])).rejects.toThrow('Portal command must be a non-empty string');
     });
 
     it('serial takes priority when multiple configs present', async () => {
@@ -278,24 +276,23 @@ describe('PortalService', () => {
 
     it('excludes non-MCP portals', async () => {
       await service.initializePortals([
-        { id: 'c1', name: 'CLI', description: '', mechanism: 'cli', capabilities: [], interactions: [] },
+        { id: 'c1', name: 'CLI', description: '', mechanism: 'cli', capabilities: [], interactions: [], cliConfig: { command: 'python3' } },
       ]);
       expect(service.getMcpServers()).toHaveLength(0);
     });
 
-    it('excludes MCP portals with empty command', async () => {
-      await service.initializePortals([{
+    it('rejects MCP portals with empty command', async () => {
+      await expect(service.initializePortals([{
         id: 'm2', name: 'Empty', description: '', mechanism: 'mcp',
         capabilities: [], interactions: [],
         mcpConfig: {},
-      }]);
-      expect(service.getMcpServers()).toHaveLength(0);
+      }])).rejects.toThrow('Portal command must be a non-empty string');
     });
 
     it('collects from multiple MCP portals', async () => {
       await service.initializePortals([
-        { id: 'm3', name: 'A', description: '', mechanism: 'mcp', capabilities: [], interactions: [], mcpConfig: { command: 'a' } },
-        { id: 'm4', name: 'B', description: '', mechanism: 'mcp', capabilities: [], interactions: [], mcpConfig: { command: 'b' } },
+        { id: 'm3', name: 'A', description: '', mechanism: 'mcp', capabilities: [], interactions: [], mcpConfig: { command: 'node' } },
+        { id: 'm4', name: 'B', description: '', mechanism: 'mcp', capabilities: [], interactions: [], mcpConfig: { command: 'npx' } },
       ]);
       expect(service.getMcpServers()).toHaveLength(2);
     });
@@ -319,6 +316,7 @@ describe('PortalService', () => {
       await service.initializePortals([{
         id: 'c2', name: 'CLI', description: '', mechanism: 'cli',
         capabilities: [], interactions: [],
+        cliConfig: { command: 'python3' },
       }]);
       expect(service.hasSerialPortals()).toBe(false);
     });
@@ -332,7 +330,7 @@ describe('PortalService', () => {
   describe('teardownAll', () => {
     it('clears all runtimes', async () => {
       await service.initializePortals([
-        { id: 't1', name: 'A', description: '', mechanism: 'cli', capabilities: [], interactions: [] },
+        { id: 't1', name: 'A', description: '', mechanism: 'cli', capabilities: [], interactions: [], cliConfig: { command: 'python3' } },
       ]);
       expect(service.getAllRuntimes()).toHaveLength(1);
       await service.teardownAll();
@@ -341,7 +339,7 @@ describe('PortalService', () => {
 
     it('suppresses teardown errors', async () => {
       await service.initializePortals([
-        { id: 't2', name: 'B', description: '', mechanism: 'cli', capabilities: [], interactions: [] },
+        { id: 't2', name: 'B', description: '', mechanism: 'cli', capabilities: [], interactions: [], cliConfig: { command: 'python3' } },
       ]);
       const rt = service.getRuntime('t2')!;
       rt.adapter.teardown = vi.fn().mockRejectedValue(new Error('boom'));

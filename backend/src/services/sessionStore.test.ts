@@ -8,15 +8,17 @@ const mockLoadAll = vi.fn().mockReturnValue([]);
 const mockRemove = vi.fn();
 const mockClear = vi.fn();
 
-vi.mock('../utils/sessionPersistence.js', () => ({
-  SessionPersistence: vi.fn().mockImplementation(() => ({
-    checkpoint: mockCheckpoint,
-    load: vi.fn(),
-    loadAll: mockLoadAll,
-    remove: mockRemove,
-    clear: mockClear,
-  })),
-}));
+vi.mock('../utils/sessionPersistence.js', () => {
+  return {
+    SessionPersistence: class MockSessionPersistence {
+      checkpoint = mockCheckpoint;
+      load = vi.fn();
+      loadAll = mockLoadAll;
+      remove = mockRemove;
+      clear = mockClear;
+    },
+  };
+});
 
 function makeSession(id: string, state: BuildSession['state'] = 'idle'): BuildSession {
   return { id, state, spec: null, tasks: [], agents: [] };

@@ -259,7 +259,7 @@ export class PortalService {
           break;
         default:
           adapter = new CliPortalAdapter(spec.capabilities);
-          await adapter.initialize({});
+          await adapter.initialize(spec.cliConfig ?? {});
       }
 
       this.runtimes.set(spec.id, {

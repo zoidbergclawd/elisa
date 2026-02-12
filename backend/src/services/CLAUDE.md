@@ -9,9 +9,9 @@ Delegates to phase handlers in sequence: plan -> execute -> test -> deploy. Owns
 
 ### phases/ (pipeline stages)
 - **planPhase.ts** -- MetaPlanner invocation, DAG setup, teaching moments
-- **executePhase.ts** -- Task execution loop with parallel support (up to 3 concurrent), workspace setup, git mutex, context chain, summary validation
+- **executePhase.ts** -- Streaming-parallel task execution (Promise.race pool, up to 3 concurrent), workspace setup, git mutex, context chain, token budget enforcement
 - **testPhase.ts** -- Test runner invocation, result reporting
-- **deployPhase.ts** -- Hardware flash, portal deployment, serial monitor
+- **deployPhase.ts** -- Hardware flash, serial portal deployment, CLI portal execution, serial monitor
 - **types.ts** -- Shared `PhaseContext` and `SendEvent` types
 
 ### agentRunner.ts (SDK agent runner)
@@ -33,7 +33,7 @@ Detects project type from file extensions in `tests/`. Runs `pytest` for `.py` f
 Executes SkillPlans step-by-step with user interaction. Supports step types: `ask_user`, `branch`, `invoke_skill` (with cycle detection at 10-depth), `run_agent`, `set_context`, `output`. Template resolution via `{{key}}` placeholders. Promise-based blocking for user questions.
 
 ### sessionStore.ts (session state)
-Consolidates all session state into a single `Map<string, SessionEntry>`. Methods: `create()`, `get()`, `getOrThrow()`, `has()`, `scheduleCleanup()`, `pruneStale()`, `cancelAll()`.
+Consolidates all session state into a single `Map<string, SessionEntry>`. Optional JSON persistence via `SessionPersistence` for checkpoint/recovery. Methods: `create()`, `get()`, `getOrThrow()`, `has()`, `checkpoint()`, `recover()`, `scheduleCleanup()`, `pruneStale()`, `cancelAll()`.
 
 ### teachingEngine.ts (educational moments)
 Fast-path curriculum lookup maps events to concepts. Deduplicates per concept per session. Falls back to Claude Sonnet API for dynamic generation. Targets ages 8-14.
@@ -44,7 +44,7 @@ Fast-path curriculum lookup maps events to concepts. Deduplicates per concept pe
 Orchestrator.run(spec)
   |-> PlanPhase.execute(ctx, spec)      returns tasks, agents, DAG
   |-> ExecutePhase.execute(ctx)
-  |     for each batch of ready tasks (up to 3 concurrent):
+  |     streaming-parallel pool of ready tasks (up to 3 concurrent):
   |       AgentRunner.execute(prompt)   returns result + tokens
   |       GitService.commit()           serialized via mutex
   |       TeachingEngine.check()        returns teaching moment (if any)

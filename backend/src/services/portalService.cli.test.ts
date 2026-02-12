@@ -48,19 +48,14 @@ describe('CliPortalAdapter', () => {
     execFileResult = { err: null, stdout: '', stderr: '' };
   });
 
-  it('returns failure when no command is configured', async () => {
+  it('rejects initialization with no command', async () => {
     const adapter = new CliPortalAdapter([]);
-    await adapter.initialize({});
-
-    const result = await adapter.execute('/tmp/test');
-    expect(result.success).toBe(false);
-    expect(result.stderr).toBe('No command configured');
-    expect(mockExecFileCalls).toHaveLength(0);
+    await expect(adapter.initialize({})).rejects.toThrow('Portal command must be a non-empty string');
   });
 
   it('executes command and returns stdout/stderr on success', async () => {
     const adapter = new CliPortalAdapter([]);
-    await adapter.initialize({ command: 'echo', args: ['hello'] });
+    await adapter.initialize({ command: 'node', args: ['hello.js'] });
 
     execFileResult = { err: null, stdout: 'hello\n', stderr: '' };
 
@@ -69,13 +64,13 @@ describe('CliPortalAdapter', () => {
     expect(result.stdout).toBe('hello\n');
     expect(result.stderr).toBe('');
     expect(mockExecFileCalls).toHaveLength(1);
-    expect(mockExecFileCalls[0][0]).toBe('echo');
-    expect(mockExecFileCalls[0][1]).toEqual(['hello']);
+    expect(mockExecFileCalls[0][0]).toBe('node');
+    expect(mockExecFileCalls[0][1]).toEqual(['hello.js']);
   });
 
   it('returns failure when command throws', async () => {
     const adapter = new CliPortalAdapter([]);
-    await adapter.initialize({ command: 'badcmd' });
+    await adapter.initialize({ command: 'node' });
 
     const err = new Error('ENOENT') as any;
     err.stdout = '';
@@ -89,7 +84,7 @@ describe('CliPortalAdapter', () => {
 
   it('passes cwd and timeout to execFile', async () => {
     const adapter = new CliPortalAdapter([]);
-    await adapter.initialize({ command: 'ls' });
+    await adapter.initialize({ command: 'node' });
 
     execFileResult = { err: null, stdout: '', stderr: '' };
 
@@ -117,7 +112,7 @@ describe('CliPortalAdapter', () => {
 
   it('does not set env when none provided', async () => {
     const adapter = new CliPortalAdapter([]);
-    await adapter.initialize({ command: 'ls' });
+    await adapter.initialize({ command: 'node' });
 
     execFileResult = { err: null, stdout: '', stderr: '' };
 
@@ -128,14 +123,14 @@ describe('CliPortalAdapter', () => {
 
   it('stores and returns args via getArgs()', async () => {
     const adapter = new CliPortalAdapter([]);
-    await adapter.initialize({ command: 'git', args: ['status', '--short'] });
+    await adapter.initialize({ command: 'python3', args: ['script.py', '--verbose'] });
 
-    expect(adapter.getArgs()).toEqual(['status', '--short']);
+    expect(adapter.getArgs()).toEqual(['script.py', '--verbose']);
   });
 
   it('defaults args to empty array', async () => {
     const adapter = new CliPortalAdapter([]);
-    await adapter.initialize({ command: 'ls' });
+    await adapter.initialize({ command: 'node' });
 
     expect(adapter.getArgs()).toEqual([]);
   });
@@ -154,7 +149,7 @@ describe('PortalService.getCliPortals', () => {
         mechanism: 'cli',
         capabilities: [],
         interactions: [],
-        cliConfig: { command: 'mytool' },
+        cliConfig: { command: 'python3' },
       },
       {
         id: 'mcp-1',
@@ -163,14 +158,14 @@ describe('PortalService.getCliPortals', () => {
         mechanism: 'mcp',
         capabilities: [],
         interactions: [],
-        mcpConfig: { command: 'mcp-server' },
+        mcpConfig: { command: 'npx' },
       },
     ]);
 
     const cliPortals = service.getCliPortals();
     expect(cliPortals).toHaveLength(1);
     expect(cliPortals[0].name).toBe('My CLI Tool');
-    expect(cliPortals[0].adapter.getCommand()).toBe('mytool');
+    expect(cliPortals[0].adapter.getCommand()).toBe('python3');
   });
 
   it('returns empty array when no CLI portals exist', async () => {

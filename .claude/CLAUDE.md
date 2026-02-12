@@ -58,10 +58,10 @@ No bug fix is complete without a regression test.
 
 ## Conventions
 
-- No database. All session state is in-memory with automatic cleanup (5-min grace period).
+- No database. Session state is in-memory with optional JSON file persistence for crash recovery. Auto-cleanup after 5-min grace period.
 - Each agent task runs via the Claude Agent SDK's `query()` API.
 - Frontend communicates via REST (commands) + WebSocket (events).
 - Blockly workspace -> NuggetSpec JSON (Zod-validated) -> backend orchestration pipeline.
-- NuggetSpec validated server-side via Zod schema (`backend/src/utils/specValidator.ts`).
-- Up to 3 tasks execute concurrently when DAG dependencies allow.
+- NuggetSpec validated server-side via Zod schema (`backend/src/utils/specValidator.ts`). Portal commands restricted to allowlist.
+- Up to 3 tasks execute concurrently (streaming-parallel via Promise.race pool) when DAG dependencies allow. Token budget enforced (default 500k).
 - SessionLogger writes per-session logs to `.elisa/logs/` in nugget workspace.

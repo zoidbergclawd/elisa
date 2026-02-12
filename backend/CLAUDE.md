@@ -48,7 +48,8 @@ src/
     contextManager.ts    Builds file manifests, nugget context, structural digests, state snapshots
     specValidator.ts     Zod schema for NuggetSpec validation (string caps, array limits)
     sessionLogger.ts     Per-session structured logging to .elisa/logs/
-    tokenTracker.ts      Tracks input/output tokens and cost per agent
+    sessionPersistence.ts Atomic JSON persistence for session checkpoint/recovery
+    tokenTracker.ts      Tracks input/output tokens, cost per agent, budget limits
 ```
 
 ## API Surface
@@ -73,14 +74,15 @@ src/
 | POST | /api/hardware/flash/:id | Flash to board |
 
 ### WebSocket Events (server -> client)
-`planning_started`, `plan_ready`, `task_started`, `task_completed`, `task_failed`, `agent_output`, `commit_created`, `token_usage`, `test_result`, `coverage_update`, `deploy_*`, `serial_data`, `human_gate`, `teaching_moment`, `error`, `session_complete`
+`planning_started`, `plan_ready`, `task_started`, `task_completed`, `task_failed`, `agent_output`, `commit_created`, `token_usage`, `budget_warning`, `test_result`, `coverage_update`, `deploy_*`, `serial_data`, `human_gate`, `teaching_moment`, `error`, `session_complete`
 
 ## Key Patterns
 
-- **In-memory only**: Sessions stored in Maps. Auto-cleanup after 5-min grace period.
-- **NuggetSpec validation**: Zod schema validates at `/api/sessions/:id/start` (string caps, array limits).
+- **Session state**: In-memory Maps with optional JSON persistence for checkpoint/recovery. Auto-cleanup after 5-min grace period.
+- **NuggetSpec validation**: Zod schema validates at `/api/sessions/:id/start` (string caps, array limits, portal command allowlist).
 - **SDK query per task**: Each agent task calls `query()` from `@anthropic-ai/claude-agent-sdk` with `permissionMode: 'bypassPermissions'`, `maxTurns: 20`
-- **Parallel execution**: Up to 3 independent tasks run concurrently. Git commits serialized via mutex.
+- **Streaming-parallel execution**: Up to 3 independent tasks run concurrently via Promise.race pool. New tasks schedule as soon as any completes. Git commits serialized via mutex.
+- **Token budget**: Default 500k token limit per session. Warning event at 80%. Graceful stop when exceeded. Cost tracking per agent.
 - **Context chain**: After each task, summary + structural digest written to `.elisa/context/nugget_context.md`.
 - **Cancellation**: `Orchestrator.cancel()` via AbortController; checked at top of each loop iteration.
 - **Graceful shutdown**: SIGTERM/SIGINT handlers cancel orchestrators, close WS server, 10s force-exit.
