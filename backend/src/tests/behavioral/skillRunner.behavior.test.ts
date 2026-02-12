@@ -6,8 +6,9 @@
  */
 
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { SkillRunner, resolveTemplate } from '../../services/skillRunner.js';
+import { SkillRunner, resolveTemplate, wrapUserData } from '../../services/skillRunner.js';
 import type { SkillPlan, SkillContext, SkillSpec } from '../../models/skillPlan.js';
+import { tmpdir } from 'node:os';
 
 // -- Mock AgentRunner --
 
@@ -25,6 +26,8 @@ function createMockAgentRunner(resultSummary = 'Agent completed the task') {
 
 // -- Test helpers --
 
+const TEST_WORKING_DIR = tmpdir();
+
 function createRunner(
   skills: SkillSpec[] = [],
   agentResult = 'Agent completed the task',
@@ -34,7 +37,7 @@ function createRunner(
     events.push(evt);
   });
   const agentRunner = createMockAgentRunner(agentResult);
-  const runner = new SkillRunner(send, skills, agentRunner);
+  const runner = new SkillRunner(send, skills, agentRunner, TEST_WORKING_DIR);
   return { runner, events, send, agentRunner };
 }
 
@@ -206,12 +209,17 @@ describe('SkillRunner run_agent', () => {
     const result = await runner.execute(plan);
     expect(result).toBe('Deck: Generated a deck');
 
-    // Verify agent was called with resolved prompt
+    // Verify agent was called with resolved prompt wrapped in user-data tags
     expect(agentRunner.execute).toHaveBeenCalledWith(
       expect.objectContaining({
-        prompt: 'Build a AI presentation',
+        prompt: wrapUserData('Build a AI presentation'),
+        workingDir: TEST_WORKING_DIR,
       }),
     );
+    // Verify system prompt includes security rules
+    const callArgs = agentRunner.execute.mock.calls[0][0];
+    expect(callArgs.systemPrompt).toContain('Security Rules');
+    expect(callArgs.systemPrompt).toContain(TEST_WORKING_DIR);
   });
 });
 

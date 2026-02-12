@@ -20,20 +20,20 @@ const PortalSchema = z.object({
   mechanism: z.string().max(50).optional(),
   capabilities: z.array(CapabilitySchema).max(50).optional(),
   interactions: z.array(InteractionSchema).max(50).optional(),
-}).passthrough();
+}).strict();
 
 const SkillSchema = z.object({
   name: z.string().max(200).optional(),
   category: z.string().max(50).optional(),
   prompt: z.string().max(5000).optional(),
   description: z.string().max(2000).optional(),
-}).passthrough();
+}).strict();
 
 const RuleSchema = z.object({
   name: z.string().max(200).optional(),
   trigger: z.string().max(100).optional(),
   prompt: z.string().max(5000).optional(),
-}).passthrough();
+}).strict();
 
 const RequirementSchema = z.object({
   type: z.string().max(100).optional(),
@@ -69,8 +69,8 @@ export const NuggetSpecSchema = z.object({
   }).passthrough().optional(),
   workflow: z.object({
     human_gates: z.array(z.string().max(200)).max(10).optional(),
-    flow_hints: z.array(z.any()).max(50).optional(),
-    iteration_conditions: z.array(z.any()).max(20).optional(),
+    flow_hints: z.array(z.record(z.string(), z.unknown())).max(50).optional(),
+    iteration_conditions: z.array(z.record(z.string(), z.unknown())).max(20).optional(),
   }).passthrough().optional(),
   skills: z.array(SkillSchema).max(50).optional(),
   rules: z.array(RuleSchema).max(50).optional(),

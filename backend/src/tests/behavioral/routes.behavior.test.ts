@@ -305,14 +305,14 @@ describe('POST /api/skills/run', () => {
     });
     expect(res.status).toBe(400);
     const body = await res.json();
-    expect(body.detail).toBe('plan is required');
+    expect(body.detail).toBe('Invalid skill plan');
   });
 
-  it('returns session_id when plan is provided', async () => {
+  it('returns session_id when valid plan is provided', async () => {
     server = await startServer(0);
     const plan = {
       skillName: 'test-skill',
-      steps: [{ type: 'output', value: 'hello' }],
+      steps: [{ id: 'step-1', type: 'output', template: 'hello' }],
     };
     const res = await fetch(`${baseUrl()}/api/skills/run`, {
       method: 'POST',
@@ -323,6 +323,52 @@ describe('POST /api/skills/run', () => {
     const body = await res.json();
     expect(body).toHaveProperty('session_id');
     expect(typeof body.session_id).toBe('string');
+  });
+
+  it('returns 400 when plan has invalid step type', async () => {
+    server = await startServer(0);
+    const plan = {
+      skillName: 'test-skill',
+      steps: [{ id: 'step-1', type: 'unknown_type' }],
+    };
+    const res = await fetch(`${baseUrl()}/api/skills/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plan }),
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.detail).toBe('Invalid skill plan');
+  });
+
+  it('returns 400 when step prompt exceeds 5000 chars', async () => {
+    server = await startServer(0);
+    const plan = {
+      skillName: 'test-skill',
+      steps: [{ id: 'step-1', type: 'run_agent', prompt: 'x'.repeat(5001), storeAs: 'result' }],
+    };
+    const res = await fetch(`${baseUrl()}/api/skills/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plan }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 when plan has more than 50 steps', async () => {
+    server = await startServer(0);
+    const steps = Array.from({ length: 51 }, (_, i) => ({
+      id: `step-${i}`,
+      type: 'output' as const,
+      template: 'hello',
+    }));
+    const plan = { skillName: 'test-skill', steps };
+    const res = await fetch(`${baseUrl()}/api/skills/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plan }),
+    });
+    expect(res.status).toBe(400);
   });
 });
 

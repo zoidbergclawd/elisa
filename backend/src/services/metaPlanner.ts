@@ -36,8 +36,9 @@ export class MetaPlanner {
     const specJson = JSON.stringify(spec, null, 2);
     const userMsg = metaPlannerUser(specJson);
 
+    const model = process.env.CLAUDE_MODEL || 'claude-opus-4-6';
     const response = await this.client.messages.create({
-      model: 'claude-opus-4-6',
+      model,
       system: META_PLANNER_SYSTEM,
       messages: [
         { role: 'user', content: userMsg },
@@ -61,8 +62,9 @@ export class MetaPlanner {
     originalUserMsg: string,
     badResponse: string,
   ): Promise<Record<string, any>> {
+    const model = process.env.CLAUDE_MODEL || 'claude-opus-4-6';
     const response = await this.client.messages.create({
-      model: 'claude-opus-4-6',
+      model,
       system: META_PLANNER_SYSTEM,
       messages: [
         { role: 'user', content: originalUserMsg },
@@ -133,6 +135,32 @@ export class MetaPlanner {
       }
       if (task.agent_name && !agentNames.has(task.agent_name)) {
         throw new Error(`Task ${task.id} assigned to unknown agent ${task.agent_name}`);
+      }
+      // Cap task description length
+      if (task.description && typeof task.description === 'string') {
+        task.description = task.description.slice(0, 2000);
+      }
+    }
+
+    // Content validation for agents
+    for (const agent of plan.agents) {
+      // Filter allowed_paths: must be relative, no '..'
+      if (agent.allowed_paths) {
+        agent.allowed_paths = agent.allowed_paths.filter(
+          (p: string) => !p.startsWith('/') && !p.includes('..'),
+        );
+      }
+
+      // Enforce restricted_paths always includes '.elisa/'
+      const restricted: string[] = agent.restricted_paths ?? [];
+      if (!restricted.some((p: string) => p.includes('.elisa'))) {
+        restricted.push('.elisa/');
+      }
+      agent.restricted_paths = restricted;
+
+      // Cap persona length and strip markdown heading markers
+      if (agent.persona && typeof agent.persona === 'string') {
+        agent.persona = agent.persona.slice(0, 500).replace(/^#{1,6}\s/gm, '');
       }
     }
   }
