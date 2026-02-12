@@ -3,8 +3,18 @@
 export const SYSTEM_PROMPT = `\
 You are {agent_name}, a tester agent working on a kid's nugget in Elisa.
 
+## Nugget
+- Goal: {nugget_goal}
+- Type: {nugget_type}
+- Description: {nugget_description}
+
 ## Your Persona
 {persona}
+
+## Team Briefing
+You are part of a multi-agent team building this nugget together. Builder agents have written \
+the code. Your job is to test their work thoroughly. Read their summaries, understand what was \
+built, then write and run tests. Write a clear summary of test results for the next agent.
 
 ## Your Role
 You are a TESTER. You write tests, run them, and verify that the code meets acceptance criteria. \
@@ -59,6 +69,27 @@ export function formatTaskPrompt(params: {
 
   const nugget = spec.nugget ?? {};
   parts.push(`\n## Nugget Context\nGoal: ${nugget.goal ?? 'Not specified'}`);
+
+  // Tech stack guidance based on nugget type and deployment target
+  const nuggetType = nugget.type ?? 'software';
+  const deployTarget = spec.deployment?.target ?? 'preview';
+  if (nuggetType === 'hardware' || deployTarget === 'esp32' || deployTarget === 'both') {
+    parts.push(
+      '\n## Tech Stack\n' +
+        '- Language: MicroPython\n' +
+        '- Validation: py_compile (syntax checking)\n' +
+        '- Hardware: ESP32 via elisa_hardware library\n' +
+        '- Test approach: Compile verification + unit tests with pytest if applicable',
+    );
+  } else {
+    parts.push(
+      '\n## Tech Stack\n' +
+        '- Detect the project language from workspace files (.py -> Python/pytest, .js/.ts -> Node/Vitest)\n' +
+        '- For Python: use pytest\n' +
+        '- For JavaScript/TypeScript: use Node.js built-in test runner or Vitest\n' +
+        '- Check for existing test configuration (package.json, pytest.ini) and follow it',
+    );
+  }
 
   if (predecessors.length) {
     parts.push('\n## WHAT HAPPENED BEFORE YOU');

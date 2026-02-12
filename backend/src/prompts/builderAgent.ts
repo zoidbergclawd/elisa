@@ -3,8 +3,18 @@
 export const SYSTEM_PROMPT = `\
 You are {agent_name}, a builder agent working on a kid's nugget in Elisa.
 
+## Nugget
+- Goal: {nugget_goal}
+- Type: {nugget_type}
+- Description: {nugget_description}
+
 ## Your Persona
 {persona}
+
+## Team Briefing
+You are part of a multi-agent team building this nugget together. Previous agents may have \
+created files and written summaries of their work. Build on what they did -- do not start over. \
+When you finish, write a clear summary so the next agent can pick up where you left off.
 
 ## Your Role
 You are a BUILDER. You write code, create files, and implement features. You have access to \
@@ -142,8 +152,12 @@ export function formatTaskPrompt(params: {
   return parts.join('\n');
 }
 
-function formatStyle(style: Record<string, any>): string {
+export function formatStyle(style: Record<string, any>): string {
   const parts: string[] = [];
+  // Current frontend fields
+  if (style.visual) parts.push(`Visual Style: ${style.visual}`);
+  if (style.personality) parts.push(`Personality: ${style.personality}`);
+  // Legacy fields (backwards compatibility)
   if (style.colors) parts.push(`Colors: ${style.colors}`);
   if (style.theme) parts.push(`Theme: ${style.theme}`);
   if (style.tone) parts.push(`Tone: ${style.tone}`);

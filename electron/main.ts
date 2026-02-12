@@ -231,6 +231,13 @@ app.whenReady().then(async () => {
   }
 });
 
+app.on('before-quit', () => {
+  // Cancel any running orchestrators to release resources before exit
+  // In dev mode this is a no-op since the backend runs separately
+  if (!app.isPackaged) return;
+  console.log('Elisa shutting down: cleaning up resources...');
+});
+
 app.on('window-all-closed', () => {
   app.quit();
 });

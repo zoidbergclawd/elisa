@@ -57,7 +57,7 @@ export class TeachingEngine {
 
     // API fallback
     try {
-      const result = await this.apiFallback(eventType, eventDetails, projectType);
+      const result = await this.apiFallback(eventType, eventDetails, nuggetType);
       if (result) {
         this.shownConcepts.add(dedupKey);
         return result;

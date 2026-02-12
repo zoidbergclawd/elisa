@@ -6,6 +6,7 @@ Express 5 + TypeScript server. Orchestrates AI agent teams via the Claude Agent 
 
 - Express 5, TypeScript 5.9, Node.js (ES modules)
 - ws 8 (WebSocket), simple-git 3, serialport 12, @anthropic-ai/sdk, @anthropic-ai/claude-agent-sdk
+- Zod 4 (NuggetSpec validation)
 - archiver 7 (zip streaming for nugget export)
 - Vitest (tests)
 
@@ -13,16 +14,28 @@ Express 5 + TypeScript server. Orchestrates AI agent teams via the Claude Agent 
 
 ```
 src/
-  server.ts              Express + WS server. Exports startServer(port, staticDir?). Routes, session management, connection tracking.
+  server.ts              Thin composition root. Mounts route modules, WS server, exports startServer().
+  routes/
+    sessions.ts          /api/sessions/* endpoints (create, start, stop, gate, question, export)
+    hardware.ts          /api/hardware/* endpoints (detect, flash)
+    skills.ts            /api/skills/* endpoints (run, answer)
   models/
     session.ts           Type definitions: Session, Task, Agent, BuildPhase, WSEvent
   services/
-    orchestrator.ts      Central pipeline: plan -> execute -> test -> review -> deploy
+    orchestrator.ts      Thin coordinator: delegates to phase handlers in sequence
+    sessionStore.ts      Consolidated session state (replaces 4 parallel Maps)
+    phases/
+      types.ts           Shared PhaseContext and SendEvent types
+      planPhase.ts       MetaPlanner invocation, DAG setup
+      executePhase.ts    Task execution loop (parallel, git mutex, context chain)
+      testPhase.ts       Test runner invocation, result reporting
+      deployPhase.ts     Hardware flash, portal deployment
     agentRunner.ts       Runs agents via SDK query() API, streams output
     metaPlanner.ts       Calls Claude API to decompose NuggetSpec into task DAG
     gitService.ts        Git init, commit per task, diff tracking
     hardwareService.ts   ESP32 detect, compile, flash, serial monitor
-    testRunner.ts        Runs pytest, parses results + coverage
+    testRunner.ts        Runs pytest for Python, Node test runner for JS. Parses results + coverage.
+    skillRunner.ts       Executes SkillPlans step-by-step (ask_user, branch, run_agent, invoke_skill)
     teachingEngine.ts    Generates contextual learning moments (curriculum + API fallback)
   prompts/
     metaPlanner.ts       System prompt for task decomposition
@@ -32,7 +45,9 @@ src/
     teaching.ts          Teaching moment curriculum and templates
   utils/
     dag.ts               Task DAG with Kahn's topological sort, cycle detection
-    contextManager.ts    Builds file manifests, nugget context, state snapshots for agents
+    contextManager.ts    Builds file manifests, nugget context, structural digests, state snapshots
+    specValidator.ts     Zod schema for NuggetSpec validation (string caps, array limits)
+    sessionLogger.ts     Per-session structured logging to .elisa/logs/
     tokenTracker.ts      Tracks input/output tokens and cost per agent
 ```
 
@@ -52,6 +67,8 @@ src/
 | GET | /api/sessions/:id/git | Commit history |
 | GET | /api/sessions/:id/tests | Test results |
 | GET | /api/sessions/:id/export | Export nugget directory as zip |
+| POST | /api/skills/run | Start standalone skill execution |
+| POST | /api/skills/:id/answer | Answer skill question |
 | POST | /api/hardware/detect | Detect ESP32 |
 | POST | /api/hardware/flash/:id | Flash to board |
 
@@ -60,9 +77,13 @@ src/
 
 ## Key Patterns
 
-- **In-memory only**: Sessions stored in `Map<string, Session>`. No database.
+- **In-memory only**: Sessions stored in Maps. Auto-cleanup after 5-min grace period.
+- **NuggetSpec validation**: Zod schema validates at `/api/sessions/:id/start` (string caps, array limits).
 - **SDK query per task**: Each agent task calls `query()` from `@anthropic-ai/claude-agent-sdk` with `permissionMode: 'bypassPermissions'`, `maxTurns: 20`
-- **Context chain**: After each task, summary written to `.elisa/context/nugget_context.md` in workspace. Next agent reads it.
+- **Parallel execution**: Up to 3 independent tasks run concurrently. Git commits serialized via mutex.
+- **Context chain**: After each task, summary + structural digest written to `.elisa/context/nugget_context.md`.
+- **Cancellation**: `Orchestrator.cancel()` via AbortController; checked at top of each loop iteration.
+- **Graceful shutdown**: SIGTERM/SIGINT handlers cancel orchestrators, close WS server, 10s force-exit.
 - **Graceful degradation**: Missing external tools (git, pytest, mpremote) produce warnings, not crashes.
 - **Timeouts**: Agent=300s, Tests=120s, Flash=60s. Task retry limit=2.
 
@@ -70,11 +91,13 @@ src/
 
 `server.ts` exports `startServer(port, staticDir?)` for use by Electron. When run standalone (`tsx src/server.ts`), it auto-detects direct execution and starts on `process.env.PORT` (default 8000).
 
-- **Dev mode** (no `staticDir`): CORS enabled for `http://localhost:5173`. Frontend served by Vite separately.
+- **Dev mode** (no `staticDir`): CORS enabled for `CORS_ORIGIN` env var (default `http://localhost:5173`). Frontend served by Vite separately.
 - **Production** (with `staticDir`): No CORS. Express serves frontend static files + SPA fallback (`index.html` for non-API routes).
 
 ## Configuration
 
-- Port: `process.env.PORT` (default 8000), or Electron picks a free port
-- CORS: Conditional -- enabled in dev mode only (`http://localhost:5173`)
-- Claude models: claude-opus-4-6 (agents via SDK + meta-planner via API), claude-sonnet-4 (teaching via API)
+- `PORT`: Backend port (default 8000), or Electron picks a free port
+- `CORS_ORIGIN`: Override CORS origin in dev mode (default `http://localhost:5173`)
+- `CLAUDE_MODEL`: Override model for agents and teaching engine (default `claude-opus-4-6`)
+- `ANTHROPIC_API_KEY`: Required for Claude API/SDK access
+- Claude models: configurable via `CLAUDE_MODEL` env var (default claude-opus-4-6)

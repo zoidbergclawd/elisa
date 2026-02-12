@@ -21,6 +21,14 @@ export class ContextManager {
     return Object.fromEntries(this.usage);
   }
 
+  checkBudget(currentTokens: number): { withinBudget: boolean; remaining: number } {
+    const remaining = this.maxTokens - currentTokens;
+    return {
+      withinBudget: remaining > 0,
+      remaining: Math.max(0, remaining),
+    };
+  }
+
   static capSummary(text: string, maxWords = 500): string {
     const words = text.split(/\s+/);
     if (words.length <= maxWords) return text;
@@ -104,6 +112,97 @@ export class ContextManager {
       };
     }
     return { tasks: taskEntries, agents: agentEntries };
+  }
+
+  /**
+   * Scan recently-modified source files and extract function/class/export signatures.
+   * Returns a digest string for injecting into agent context.
+   */
+  static buildStructuralDigest(workDir: string, maxFiles = 20): string {
+    const SOURCE_EXTS = new Set(['.ts', '.js', '.py', '.mjs', '.jsx', '.tsx']);
+    const entries: { rel: string; mtime: number; signatures: string[] }[] = [];
+
+    function walk(dir: string): void {
+      let items: string[];
+      try {
+        items = fs.readdirSync(dir).sort();
+      } catch {
+        return;
+      }
+      for (const item of items) {
+        const full = path.join(dir, item);
+        let stat: fs.Stats;
+        try {
+          stat = fs.statSync(full);
+        } catch {
+          continue;
+        }
+        if (stat.isDirectory()) {
+          if (!SKIP_DIRS.has(item)) walk(full);
+        } else {
+          const ext = path.extname(item).toLowerCase();
+          if (!SOURCE_EXTS.has(ext)) continue;
+          const rel = path.relative(workDir, full).replace(/\\/g, '/');
+          const sigs = ContextManager.extractSignatures(full);
+          entries.push({ rel, mtime: stat.mtimeMs, signatures: sigs });
+        }
+      }
+    }
+
+    walk(workDir);
+    // Sort by most recently modified
+    entries.sort((a, b) => b.mtime - a.mtime);
+    const top = entries.slice(0, maxFiles);
+
+    if (top.length === 0) return '';
+
+    const lines = ['## Structural Digest', ''];
+    for (const entry of top) {
+      lines.push(`### ${entry.rel}`);
+      if (entry.signatures.length > 0) {
+        for (const sig of entry.signatures.slice(0, 20)) {
+          lines.push(`- ${sig}`);
+        }
+      } else {
+        lines.push('- (no exported signatures detected)');
+      }
+      lines.push('');
+    }
+    return lines.join('\n');
+  }
+
+  /** Extract function/class/export signatures from a source file. */
+  static extractSignatures(filePath: string): string[] {
+    let content: string;
+    try {
+      content = fs.readFileSync(filePath, 'utf-8');
+    } catch {
+      return [];
+    }
+
+    const ext = path.extname(filePath).toLowerCase();
+    const signatures: string[] = [];
+    const lines = content.split('\n');
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (ext === '.py') {
+        // Python: def/class
+        const defMatch = trimmed.match(/^(def|async\s+def)\s+(\w+)\s*\(/);
+        if (defMatch) { signatures.push(`${defMatch[1]} ${defMatch[2]}()`); continue; }
+        const classMatch = trimmed.match(/^class\s+(\w+)/);
+        if (classMatch) { signatures.push(`class ${classMatch[1]}`); continue; }
+      } else {
+        // JS/TS: export, function, class
+        const exportMatch = trimmed.match(/^export\s+(default\s+)?(function|class|const|let|type|interface)\s+(\w+)/);
+        if (exportMatch) { signatures.push(`export ${exportMatch[2]} ${exportMatch[3]}`); continue; }
+        const fnMatch = trimmed.match(/^(export\s+)?(async\s+)?function\s+(\w+)/);
+        if (fnMatch) { signatures.push(`function ${fnMatch[3]}()`); continue; }
+        const classMatch = trimmed.match(/^(export\s+)?class\s+(\w+)/);
+        if (classMatch) { signatures.push(`class ${classMatch[2]}`); continue; }
+      }
+    }
+    return signatures;
   }
 
   static getTransitivePredecessors(

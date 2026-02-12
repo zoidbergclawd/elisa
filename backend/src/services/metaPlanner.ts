@@ -39,11 +39,14 @@ export class MetaPlanner {
     const response = await this.client.messages.create({
       model: 'claude-opus-4-6',
       system: META_PLANNER_SYSTEM,
-      messages: [{ role: 'user', content: userMsg }],
+      messages: [
+        { role: 'user', content: userMsg },
+        { role: 'assistant', content: '{' },
+      ],
       max_tokens: 4096,
     });
 
-    const text = this.extractText(response);
+    const text = '{' + this.extractText(response);
     let plan = this.parseJson(text);
 
     if (!plan) {

@@ -25,10 +25,17 @@ Do NOT update docs for internal implementation changes that don't affect the str
 
 - **Desktop**: Electron 35, electron-builder (packaging), electron-store + safeStorage (API key encryption)
 - **Frontend**: React 19, Vite 7, TypeScript 5.9, Tailwind CSS 4, Blockly 12
-- **Backend**: Express 5, TypeScript 5.9, ws 8, Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`)
+- **Backend**: Express 5, TypeScript 5.9, ws 8, Zod 4 (validation), Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`)
 - **Hardware**: MicroPython on ESP32 via serialport + mpremote
 - **Build**: esbuild (backend bundling), tsc (Electron), Vite (frontend)
 - **Testing**: Vitest + Testing Library (frontend), Vitest (backend)
+
+## Environment Variables
+
+- `ANTHROPIC_API_KEY` -- Required for Claude API/SDK access
+- `CLAUDE_MODEL` -- Override agent model (default: `claude-opus-4-6`)
+- `CORS_ORIGIN` -- Override CORS origin in dev mode (default: `http://localhost:5173`)
+- `PORT` -- Backend port (default: 8000)
 
 ## Dev Setup
 
@@ -51,7 +58,10 @@ No bug fix is complete without a regression test.
 
 ## Conventions
 
-- No database. All session state is in-memory.
+- No database. All session state is in-memory with automatic cleanup (5-min grace period).
 - Each agent task runs via the Claude Agent SDK's `query()` API.
 - Frontend communicates via REST (commands) + WebSocket (events).
-- Blockly workspace -> NuggetSpec JSON -> backend orchestration pipeline.
+- Blockly workspace -> NuggetSpec JSON (Zod-validated) -> backend orchestration pipeline.
+- NuggetSpec validated server-side via Zod schema (`backend/src/utils/specValidator.ts`).
+- Up to 3 tasks execute concurrently when DAG dependencies allow.
+- SessionLogger writes per-session logs to `.elisa/logs/` in nugget workspace.
