@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useBuildSession } from './useBuildSession';
+import { useBuildSession, MAX_SERIAL_LINES } from './useBuildSession';
 import type { WSEvent } from '../types';
 
 describe('useBuildSession', () => {
@@ -297,5 +297,38 @@ describe('useBuildSession', () => {
       result.current.clearGateRequest();
     });
     expect(result.current.gateRequest).toBeNull();
+  });
+
+  it('caps serial lines at MAX_SERIAL_LINES, dropping oldest entries', () => {
+    const { result } = renderHook(() => useBuildSession());
+    // Feed MAX_SERIAL_LINES + 50 serial_data events
+    act(() => {
+      for (let i = 0; i < MAX_SERIAL_LINES + 50; i++) {
+        result.current.handleEvent({
+          type: 'serial_data',
+          line: `line-${i}`,
+          timestamp: `2026-02-10T12:00:${String(i).padStart(2, '0')}Z`,
+        });
+      }
+    });
+    expect(result.current.serialLines.length).toBe(MAX_SERIAL_LINES);
+    // The oldest 50 lines should have been dropped
+    expect(result.current.serialLines[0].line).toBe('line-50');
+    expect(result.current.serialLines[MAX_SERIAL_LINES - 1].line).toBe(`line-${MAX_SERIAL_LINES + 49}`);
+  });
+
+  it('does not trim serial lines when under the cap', () => {
+    const { result } = renderHook(() => useBuildSession());
+    act(() => {
+      for (let i = 0; i < 10; i++) {
+        result.current.handleEvent({
+          type: 'serial_data',
+          line: `line-${i}`,
+          timestamp: '2026-02-10T12:00:00Z',
+        });
+      }
+    });
+    expect(result.current.serialLines.length).toBe(10);
+    expect(result.current.serialLines[0].line).toBe('line-0');
   });
 });

@@ -2,7 +2,8 @@ import { useState, useCallback, useRef } from 'react';
 import type { NuggetSpec } from '../components/BlockCanvas/blockInterpreter';
 import type { UIState, Task, Agent, Commit, WSEvent, TeachingMoment, TestResult, TokenUsage, QuestionPayload } from '../types';
 
-const MAX_EVENTS = 500;
+export const MAX_EVENTS = 500;
+export const MAX_SERIAL_LINES = 1000;
 
 export interface SerialLine {
   line: string;
@@ -127,7 +128,10 @@ export function useBuildSession() {
         setDeployProgress(null);
         break;
       case 'serial_data':
-        setSerialLines(prev => [...prev, { line: event.line, timestamp: event.timestamp }]);
+        setSerialLines(prev => {
+          const next = [...prev, { line: event.line, timestamp: event.timestamp }];
+          return next.length > MAX_SERIAL_LINES ? next.slice(next.length - MAX_SERIAL_LINES) : next;
+        });
         break;
       case 'human_gate':
         setUiState('review');
