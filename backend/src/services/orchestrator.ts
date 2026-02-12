@@ -283,7 +283,7 @@ export class Orchestrator {
           onOutput: this.makeOutputHandler(agentName),
           onQuestion: this.makeQuestionHandler(taskId),
           workingDir: this.nuggetDir,
-          model: 'claude-sonnet-4',
+          model: process.env.CLAUDE_MODEL || 'claude-opus-4-6',
           ...(mcpServers.length > 0 ? { mcpServers } : {}),
         });
 

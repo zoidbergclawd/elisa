@@ -33,7 +33,7 @@ export class AgentRunner {
       onOutput,
       workingDir,
       timeout = 300,
-      model = 'claude-sonnet-4',
+      model = process.env.CLAUDE_MODEL || 'claude-opus-4-6',
       maxTurns = 12,
       mcpServers,
     } = params;

@@ -89,7 +89,7 @@ export class TeachingEngine {
     const prompt = teachingUserPrompt(eventType, eventDetails, nuggetType || 'software');
 
     const response = await this.client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: process.env.CLAUDE_MODEL || 'claude-opus-4-6',
       max_tokens: 300,
       system: TEACHING_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: prompt }],
