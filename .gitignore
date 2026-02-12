@@ -28,3 +28,10 @@ Thumbs.db
 
 # Build artifacts
 *.tsbuildinfo
+
+# Electron
+release/
+electron/dist/
+backend/dist/
+build/icon.ico
+build/icon.icns
