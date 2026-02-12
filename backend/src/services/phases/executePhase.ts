@@ -74,7 +74,7 @@ export class ExecutePhase {
 
     const completed = new Set<string>();
     const failed = new Set<string>();
-    const inFlight = new Set<string>();
+    const inFlight = new Map<string, Promise<void>>();
     const MAX_CONCURRENT = 3;
 
     // For DAG readiness, treat both completed and failed as "done" so
@@ -83,6 +83,24 @@ export class ExecutePhase {
       const s = new Set(completed);
       for (const id of failed) s.add(id);
       return s;
+    };
+
+    const launchTask = (taskId: string) => {
+      const promise = (async () => {
+        try {
+          const success = await this.executeOneTask(ctx, taskId, completed);
+          if (success) {
+            completed.add(taskId);
+          } else {
+            failed.add(taskId);
+          }
+        } catch {
+          failed.add(taskId);
+        } finally {
+          inFlight.delete(taskId);
+        }
+      })();
+      inFlight.set(taskId, promise);
     };
 
     while (completed.size + failed.size < this.deps.tasks.length) {
@@ -107,31 +125,24 @@ export class ExecutePhase {
         break;
       }
 
-      if (ready.length === 0) {
-        await new Promise((r) => setTimeout(r, 100));
-        continue;
+      // Fill available slots with ready tasks (streaming-parallel)
+      const slots = MAX_CONCURRENT - inFlight.size;
+      const toSchedule = ready.slice(0, Math.max(0, slots));
+      for (const taskId of toSchedule) {
+        launchTask(taskId);
       }
 
-      const batchSize = Math.min(ready.length, MAX_CONCURRENT - inFlight.size);
-      const batch = ready.slice(0, Math.max(1, batchSize));
+      // Wait for at least one in-flight task to complete before re-evaluating
+      if (inFlight.size > 0) {
+        await Promise.race(inFlight.values());
+      } else {
+        await new Promise((r) => setTimeout(r, 100));
+      }
+    }
 
-      const promises = batch.map(async (readyTaskId) => {
-        inFlight.add(readyTaskId);
-        try {
-          const success = await this.executeOneTask(ctx, readyTaskId, completed);
-          if (success) {
-            completed.add(readyTaskId);
-          } else {
-            failed.add(readyTaskId);
-          }
-        } catch {
-          failed.add(readyTaskId);
-        } finally {
-          inFlight.delete(readyTaskId);
-        }
-      });
-
-      await Promise.all(promises);
+    // Await any remaining in-flight tasks
+    if (inFlight.size > 0) {
+      await Promise.all(inFlight.values());
     }
 
     return { commits: this.commits, taskSummaries: this.taskSummaries };
