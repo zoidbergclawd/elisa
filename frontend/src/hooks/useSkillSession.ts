@@ -1,6 +1,7 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import type { SkillPlan } from '../components/Skills/types';
 import type { WSEvent, QuestionPayload } from '../types';
+import { useWebSocket } from './useWebSocket';
 
 export interface SkillStepProgress {
   stepId: string;
@@ -21,7 +22,6 @@ export function useSkillSession() {
   const [steps, setSteps] = useState<SkillStepProgress[]>([]);
   const [questionRequest, setQuestionRequest] = useState<SkillQuestionRequest | null>(null);
   const [outputs, setOutputs] = useState<string[]>([]);
-  const wsRef = useRef<WebSocket | null>(null);
 
   const handleEvent = useCallback((event: WSEvent) => {
     switch (event.type) {
@@ -66,20 +66,8 @@ export function useSkillSession() {
     }
   }, []);
 
-  const connectWebSocket = useCallback((sid: string) => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const url = `${protocol}//${window.location.host}/ws/session/${sid}`;
-    const ws = new WebSocket(url);
-    ws.onmessage = (evt) => {
-      try {
-        const data = JSON.parse(evt.data) as WSEvent;
-        handleEvent(data);
-      } catch {
-        // ignore
-      }
-    };
-    wsRef.current = ws;
-  }, [handleEvent]);
+  // Delegate WebSocket lifecycle to the shared hook
+  useWebSocket({ sessionId, onEvent: handleEvent });
 
   const startRun = useCallback(async (plan: SkillPlan, allSkills: Array<{ id: string; name: string; prompt: string; category: string; workspace?: Record<string, unknown> }>) => {
     setSteps([]);
@@ -93,27 +81,28 @@ export function useSkillSession() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ plan, allSkills }),
     });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ error: res.statusText }));
+      setError(body.error || 'Failed to start skill run');
+      return;
+    }
     const { session_id } = await res.json();
     setSessionId(session_id);
-    connectWebSocket(session_id);
-  }, [connectWebSocket]);
+  }, []);
 
-  const answerQuestion = useCallback(async (stepId: string, answers: Record<string, any>) => {
+  const answerQuestion = useCallback(async (stepId: string, answers: Record<string, unknown>) => {
     if (!sessionId) return;
-    await fetch(`/api/skills/${sessionId}/answer`, {
+    const res = await fetch(`/api/skills/${sessionId}/answer`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ step_id: stepId, answers }),
     });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ error: res.statusText }));
+      setError(body.error || 'Failed to submit answer');
+    }
     setQuestionRequest(null);
   }, [sessionId]);
-
-  // Cleanup WebSocket on unmount
-  useEffect(() => {
-    return () => {
-      wsRef.current?.close();
-    };
-  }, []);
 
   return {
     sessionId,

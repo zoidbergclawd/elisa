@@ -1,0 +1,69 @@
+{
+  "name": "elisa",
+  "version": "0.1.0",
+  "private": true,
+  "author": "Elisa",
+  "description": "Elisa - AI-powered project builder for kids",
+  "main": "electron/dist/main.js",
+  "scripts": {
+    "predev": "node scripts/kill-port.mjs 8000 && node scripts/kill-port.mjs 5173",
+    "dev": "concurrently -n be,fe -c blue,green \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+    "predev:electron": "node scripts/kill-port.mjs 8000 && node scripts/kill-port.mjs 5173",
+    "dev:electron": "concurrently -n be,fe,el -c blue,green,magenta \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\" \"wait-on http://localhost:5173 && electron .\"",
+    "build:frontend": "cd frontend && npx vite build",
+    "build:backend": "node scripts/build-backend.mjs",
+    "build:electron": "tsc -p electron/tsconfig.json",
+    "build": "npm run build:frontend && npm run build:backend && npm run build:electron",
+    "pack": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "postinstall": "npm install --prefix backend && npm install --prefix frontend"
+  },
+  "build": {
+    "appId": "com.elisa.app",
+    "productName": "Elisa",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "electron/dist/**/*",
+      "frontend/dist/**/*",
+      "backend/dist/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "frontend/dist",
+        "to": "frontend-dist"
+      },
+      {
+        "from": "backend/dist",
+        "to": "backend-dist"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "build/icon.icns"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "electron": "^35.1.2",
+    "electron-builder": "^26.0.12",
+    "esbuild": "^0.25.4",
+    "typescript": "~5.9",
+    "wait-on": "^8.0.3"
+  },
+  "dependencies": {
+    "electron-store": "^10.0.1"
+  }
+}

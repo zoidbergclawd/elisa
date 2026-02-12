@@ -4,14 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "tsx src/server.ts",
+    "dev:watch": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.39",
-    "@anthropic-ai/sdk": "latest",
+    "@anthropic-ai/sdk": "^0.74.0",
     "archiver": "^7.0.1",
     "dotenv": "^17.2.4",
     "express": "^5",

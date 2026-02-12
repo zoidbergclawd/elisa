@@ -6,8 +6,9 @@
  */
 
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { SkillRunner, resolveTemplate } from '../../services/skillRunner.js';
+import { SkillRunner, resolveTemplate, wrapUserData } from '../../services/skillRunner.js';
 import type { SkillPlan, SkillContext, SkillSpec } from '../../models/skillPlan.js';
+import { tmpdir } from 'node:os';
 
 // -- Mock AgentRunner --
 
@@ -25,6 +26,8 @@ function createMockAgentRunner(resultSummary = 'Agent completed the task') {
 
 // -- Test helpers --
 
+const TEST_WORKING_DIR = tmpdir();
+
 function createRunner(
   skills: SkillSpec[] = [],
   agentResult = 'Agent completed the task',
@@ -34,7 +37,7 @@ function createRunner(
     events.push(evt);
   });
   const agentRunner = createMockAgentRunner(agentResult);
-  const runner = new SkillRunner(send, skills, agentRunner);
+  const runner = new SkillRunner(send, skills, agentRunner, TEST_WORKING_DIR);
   return { runner, events, send, agentRunner };
 }
 
@@ -206,12 +209,17 @@ describe('SkillRunner run_agent', () => {
     const result = await runner.execute(plan);
     expect(result).toBe('Deck: Generated a deck');
 
-    // Verify agent was called with resolved prompt
+    // Verify agent was called with resolved prompt wrapped in user-data tags
     expect(agentRunner.execute).toHaveBeenCalledWith(
       expect.objectContaining({
-        prompt: 'Build a AI presentation',
+        prompt: wrapUserData('Build a AI presentation'),
+        workingDir: TEST_WORKING_DIR,
       }),
     );
+    // Verify system prompt includes security rules
+    const callArgs = agentRunner.execute.mock.calls[0][0];
+    expect(callArgs.systemPrompt).toContain('Security Rules');
+    expect(callArgs.systemPrompt).toContain(TEST_WORKING_DIR);
   });
 });
 
@@ -289,6 +297,344 @@ describe('SkillRunner cycle detection', () => {
     await expect(runner.execute(plan)).rejects.toThrow(/[Cc]ycle/);
     const errors = eventsOfType(events, 'skill_error');
     expect(errors.length).toBeGreaterThan(0);
+  });
+
+  it('detects indirect cycle (A -> B -> A)', async () => {
+    const skills: SkillSpec[] = [
+      {
+        id: 'skill-a',
+        name: 'Skill A',
+        prompt: '',
+        category: 'composite',
+        workspace: {
+          blocks: {
+            blocks: [
+              {
+                type: 'skill_flow_start',
+                next: {
+                  block: {
+                    type: 'skill_invoke',
+                    fields: { SKILL_ID: 'skill-b', STORE_AS: 'result' },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+      {
+        id: 'skill-b',
+        name: 'Skill B',
+        prompt: '',
+        category: 'composite',
+        workspace: {
+          blocks: {
+            blocks: [
+              {
+                type: 'skill_flow_start',
+                next: {
+                  block: {
+                    type: 'skill_invoke',
+                    fields: { SKILL_ID: 'skill-a', STORE_AS: 'result' },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+    ];
+    const { runner, events } = createRunner(skills);
+
+    const plan: SkillPlan = {
+      skillId: 'skill-a',
+      skillName: 'Skill A',
+      steps: [
+        { id: 'step-1', type: 'invoke_skill', skillId: 'skill-b', storeAs: 'result' },
+      ],
+    };
+
+    await expect(runner.execute(plan)).rejects.toThrow(/[Cc]ycle/);
+    const errors = eventsOfType(events, 'skill_error');
+    expect(errors.length).toBeGreaterThan(0);
+  });
+});
+
+describe('SkillRunner max depth enforcement', () => {
+  it('throws when exceeding MAX_DEPTH (10) nested calls', async () => {
+    // Create 11 composite skills each invoking the next
+    const skills: SkillSpec[] = [];
+    for (let i = 0; i <= 11; i++) {
+      skills.push({
+        id: `skill-${i}`,
+        name: `Skill ${i}`,
+        prompt: '',
+        category: 'composite',
+        workspace: {
+          blocks: {
+            blocks: [
+              {
+                type: 'skill_flow_start',
+                next: i < 11
+                  ? {
+                      block: {
+                        type: 'skill_invoke',
+                        fields: { SKILL_ID: `skill-${i + 1}`, STORE_AS: 'x' },
+                      },
+                    }
+                  : undefined,
+              },
+            ],
+          },
+        },
+      });
+    }
+
+    const { runner, events } = createRunner(skills);
+
+    const plan: SkillPlan = {
+      skillId: 'skill-0',
+      skillName: 'Skill 0',
+      steps: [
+        { id: 'step-1', type: 'invoke_skill', skillId: 'skill-1', storeAs: 'x' },
+      ],
+    };
+
+    await expect(runner.execute(plan)).rejects.toThrow(/[Mm]ax.*depth/);
+    const errors = eventsOfType(events, 'skill_error');
+    expect(errors.length).toBeGreaterThan(0);
+  });
+});
+
+describe('SkillRunner composite skill invocation', () => {
+  it('recursively executes composite skills and threads context', async () => {
+    const skills: SkillSpec[] = [
+      {
+        id: 'child-skill',
+        name: 'Child',
+        prompt: '',
+        category: 'composite',
+        workspace: {
+          blocks: {
+            blocks: [
+              {
+                type: 'skill_flow_start',
+                next: {
+                  block: {
+                    type: 'skill_set_context',
+                    fields: { KEY: 'child_data', VALUE: 'from-child' },
+                    next: {
+                      block: {
+                        type: 'skill_output',
+                        fields: { TEMPLATE: 'child-output' },
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+    ];
+    const { runner } = createRunner(skills);
+
+    const plan: SkillPlan = {
+      skillId: 'parent-skill',
+      skillName: 'Parent',
+      steps: [
+        { id: 'step-1', type: 'invoke_skill', skillId: 'child-skill', storeAs: 'child_result' },
+        { id: 'step-2', type: 'output', template: 'Got: {{child_result}}' },
+      ],
+    };
+
+    const result = await runner.execute(plan);
+    expect(result).toBe('Got: child-output');
+  });
+
+  it('runs simple (non-composite) skills via agent runner', async () => {
+    const skills: SkillSpec[] = [
+      {
+        id: 'agent-skill',
+        name: 'AgentSkill',
+        prompt: 'Do the thing with {{topic}}',
+        category: 'agent',
+      },
+    ];
+    const { runner, agentRunner } = createRunner(skills, 'Agent did the thing');
+
+    const plan: SkillPlan = {
+      skillId: 'parent',
+      skillName: 'Parent',
+      steps: [
+        { id: 'step-1', type: 'set_context', key: 'topic', value: 'testing' },
+        { id: 'step-2', type: 'invoke_skill', skillId: 'agent-skill', storeAs: 'output' },
+        { id: 'step-3', type: 'output', template: '{{output}}' },
+      ],
+    };
+
+    const result = await runner.execute(plan);
+    expect(result).toBe('Agent did the thing');
+    expect(agentRunner.execute).toHaveBeenCalled();
+
+    // Verify the prompt was resolved with context
+    const callArgs = agentRunner.execute.mock.calls[0][0];
+    expect(callArgs.prompt).toContain('Do the thing with testing');
+  });
+});
+
+describe('SkillRunner interpretWorkspaceOnBackend', () => {
+  it('interprets a workspace with multiple block types', () => {
+    const skills: SkillSpec[] = [];
+    const { runner } = createRunner(skills);
+
+    const skill: SkillSpec = {
+      id: 'test-skill',
+      name: 'Test',
+      prompt: '',
+      category: 'composite',
+      workspace: {
+        blocks: {
+          blocks: [
+            {
+              type: 'skill_flow_start',
+              next: {
+                block: {
+                  id: 'b1',
+                  type: 'skill_set_context',
+                  fields: { KEY: 'mode', VALUE: 'fast' },
+                  next: {
+                    block: {
+                      id: 'b2',
+                      type: 'skill_branch_if',
+                      fields: { CONTEXT_KEY: 'mode', MATCH_VALUE: 'fast' },
+                      inputs: {
+                        THEN_BLOCKS: {
+                          block: {
+                            id: 'b2a',
+                            type: 'skill_run_agent',
+                            fields: { PROMPT: 'Do it fast', STORE_AS: 'result' },
+                          },
+                        },
+                      },
+                      next: {
+                        block: {
+                          id: 'b3',
+                          type: 'skill_output',
+                          fields: { TEMPLATE: 'Done: {{result}}' },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        },
+      },
+    };
+
+    const plan = runner.interpretWorkspaceOnBackend(skill);
+
+    expect(plan.skillId).toBe('test-skill');
+    expect(plan.skillName).toBe('Test');
+    expect(plan.steps).toHaveLength(3);
+    expect(plan.steps[0].type).toBe('set_context');
+    expect(plan.steps[1].type).toBe('branch');
+    expect(plan.steps[2].type).toBe('output');
+
+    // Check branch has thenSteps
+    const branch = plan.steps[1] as any;
+    expect(branch.contextKey).toBe('mode');
+    expect(branch.matchValue).toBe('fast');
+    expect(branch.thenSteps).toHaveLength(1);
+    expect(branch.thenSteps[0].type).toBe('run_agent');
+  });
+
+  it('returns empty steps when no start block found', () => {
+    const { runner } = createRunner();
+    const skill: SkillSpec = {
+      id: 'empty',
+      name: 'Empty',
+      prompt: '',
+      category: 'composite',
+      workspace: { blocks: { blocks: [] } },
+    };
+
+    const plan = runner.interpretWorkspaceOnBackend(skill);
+    expect(plan.steps).toHaveLength(0);
+  });
+
+  it('handles ask_user blocks', () => {
+    const { runner } = createRunner();
+    const skill: SkillSpec = {
+      id: 'ask-skill',
+      name: 'Ask',
+      prompt: '',
+      category: 'composite',
+      workspace: {
+        blocks: {
+          blocks: [
+            {
+              type: 'skill_flow_start',
+              next: {
+                block: {
+                  id: 'ask1',
+                  type: 'skill_ask_user',
+                  fields: {
+                    QUESTION: 'What color?',
+                    HEADER: 'Color',
+                    OPTIONS: 'red,blue,green',
+                    STORE_AS: 'color',
+                  },
+                },
+              },
+            },
+          ],
+        },
+      },
+    };
+
+    const plan = runner.interpretWorkspaceOnBackend(skill);
+    expect(plan.steps).toHaveLength(1);
+    expect(plan.steps[0].type).toBe('ask_user');
+    const askStep = plan.steps[0] as any;
+    expect(askStep.question).toBe('What color?');
+    expect(askStep.options).toEqual(['red', 'blue', 'green']);
+    expect(askStep.storeAs).toBe('color');
+  });
+
+  it('handles invoke blocks', () => {
+    const { runner } = createRunner();
+    const skill: SkillSpec = {
+      id: 'parent',
+      name: 'Parent',
+      prompt: '',
+      category: 'composite',
+      workspace: {
+        blocks: {
+          blocks: [
+            {
+              type: 'skill_flow_start',
+              next: {
+                block: {
+                  id: 'inv1',
+                  type: 'skill_invoke',
+                  fields: { SKILL_ID: 'child-id', STORE_AS: 'child_out' },
+                },
+              },
+            },
+          ],
+        },
+      },
+    };
+
+    const plan = runner.interpretWorkspaceOnBackend(skill);
+    expect(plan.steps).toHaveLength(1);
+    expect(plan.steps[0].type).toBe('invoke_skill');
+    const invokeStep = plan.steps[0] as any;
+    expect(invokeStep.skillId).toBe('child-id');
+    expect(invokeStep.storeAs).toBe('child_out');
   });
 });
 

@@ -5,6 +5,12 @@ Elisa is a kid-friendly IDE that orchestrates AI agent teams to build real softw
 ## System Topology
 
 ```
+Electron main process (electron/main.ts)
+  |-> Loads API key from encrypted store (OS keychain via safeStorage)
+  |-> Picks a free port
+  |-> Starts Express server in-process
+  |-> Opens BrowserWindow -> http://localhost:{port}
+
 frontend/ (React 19 + Vite)         backend/ (Express 5 + TypeScript)
 +-----------------------+           +---------------------------+
 | Blockly Editor        |  REST     | Express Server            |
@@ -12,7 +18,7 @@ frontend/ (React 19 + Vite)         backend/ (Express 5 + TypeScript)
 |                       |           |                           |
 | MissionControl        |  WS      | Orchestrator              |
 | (TaskDAG, CommsFeed,  |<---------|  -> MetaPlanner (Claude)   |
-|  Metrics, Deploy)     |  events  |  -> AgentRunner (CLI)      |
+|  Metrics, Deploy)     |  events  |  -> AgentRunner (SDK)      |
 |                       |           |  -> TestRunner (pytest)    |
 | BottomBar             |           |  -> GitService (simple-git)|
 | (Git, Tests, Board,   |           |  -> HardwareService       |
@@ -23,17 +29,22 @@ frontend/ (React 19 + Vite)         backend/ (Express 5 + TypeScript)
                                     per task (async streaming)
 ```
 
+In production, Express serves everything: `/api/*` (REST), `/ws/*` (WebSocket), and `/*` (built frontend static files). CORS is unnecessary (same-origin). In dev mode, the frontend runs on Vite (port 5173) with proxy to backend (port 8000), and CORS is enabled.
+
 ## Monorepo Layout
 
 ```
 elisa/
+  package.json       Root package: Electron deps, build/dev/dist scripts
+  electron/          Electron main process, preload, settings dialog
   frontend/          React SPA - visual block editor + real-time dashboard
   backend/           Express server - orchestration, agents, hardware
+  scripts/           Build tooling (esbuild backend bundler)
   hardware/          ESP32 templates and shared MicroPython library
   docs/              Product requirements (elisa-prd.md)
 ```
 
-No npm workspaces. Frontend and backend are independent Node.js projects.
+Root `package.json` manages Electron and build tooling. Frontend and backend remain independent Node.js projects with their own `package.json`.
 
 ## Data Flow: Build Session Lifecycle
 
@@ -64,7 +75,7 @@ Human gates can pause execution at any point, requiring user approval via REST e
 
 WebSocket path: `/ws/session/:sessionId`
 
-Frontend dev server (Vite port 5173) proxies `/api/*` and `/ws/*` to backend (port 8000).
+In dev mode, Vite (port 5173) proxies `/api/*` and `/ws/*` to backend (port 8000). In production (Electron), Express serves the frontend statically on the same port -- no proxy needed.
 
 ## Core Abstractions
 
@@ -99,7 +110,8 @@ idle -> planning -> executing -> testing -> reviewing -> deploying -> done
 - **Agent isolation**: Each agent task runs as a separate SDK `query()` call. No shared state between agents except via context summaries written to `.elisa/` in the workspace.
 - **Context chain**: After each task, a summary is written to `.elisa/context/nugget_context.md`. Subsequent agents receive this as input, creating a chain of context.
 - **Graceful degradation**: Missing tools (git, pytest, mpremote, serialport) cause warnings, not crashes.
-- **No auth**: Local-only development tool. CORS locked to localhost.
+- **No auth**: Local-only tool. CORS enabled only in dev mode (frontend on separate origin). In production (Electron), same-origin -- no CORS needed.
+- **API key management**: In dev, read from `ANTHROPIC_API_KEY` env var. In Electron, encrypted via OS keychain (`safeStorage`) and stored locally.
 
 ## Storage
 
@@ -124,3 +136,13 @@ Deeper context for each subsystem lives in CLAUDE.md files within each directory
 - `backend/CLAUDE.md` - Backend architecture, services, API surface
 - `backend/src/services/CLAUDE.md` - Service responsibilities and interactions
 - `frontend/src/components/CLAUDE.md` - Component hierarchy and patterns
+
+## Electron Packaging
+
+Elisa is distributed as an Electron desktop app. The build pipeline:
+1. `npm run build:frontend` -- Vite builds React SPA into `frontend/dist/`
+2. `npm run build:backend` -- esbuild bundles Express server into `backend/dist/server-entry.js`
+3. `npm run build:electron` -- tsc compiles `electron/main.ts` and `preload.ts`
+4. `npm run dist` -- electron-builder packages into installer (NSIS on Windows, DMG on macOS)
+
+Dev mode (`npm run dev` at root): runs backend, frontend, and Electron concurrently. Electron loads `http://localhost:5173` (Vite HMR). Production: Electron loads `http://localhost:{free port}` where Express serves everything.

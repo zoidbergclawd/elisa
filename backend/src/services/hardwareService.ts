@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import type { CompileResult, FlashResult, BoardInfo } from '../models/session.js';
+import { withTimeout } from '../utils/withTimeout.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -68,9 +69,22 @@ export class HardwareService {
     }
 
     try {
+      let childProc: import('node:child_process').ChildProcess | undefined;
+      const execPromise = new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+        childProc = execFile(cmd[0], cmd.slice(1), (err, stdout, stderr) => {
+          if (err) {
+            if (stdout != null) (err as any).stdout = stdout;
+            if (stderr != null) (err as any).stderr = stderr;
+            reject(err);
+          } else {
+            resolve({ stdout: stdout ?? '', stderr: stderr ?? '' });
+          }
+        });
+      });
       const { stderr } = await withTimeout(
-        execFileAsync(cmd[0], cmd.slice(1)),
+        execPromise,
         60_000,
+        { childProcess: childProc },
       );
       // If we get here without error, it succeeded
       return {
@@ -171,12 +185,3 @@ function collectPyFiles(workDir: string): string[] {
   return pyFiles;
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('Timed out')), ms);
-    promise.then(
-      (val) => { clearTimeout(timer); resolve(val); },
-      (err) => { clearTimeout(timer); reject(err); },
-    );
-  });
-}

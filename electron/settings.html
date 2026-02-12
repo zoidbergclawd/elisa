@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Elisa - Settings</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #faf8f5;
+      color: #3d3929;
+      padding: 32px;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    h1 {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    p {
+      font-size: 13px;
+      color: #6b6550;
+      margin-bottom: 24px;
+      line-height: 1.5;
+    }
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 6px;
+    }
+    input[type="password"] {
+      width: 100%;
+      padding: 10px 12px;
+      font-size: 14px;
+      border: 1px solid #d4cfc4;
+      border-radius: 6px;
+      background: #fff;
+      color: #3d3929;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input[type="password"]:focus {
+      border-color: #b8845f;
+      box-shadow: 0 0 0 2px rgba(184, 132, 95, 0.15);
+    }
+    .actions {
+      margin-top: auto;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+    button {
+      padding: 8px 20px;
+      font-size: 13px;
+      font-weight: 500;
+      border-radius: 6px;
+      border: 1px solid #d4cfc4;
+      background: #fff;
+      color: #3d3929;
+      cursor: pointer;
+    }
+    button:hover { background: #f0ece5; }
+    button.primary {
+      background: #b8845f;
+      color: #fff;
+      border-color: #a6734e;
+    }
+    button.primary:hover { background: #a6734e; }
+    button.primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .status {
+      font-size: 12px;
+      margin-top: 8px;
+      min-height: 18px;
+    }
+    .status.ok { color: #3a7d44; }
+    .status.err { color: #c0392b; }
+  </style>
+</head>
+<body>
+  <h1>API Key</h1>
+  <p>Enter your Anthropic API key. It will be encrypted and stored securely in your system keychain.</p>
+
+  <label for="apiKey">Anthropic API Key</label>
+  <input type="password" id="apiKey" placeholder="sk-ant-..." autocomplete="off" spellcheck="false">
+  <div class="status" id="status"></div>
+
+  <div class="actions">
+    <button id="cancelBtn" onclick="window.close()">Cancel</button>
+    <button id="saveBtn" class="primary" disabled>Save</button>
+  </div>
+
+  <script>
+    const input = document.getElementById('apiKey');
+    const saveBtn = document.getElementById('saveBtn');
+    const status = document.getElementById('status');
+
+    input.addEventListener('input', () => {
+      saveBtn.disabled = !input.value.trim();
+      status.textContent = '';
+      status.className = 'status';
+    });
+
+    saveBtn.addEventListener('click', async () => {
+      const key = input.value.trim();
+      if (!key) return;
+
+      saveBtn.disabled = true;
+      status.textContent = 'Saving...';
+      status.className = 'status';
+
+      try {
+        await window.elisaAPI.setApiKey(key);
+        status.textContent = 'Saved. You can close this window.';
+        status.className = 'status ok';
+        setTimeout(() => window.close(), 800);
+      } catch (err) {
+        status.textContent = 'Failed to save key.';
+        status.className = 'status err';
+        saveBtn.disabled = false;
+      }
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !saveBtn.disabled) saveBtn.click();
+    });
+  </script>
+</body>
+</html>

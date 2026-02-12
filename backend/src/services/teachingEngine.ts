@@ -57,7 +57,7 @@ export class TeachingEngine {
 
     // API fallback
     try {
-      const result = await this.apiFallback(eventType, eventDetails, projectType);
+      const result = await this.apiFallback(eventType, eventDetails, nuggetType);
       if (result) {
         this.shownConcepts.add(dedupKey);
         return result;
@@ -88,8 +88,9 @@ export class TeachingEngine {
 
     const prompt = teachingUserPrompt(eventType, eventDetails, nuggetType || 'software');
 
+    // Use a cheap model for small teaching JSON -- no need for Opus here
     const response = await this.client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-haiku-4-20250414',
       max_tokens: 300,
       system: TEACHING_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: prompt }],

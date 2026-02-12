@@ -1,11 +1,18 @@
 # Backend Services
 
-Each service owns one concern. Orchestrator coordinates them all.
+Each service owns one concern. Orchestrator coordinates phase handlers.
 
 ## Service Map
 
-### orchestrator.ts (central controller)
-Runs the full build pipeline: plan -> execute -> test -> review -> deploy. Manages task state, human gates (Promise-based pause/resume), WebSocket event emission. Largest file in the backend (~22KB).
+### orchestrator.ts (thin coordinator)
+Delegates to phase handlers in sequence: plan -> execute -> test -> deploy. Owns cancellation (AbortController), gate/question resolvers, and public accessors. Phases live in `phases/` subdirectory.
+
+### phases/ (pipeline stages)
+- **planPhase.ts** -- MetaPlanner invocation, DAG setup, teaching moments
+- **executePhase.ts** -- Task execution loop with parallel support (up to 3 concurrent), workspace setup, git mutex, context chain, summary validation
+- **testPhase.ts** -- Test runner invocation, result reporting
+- **deployPhase.ts** -- Hardware flash, portal deployment, serial monitor
+- **types.ts** -- Shared `PhaseContext` and `SendEvent` types
 
 ### agentRunner.ts (SDK agent runner)
 Calls `query()` from `@anthropic-ai/claude-agent-sdk` to run agents programmatically. Streams `assistant` messages and extracts `result` metadata (tokens, cost). 300s timeout, 2 retries on failure.
@@ -20,7 +27,13 @@ Wraps simple-git. Inits repo per session workspace, commits after each task with
 Board detection via USB VID:PID matching. Compiles MicroPython with py_compile. Flashes via mpremote. Serial monitor via serialport at 115200 baud. 60s flash timeout.
 
 ### testRunner.ts (test execution)
-Runs `pytest tests/ -v --cov=src --cov-report=json`. Parses verbose output for pass/fail/error/skip. Extracts coverage percentage. 120s timeout.
+Detects project type from file extensions in `tests/`. Runs `pytest` for `.py` files, `node` for `.js`/`.mjs` files, merges results if both exist. Parses PASS/FAIL and TAP output formats for JS; pytest verbose output for Python. Extracts coverage for Python only. 120s timeout per runner.
+
+### skillRunner.ts (skill execution)
+Executes SkillPlans step-by-step with user interaction. Supports step types: `ask_user`, `branch`, `invoke_skill` (with cycle detection at 10-depth), `run_agent`, `set_context`, `output`. Template resolution via `{{key}}` placeholders. Promise-based blocking for user questions.
+
+### sessionStore.ts (session state)
+Consolidates all session state into a single `Map<string, SessionEntry>`. Methods: `create()`, `get()`, `getOrThrow()`, `has()`, `scheduleCleanup()`, `pruneStale()`, `cancelAll()`.
 
 ### teachingEngine.ts (educational moments)
 Fast-path curriculum lookup maps events to concepts. Deduplicates per concept per session. Falls back to Claude Sonnet API for dynamic generation. Targets ages 8-14.
@@ -28,13 +41,14 @@ Fast-path curriculum lookup maps events to concepts. Deduplicates per concept pe
 ## Interaction Pattern
 
 ```
-Orchestrator
-  |-> MetaPlanner.plan(spec)         returns TaskDAG
-  |-> for each ready task:
-  |     AgentRunner.execute(prompt)  returns result + tokens
-  |     GitService.commit()          returns commit metadata
-  |     TeachingEngine.check()       returns teaching moment (if any)
-  |     ContextManager.update()      writes summary for next agent
-  |-> TestRunner.runTests()          returns test results + coverage
-  |-> HardwareService.flash()        (if ESP32 target)
+Orchestrator.run(spec)
+  |-> PlanPhase.execute(ctx, spec)      returns tasks, agents, DAG
+  |-> ExecutePhase.execute(ctx)
+  |     for each batch of ready tasks (up to 3 concurrent):
+  |       AgentRunner.execute(prompt)   returns result + tokens
+  |       GitService.commit()           serialized via mutex
+  |       TeachingEngine.check()        returns teaching moment (if any)
+  |       ContextManager.update()       writes summary + structural digest
+  |-> TestPhase.execute(ctx)            returns test results + coverage
+  |-> DeployPhase.deploy*(ctx)          hardware flash or portal deploy
 ```

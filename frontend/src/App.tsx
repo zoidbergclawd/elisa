@@ -46,9 +46,11 @@ export default function App() {
     uiState, tasks, agents, commits, events, sessionId,
     teachingMoments, testResults, coveragePct, tokenUsage,
     serialLines, deployProgress, gateRequest, questionRequest,
+    nuggetDir, errorNotification,
     handleEvent, startBuild, clearGateRequest, clearQuestionRequest,
+    clearErrorNotification,
   } = useBuildSession();
-  useWebSocket({ sessionId, onEvent: handleEvent });
+  const { waitForOpen } = useWebSocket({ sessionId, onEvent: handleEvent });
   const { health, loading: healthLoading } = useHealthCheck(uiState === 'design');
 
   // Main tab state
@@ -61,6 +63,7 @@ export default function App() {
   const [skillsModalOpen, setSkillsModalOpen] = useState(false);
   const [portalsModalOpen, setPortalsModalOpen] = useState(false);
   const [examplePickerOpen, setExamplePickerOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   // The latest workspace JSON for saving nuggets
   const [workspaceJson, setWorkspaceJson] = useState<Record<string, unknown> | null>(null);
@@ -113,6 +116,13 @@ export default function App() {
     localStorage.setItem(LS_PORTALS, JSON.stringify(portals));
   }, [portals]);
 
+  // Re-interpret workspace when skills/rules/portals change (without Blockly interaction)
+  useEffect(() => {
+    if (workspaceJson) {
+      setSpec(interpretWorkspace(workspaceJson, skills, rules, portals));
+    }
+  }, [skills, rules, portals]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto-switch to agents tab when build starts
   useEffect(() => {
     if (uiState === 'building' && activeMainTab === 'workspace') {
@@ -145,7 +155,7 @@ export default function App() {
     if (!spec) return;
     lastToastIndexRef.current = -1;
     setCurrentToast(null);
-    await startBuild(spec);
+    await startBuild(spec, waitForOpen);
   };
 
   // -- Save Nugget --
@@ -262,7 +272,7 @@ export default function App() {
             onSkills={() => setSkillsModalOpen(true)}
             onPortals={() => setPortalsModalOpen(true)}
             onExamples={() => setExamplePickerOpen(true)}
-            onHelp={() => {}}
+            onHelp={() => setHelpOpen(true)}
             saveDisabled={!workspaceJson}
           />
           <div className="flex-1 relative">
@@ -354,6 +364,70 @@ export default function App() {
           onSelect={handleSelectExample}
           onClose={() => setExamplePickerOpen(false)}
         />
+      )}
+
+      {/* Help modal */}
+      {helpOpen && (
+        <div className="fixed inset-0 modal-backdrop z-50 flex items-center justify-center" onClick={() => setHelpOpen(false)}>
+          <div className="glass-elevated rounded-2xl shadow-2xl p-6 max-w-md mx-4 animate-float-in" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-display font-bold gradient-text-warm">Getting Started</h2>
+              <button onClick={() => setHelpOpen(false)} className="text-atelier-text-secondary hover:text-atelier-text cursor-pointer">x</button>
+            </div>
+            <div className="space-y-3 text-sm text-atelier-text-secondary">
+              <div>
+                <h3 className="font-semibold text-atelier-text mb-1">1. Design your nugget</h3>
+                <p>Drag blocks from the toolbox to describe what you want to build. Start with a Goal block.</p>
+              </div>
+              <div>
+                <h3 className="font-semibold text-atelier-text mb-1">2. Add skills and rules</h3>
+                <p>Use the Skills sidebar to teach Elisa custom abilities and constraints.</p>
+              </div>
+              <div>
+                <h3 className="font-semibold text-atelier-text mb-1">3. Press GO</h3>
+                <p>Elisa plans tasks, assigns agents, and builds your project automatically.</p>
+              </div>
+              <div className="pt-2 border-t border-border-subtle">
+                <h3 className="font-semibold text-atelier-text mb-1">Sidebar</h3>
+                <ul className="space-y-0.5">
+                  <li><span className="text-atelier-text">Open / Save</span> - Load or save .elisa nugget files</li>
+                  <li><span className="text-atelier-text">Skills</span> - Custom agent skills and rules</li>
+                  <li><span className="text-atelier-text">Portals</span> - Connect external tools (MCP, CLI, hardware)</li>
+                  <li><span className="text-atelier-text">Examples</span> - Load a pre-built example nugget</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Error notification banner */}
+      {errorNotification && !errorNotification.recoverable && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 max-w-lg w-full mx-4 animate-float-in">
+          <div className="glass-elevated rounded-xl border border-red-500/30 bg-red-950/40 px-5 py-3 flex items-start gap-3 shadow-lg">
+            <span className="text-red-400 text-lg leading-none mt-0.5">!</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-red-200">Error</p>
+              <p className="text-sm text-red-300/80 mt-0.5 break-words">{errorNotification.message}</p>
+            </div>
+            <button
+              onClick={clearErrorNotification}
+              className="text-red-400/60 hover:text-red-300 text-lg leading-none cursor-pointer"
+            >
+              x
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Workspace path indicator */}
+      {nuggetDir && uiState !== 'design' && (
+        <div className="fixed bottom-32 right-4 z-30">
+          <div className="glass-panel rounded-lg px-3 py-1.5 text-xs text-atelier-text-secondary max-w-xs truncate"
+               title={nuggetDir}>
+            Output: {nuggetDir}
+          </div>
+        </div>
       )}
 
       {/* Done mode overlay */}

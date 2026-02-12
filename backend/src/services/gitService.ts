@@ -12,10 +12,19 @@ export class GitService {
     await git.addConfig('user.name', 'Elisa');
     await git.addConfig('user.email', 'elisa@local');
 
+    // Write .gitignore to prevent staging sensitive/generated files
+    const gitignorePath = path.join(repoPath, '.gitignore');
+    fs.writeFileSync(gitignorePath, [
+      '.elisa/logs/',
+      '.elisa/status/',
+      '__pycache__/',
+      '',
+    ].join('\n'), 'utf-8');
+
     const readmePath = path.join(repoPath, 'README.md');
     fs.writeFileSync(readmePath, `# ${nuggetGoal}\n\nBuilt with Elisa.\n`, 'utf-8');
 
-    await git.add('README.md');
+    await git.add(['README.md', '.gitignore']);
     await git.commit('Nugget started!');
   }
 
