@@ -43,7 +43,7 @@ export interface NuggetSpec {
     description: string;
     mechanism: string;
     capabilities: Array<{ id: string; name: string; kind: string; description: string }>;
-    interactions: Array<{ type: 'tell' | 'when' | 'ask'; capabilityId: string }>;
+    interactions: Array<{ type: 'tell' | 'when' | 'ask'; capabilityId: string; params?: Record<string, string | number | boolean> }>;
     mcpConfig?: Record<string, unknown>;
     cliConfig?: Record<string, unknown>;
     serialConfig?: Record<string, unknown>;
@@ -299,7 +299,33 @@ export function interpretWorkspace(
             }
             const interactionType = block.type === 'portal_tell' ? 'tell'
               : block.type === 'portal_when' ? 'when' : 'ask';
-            portalEntry.interactions.push({ type: interactionType, capabilityId });
+            // Extract capability params from block fields (PARAM_<name>)
+            const capability = portal.capabilities.find(c => c.id === capabilityId);
+            const params: Record<string, string | number | boolean> = {};
+            if (capability?.params) {
+              for (const param of capability.params) {
+                const fieldName = `PARAM_${param.name}`;
+                const raw = block.fields?.[fieldName];
+                if (raw !== undefined && raw !== null && raw !== '') {
+                  if (param.type === 'number') {
+                    params[param.name] = Number(raw);
+                  } else if (param.type === 'boolean') {
+                    params[param.name] = raw === true || raw === 'TRUE';
+                  } else {
+                    params[param.name] = String(raw);
+                  }
+                } else if (param.default !== undefined) {
+                  params[param.name] = param.default;
+                }
+              }
+            }
+            const interaction: { type: 'tell' | 'when' | 'ask'; capabilityId: string; params?: Record<string, string | number | boolean> } = {
+              type: interactionType, capabilityId,
+            };
+            if (Object.keys(params).length > 0) {
+              interaction.params = params;
+            }
+            portalEntry.interactions.push(interaction);
           }
         }
         break;

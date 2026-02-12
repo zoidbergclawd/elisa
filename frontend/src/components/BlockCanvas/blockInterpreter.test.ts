@@ -311,6 +311,120 @@ describe('blockInterpreter', () => {
       );
       expect(spec.portals![0].serialConfig).toEqual({ baudRate: 115200, boardType: 'esp32' });
     });
+
+    // Capability parameter tests
+    describe('capability params', () => {
+      const portalsWithParams: Portal[] = [
+        {
+          id: 'portal-params',
+          name: 'Param Board',
+          description: 'Board with param capabilities',
+          mechanism: 'serial',
+          status: 'unconfigured',
+          capabilities: [
+            {
+              id: 'led-color', name: 'LED color', kind: 'action', description: 'Set LED color',
+              params: [
+                { name: 'color', type: 'choice', description: 'LED color', choices: ['red', 'green', 'blue'], default: 'red' },
+                { name: 'brightness', type: 'number', description: 'Brightness 0-100', default: 50 },
+                { name: 'blinking', type: 'boolean', description: 'Blink mode', default: false },
+              ],
+            },
+            {
+              id: 'read-sensor', name: 'Read sensor', kind: 'query', description: 'Read sensor',
+              params: [
+                { name: 'unit', type: 'string', description: 'Temperature unit' },
+              ],
+            },
+            { id: 'no-params', name: 'Simple action', kind: 'action', description: 'No params' },
+          ],
+        },
+      ];
+
+      it('extracts string param values from block fields', () => {
+        const spec = interpretWorkspace(
+          makeWorkspace([goalBlock('Test', {
+            type: 'portal_ask',
+            fields: { PORTAL_ID: 'portal-params', CAPABILITY_ID: 'read-sensor', PARAM_unit: 'celsius' },
+          })]),
+          undefined, undefined, portalsWithParams,
+        );
+        expect(spec.portals![0].interactions[0].params).toEqual({ unit: 'celsius' });
+      });
+
+      it('extracts number param values', () => {
+        const spec = interpretWorkspace(
+          makeWorkspace([goalBlock('Test', {
+            type: 'portal_tell',
+            fields: { PORTAL_ID: 'portal-params', CAPABILITY_ID: 'led-color', PARAM_color: 'blue', PARAM_brightness: 80, PARAM_blinking: 'TRUE' },
+          })]),
+          undefined, undefined, portalsWithParams,
+        );
+        const params = spec.portals![0].interactions[0].params!;
+        expect(params.color).toBe('blue');
+        expect(params.brightness).toBe(80);
+        expect(params.blinking).toBe(true);
+      });
+
+      it('uses default values when field is empty', () => {
+        const spec = interpretWorkspace(
+          makeWorkspace([goalBlock('Test', {
+            type: 'portal_tell',
+            fields: { PORTAL_ID: 'portal-params', CAPABILITY_ID: 'led-color' },
+          })]),
+          undefined, undefined, portalsWithParams,
+        );
+        const params = spec.portals![0].interactions[0].params!;
+        expect(params.color).toBe('red');
+        expect(params.brightness).toBe(50);
+        expect(params.blinking).toBe(false);
+      });
+
+      it('omits params when capability has no params defined', () => {
+        const spec = interpretWorkspace(
+          makeWorkspace([goalBlock('Test', {
+            type: 'portal_tell',
+            fields: { PORTAL_ID: 'portal-params', CAPABILITY_ID: 'no-params' },
+          })]),
+          undefined, undefined, portalsWithParams,
+        );
+        expect(spec.portals![0].interactions[0].params).toBeUndefined();
+      });
+
+      it('handles boolean TRUE string from checkbox', () => {
+        const spec = interpretWorkspace(
+          makeWorkspace([goalBlock('Test', {
+            type: 'portal_tell',
+            fields: { PORTAL_ID: 'portal-params', CAPABILITY_ID: 'led-color', PARAM_color: 'green', PARAM_brightness: 100, PARAM_blinking: 'TRUE' },
+          })]),
+          undefined, undefined, portalsWithParams,
+        );
+        expect(spec.portals![0].interactions[0].params!.blinking).toBe(true);
+      });
+
+      it('handles boolean false value', () => {
+        const spec = interpretWorkspace(
+          makeWorkspace([goalBlock('Test', {
+            type: 'portal_tell',
+            fields: { PORTAL_ID: 'portal-params', CAPABILITY_ID: 'led-color', PARAM_color: 'red', PARAM_brightness: 0, PARAM_blinking: 'FALSE' },
+          })]),
+          undefined, undefined, portalsWithParams,
+        );
+        expect(spec.portals![0].interactions[0].params!.blinking).toBe(false);
+      });
+
+      it('omits params with no default when field is missing', () => {
+        const spec = interpretWorkspace(
+          makeWorkspace([goalBlock('Test', {
+            type: 'portal_ask',
+            fields: { PORTAL_ID: 'portal-params', CAPABILITY_ID: 'read-sensor' },
+          })]),
+          undefined, undefined, portalsWithParams,
+        );
+        // 'unit' param has no default and no field value, so params should be empty/absent
+        expect(spec.portals![0].interactions[0].params).toBeUndefined();
+      });
+    });
   });
 
   describe('migrateWorkspace', () => {

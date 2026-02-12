@@ -12,6 +12,7 @@ const CapabilitySchema = z.object({
 const InteractionSchema = z.object({
   type: z.string().max(100).optional(),
   capabilityId: z.string().max(200).optional(),
+  params: z.record(z.string().max(200), z.union([z.string().max(2000), z.number(), z.boolean()])).optional(),
 }).passthrough();
 
 /** Shell metacharacters forbidden in portal args. */

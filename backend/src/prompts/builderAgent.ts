@@ -159,7 +159,12 @@ export function formatTaskPrompt(params: {
       if (portal.interactions?.length) {
         portalParts.push('Requested interactions:');
         for (const interaction of portal.interactions) {
-          portalParts.push(`  - ${interaction.type}: ${interaction.capabilityId}`);
+          let interactionLine = `  - ${interaction.type}: ${interaction.capabilityId}`;
+          if (interaction.params && Object.keys(interaction.params).length > 0) {
+            const paramStr = Object.entries(interaction.params).map(([k, v]) => `${k}=${v}`).join(', ');
+            interactionLine += ` (${paramStr})`;
+          }
+          portalParts.push(interactionLine);
         }
       }
       parts.push(`<user_input name="portal:${portal.name}">\n${portalParts.join('\n')}\n</user_input>`);

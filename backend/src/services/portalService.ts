@@ -25,7 +25,7 @@ export interface PortalSpec {
   description: string;
   mechanism: string;
   capabilities: PortalCapability[];
-  interactions: Array<{ type: 'tell' | 'when' | 'ask'; capabilityId: string }>;
+  interactions: Array<{ type: 'tell' | 'when' | 'ask'; capabilityId: string; params?: Record<string, string | number | boolean> }>;
   mcpConfig?: Record<string, unknown>;
   cliConfig?: Record<string, unknown>;
   serialConfig?: Record<string, unknown>;

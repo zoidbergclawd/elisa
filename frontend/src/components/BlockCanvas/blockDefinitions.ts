@@ -493,8 +493,52 @@ export function registerBlocks(): void {
     originalMenuGenerator.call(dropdown);
   });
 
+  /** Remove all dynamic PARAM_* inputs from a portal block. */
+  function removeParamInputs(block: Blockly.Block): void {
+    const inputNames = block.inputList.map(i => i.name).filter(n => n.startsWith('PARAM_'));
+    for (const name of inputNames) {
+      block.removeInput(name);
+    }
+  }
+
+  /** Add input fields to a portal block for the selected capability's params. */
+  function addParamInputs(block: Blockly.Block, portalId: string, capabilityId: string, kind: 'action' | 'event' | 'query'): void {
+    const portals = getCurrentPortals();
+    const portal = portals.find(p => p.id === portalId);
+    if (!portal) return;
+    const cap = portal.capabilities.find(c => c.id === capabilityId && c.kind === kind);
+    if (!cap?.params || cap.params.length === 0) return;
+
+    for (const param of cap.params) {
+      const inputName = `PARAM_${param.name}`;
+      if (param.type === 'boolean') {
+        block.appendDummyInput(inputName)
+          .appendField(`  ${param.name}:`)
+          .appendField(new Blockly.FieldCheckbox(param.default === true ? 'TRUE' : 'FALSE'), inputName);
+      } else if (param.type === 'choice' && param.choices && param.choices.length > 0) {
+        const options = param.choices.map(c => [c, c] as [string, string]);
+        const defaultVal = param.default !== undefined ? String(param.default) : param.choices[0];
+        block.appendDummyInput(inputName)
+          .appendField(`  ${param.name}:`)
+          .appendField(new Blockly.FieldDropdown(options), inputName);
+        const field = block.getField(inputName);
+        if (field && defaultVal) field.setValue(defaultVal);
+      } else if (param.type === 'number') {
+        block.appendDummyInput(inputName)
+          .appendField(`  ${param.name}:`)
+          .appendField(new Blockly.FieldNumber(param.default as number ?? 0), inputName);
+      } else {
+        // string type
+        block.appendDummyInput(inputName)
+          .appendField(`  ${param.name}:`)
+          .appendField(new Blockly.FieldTextInput(param.default !== undefined ? String(param.default) : ''), inputName);
+      }
+    }
+  }
+
   function makePortalExtension(kind: 'action' | 'event' | 'query', _fieldName: string) {
     return function (this: Blockly.Block) {
+      const block = this;
       const portalDropdown = this.getField('PORTAL_ID') as Blockly.FieldDropdown;
       const capDropdown = this.getField('CAPABILITY_ID') as Blockly.FieldDropdown;
       if (!portalDropdown || !capDropdown) return;
@@ -516,6 +560,23 @@ export function registerBlocks(): void {
         if (caps.length === 0) return [['(none available)', '']];
         return caps.map((c) => [c.name, c.id] as [string, string]);
       };
+
+      // When portal changes, clear param inputs (capability will change too)
+      portalDropdown.setValidator(function () {
+        removeParamInputs(block);
+        return undefined;
+      });
+
+      // When capability changes, rebuild param inputs
+      capDropdown.setValidator(function (newValue: string) {
+        removeParamInputs(block);
+        if (newValue) {
+          const portalId = portalDropdown.getValue();
+          // Defer to next tick so Blockly has finished updating the field value
+          setTimeout(() => addParamInputs(block, portalId, newValue, kind), 0);
+        }
+        return undefined;
+      });
     };
   }
 
