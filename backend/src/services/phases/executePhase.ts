@@ -286,12 +286,12 @@ export class ExecutePhase {
     }
 
     // Check token budget before starting agent invocation
-    const currentTokens = this.deps.tokenTracker.total ?? 0;
-    const budgetCheck = this.deps.context.checkBudget(currentTokens);
-    if (!budgetCheck.withinBudget) {
+    if (this.deps.tokenTracker.budgetExceeded) {
+      const total = this.deps.tokenTracker.total;
+      const max = this.deps.tokenTracker.maxBudget;
       task.status = 'failed';
       if (agent.status !== undefined) agent.status = 'idle';
-      const msg = `Token budget exceeded (${currentTokens} / ${this.deps.context.maxTokens}). Skipping remaining tasks.`;
+      const msg = `Token budget exceeded (${total} / ${max}). Skipping remaining tasks.`;
       this.taskSummaries[taskId] = msg;
       await ctx.send({
         type: 'agent_output',
@@ -349,7 +349,16 @@ export class ExecutePhase {
         agent_name: agentName,
         input_tokens: result.inputTokens,
         output_tokens: result.outputTokens,
+        cost_usd: result.costUsd ?? 0,
       });
+      if (this.deps.tokenTracker.checkWarning()) {
+        await ctx.send({
+          type: 'budget_warning',
+          total_tokens: this.deps.tokenTracker.total,
+          max_budget: this.deps.tokenTracker.maxBudget,
+          cost_usd: this.deps.tokenTracker.costUsd,
+        });
+      }
     }
 
     if (success) {
