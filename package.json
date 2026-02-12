@@ -5,9 +5,9 @@
   "author": "Elisa",
   "description": "Elisa - AI-powered project builder for kids",
   "main": "electron/dist/main.js",
-  "type": "module",
   "scripts": {
-    "dev": "concurrently -n be,fe,el -c blue,green,magenta \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\" \"wait-on http://localhost:5173 && electron .\"",
+    "dev": "concurrently -n be,fe -c blue,green \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+    "dev:electron": "concurrently -n be,fe,el -c blue,green,magenta \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\" \"wait-on http://localhost:5173 && electron .\"",
     "build:frontend": "cd frontend && npx vite build",
     "build:backend": "node scripts/build-backend.mjs",
     "build:electron": "tsc -p electron/tsconfig.json",

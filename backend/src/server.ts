@@ -443,5 +443,8 @@ const isDirectRun =
 
 if (isDirectRun) {
   const port = Number(process.env.PORT ?? 8000);
-  startServer(port);
+  startServer(port).catch((err) => {
+    console.error('Failed to start server:', err.message);
+    process.exit(1);
+  });
 }

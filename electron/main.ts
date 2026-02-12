@@ -7,13 +7,13 @@
 import { app, BrowserWindow, ipcMain, safeStorage, Menu } from 'electron';
 import * as path from 'path';
 import * as net from 'net';
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const Store = require('electron-store');
+// electron-store v10 is ESM-only; use dynamic import() from CommonJS.
+let store: { get(key: string): any; set(key: string, value: any): void };
 
-const store = new Store({ name: 'elisa-config' }) as {
-  get(key: string): any;
-  set(key: string, value: any): void;
-};
+async function initStore(): Promise<void> {
+  const { default: Store } = await import('electron-store');
+  store = new Store({ name: 'elisa-config' }) as any;
+}
 
 let mainWindow: BrowserWindow | null = null;
 let settingsWindow: BrowserWindow | null = null;
@@ -84,7 +84,7 @@ function openSettingsWindow(onSaved?: () => void): void {
   });
 
   settingsWindow.setMenuBarVisibility(false);
-  settingsWindow.loadFile(path.join(__dirname, '..', 'electron', 'settings.html'));
+  settingsWindow.loadFile(path.join(__dirname, '..', 'settings.html'));
 
   settingsWindow.on('closed', () => {
     settingsWindow = null;
@@ -102,25 +102,22 @@ async function startBackend(): Promise<void> {
     process.env.ANTHROPIC_API_KEY = apiKey;
   }
 
-  serverPort = await findFreePort(8000);
-
   const isDev = !app.isPackaged;
 
-  // Use a variable so TypeScript doesn't resolve the import at compile time
-  let serverModule: { startServer: (port: number, staticDir?: string) => Promise<any> };
-
   if (isDev) {
-    // Dev mode: import from source (requires tsx/ts-node registered by electron)
-    const devPath = path.join(__dirname, '..', 'backend', 'src', 'server.js');
-    serverModule = await import(devPath);
-    await serverModule.startServer(serverPort);
-  } else {
-    // Production: use bundled backend
-    const prodPath = path.join(process.resourcesPath, 'backend-dist', 'server-entry.js');
-    serverModule = await import(prodPath);
-    const frontendDist = path.join(process.resourcesPath, 'frontend-dist');
-    await serverModule.startServer(serverPort, frontendDist);
+    // Dev mode: backend runs separately via concurrently (npm run dev).
+    // Just use the existing backend on port 8000.
+    serverPort = 8000;
+    return;
   }
+
+  // Production: start the bundled backend in-process
+  serverPort = await findFreePort(8000);
+  const prodPath = path.join(process.resourcesPath, 'backend-dist', 'server-entry.js');
+  const serverModule: { startServer: (port: number, staticDir?: string) => Promise<any> } =
+    await import(prodPath);
+  const frontendDist = path.join(process.resourcesPath, 'frontend-dist');
+  await serverModule.startServer(serverPort, frontendDist);
 }
 
 // -- Main Window --
@@ -217,10 +214,13 @@ ipcMain.handle('open-settings', () => {
 // -- App Lifecycle --
 
 app.whenReady().then(async () => {
+  await initStore();
   buildMenu();
 
-  if (!hasApiKey()) {
-    // First launch: show settings before starting server
+  const isDev = !app.isPackaged;
+
+  if (!isDev && !hasApiKey()) {
+    // First launch (production): show settings before starting server
     openSettingsWindow(async () => {
       await startBackend();
       createMainWindow();
