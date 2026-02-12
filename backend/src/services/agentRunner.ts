@@ -7,6 +7,7 @@
 
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentResult } from '../models/session.js';
+import { withTimeout } from '../utils/withTimeout.js';
 
 export interface AgentRunnerParams {
   taskId: string;
@@ -46,12 +47,16 @@ export class AgentRunner {
         }]))
       : undefined;
 
+    const abortController = new AbortController();
+
     try {
       return await withTimeout(
-        this.runQuery(prompt, systemPrompt, workingDir, taskId, onOutput, model, maxTurns, mcpConfig),
+        this.runQuery(prompt, systemPrompt, workingDir, taskId, onOutput, model, maxTurns, mcpConfig, abortController),
         timeout * 1000,
       );
     } catch (err: any) {
+      // Ensure the query is aborted on timeout or any error
+      abortController.abort();
       if (err.message === 'Timed out') {
         return {
           success: false,
@@ -80,6 +85,7 @@ export class AgentRunner {
     model: string,
     maxTurns: number,
     mcpConfig?: Record<string, any>,
+    abortController?: AbortController,
   ): Promise<AgentResult> {
     const conversation = query({
       prompt,
@@ -91,6 +97,7 @@ export class AgentRunner {
         allowDangerouslySkipPermissions: true,
         systemPrompt,
         ...(mcpConfig ? { mcpServers: mcpConfig } : {}),
+        ...(abortController ? { abortController } : {}),
       },
     });
 
@@ -132,12 +139,3 @@ export class AgentRunner {
   }
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('Timed out')), ms);
-    promise.then(
-      (val) => { clearTimeout(timer); resolve(val); },
-      (err) => { clearTimeout(timer); reject(err); },
-    );
-  });
-}

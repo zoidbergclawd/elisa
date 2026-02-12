@@ -4,9 +4,7 @@ import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { promisify } from 'node:util';
-
-const execFileAsync = promisify(execFile);
+import { withTimeout } from '../utils/withTimeout.js';
 
 /** Detect which test file types exist in a directory. */
 function detectTestTypes(testsDir: string): { hasPython: boolean; hasJs: boolean } {
@@ -92,9 +90,22 @@ export class TestRunner {
       let exitCode = 0;
 
       try {
+        let childProc: import('node:child_process').ChildProcess | undefined;
+        const execPromise = new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+          childProc = execFile('node', [filePath], { cwd: workDir }, (err, stdout, stderr) => {
+            if (err) {
+              if (stdout != null) (err as any).stdout = stdout;
+              if (stderr != null) (err as any).stderr = stderr;
+              reject(err);
+            } else {
+              resolve({ stdout: stdout ?? '', stderr: stderr ?? '' });
+            }
+          });
+        });
         const result = await withTimeout(
-          execFileAsync('node', [filePath], { cwd: workDir }),
+          execPromise,
           120_000,
+          { childProcess: childProc },
         );
         stdout = result.stdout ?? '';
       } catch (err: any) {
@@ -150,14 +161,28 @@ export class TestRunner {
     let stdout = '';
     let stderr = '';
     try {
+      let childProc: import('node:child_process').ChildProcess | undefined;
+      const execPromise = new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+        childProc = execFile('python', args, { cwd: workDir }, (err, stdoutBuf, stderrBuf) => {
+          if (err) {
+            if (stdoutBuf != null) (err as any).stdout = stdoutBuf;
+            if (stderrBuf != null) (err as any).stderr = stderrBuf;
+            reject(err);
+          } else {
+            resolve({ stdout: stdoutBuf ?? '', stderr: stderrBuf ?? '' });
+          }
+        });
+      });
       const result = await withTimeout(
-        execFileAsync('python', args, { cwd: workDir }),
+        execPromise,
         120_000,
+        { childProcess: childProc },
       );
       stdout = result.stdout ?? '';
       stderr = result.stderr ?? '';
     } catch (err: any) {
       if (err.message === 'Timed out') {
+        this.cleanupCovFile(covJsonPath);
         return {
           tests: [{ test_name: 'pytest', passed: false, details: 'Test run timed out' }],
           passed: 0, failed: 1, total: 1, coverage_pct: null, coverage_details: null,
@@ -228,6 +253,9 @@ export class TestRunner {
       }
     }
 
+    // Clean up temp coverage file
+    this.cleanupCovFile(covJsonPath);
+
     return {
       tests,
       passed: passedCount,
@@ -236,6 +264,12 @@ export class TestRunner {
       coverage_pct: coveragePct,
       coverage_details: coverageDetails,
     };
+  }
+
+  private cleanupCovFile(covJsonPath: string | null): void {
+    if (covJsonPath) {
+      try { fs.unlinkSync(covJsonPath); } catch { /* best-effort */ }
+    }
   }
 }
 
@@ -254,12 +288,3 @@ export interface TestRunResult {
   coverage_details: CoverageDetails | null;
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('Timed out')), ms);
-    promise.then(
-      (val) => { clearTimeout(timer); resolve(val); },
-      (err) => { clearTimeout(timer); reject(err); },
-    );
-  });
-}

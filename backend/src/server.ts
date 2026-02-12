@@ -121,7 +121,7 @@ function createApp(staticDir?: string) {
   const sendEvent = (sessionId: string, event: Record<string, any>) =>
     manager.sendEvent(sessionId, event);
 
-  app.use('/api/sessions', createSessionRouter({ store, sendEvent }));
+  app.use('/api/sessions', createSessionRouter({ store, sendEvent, hardwareService }));
   app.use('/api/skills', createSkillRouter({ store, sendEvent }));
   app.use('/api/hardware', createHardwareRouter({ store, hardwareService }));
 
@@ -237,6 +237,15 @@ export function startServer(
 
   process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
   process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+  // Prune stale sessions every 10 minutes
+  const pruneInterval = setInterval(() => {
+    const pruned = store.pruneStale();
+    if (pruned.length > 0) {
+      console.log(`Pruned ${pruned.length} stale session(s): ${pruned.join(', ')}`);
+    }
+  }, 600_000);
+  pruneInterval.unref();
 
   return new Promise((resolve) => {
     server.listen(port, '127.0.0.1', () => {

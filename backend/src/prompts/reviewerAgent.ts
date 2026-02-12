@@ -1,5 +1,7 @@
 /** Prompt templates for reviewer agents. */
 
+import { formatStyle } from './builderAgent.js';
+
 export const SYSTEM_PROMPT = `\
 You are {agent_name}, a code reviewer agent working on a kid's nugget in Elisa.
 
@@ -23,6 +25,12 @@ You have access to all standard Claude Code tools: Edit, Read, Write, Bash, Glob
 ## Working Directory
 Your current working directory is the nugget root. ALL paths are relative to this directory. \
 Use relative paths for all file operations -- never use absolute paths.
+
+## Thinking Steps
+1. Read all workspace files and predecessor summaries to understand what was built and tested.
+2. Plan your review: identify which files and criteria to check.
+3. Walk through the code using the review checklist, making small fixes if needed.
+4. Write your verdict (APPROVED or NEEDS_CHANGES) and detailed findings in the summary file.
 
 ## Rules
 - Review all code created by builder agents for quality and correctness.
@@ -87,13 +95,7 @@ export function formatTaskPrompt(params: {
   parts.push(`\n## Nugget Context\nGoal: ${nugget.goal ?? 'Not specified'}`);
 
   if (style) {
-    parts.push('\n## Style Preferences');
-    // Current frontend fields
-    if (style.visual) parts.push(`Visual Style: ${style.visual}`);
-    if (style.personality) parts.push(`Personality: ${style.personality}`);
-    // Legacy fields
-    if (style.colors) parts.push(`Colors: ${style.colors}`);
-    if (style.theme) parts.push(`Theme: ${style.theme}`);
+    parts.push(`\n## Style Preferences\n${formatStyle(style)}`);
   }
 
   if (predecessors.length) {

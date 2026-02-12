@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import type { WSEvent } from '../types';
 
 interface UseWebSocketOptions {
@@ -16,6 +16,9 @@ export function useWebSocket({ sessionId, onEvent }: UseWebSocketOptions) {
   const retriesRef = useRef(0);
   const onEventRef = useRef(onEvent);
   onEventRef.current = onEvent;
+  const [connected, setConnected] = useState(false);
+  // Holds resolve callbacks for waitForOpen callers
+  const openResolversRef = useRef<Array<() => void>>([]);
 
   const connect = useCallback(() => {
     if (!sessionId) return;
@@ -26,6 +29,10 @@ export function useWebSocket({ sessionId, onEvent }: UseWebSocketOptions) {
 
     ws.onopen = () => {
       retriesRef.current = 0;
+      setConnected(true);
+      // Resolve any pending waitForOpen promises
+      for (const resolve of openResolversRef.current) resolve();
+      openResolversRef.current = [];
       onEventRef.current({ type: 'session_started', session_id: sessionId });
     };
 
@@ -44,6 +51,7 @@ export function useWebSocket({ sessionId, onEvent }: UseWebSocketOptions) {
 
     ws.onclose = () => {
       wsRef.current = null;
+      setConnected(false);
       if (retriesRef.current >= MAX_RETRIES) {
         console.warn(`WebSocket: gave up after ${MAX_RETRIES} retries for session ${sessionId}`);
         return;
@@ -62,8 +70,17 @@ export function useWebSocket({ sessionId, onEvent }: UseWebSocketOptions) {
     return () => {
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       if (wsRef.current) wsRef.current.close();
+      setConnected(false);
     };
   }, [connect]);
 
-  return { connected: wsRef.current?.readyState === WebSocket.OPEN };
+  /** Returns a promise that resolves once the WebSocket is open. */
+  const waitForOpen = useCallback((): Promise<void> => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) return Promise.resolve();
+    return new Promise<void>((resolve) => {
+      openResolversRef.current.push(resolve);
+    });
+  }, []);
+
+  return { connected, waitForOpen };
 }

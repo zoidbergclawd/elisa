@@ -2,21 +2,25 @@
 
 import { Router } from 'express';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import archiver from 'archiver';
 import { randomUUID } from 'node:crypto';
 import { Orchestrator } from '../services/orchestrator.js';
 import { AgentRunner } from '../services/agentRunner.js';
 import { SkillRunner } from '../services/skillRunner.js';
 import { NuggetSpecSchema } from '../utils/specValidator.js';
+import type { HardwareService } from '../services/hardwareService.js';
 import type { SessionStore } from '../services/sessionStore.js';
 import type { SkillSpec } from '../models/skillPlan.js';
 
 interface SessionRouterDeps {
   store: SessionStore;
   sendEvent: (sessionId: string, event: Record<string, any>) => Promise<void>;
+  hardwareService?: HardwareService;
 }
 
-export function createSessionRouter({ store, sendEvent }: SessionRouterDeps): Router {
+export function createSessionRouter({ store, sendEvent, hardwareService }: SessionRouterDeps): Router {
   const router = Router();
 
   // Create session
@@ -43,6 +47,11 @@ export function createSessionRouter({ store, sendEvent }: SessionRouterDeps): Ro
   router.post('/:id/start', async (req, res) => {
     const entry = store.get(req.params.id);
     if (!entry) { res.status(404).json({ detail: 'Session not found' }); return; }
+
+    if (entry.session.state !== 'idle') {
+      res.status(409).json({ detail: 'Session already started' });
+      return;
+    }
 
     const rawSpec = req.body.spec;
     const parseResult = NuggetSpecSchema.safeParse(rawSpec);
@@ -72,7 +81,7 @@ export function createSessionRouter({ store, sendEvent }: SessionRouterDeps): Ro
               skills,
               agentRunner,
             );
-            const plan = runner['interpretWorkspaceOnBackend'](skill);
+            const plan = runner.interpretWorkspaceOnBackend(skill);
             const result = await runner.execute(plan);
             skill.prompt = result;
             skill.category = 'agent';
@@ -86,6 +95,7 @@ export function createSessionRouter({ store, sendEvent }: SessionRouterDeps): Ro
     const orchestrator = new Orchestrator(
       entry.session,
       (evt) => sendEvent(req.params.id, evt),
+      hardwareService,
     );
     entry.orchestrator = orchestrator;
 
@@ -171,6 +181,12 @@ export function createSessionRouter({ store, sendEvent }: SessionRouterDeps): Ro
     if (!entry?.orchestrator) { res.status(404).json({ detail: 'Session not found' }); return; }
 
     const dir = entry.orchestrator.nuggetDir;
+    const resolvedDir = path.resolve(dir);
+    const expectedPrefix = path.resolve(os.tmpdir());
+    if (!resolvedDir.startsWith(expectedPrefix + path.sep) && resolvedDir !== expectedPrefix) {
+      res.status(403).json({ detail: 'Nugget directory outside allowed path' });
+      return;
+    }
     if (!fs.existsSync(dir)) {
       res.status(404).json({ detail: 'Nugget directory not found' });
       return;

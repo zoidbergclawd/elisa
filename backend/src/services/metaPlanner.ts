@@ -1,7 +1,7 @@
 /** Decomposes a nugget spec into a task DAG using Claude. */
 
 import Anthropic from '@anthropic-ai/sdk';
-import { META_PLANNER_SYSTEM, metaPlannerUser } from '../prompts/metaPlanner.js';
+import { buildMetaPlannerSystem, META_PLANNER_SYSTEM, metaPlannerUser } from '../prompts/metaPlanner.js';
 
 const DEFAULT_AGENTS = [
   {
@@ -35,11 +35,12 @@ export class MetaPlanner {
 
     const specJson = JSON.stringify(spec, null, 2);
     const userMsg = metaPlannerUser(specJson);
+    const systemPrompt = buildMetaPlannerSystem(spec);
 
     const model = process.env.CLAUDE_MODEL || 'claude-opus-4-6';
     const response = await this.client.messages.create({
       model,
-      system: META_PLANNER_SYSTEM,
+      system: systemPrompt,
       messages: [
         { role: 'user', content: userMsg },
         { role: 'assistant', content: '{' },
@@ -51,7 +52,7 @@ export class MetaPlanner {
     let plan = this.parseJson(text);
 
     if (!plan) {
-      plan = await this.retryParse(userMsg, text);
+      plan = await this.retryParse(systemPrompt, userMsg, text);
     }
 
     this.validate(plan);
@@ -59,13 +60,14 @@ export class MetaPlanner {
   }
 
   private async retryParse(
+    systemPrompt: string,
     originalUserMsg: string,
     badResponse: string,
   ): Promise<Record<string, any>> {
     const model = process.env.CLAUDE_MODEL || 'claude-opus-4-6';
     const response = await this.client.messages.create({
       model,
-      system: META_PLANNER_SYSTEM,
+      system: systemPrompt,
       messages: [
         { role: 'user', content: originalUserMsg },
         { role: 'assistant', content: badResponse },

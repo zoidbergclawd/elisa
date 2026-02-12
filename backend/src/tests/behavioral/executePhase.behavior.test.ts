@@ -491,6 +491,385 @@ describe('task retry', () => {
 });
 
 // ============================================================
+// Failed task DAG propagation
+// ============================================================
+
+describe('failed task DAG propagation', () => {
+  it('allows downstream tasks to run after a dependency fails', async () => {
+    // When task-1 fails, task-2 (depends on task-1) should still get a chance
+    // to run because the DAG treats failed tasks as "settled"
+    const executeMock = vi.fn()
+      .mockImplementation(async (opts: any) => {
+        if (opts.taskId === 'task-1') {
+          return { success: false, summary: 'Failed task 1', inputTokens: 50, outputTokens: 20, costUsd: 0.005 };
+        }
+        return { success: true, summary: 'Task completed successfully with verified output', inputTokens: 100, outputTokens: 50, costUsd: 0.01 };
+      });
+
+    const tasks = [
+      makeTask('task-1', 'First', 'Agent-A'),
+      makeTask('task-2', 'Second', 'Agent-B', ['task-1']),
+    ];
+    const agents = [makeAgent('Agent-A'), makeAgent('Agent-B')];
+    const deps = makeDeps(executeMock, { tasks, agents });
+    const ctx = makeCtx();
+    const phase = new ExecutePhase(deps);
+
+    // task-1 will fail and trigger human gate. We need to resolve it.
+    const runPromise = phase.execute(ctx);
+
+    // Wait for human_gate to fire (after task-1 fails 3 times)
+    await vi.waitFor(
+      () => {
+        expect(events.some((e) => e.type === 'human_gate')).toBe(true);
+      },
+      { timeout: 5000 },
+    );
+    deps.gateResolver.current!({ approved: true });
+
+    const result = await runPromise;
+
+    // task-1 should be failed, task-2 should still have executed
+    expect(tasks[0].status).toBe('failed');
+    // task-2 gets to run because failed deps are treated as settled
+    const task2Started = events.filter((e) => e.type === 'task_started' && e.task_id === 'task-2');
+    expect(task2Started.length).toBe(1);
+  });
+
+  it('terminates when all remaining tasks are blocked and no in-flight', async () => {
+    // If a task has a dependency that is neither completed nor failed,
+    // and there's nothing in flight, the loop should detect the deadlock and break
+    const executeMock = makeExecuteMock();
+    const dag = new TaskDAG();
+    dag.addTask('task-1', ['task-missing']); // depends on nonexistent task
+    const tasks = [makeTask('task-1', 'Blocked', 'Agent-A')];
+    const agents = [makeAgent('Agent-A')];
+    const taskMap: Record<string, Record<string, any>> = { 'task-1': tasks[0] };
+    const agentMap: Record<string, Record<string, any>> = { 'Agent-A': agents[0] };
+    const deps = makeDeps(executeMock, { tasks, agents, dag, taskMap, agentMap });
+    const ctx = makeCtx();
+    const phase = new ExecutePhase(deps);
+
+    await phase.execute(ctx);
+
+    // Should emit an error about blocked tasks
+    const errors = events.filter((e) => e.type === 'error');
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0].message).toContain('blocked');
+  });
+});
+
+// ============================================================
+// Deploy task skip
+// ============================================================
+
+describe('deploy task skip', () => {
+  it('skips deploy task when no deployment target is configured', async () => {
+    const executeMock = makeExecuteMock();
+    const tasks = [
+      makeTask('task-1', 'Deploy to production', 'Agent-A'),
+    ];
+    // Override the description to trigger deploy detection
+    tasks[0].description = 'Deploy to the web for production use';
+    const agents = [makeAgent('Agent-A')];
+    const deps = makeDeps(executeMock, { tasks, agents });
+    // Session spec has no deployment target and no portals
+    const ctx = makeCtx({
+      session: {
+        id: 'test-session',
+        state: 'idle',
+        spec: {
+          nugget: { goal: 'test', type: 'software', description: 'test' },
+          deployment: { target: 'preview' },
+        },
+        tasks: [],
+        agents: [],
+      } as any,
+    });
+    const phase = new ExecutePhase(deps);
+
+    await phase.execute(ctx);
+
+    // Task should be done (skipped)
+    expect(tasks[0].status).toBe('done');
+
+    // Agent should NOT have been called (the task was skipped)
+    expect(executeMock).not.toHaveBeenCalled();
+
+    // Should emit agent_output about skipping
+    const outputs = events.filter(
+      (e) => e.type === 'agent_output' && e.content.includes('No deployment target'),
+    );
+    expect(outputs.length).toBe(1);
+  });
+
+  it('does not skip deploy task when esp32 target is configured', async () => {
+    const executeMock = makeExecuteMock();
+    const tasks = [
+      makeTask('task-1', 'Deploy code', 'Agent-A'),
+    ];
+    tasks[0].description = 'Deploy to the web';
+    const agents = [makeAgent('Agent-A')];
+    const deps = makeDeps(executeMock, { tasks, agents });
+    const ctx = makeCtx({
+      session: {
+        id: 'test-session',
+        state: 'idle',
+        spec: {
+          nugget: { goal: 'test', type: 'hardware', description: 'test' },
+          deployment: { target: 'esp32' },
+        },
+        tasks: [],
+        agents: [],
+      } as any,
+    });
+    const phase = new ExecutePhase(deps);
+
+    await phase.execute(ctx);
+
+    // Agent should have been called because esp32 target is configured
+    expect(executeMock).toHaveBeenCalled();
+  });
+});
+
+// ============================================================
+// Token budget enforcement
+// ============================================================
+
+describe('token budget enforcement', () => {
+  it('fails task and emits error when token budget is exceeded', async () => {
+    const executeMock = makeExecuteMock();
+    const tasks = [makeTask('task-1', 'Build UI', 'Builder Bot')];
+    const agents = [makeAgent('Builder Bot')];
+    // Create context manager with a very low budget
+    const context = new ContextManager(10);
+    // Token tracker that reports high usage
+    const tokenTracker = { total: 1000, addForAgent: vi.fn() } as any;
+    const deps = makeDeps(executeMock, {
+      tasks,
+      agents,
+      context,
+      tokenTracker,
+    });
+    const ctx = makeCtx();
+    const phase = new ExecutePhase(deps);
+
+    await phase.execute(ctx);
+
+    // Task should be failed
+    expect(tasks[0].status).toBe('failed');
+
+    // Agent should NOT have been called
+    expect(executeMock).not.toHaveBeenCalled();
+
+    // Should emit task_failed event
+    const failedEvents = events.filter((e) => e.type === 'task_failed');
+    expect(failedEvents.length).toBe(1);
+    expect(failedEvents[0].error).toContain('Token budget exceeded');
+  });
+});
+
+// ============================================================
+// Human gate (midpoint)
+// ============================================================
+
+describe('human gate at midpoint', () => {
+  it('fires gate at midpoint when human_gates configured', async () => {
+    const executeMock = makeExecuteMock();
+    const tasks = [
+      makeTask('task-1', 'Step 1', 'Agent-A'),
+      makeTask('task-2', 'Step 2', 'Agent-A', ['task-1']),
+      makeTask('task-3', 'Step 3', 'Agent-A', ['task-2']),
+      makeTask('task-4', 'Step 4', 'Agent-A', ['task-3']),
+    ];
+    const agents = [makeAgent('Agent-A')];
+    const deps = makeDeps(executeMock, { tasks, agents });
+    const ctx = makeCtx({
+      session: {
+        id: 'test-session',
+        state: 'idle',
+        spec: {
+          nugget: { goal: 'test', type: 'software', description: 'test' },
+          workflow: { human_gates: ['midpoint'] },
+        },
+        tasks: [],
+        agents: [],
+      } as any,
+    });
+    const phase = new ExecutePhase(deps);
+
+    const runPromise = phase.execute(ctx);
+
+    // Wait for human_gate to fire
+    await vi.waitFor(
+      () => {
+        expect(events.some((e) => e.type === 'human_gate')).toBe(true);
+      },
+      { timeout: 5000 },
+    );
+
+    // Approve gate
+    deps.gateResolver.current!({ approved: true });
+
+    await runPromise;
+
+    const gateEvents = events.filter((e) => e.type === 'human_gate');
+    expect(gateEvents.length).toBe(1);
+
+    // All tasks should complete
+    const completed = events.filter((e) => e.type === 'task_completed');
+    expect(completed.length).toBe(4);
+  });
+
+  it('adds revision task when gate is rejected', async () => {
+    const executeMock = makeExecuteMock();
+    const tasks = [
+      makeTask('task-1', 'Step 1', 'Agent-A'),
+      makeTask('task-2', 'Step 2', 'Agent-A', ['task-1']),
+      makeTask('task-3', 'Step 3', 'Agent-A', ['task-2']),
+      makeTask('task-4', 'Step 4', 'Agent-A', ['task-3']),
+    ];
+    const agents = [makeAgent('Agent-A')];
+    const deps = makeDeps(executeMock, { tasks, agents });
+    const ctx = makeCtx({
+      session: {
+        id: 'test-session',
+        state: 'idle',
+        spec: {
+          nugget: { goal: 'test', type: 'software', description: 'test' },
+          workflow: { human_gates: ['midpoint'] },
+        },
+        tasks: [],
+        agents: [],
+      } as any,
+    });
+    const phase = new ExecutePhase(deps);
+
+    const runPromise = phase.execute(ctx);
+
+    await vi.waitFor(
+      () => {
+        expect(events.some((e) => e.type === 'human_gate')).toBe(true);
+      },
+      { timeout: 5000 },
+    );
+
+    // Reject gate with feedback
+    deps.gateResolver.current!({ approved: false, feedback: 'Make it better' });
+
+    await runPromise;
+
+    // A revision task should have been added
+    const revisionTask = deps.tasks.find((t) => t.id.includes('revision'));
+    expect(revisionTask).toBeDefined();
+    expect(revisionTask!.description).toContain('Make it better');
+  });
+});
+
+// ============================================================
+// Abort signal handling
+// ============================================================
+
+describe('abort signal handling', () => {
+  it('breaks execution loop when abort signal is fired', async () => {
+    const controller = new AbortController();
+    const executeMock = vi.fn().mockImplementation(async (opts: any) => {
+      // Abort after the first task starts
+      if (opts.taskId === 'task-1') {
+        controller.abort();
+      }
+      return { success: true, summary: 'Done with thorough implementation work', inputTokens: 100, outputTokens: 50, costUsd: 0.01 };
+    });
+
+    const tasks = [
+      makeTask('task-1', 'First', 'Agent-A'),
+      makeTask('task-2', 'Second', 'Agent-A', ['task-1']),
+    ];
+    const agents = [makeAgent('Agent-A')];
+    const deps = makeDeps(executeMock, { tasks, agents });
+    const ctx = makeCtx({ abortSignal: controller.signal });
+    const phase = new ExecutePhase(deps);
+
+    await phase.execute(ctx);
+
+    // Error about cancellation should be emitted
+    const errors = events.filter((e) => e.type === 'error');
+    expect(errors.some((e) => e.message.includes('cancelled'))).toBe(true);
+  });
+});
+
+// ============================================================
+// System prompt placeholder resolution
+// ============================================================
+
+describe('system prompt placeholder resolution', () => {
+  it('replaces all placeholders in system prompt', async () => {
+    const capturedPrompts: string[] = [];
+    const executeMock = vi.fn().mockImplementation(async (opts: any) => {
+      capturedPrompts.push(opts.systemPrompt);
+      return { success: true, summary: 'Completed task with all requirements satisfied and tested', inputTokens: 100, outputTokens: 50, costUsd: 0.01 };
+    });
+
+    const tasks = [makeTask('task-1', 'Build UI', 'Builder Bot')];
+    const agent = makeAgent('Builder Bot');
+    agent.persona = 'A friendly robot';
+    const agents = [agent];
+    const deps = makeDeps(executeMock, { tasks, agents });
+    const ctx = makeCtx();
+    const phase = new ExecutePhase(deps);
+
+    await phase.execute(ctx);
+
+    expect(capturedPrompts.length).toBe(1);
+    const prompt = capturedPrompts[0];
+    expect(prompt).toContain('Builder Bot');
+    expect(prompt).toContain('A friendly robot');
+    expect(prompt).toContain('task-1');
+    expect(prompt).toContain('test goal');
+    expect(prompt).toContain('software');
+    // Should NOT contain unresolved placeholders
+    expect(prompt).not.toContain('{agent_name}');
+    expect(prompt).not.toContain('{persona}');
+    expect(prompt).not.toContain('{task_id}');
+  });
+});
+
+// ============================================================
+// Concurrent task limits
+// ============================================================
+
+describe('concurrent task limits', () => {
+  it('does not exceed MAX_CONCURRENT (3) tasks in flight', async () => {
+    let maxConcurrent = 0;
+    let currentConcurrent = 0;
+
+    const executeMock = vi.fn().mockImplementation(async () => {
+      currentConcurrent++;
+      if (currentConcurrent > maxConcurrent) maxConcurrent = currentConcurrent;
+      await new Promise((r) => setTimeout(r, 30));
+      currentConcurrent--;
+      return { success: true, summary: 'Completed the task fully with verification and testing', inputTokens: 100, outputTokens: 50, costUsd: 0.01 };
+    });
+
+    // 5 independent tasks
+    const tasks = Array.from({ length: 5 }, (_, i) =>
+      makeTask(`task-${i + 1}`, `Task ${i + 1}`, `Agent-${i + 1}`),
+    );
+    const agents = Array.from({ length: 5 }, (_, i) =>
+      makeAgent(`Agent-${i + 1}`),
+    );
+    const deps = makeDeps(executeMock, { tasks, agents });
+    const ctx = makeCtx();
+    const phase = new ExecutePhase(deps);
+
+    await phase.execute(ctx);
+
+    expect(maxConcurrent).toBeLessThanOrEqual(3);
+    expect(maxConcurrent).toBeGreaterThanOrEqual(2); // Should actually be parallel
+  });
+});
+
+// ============================================================
 // Context chain
 // ============================================================
 

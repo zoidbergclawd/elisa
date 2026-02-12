@@ -70,9 +70,39 @@ export async function loadNuggetFile(file: File): Promise<NuggetFileData> {
   const portalsJson = await zip.file('portals.json')?.async('string');
 
   const workspace = JSON.parse(workspaceJson) as Record<string, unknown>;
-  const skills: Skill[] = skillsJson ? JSON.parse(skillsJson) : [];
-  const rules: Rule[] = rulesJson ? JSON.parse(rulesJson) : [];
-  const portals: Portal[] = portalsJson ? JSON.parse(portalsJson) : [];
+  if (typeof workspace !== 'object' || workspace === null || Array.isArray(workspace)) {
+    throw new Error('Invalid .elisa file: workspace.json must be a JSON object');
+  }
+
+  const rawSkills = skillsJson ? JSON.parse(skillsJson) : [];
+  const rawRules = rulesJson ? JSON.parse(rulesJson) : [];
+  const rawPortals = portalsJson ? JSON.parse(portalsJson) : [];
+
+  if (!Array.isArray(rawSkills)) throw new Error('Invalid .elisa file: skills.json must be an array');
+  if (!Array.isArray(rawRules)) throw new Error('Invalid .elisa file: rules.json must be an array');
+  if (!Array.isArray(rawPortals)) throw new Error('Invalid .elisa file: portals.json must be an array');
+
+  const skills: Skill[] = rawSkills.filter(
+    (s: unknown): s is Skill =>
+      typeof s === 'object' && s !== null &&
+      typeof (s as any).id === 'string' &&
+      typeof (s as any).name === 'string' &&
+      typeof (s as any).prompt === 'string',
+  );
+  const rules: Rule[] = rawRules.filter(
+    (r: unknown): r is Rule =>
+      typeof r === 'object' && r !== null &&
+      typeof (r as any).id === 'string' &&
+      typeof (r as any).name === 'string' &&
+      typeof (r as any).prompt === 'string',
+  );
+  const portals: Portal[] = rawPortals.filter(
+    (p: unknown): p is Portal =>
+      typeof p === 'object' && p !== null &&
+      typeof (p as any).id === 'string' &&
+      typeof (p as any).name === 'string' &&
+      typeof (p as any).mechanism === 'string',
+  );
 
   // Extract output/ or project/ folder back into a zip blob if present (backward compat)
   let outputArchive: Blob | undefined;

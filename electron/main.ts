@@ -18,6 +18,7 @@ async function initStore(): Promise<void> {
 let mainWindow: BrowserWindow | null = null;
 let settingsWindow: BrowserWindow | null = null;
 let serverPort: number = 8000;
+let serverInstance: { close: () => void } | null = null;
 
 // -- API Key Management --
 
@@ -117,7 +118,7 @@ async function startBackend(): Promise<void> {
   const serverModule: { startServer: (port: number, staticDir?: string) => Promise<any> } =
     await import(prodPath);
   const frontendDist = path.join(process.resourcesPath, 'frontend-dist');
-  await serverModule.startServer(serverPort, frontendDist);
+  serverInstance = await serverModule.startServer(serverPort, frontendDist);
 }
 
 // -- Main Window --
@@ -236,6 +237,10 @@ app.on('before-quit', () => {
   // In dev mode this is a no-op since the backend runs separately
   if (!app.isPackaged) return;
   console.log('Elisa shutting down: cleaning up resources...');
+  if (serverInstance) {
+    serverInstance.close();
+    serverInstance = null;
+  }
 });
 
 app.on('window-all-closed', () => {

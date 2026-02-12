@@ -281,7 +281,7 @@ export class SkillRunner {
 
   /** Interpret a composite skill's workspace JSON into a SkillPlan on the backend.
    *  This is a simplified version of the frontend's skillInterpreter -- same logic, no Blockly dependency. */
-  private interpretWorkspaceOnBackend(skill: SkillSpec): SkillPlan {
+  interpretWorkspaceOnBackend(skill: SkillSpec): SkillPlan {
     const ws = skill.workspace as any;
     const topBlocks = ws?.blocks?.blocks ?? [];
     const startBlock = topBlocks.find((b: any) => b.type === 'skill_flow_start');
@@ -389,7 +389,7 @@ function resolveContextKey(key: string, context: SkillContext): string {
 }
 
 export function resolveTemplate(template: string, context: SkillContext): string {
-  return template.replace(/\{\{(\w+)\}\}/g, (_match, key) => {
+  return template.replace(/\{\{([\w.-]+)\}\}/g, (_match, key) => {
     return resolveContextKey(key, context);
   });
 }

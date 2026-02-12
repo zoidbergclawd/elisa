@@ -26,7 +26,7 @@ export class Orchestrator {
   private session: BuildSession;
   private send: SendEvent;
   private logger: SessionLogger | null = null;
-  nuggetDir = path.join(os.tmpdir(), `elisa-nugget-${Date.now()}`);
+  nuggetDir: string;
   private nuggetType = 'software';
   private testResults: Record<string, any> = {};
   private commits: CommitInfo[] = [];
@@ -48,17 +48,20 @@ export class Orchestrator {
   private tokenTracker = new TokenTracker();
   private teachingEngine = new TeachingEngine();
   private testRunner = new TestRunner();
-  private hardwareService = new HardwareService();
-  private portalService = new PortalService(this.hardwareService);
+  private hardwareService: HardwareService;
+  private portalService: PortalService;
 
   // Phase handlers
   private planPhase: PlanPhase;
   private testPhase: TestPhase;
   private deployPhase: DeployPhase;
 
-  constructor(session: BuildSession, sendEvent: SendEvent) {
+  constructor(session: BuildSession, sendEvent: SendEvent, hardwareService?: HardwareService) {
     this.session = session;
     this.send = sendEvent;
+    this.nuggetDir = path.join(os.tmpdir(), `elisa-nugget-${session.id}`);
+    this.hardwareService = hardwareService ?? new HardwareService();
+    this.portalService = new PortalService(this.hardwareService);
 
     this.planPhase = new PlanPhase(new MetaPlanner(), this.teachingEngine);
     this.testPhase = new TestPhase(this.testRunner, this.teachingEngine);
@@ -187,17 +190,15 @@ export class Orchestrator {
     this.abortController.abort();
   }
 
-  /** Clean up the nugget temp directory after a grace period. */
-  cleanup(delayMs = 600_000): void {
-    setTimeout(() => {
-      try {
-        if (fs.existsSync(this.nuggetDir)) {
-          fs.rmSync(this.nuggetDir, { recursive: true, force: true });
-        }
-      } catch {
-        // Best-effort cleanup
+  /** Clean up the nugget temp directory immediately. */
+  cleanup(): void {
+    try {
+      if (fs.existsSync(this.nuggetDir)) {
+        fs.rmSync(this.nuggetDir, { recursive: true, force: true });
       }
-    }, delayMs);
+    } catch {
+      // Best-effort cleanup
+    }
   }
 
   respondToGate(approved: boolean, feedback = ''): void {

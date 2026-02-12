@@ -14,15 +14,17 @@ interface LogEntry {
 
 export class SessionLogger {
   private logDir: string;
-  private jsonlPath: string;
-  private textPath: string;
+  private jsonlStream: fs.WriteStream;
+  private textStream: fs.WriteStream;
   private sessionStart: number;
 
   constructor(nuggetDir: string) {
     this.logDir = path.join(nuggetDir, '.elisa', 'logs');
     fs.mkdirSync(this.logDir, { recursive: true });
-    this.jsonlPath = path.join(this.logDir, 'session.jsonl');
-    this.textPath = path.join(this.logDir, 'session.log');
+    this.jsonlStream = fs.createWriteStream(path.join(this.logDir, 'session.jsonl'), { flags: 'a' });
+    this.jsonlStream.on('error', () => { /* best-effort: directory may be cleaned up */ });
+    this.textStream = fs.createWriteStream(path.join(this.logDir, 'session.log'), { flags: 'a' });
+    this.textStream.on('error', () => { /* best-effort: directory may be cleaned up */ });
     this.sessionStart = Date.now();
   }
 
@@ -31,16 +33,16 @@ export class SessionLogger {
     const timestamp = new Date().toISOString();
     const entry: LogEntry = { timestamp, level, event, ...(data !== undefined ? { data } : {}) };
 
-    // JSONL
+    // JSONL (async, buffered)
     try {
-      fs.appendFileSync(this.jsonlPath, JSON.stringify(entry) + '\n');
+      this.jsonlStream.write(JSON.stringify(entry) + '\n');
     } catch { /* best-effort */ }
 
-    // Human-readable
+    // Human-readable (async, buffered)
     const dataStr = data ? ' ' + this.formatData(data) : '';
     const textLine = `[${timestamp}] [${level.toUpperCase()}] ${event}${dataStr}\n`;
     try {
-      fs.appendFileSync(this.textPath, textLine);
+      this.textStream.write(textLine);
     } catch { /* best-effort */ }
 
     // Console with [elisa] prefix
@@ -111,6 +113,12 @@ export class SessionLogger {
       totalElapsedMs: elapsed,
       totalElapsedStr: this.formatElapsed(elapsed),
     });
+  }
+
+  /** Close write streams. Call when the session ends. */
+  close(): void {
+    try { this.jsonlStream.end(); } catch { /* best-effort */ }
+    try { this.textStream.end(); } catch { /* best-effort */ }
   }
 
   /** Format elapsed ms to human-readable string. */

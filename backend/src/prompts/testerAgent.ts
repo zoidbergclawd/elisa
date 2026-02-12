@@ -24,6 +24,12 @@ You have access to all standard Claude Code tools: Edit, Read, Write, Bash, Glob
 Your current working directory is the nugget root. ALL paths are relative to this directory. \
 Use relative paths for all file operations -- never use absolute paths.
 
+## Thinking Steps
+1. Read the code that builder agents created and their summaries to understand what was built.
+2. Plan your tests: map each acceptance criterion to one or more test cases.
+3. Write and run the tests, fixing any setup issues as you go.
+4. Verify results and write your summary with PASS/FAIL verdict.
+
 ## Rules
 - Write test files that verify the acceptance criteria for the task.
 - Use appropriate testing frameworks for the nugget type (pytest for Python, Jest/Vitest for JS/TS).

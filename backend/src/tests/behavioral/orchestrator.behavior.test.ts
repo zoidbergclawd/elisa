@@ -571,6 +571,98 @@ describe('DAG dependency ordering', () => {
 });
 
 // ============================================================
+// cancel(), cleanup(), respondToGate(), respondToQuestion()
+// ============================================================
+
+describe('cancel()', () => {
+  it('aborts an in-flight run and emits cancellation error', async () => {
+    const { orchestrator, events } = setup(multiTaskSpec);
+    configurePlan(multiTaskPlan);
+
+    let callCount = 0;
+    vi.mocked(AgentRunner.prototype.execute).mockImplementation(
+      async () => {
+        callCount++;
+        // Cancel after the first agent call finishes
+        if (callCount === 1) {
+          orchestrator.cancel();
+        }
+        return {
+          success: true,
+          summary: 'done',
+          inputTokens: 100,
+          outputTokens: 50,
+          costUsd: 0.01,
+        };
+      },
+    );
+
+    await orchestrator.run(multiTaskSpec);
+
+    const errors = eventsOfType(events, 'error');
+    expect(errors.some((e) => e.message.includes('cancelled'))).toBe(true);
+  });
+});
+
+describe('cleanup()', () => {
+  it('removes the nugget temp directory', async () => {
+    const { orchestrator } = setup(minimalWebSpec);
+    const fs = await import('node:fs');
+
+    // Create the dir to simulate partial run
+    fs.mkdirSync(orchestrator.nuggetDir, { recursive: true });
+    expect(fs.existsSync(orchestrator.nuggetDir)).toBe(true);
+
+    orchestrator.cleanup();
+
+    expect(fs.existsSync(orchestrator.nuggetDir)).toBe(false);
+  });
+
+  it('does not throw when directory does not exist', () => {
+    const { orchestrator } = setup(minimalWebSpec);
+    // nuggetDir was never created
+    expect(() => orchestrator.cleanup()).not.toThrow();
+  });
+});
+
+describe('respondToGate()', () => {
+  it('does nothing when no gate is pending', () => {
+    const { orchestrator } = setup(minimalWebSpec);
+    // Should not throw
+    expect(() => orchestrator.respondToGate(true)).not.toThrow();
+  });
+
+  it('unblocks a pending human gate with approval', async () => {
+    const { orchestrator, events } = setup(withHumanGateSpec);
+    configurePlan(withHumanGatePlan);
+    configureAgentSuccess();
+
+    const runPromise = orchestrator.run(withHumanGateSpec);
+
+    await vi.waitFor(
+      () => {
+        expect(events.some((e) => e.type === 'human_gate')).toBe(true);
+      },
+      { timeout: 5000 },
+    );
+
+    orchestrator.respondToGate(true);
+    await runPromise;
+
+    // Should complete successfully
+    expect(events[events.length - 1].type).toBe('session_complete');
+  });
+});
+
+describe('respondToQuestion()', () => {
+  it('does nothing when no question is pending for that task', () => {
+    const { orchestrator } = setup(minimalWebSpec);
+    // Should not throw
+    expect(() => orchestrator.respondToQuestion('task-999', { answer: 'yes' })).not.toThrow();
+  });
+});
+
+// ============================================================
 // Plan contents propagation
 // ============================================================
 

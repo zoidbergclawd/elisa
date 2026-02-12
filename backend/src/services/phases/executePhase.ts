@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { PhaseContext } from './types.js';
+import { maybeTeach } from './types.js';
 import type { CommitInfo } from '../../models/session.js';
 import * as builderAgent from '../../prompts/builderAgent.js';
 import * as testerAgent from '../../prompts/testerAgent.js';
@@ -72,10 +73,19 @@ export class ExecutePhase {
     ctx.logger?.phase('executing');
 
     const completed = new Set<string>();
+    const failed = new Set<string>();
     const inFlight = new Set<string>();
     const MAX_CONCURRENT = 3;
 
-    while (completed.size < this.deps.tasks.length) {
+    // For DAG readiness, treat both completed and failed as "done" so
+    // downstream tasks can detect the failure instead of blocking forever.
+    const settled = () => {
+      const s = new Set(completed);
+      for (const id of failed) s.add(id);
+      return s;
+    };
+
+    while (completed.size + failed.size < this.deps.tasks.length) {
       if (ctx.abortSignal.aborted) {
         await ctx.send({
           type: 'error',
@@ -85,7 +95,7 @@ export class ExecutePhase {
         break;
       }
 
-      const ready = this.deps.dag.getReady(completed)
+      const ready = this.deps.dag.getReady(settled())
         .filter((id) => !inFlight.has(id));
 
       if (ready.length === 0 && inFlight.size === 0) {
@@ -108,10 +118,16 @@ export class ExecutePhase {
       const promises = batch.map(async (readyTaskId) => {
         inFlight.add(readyTaskId);
         try {
-          await this.executeOneTask(ctx, readyTaskId, completed);
+          const success = await this.executeOneTask(ctx, readyTaskId, completed);
+          if (success) {
+            completed.add(readyTaskId);
+          } else {
+            failed.add(readyTaskId);
+          }
+        } catch {
+          failed.add(readyTaskId);
         } finally {
           inFlight.delete(readyTaskId);
-          completed.add(readyTaskId);
         }
       });
 
@@ -125,7 +141,7 @@ export class ExecutePhase {
     ctx: PhaseContext,
     taskId: string,
     completed: Set<string>,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const task = this.deps.taskMap[taskId];
     const agentName: string = task.agent_name ?? '';
     const agent = this.deps.agentMap[agentName] ?? {};
@@ -143,7 +159,7 @@ export class ExecutePhase {
         content: 'No deployment target configured. Skipping deploy task. You can add a deployment portal later.',
       });
       await ctx.send({ type: 'task_completed', task_id: taskId, agent_name: agentName });
-      return;
+      return true;
     }
 
     task.status = 'in_progress';
@@ -176,12 +192,28 @@ export class ExecutePhase {
       taskId,
       this.deps.taskMap,
     );
+    // Prioritize direct dependencies over transitive ones
+    const directDeps = new Set<string>(task.dependencies ?? []);
+    const sortedPredecessors = [...allPredecessorIds].sort((a, b) => {
+      const aIsDirect = directDeps.has(a) ? 0 : 1;
+      const bIsDirect = directDeps.has(b) ? 0 : 1;
+      return aIsDirect - bIsDirect;
+    });
     const predecessorSummaries: string[] = [];
-    for (const depId of allPredecessorIds) {
+    let predecessorWordCount = 0;
+    const PREDECESSOR_WORD_CAP = 2000;
+    for (const depId of sortedPredecessors) {
       if (this.taskSummaries[depId]) {
-        predecessorSummaries.push(
-          ContextManager.capSummary(this.taskSummaries[depId]),
-        );
+        const capped = ContextManager.capSummary(this.taskSummaries[depId]);
+        const words = capped.split(/\s+/).filter(Boolean).length;
+        if (predecessorWordCount + words > PREDECESSOR_WORD_CAP) {
+          predecessorSummaries.push(
+            `[${allPredecessorIds.length - predecessorSummaries.length} earlier task(s) omitted for brevity]`,
+          );
+          break;
+        }
+        predecessorSummaries.push(capped);
+        predecessorWordCount += words;
       }
     }
 
@@ -230,11 +262,44 @@ export class ExecutePhase {
     const taskStartTime = Date.now();
     const logTaskDone = ctx.logger?.taskStart(taskId, task.name ?? taskId, agentName);
 
+    // Pre-build retry rules suffix once to avoid appending duplicates on each retry
+    let retryRulesSuffix = '';
+    const onFailRules = (specData.rules ?? []).filter(
+      (r: any) => r.trigger === 'on_test_fail',
+    );
+    if (onFailRules.length) {
+      retryRulesSuffix = "\n\n## Retry Rules (kid's rules)\n";
+      for (const r of onFailRules) {
+        retryRulesSuffix += `<kid_rule name="${r.name}">\n${r.prompt}\n</kid_rule>\n`;
+      }
+    }
+
+    // Check token budget before starting agent invocation
+    const currentTokens = this.deps.tokenTracker.total ?? 0;
+    const budgetCheck = this.deps.context.checkBudget(currentTokens);
+    if (!budgetCheck.withinBudget) {
+      task.status = 'failed';
+      if (agent.status !== undefined) agent.status = 'idle';
+      const msg = `Token budget exceeded (${currentTokens} / ${this.deps.context.maxTokens}). Skipping remaining tasks.`;
+      this.taskSummaries[taskId] = msg;
+      await ctx.send({
+        type: 'agent_output',
+        task_id: taskId,
+        agent_name: agentName,
+        content: msg,
+      });
+      await ctx.send({ type: 'task_failed', task_id: taskId, error: msg, retry_count: 0 });
+      return false;
+    }
+
     while (!success && retryCount <= maxRetries) {
       const mcpServers = this.deps.portalService.getMcpServers();
+      const prompt = retryCount > 0 && retryRulesSuffix
+        ? userPrompt + retryRulesSuffix
+        : userPrompt;
       result = await this.deps.agentRunner.execute({
         taskId,
-        prompt: userPrompt,
+        prompt,
         systemPrompt,
         onOutput: this.makeOutputHandler(ctx, agentName),
         onQuestion: this.makeQuestionHandler(ctx, taskId),
@@ -249,15 +314,6 @@ export class ExecutePhase {
       } else {
         retryCount++;
         if (retryCount <= maxRetries) {
-          const onFailRules = (specData.rules ?? []).filter(
-            (r: any) => r.trigger === 'on_test_fail',
-          );
-          if (onFailRules.length) {
-            userPrompt += "\n\n## Retry Rules (kid's rules)\n";
-            for (const r of onFailRules) {
-              userPrompt += `<kid_rule name="${r.name}">\n${r.prompt}\n</kid_rule>\n`;
-            }
-          }
           await ctx.send({
             type: 'agent_output',
             task_id: taskId,
@@ -363,7 +419,7 @@ export class ExecutePhase {
                 timestamp: commitInfo.timestamp,
                 files_changed: commitInfo.filesChanged,
               });
-              await this.maybeTeach(ctx, 'commit_created', commitMsg);
+              await maybeTeach(this.deps.teachingEngine, ctx, 'commit_created', commitMsg);
             }
           } catch (err) {
             ctx.logger?.warn(`Git commit failed for ${taskId}`, { error: String(err) });
@@ -380,15 +436,16 @@ export class ExecutePhase {
 
       // Teaching moments for tester/reviewer
       if (agentRole === 'tester') {
-        await this.maybeTeach(ctx, 'tester_task_completed', result?.summary ?? '');
+        await maybeTeach(this.deps.teachingEngine, ctx, 'tester_task_completed', result?.summary ?? '');
       } else if (agentRole === 'reviewer') {
-        await this.maybeTeach(ctx, 'reviewer_task_completed', result?.summary ?? '');
+        await maybeTeach(this.deps.teachingEngine, ctx, 'reviewer_task_completed', result?.summary ?? '');
       }
 
       // Check human gate
       if (this.shouldFireGate(ctx, task, completed)) {
         await this.fireHumanGate(ctx, task);
       }
+      return true;
     } else {
       const elapsed = Date.now() - taskStartTime;
       ctx.logger?.taskFailed(taskId, task.name ?? taskId, result?.summary ?? 'Unknown error', elapsed);
@@ -413,6 +470,7 @@ export class ExecutePhase {
           recoverable: true,
         });
       }
+      return false;
     }
   }
 
@@ -446,9 +504,19 @@ export class ExecutePhase {
       context,
     });
 
-    const response = await new Promise<Record<string, any>>((resolve) => {
-      this.deps.gateResolver.current = resolve;
-    });
+    const response = await Promise.race([
+      new Promise<Record<string, any>>((resolve) => {
+        this.deps.gateResolver.current = resolve;
+      }),
+      new Promise<Record<string, any>>((_, reject) => {
+        if (ctx.abortSignal.aborted) {
+          reject(new Error('Build cancelled'));
+          return;
+        }
+        const onAbort = () => reject(new Error('Build cancelled'));
+        ctx.abortSignal.addEventListener('abort', onAbort, { once: true });
+      }),
+    ]);
 
     if (!response.approved) {
       const feedback = response.feedback ?? '';
@@ -559,24 +627,20 @@ export class ExecutePhase {
         task_id: taskId,
         questions: payload,
       });
-      return new Promise<Record<string, any>>((resolve) => {
-        this.deps.questionResolvers.set(taskId, resolve);
-      });
+      return Promise.race([
+        new Promise<Record<string, any>>((resolve) => {
+          this.deps.questionResolvers.set(taskId, resolve);
+        }),
+        new Promise<Record<string, any>>((_, reject) => {
+          if (ctx.abortSignal.aborted) {
+            reject(new Error('Build cancelled'));
+            return;
+          }
+          const onAbort = () => reject(new Error('Build cancelled'));
+          ctx.abortSignal.addEventListener('abort', onAbort, { once: true });
+        }),
+      ]);
     };
   }
 
-  private async maybeTeach(
-    ctx: PhaseContext,
-    eventType: string,
-    eventDetails: string,
-  ): Promise<void> {
-    const moment = await this.deps.teachingEngine.getMoment(
-      eventType,
-      eventDetails,
-      ctx.nuggetType,
-    );
-    if (moment) {
-      await ctx.send({ type: 'teaching_moment', ...moment });
-    }
-  }
 }

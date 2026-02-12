@@ -93,7 +93,7 @@ describe('TestRunner', () => {
       fs.writeFileSync(path.join(testsDir, 'test_math.js'), '');
 
       mockExecFile((_cmd: string, _args: string[], _opts: any, cb: Function) => {
-        cb(null, { stdout: 'PASS: addition\nPASS: subtraction\n', stderr: '' });
+        cb(null, 'PASS: addition\nPASS: subtraction\n', '');
       });
 
       const result = await runner.runTests(tmpDir);
@@ -116,7 +116,7 @@ describe('TestRunner', () => {
       fs.writeFileSync(path.join(testsDir, 'test_utils.mjs'), '');
 
       mockExecFile((_cmd: string, _args: string[], _opts: any, cb: Function) => {
-        cb(null, { stdout: 'ok 1 - works\n', stderr: '' });
+        cb(null, 'ok 1 - works\n', '');
       });
 
       const result = await runner.runTests(tmpDir);
@@ -129,7 +129,7 @@ describe('TestRunner', () => {
       fs.writeFileSync(path.join(testsDir, 'test_app.js'), '');
 
       mockExecFile((_cmd: string, _args: string[], _opts: any, cb: Function) => {
-        cb(null, { stdout: 'All good!\n', stderr: '' });
+        cb(null, 'All good!\n', '');
       });
 
       const result = await runner.runTests(tmpDir);
@@ -167,7 +167,7 @@ describe('TestRunner', () => {
       mockExecFile((_cmd: string, _args: string[], _opts: any, cb: Function) => {
         if (callIndex === 0) {
           callIndex++;
-          cb(null, { stdout: 'PASS: test1\nPASS: test2\n', stderr: '' });
+          cb(null, 'PASS: test1\nPASS: test2\n', '');
         } else {
           const err: any = new Error('exit 1');
           err.stdout = 'PASS: test3\nFAIL: test4\n';
@@ -220,7 +220,7 @@ describe('TestRunner', () => {
       fs.writeFileSync(path.join(testsDir, 'test_math.py'), '');
 
       mockExecFile((_cmd: string, _args: string[], _opts: any, cb: Function) => {
-        cb(null, { stdout: 'test_math.py::test_add PASSED\ntest_math.py::test_sub FAILED\n', stderr: '' });
+        cb(null, 'test_math.py::test_add PASSED\ntest_math.py::test_sub FAILED\n', '');
       });
 
       const result = await runner.runTests(tmpDir);
@@ -247,9 +247,9 @@ describe('TestRunner', () => {
       let callIndex = 0;
       mockExecFile((cmd: string, _args: string[], _opts: any, cb: Function) => {
         if (cmd === 'python') {
-          cb(null, { stdout: 'test_math.py::test_add PASSED\n', stderr: '' });
+          cb(null, 'test_math.py::test_add PASSED\n', '');
         } else {
-          cb(null, { stdout: 'PASS: js test\n', stderr: '' });
+          cb(null, 'PASS: js test\n', '');
         }
       });
 

@@ -88,8 +88,9 @@ export class TeachingEngine {
 
     const prompt = teachingUserPrompt(eventType, eventDetails, nuggetType || 'software');
 
+    // Use a cheap model for small teaching JSON -- no need for Opus here
     const response = await this.client.messages.create({
-      model: process.env.CLAUDE_MODEL || 'claude-opus-4-6',
+      model: 'claude-haiku-4-20250414',
       max_tokens: 300,
       system: TEACHING_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: prompt }],

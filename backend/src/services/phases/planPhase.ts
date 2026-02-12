@@ -1,6 +1,7 @@
 /** Plan phase: decomposes NuggetSpec into a task DAG via MetaPlanner. */
 
 import type { PhaseContext, SendEvent } from './types.js';
+import { maybeTeach } from './types.js';
 import { MetaPlanner } from '../metaPlanner.js';
 import { TeachingEngine } from '../teachingEngine.js';
 import { TaskDAG } from '../../utils/dag.js';
@@ -69,24 +70,12 @@ export class PlanPhase {
       explanation: planExplanation,
     });
 
-    await this.maybeTeach(ctx, 'plan_ready', planExplanation, nuggetType);
+    await maybeTeach(this.teachingEngine, ctx, 'plan_ready', planExplanation, nuggetType);
 
-    if (spec.skills?.length) await this.maybeTeach(ctx, 'skill_used', '', nuggetType);
-    if (spec.rules?.length) await this.maybeTeach(ctx, 'rule_used', '', nuggetType);
-    if (spec.portals?.length) await this.maybeTeach(ctx, 'portal_used', '', nuggetType);
+    if (spec.skills?.length) await maybeTeach(this.teachingEngine, ctx, 'skill_used', '', nuggetType);
+    if (spec.rules?.length) await maybeTeach(this.teachingEngine, ctx, 'rule_used', '', nuggetType);
+    if (spec.portals?.length) await maybeTeach(this.teachingEngine, ctx, 'portal_used', '', nuggetType);
 
     return { tasks, agents, taskMap, agentMap, dag, nuggetType };
-  }
-
-  private async maybeTeach(
-    ctx: PhaseContext,
-    eventType: string,
-    eventDetails: string,
-    nuggetType: string,
-  ): Promise<void> {
-    const moment = await this.teachingEngine.getMoment(eventType, eventDetails, nuggetType);
-    if (moment) {
-      await ctx.send({ type: 'teaching_moment', ...moment });
-    }
   }
 }

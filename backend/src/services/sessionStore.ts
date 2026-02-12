@@ -67,7 +67,7 @@ export class SessionStore {
     for (const [id, entry] of this.entries) {
       if (now - entry.createdAt > maxAgeMs) {
         if (entry.orchestrator) {
-          entry.orchestrator.cleanup(0);
+          entry.orchestrator.cleanup();
         }
         this.entries.delete(id);
         const timer = this.cleanupTimers.get(id);

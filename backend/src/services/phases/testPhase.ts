@@ -1,6 +1,7 @@
 /** Test phase: runs test suite and reports results. */
 
 import type { PhaseContext } from './types.js';
+import { maybeTeach } from './types.js';
 import { TeachingEngine } from '../teachingEngine.js';
 import { TestRunner } from '../testRunner.js';
 
@@ -43,30 +44,15 @@ export class TestPhase {
         percentage: results.coverage_pct,
         details: results.coverage_details ?? {},
       });
-      await this.maybeTeach(ctx, 'coverage_update', `${results.coverage_pct}% coverage`);
+      await maybeTeach(this.teachingEngine, ctx, 'coverage_update', `${results.coverage_pct}% coverage`);
     }
 
     if (results.total > 0) {
       const summary = `${results.passed}/${results.total} tests passing`;
       const eventType = results.failed === 0 ? 'test_result_pass' : 'test_result_fail';
-      await this.maybeTeach(ctx, eventType, summary);
+      await maybeTeach(this.teachingEngine, ctx, eventType, summary);
     }
 
     return { testResults: results };
-  }
-
-  private async maybeTeach(
-    ctx: PhaseContext,
-    eventType: string,
-    eventDetails: string,
-  ): Promise<void> {
-    const moment = await this.teachingEngine.getMoment(
-      eventType,
-      eventDetails,
-      ctx.nuggetType,
-    );
-    if (moment) {
-      await ctx.send({ type: 'teaching_moment', ...moment });
-    }
   }
 }

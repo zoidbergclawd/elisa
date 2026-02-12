@@ -1,6 +1,8 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import type { NuggetSpec } from '../components/BlockCanvas/blockInterpreter';
 import type { UIState, Task, Agent, Commit, WSEvent, TeachingMoment, TestResult, TokenUsage, QuestionPayload } from '../types';
+
+const MAX_EVENTS = 500;
 
 export interface SerialLine {
   line: string;
@@ -46,39 +48,64 @@ export function useBuildSession() {
   const [questionRequest, setQuestionRequest] = useState<QuestionRequest | null>(null);
   const [nuggetDir, setNuggetDir] = useState<string | null>(null);
   const [errorNotification, setErrorNotification] = useState<ErrorNotification | null>(null);
+  const tasksRef = useRef<Task[]>([]);
 
   const handleEvent = useCallback((event: WSEvent) => {
-    setEvents(prev => [...prev, event]);
+    setEvents(prev => {
+      const next = [...prev, event];
+      return next.length > MAX_EVENTS ? next.slice(next.length - MAX_EVENTS) : next;
+    });
 
     switch (event.type) {
       case 'plan_ready':
         setTasks(event.tasks);
+        tasksRef.current = event.tasks;
         setAgents(event.agents);
         break;
       case 'task_started':
-        setTasks(prev => prev.map(t =>
-          t.id === event.task_id ? { ...t, status: 'in_progress' as const } : t
-        ));
+        setTasks(prev => {
+          const next = prev.map(t =>
+            t.id === event.task_id ? { ...t, status: 'in_progress' as const } : t
+          );
+          tasksRef.current = next;
+          return next;
+        });
         setAgents(prev => prev.map(a =>
           a.name === event.agent_name ? { ...a, status: 'working' as const } : a
         ));
         break;
-      case 'task_completed':
-        setTasks(prev => prev.map(t =>
-          t.id === event.task_id ? { ...t, status: 'done' as const } : t
-        ));
-        setAgents(prev => prev.map(a =>
-          a.status === 'working' ? { ...a, status: 'idle' as const } : a
-        ));
+      case 'task_completed': {
+        const completedTask = tasksRef.current.find(t => t.id === event.task_id);
+        setTasks(prev => {
+          const next = prev.map(t =>
+            t.id === event.task_id ? { ...t, status: 'done' as const } : t
+          );
+          tasksRef.current = next;
+          return next;
+        });
+        if (completedTask) {
+          setAgents(prev => prev.map(a =>
+            a.name === completedTask.agent_name ? { ...a, status: 'idle' as const } : a
+          ));
+        }
         break;
-      case 'task_failed':
-        setTasks(prev => prev.map(t =>
-          t.id === event.task_id ? { ...t, status: 'failed' as const } : t
-        ));
-        setAgents(prev => prev.map(a =>
-          a.status === 'working' ? { ...a, status: 'error' as const } : a
-        ));
+      }
+      case 'task_failed': {
+        const failedTask = tasksRef.current.find(t => t.id === event.task_id);
+        setTasks(prev => {
+          const next = prev.map(t =>
+            t.id === event.task_id ? { ...t, status: 'failed' as const } : t
+          );
+          tasksRef.current = next;
+          return next;
+        });
+        if (failedTask) {
+          setAgents(prev => prev.map(a =>
+            a.name === failedTask.agent_name ? { ...a, status: 'error' as const } : a
+          ));
+        }
         break;
+      }
       case 'commit_created':
         setCommits(prev => [...prev, {
           sha: event.sha,
@@ -179,10 +206,11 @@ export function useBuildSession() {
     }
   }, []);
 
-  const startBuild = useCallback(async (spec: NuggetSpec) => {
+  const startBuild = useCallback(async (spec: NuggetSpec, waitForWs?: () => Promise<void>) => {
     setUiState('building');
     setEvents([]);
     setTasks([]);
+    tasksRef.current = [];
     setAgents([]);
     setCommits([]);
     setTeachingMoments([]);
@@ -197,17 +225,30 @@ export function useBuildSession() {
     setErrorNotification(null);
 
     const res = await fetch('/api/sessions', { method: 'POST' });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ error: res.statusText }));
+      setUiState('design');
+      setErrorNotification({ message: body.error || 'Failed to create session', recoverable: true, timestamp: Date.now() });
+      return;
+    }
     const { session_id } = await res.json();
     setSessionId(session_id);
 
-    // Small delay to let WebSocket connect before starting
-    await new Promise(r => setTimeout(r, 500));
+    // Wait for WebSocket to be open before starting the build
+    if (waitForWs) {
+      await waitForWs();
+    }
 
-    await fetch(`/api/sessions/${session_id}/start`, {
+    const startRes = await fetch(`/api/sessions/${session_id}/start`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ spec }),
     });
+    if (!startRes.ok) {
+      const body = await startRes.json().catch(() => ({ error: startRes.statusText }));
+      setUiState('design');
+      setErrorNotification({ message: body.error || 'Failed to start build', recoverable: true, timestamp: Date.now() });
+    }
   }, []);
 
   const clearGateRequest = useCallback(() => {

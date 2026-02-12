@@ -110,7 +110,8 @@ export const CONCEPT_CURRICULUM: Record<string, Record<string, TeachingMomentDat
         'some tasks need to wait until others are finished first. ' +
         "It's like how you need to mix the batter before you can bake a cake.",
       tell_me_more:
-        "Figuring out the right order is called 'topological sorting'. " +
+        'The computer figures out the right order automatically -- ' +
+        "it's like sorting recipe steps so you never need an ingredient you haven't made yet. " +
         'Tasks with no dependencies can run at the same time (in parallel), ' +
         'which makes the whole nugget finish faster.',
     },
@@ -141,15 +142,15 @@ export const CONCEPT_CURRICULUM: Record<string, Record<string, TeachingMomentDat
     },
     compilation: {
       concept: 'hardware',
-      headline: 'Compiling -- translating code for your board!',
+      headline: 'Checking your code before sending it to the board!',
       explanation:
-        'Before your code can run on the ESP32, it needs to be translated into a language ' +
-        "the chip understands. That's called compiling. It's like translating English into " +
-        'Spanish -- same meaning, different language.',
+        'Before your code goes to the ESP32, a tool checks it for mistakes -- like a ' +
+        "spell-checker for code. If something doesn't look right, it tells you exactly " +
+        'where the problem is so you can fix it before uploading.',
       tell_me_more:
-        'The compiler checks your code for errors before sending it to the board. ' +
-        'If it finds a mistake, it tells you exactly where it is so you can fix it. ' +
-        'This saves you from uploading broken code to your board!',
+        'This checking step catches typos and syntax errors early. ' +
+        "It's much faster to fix a mistake on your computer than to wonder " +
+        'why the board is not doing what you expected!',
     },
     flashing: {
       concept: 'hardware',
@@ -236,7 +237,10 @@ export const TEACHING_SYSTEM_PROMPT =
   'You are a friendly teaching assistant for kids aged 8-14 who are learning about ' +
   'software engineering by watching AI agents build their nuggets. ' +
   'Explain concepts in simple, encouraging language. Use analogies kids can relate to. ' +
-  'Keep explanations to 2-3 sentences. Always be encouraging and never condescending.';
+  'Keep explanations to 2-3 sentences. Always be encouraging and never condescending. ' +
+  'You MUST respond with a JSON object containing exactly these keys: ' +
+  '"concept" (string), "headline" (string), "explanation" (string), "tell_me_more" (string). ' +
+  'Output ONLY valid JSON -- no markdown, no commentary.';
 
 export function teachingUserPrompt(
   eventType: string,

@@ -1,6 +1,7 @@
 /** Deploy phase: handles hardware flash and portal deployment. */
 
 import type { PhaseContext } from './types.js';
+import { maybeTeach } from './types.js';
 import { HardwareService } from '../hardwareService.js';
 import { PortalService } from '../portalService.js';
 import { TeachingEngine } from '../teachingEngine.js';
@@ -64,7 +65,7 @@ export class DeployPhase {
       progress: 25,
     });
     const compileResult = await this.hardwareService.compile(ctx.nuggetDir);
-    await this.maybeTeach(ctx, 'hardware_compile', '');
+    await maybeTeach(this.teachingEngine, ctx, 'hardware_compile', '');
 
     if (!compileResult.success) {
       await ctx.send({
@@ -87,7 +88,7 @@ export class DeployPhase {
       progress: 60,
     });
     const flashResult = await this.hardwareService.flash(ctx.nuggetDir);
-    await this.maybeTeach(ctx, 'hardware_flash', '');
+    await maybeTeach(this.teachingEngine, ctx, 'hardware_flash', '');
 
     if (!flashResult.success) {
       await ctx.send({
@@ -200,7 +201,7 @@ export class DeployPhase {
       }
     }
 
-    await this.maybeTeach(ctx, 'portal_used', '');
+    await maybeTeach(this.teachingEngine, ctx, 'portal_used', '');
     await ctx.send({ type: 'deploy_complete', target: 'portals' });
     return { serialHandle };
   }
@@ -211,20 +212,5 @@ export class DeployPhase {
 
   getMcpServers(): any[] {
     return this.portalService.getMcpServers();
-  }
-
-  private async maybeTeach(
-    ctx: PhaseContext,
-    eventType: string,
-    eventDetails: string,
-  ): Promise<void> {
-    const moment = await this.teachingEngine.getMoment(
-      eventType,
-      eventDetails,
-      ctx.nuggetType,
-    );
-    if (moment) {
-      await ctx.send({ type: 'teaching_moment', ...moment });
-    }
   }
 }
