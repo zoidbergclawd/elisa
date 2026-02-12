@@ -261,10 +261,14 @@ export class Orchestrator {
         style: this.session.spec?.style ?? null,
       });
 
-      // Append file manifest
+      // Append file manifest with clear instructions
       const fileManifest = ContextManager.buildFileManifest(this.nuggetDir);
       if (fileManifest) {
-        userPrompt += `\n\n## FILES IN WORKSPACE\n${fileManifest}`;
+        userPrompt += '\n\n## FILES ALREADY IN WORKSPACE\n' +
+          'These files exist on disk right now. Do NOT recreate them -- use Edit to modify existing files.\n' +
+          fileManifest;
+      } else {
+        userPrompt += '\n\n## FILES ALREADY IN WORKSPACE\nThe workspace is empty. You are the first agent.';
       }
 
       let retryCount = 0;

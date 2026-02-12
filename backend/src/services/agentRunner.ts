@@ -34,7 +34,7 @@ export class AgentRunner {
       workingDir,
       timeout = 300,
       model = process.env.CLAUDE_MODEL || 'claude-opus-4-6',
-      maxTurns = 12,
+      maxTurns = 25,
       mcpServers,
     } = params;
 
