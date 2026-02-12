@@ -16,6 +16,7 @@ import { TeachingEngine } from './teachingEngine.js';
 import { TestRunner } from './testRunner.js';
 import { ContextManager } from '../utils/contextManager.js';
 import { TaskDAG } from '../utils/dag.js';
+import { SessionLogger } from '../utils/sessionLogger.js';
 import { TokenTracker } from '../utils/tokenTracker.js';
 
 type SendEvent = (event: Record<string, any>) => Promise<void>;
@@ -43,6 +44,7 @@ const PROMPT_MODULES: Record<string, PromptModule> = {
 export class Orchestrator {
   private session: BuildSession;
   private send: SendEvent;
+  private logger: SessionLogger | null = null;
   private metaPlanner = new MetaPlanner();
   private agentRunner = new AgentRunner();
   private dag = new TaskDAG();
@@ -91,6 +93,10 @@ export class Orchestrator {
       await this.complete();
     } catch (err: any) {
       console.error('Orchestrator error:', err);
+      this.logger?.error('Orchestrator error', {
+        message: String(err.message || err),
+        stack: err.stack,
+      });
       await this.send({
         type: 'error',
         message: String(err.message || err),
@@ -105,6 +111,7 @@ export class Orchestrator {
 
   private async plan(spec: Record<string, any>): Promise<void> {
     this.session.state = 'planning';
+    this.logger?.phase('planning');
     await this.send({ type: 'planning_started' });
 
     this.nuggetType =
@@ -160,6 +167,7 @@ export class Orchestrator {
   private async execute(): Promise<void> {
     this.session.state = 'executing';
     await this.setupWorkspace();
+    this.logger?.phase('executing');
 
     const completed = new Set<string>();
 
@@ -263,6 +271,8 @@ export class Orchestrator {
       const maxRetries = 2;
       let success = false;
       let result: any = null;
+      const taskStartTime = Date.now();
+      const logTaskDone = this.logger?.taskStart(taskId, task.name ?? taskId, agentName);
 
       while (!success && retryCount <= maxRetries) {
         const mcpServers = this.portalService.getMcpServers();
@@ -273,6 +283,7 @@ export class Orchestrator {
           onOutput: this.makeOutputHandler(agentName),
           onQuestion: this.makeQuestionHandler(taskId),
           workingDir: this.nuggetDir,
+          model: 'claude-sonnet-4',
           ...(mcpServers.length > 0 ? { mcpServers } : {}),
         });
 
@@ -309,6 +320,7 @@ export class Orchestrator {
           result.outputTokens,
           result.costUsd,
         );
+        this.logger?.tokenUsage(agentName, result.inputTokens, result.outputTokens, result.costUsd);
         await this.send({
           type: 'token_usage',
           agent_name: agentName,
@@ -318,6 +330,7 @@ export class Orchestrator {
       }
 
       if (success) {
+        logTaskDone?.();
         task.status = 'done';
         if (agent.status !== undefined) agent.status = 'idle';
 
@@ -401,6 +414,8 @@ export class Orchestrator {
           await this.fireHumanGate(task);
         }
       } else {
+        const elapsed = Date.now() - taskStartTime;
+        this.logger?.taskFailed(taskId, task.name ?? taskId, result?.summary ?? 'Unknown error', elapsed);
         task.status = 'failed';
         if (agent.status !== undefined) agent.status = 'error';
         await this.send({
@@ -705,8 +720,15 @@ export class Orchestrator {
 
   private async runTests(): Promise<void> {
     this.session.state = 'testing';
+    this.logger?.phase('testing');
     const results = await this.testRunner.runTests(this.nuggetDir);
     this.testResults = results;
+    this.logger?.testResults(
+      results.passed ?? 0,
+      results.failed ?? 0,
+      results.total ?? 0,
+      results.coverage_pct ?? undefined,
+    );
 
     for (const test of results.tests ?? []) {
       await this.send({
@@ -737,11 +759,14 @@ export class Orchestrator {
 
   private async complete(): Promise<void> {
     this.session.state = 'done';
+    this.logger?.phase('done');
     for (const agent of this.agents) agent.status = 'done';
 
     const doneCount = this.tasks.filter((t) => t.status === 'done').length;
     const total = this.tasks.length;
     const failedCount = this.tasks.filter((t) => t.status === 'failed').length;
+
+    this.logger?.sessionSummary(doneCount, failedCount, total);
 
     const summaryParts = [`Completed ${doneCount}/${total} tasks.`];
     if (failedCount) summaryParts.push(`${failedCount} task(s) failed.`);
@@ -788,6 +813,13 @@ export class Orchestrator {
       fs.mkdirSync(d, { recursive: true });
     }
 
+    // Initialize logger now that nugget dir exists
+    this.logger = new SessionLogger(this.nuggetDir);
+    this.logger.info('Workspace created', { nuggetDir: this.nuggetDir });
+
+    // Notify frontend of workspace location
+    await this.send({ type: 'workspace_created', nugget_dir: this.nuggetDir });
+
     if (this.git) {
       try {
         const goal =
@@ -822,6 +854,7 @@ export class Orchestrator {
     agentName: string,
   ): (taskId: string, content: string) => Promise<void> {
     return async (taskId: string, content: string) => {
+      this.logger?.agentOutput(taskId, agentName, content);
       await this.send({
         type: 'agent_output',
         task_id: taskId,

@@ -94,5 +94,6 @@ export type WSEvent =
   | { type: 'skill_output'; skill_id: string; step_id: string; content: string }
   | { type: 'skill_completed'; skill_id: string; result: string }
   | { type: 'skill_error'; skill_id: string; message: string }
+  | { type: 'workspace_created'; nugget_dir: string }
   | { type: 'error'; message: string; recoverable: boolean }
   | { type: 'session_complete'; summary: string };

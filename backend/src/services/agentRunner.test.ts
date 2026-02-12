@@ -46,9 +46,9 @@ describe('AgentRunner', () => {
     const callArgs = mockQuery.mock.calls[0][0];
     expect(callArgs.prompt).toBe('hello');
     expect(callArgs.options?.systemPrompt).toBe('you are a bot');
-    expect(callArgs.options?.model).toBe('claude-opus-4-6');
+    expect(callArgs.options?.model).toBe('claude-sonnet-4');
     expect(callArgs.options?.permissionMode).toBe('bypassPermissions');
-    expect(callArgs.options?.maxTurns).toBe(20);
+    expect(callArgs.options?.maxTurns).toBe(12);
     expect(callArgs.options?.cwd).toBe('/tmp/test');
   });
 

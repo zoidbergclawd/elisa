@@ -19,6 +19,8 @@ export interface AgentRunnerParams {
   ) => Promise<Record<string, any>>;
   workingDir: string;
   timeout?: number;
+  model?: string;
+  maxTurns?: number;
   mcpServers?: Array<{ name: string; command: string; args?: string[]; env?: Record<string, string> }>;
 }
 
@@ -31,6 +33,8 @@ export class AgentRunner {
       onOutput,
       workingDir,
       timeout = 300,
+      model = 'claude-sonnet-4',
+      maxTurns = 12,
       mcpServers,
     } = params;
 
@@ -44,7 +48,7 @@ export class AgentRunner {
 
     try {
       return await withTimeout(
-        this.runQuery(prompt, systemPrompt, workingDir, taskId, onOutput, mcpConfig),
+        this.runQuery(prompt, systemPrompt, workingDir, taskId, onOutput, model, maxTurns, mcpConfig),
         timeout * 1000,
       );
     } catch (err: any) {
@@ -73,14 +77,16 @@ export class AgentRunner {
     cwd: string,
     taskId: string,
     onOutput: (taskId: string, content: string) => Promise<void>,
+    model: string,
+    maxTurns: number,
     mcpConfig?: Record<string, any>,
   ): Promise<AgentResult> {
     const conversation = query({
       prompt,
       options: {
         cwd,
-        model: 'claude-opus-4-6',
-        maxTurns: 20,
+        model,
+        maxTurns,
         permissionMode: 'bypassPermissions',
         allowDangerouslySkipPermissions: true,
         systemPrompt,

@@ -23,6 +23,12 @@ export interface QuestionRequest {
   questions: QuestionPayload[];
 }
 
+export interface ErrorNotification {
+  message: string;
+  recoverable: boolean;
+  timestamp: number;
+}
+
 export function useBuildSession() {
   const [uiState, setUiState] = useState<UIState>('design');
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -38,6 +44,8 @@ export function useBuildSession() {
   const [deployProgress, setDeployProgress] = useState<DeployProgress | null>(null);
   const [gateRequest, setGateRequest] = useState<GateRequest | null>(null);
   const [questionRequest, setQuestionRequest] = useState<QuestionRequest | null>(null);
+  const [nuggetDir, setNuggetDir] = useState<string | null>(null);
+  const [errorNotification, setErrorNotification] = useState<ErrorNotification | null>(null);
 
   const handleEvent = useCallback((event: WSEvent) => {
     setEvents(prev => [...prev, event]);
@@ -158,6 +166,16 @@ export function useBuildSession() {
           questions: event.questions,
         });
         break;
+      case 'workspace_created':
+        setNuggetDir(event.nugget_dir);
+        break;
+      case 'error':
+        setErrorNotification({
+          message: event.message,
+          recoverable: event.recoverable,
+          timestamp: Date.now(),
+        });
+        break;
     }
   }, []);
 
@@ -175,6 +193,8 @@ export function useBuildSession() {
     setDeployProgress(null);
     setGateRequest(null);
     setQuestionRequest(null);
+    setNuggetDir(null);
+    setErrorNotification(null);
 
     const res = await fetch('/api/sessions', { method: 'POST' });
     const { session_id } = await res.json();
@@ -198,10 +218,16 @@ export function useBuildSession() {
     setQuestionRequest(null);
   }, []);
 
+  const clearErrorNotification = useCallback(() => {
+    setErrorNotification(null);
+  }, []);
+
   return {
     uiState, tasks, agents, commits, events, sessionId,
     teachingMoments, testResults, coveragePct, tokenUsage,
     serialLines, deployProgress, gateRequest, questionRequest,
+    nuggetDir, errorNotification,
     handleEvent, startBuild, clearGateRequest, clearQuestionRequest,
+    clearErrorNotification,
   };
 }

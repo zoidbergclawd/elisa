@@ -46,7 +46,9 @@ export default function App() {
     uiState, tasks, agents, commits, events, sessionId,
     teachingMoments, testResults, coveragePct, tokenUsage,
     serialLines, deployProgress, gateRequest, questionRequest,
+    nuggetDir, errorNotification,
     handleEvent, startBuild, clearGateRequest, clearQuestionRequest,
+    clearErrorNotification,
   } = useBuildSession();
   useWebSocket({ sessionId, onEvent: handleEvent });
   const { health, loading: healthLoading } = useHealthCheck(uiState === 'design');
@@ -354,6 +356,35 @@ export default function App() {
           onSelect={handleSelectExample}
           onClose={() => setExamplePickerOpen(false)}
         />
+      )}
+
+      {/* Error notification banner */}
+      {errorNotification && !errorNotification.recoverable && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 max-w-lg w-full mx-4 animate-float-in">
+          <div className="glass-elevated rounded-xl border border-red-500/30 bg-red-950/40 px-5 py-3 flex items-start gap-3 shadow-lg">
+            <span className="text-red-400 text-lg leading-none mt-0.5">!</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-red-200">Error</p>
+              <p className="text-sm text-red-300/80 mt-0.5 break-words">{errorNotification.message}</p>
+            </div>
+            <button
+              onClick={clearErrorNotification}
+              className="text-red-400/60 hover:text-red-300 text-lg leading-none cursor-pointer"
+            >
+              x
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Workspace path indicator */}
+      {nuggetDir && uiState !== 'design' && (
+        <div className="fixed bottom-32 right-4 z-30">
+          <div className="glass-panel rounded-lg px-3 py-1.5 text-xs text-atelier-text-secondary max-w-xs truncate"
+               title={nuggetDir}>
+            Output: {nuggetDir}
+          </div>
+        </div>
       )}
 
       {/* Done mode overlay */}
