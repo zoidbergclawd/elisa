@@ -50,6 +50,7 @@ const PortalSchema = z.object({
 }).strict();
 
 const SkillSchema = z.object({
+  id: z.string().max(200).optional(),
   name: z.string().max(200).optional(),
   category: z.string().max(50).optional(),
   prompt: z.string().max(5000).optional(),
@@ -57,6 +58,7 @@ const SkillSchema = z.object({
 }).strict();
 
 const RuleSchema = z.object({
+  id: z.string().max(200).optional(),
   name: z.string().max(200).optional(),
   trigger: z.string().max(100).optional(),
   prompt: z.string().max(5000).optional(),

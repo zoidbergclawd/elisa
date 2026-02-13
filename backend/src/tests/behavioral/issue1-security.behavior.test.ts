@@ -126,6 +126,40 @@ describe('SEC-S2: NuggetSpec Zod validation', () => {
     expect(result.success).toBe(false);
   });
 
+  it('accepts skills with id field', () => {
+    const spec = {
+      nugget: { goal: 'test' },
+      skills: [{ id: 'skill-1', name: 'Jump', category: 'feature', prompt: 'Make it jump' }],
+    };
+    const result = NuggetSpecSchema.safeParse(spec);
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts rules with id field', () => {
+    const spec = {
+      nugget: { goal: 'test' },
+      rules: [{ id: 'rule-1', name: 'No bugs', trigger: 'always', prompt: 'Write clean code' }],
+    };
+    const result = NuggetSpecSchema.safeParse(spec);
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts a full spec with skills and rules that include ids', () => {
+    const spec = {
+      nugget: { goal: 'Build a game', type: 'software' },
+      skills: [
+        { id: 's1', name: 'Jump', category: 'feature', prompt: 'Make it jump' },
+        { id: 's2', name: 'Score', category: 'agent', prompt: 'Track score' },
+      ],
+      rules: [
+        { id: 'r1', name: 'Clean', trigger: 'always', prompt: 'Write clean code' },
+        { id: 'r2', name: 'Test', trigger: 'on_task_complete', prompt: 'Run tests' },
+      ],
+    };
+    const result = NuggetSpecSchema.safeParse(spec);
+    expect(result.success).toBe(true);
+  });
+
   it('returns 400 on invalid spec at /api/sessions/:id/start', async () => {
     server = await startServer(0);
     const port = getPort(server);
