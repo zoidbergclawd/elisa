@@ -536,9 +536,8 @@ export function registerBlocks(): void {
     }
   }
 
-  function makePortalExtension(kind: 'action' | 'event' | 'query', _fieldName: string) {
+  function makePortalExtension(kind: 'action' | 'event' | 'query') {
     return function (this: Blockly.Block) {
-      const block = this;
       const portalDropdown = this.getField('PORTAL_ID') as Blockly.FieldDropdown;
       const capDropdown = this.getField('CAPABILITY_ID') as Blockly.FieldDropdown;
       if (!portalDropdown || !capDropdown) return;
@@ -562,27 +561,28 @@ export function registerBlocks(): void {
       };
 
       // When portal changes, clear param inputs (capability will change too)
-      portalDropdown.setValidator(function () {
-        removeParamInputs(block);
+      // Arrow functions capture `this` (the block) from the extension scope
+      portalDropdown.setValidator(() => {
+        removeParamInputs(this);
         return undefined;
       });
 
       // When capability changes, rebuild param inputs
-      capDropdown.setValidator(function (newValue: string) {
-        removeParamInputs(block);
+      capDropdown.setValidator((newValue: string) => {
+        removeParamInputs(this);
         if (newValue) {
           const portalId = portalDropdown.getValue();
           // Defer to next tick so Blockly has finished updating the field value
-          setTimeout(() => addParamInputs(block, portalId, newValue, kind), 0);
+          setTimeout(() => addParamInputs(this, portalId, newValue, kind), 0);
         }
         return undefined;
       });
     };
   }
 
-  Blockly.Extensions.register('portal_tell_extension', makePortalExtension('action', 'CAPABILITY_ID'));
-  Blockly.Extensions.register('portal_when_extension', makePortalExtension('event', 'CAPABILITY_ID'));
-  Blockly.Extensions.register('portal_ask_extension', makePortalExtension('query', 'CAPABILITY_ID'));
+  Blockly.Extensions.register('portal_tell_extension', makePortalExtension('action'));
+  Blockly.Extensions.register('portal_when_extension', makePortalExtension('event'));
+  Blockly.Extensions.register('portal_ask_extension', makePortalExtension('query'));
 
   Blockly.common.defineBlocks(
     Blockly.common.createBlockDefinitionsFromJsonArray(blockDefs)

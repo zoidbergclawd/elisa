@@ -31,8 +31,10 @@ const BlockCanvas = forwardRef<BlockCanvasHandle, BlockCanvasProps>(
     const onWorkspaceChangeRef = useRef(onWorkspaceChange);
 
     // Keep stable references so the inject effect can read the latest values
-    initialWorkspaceRef.current = initialWorkspace;
-    onWorkspaceChangeRef.current = onWorkspaceChange;
+    useEffect(() => {
+      initialWorkspaceRef.current = initialWorkspace;
+      onWorkspaceChangeRef.current = onWorkspaceChange;
+    });
 
     const handleChange = useCallback(() => {
       if (!workspaceRef.current) return;

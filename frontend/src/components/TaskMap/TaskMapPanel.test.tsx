@@ -1,16 +1,15 @@
-import { describe, it, expect } from 'vitest';
+import React from 'react';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import TaskMapPanel from './TaskMapPanel';
 import type { Task } from '../../types';
 
 // Mock ReactFlow since it needs DOM measurements
 vi.mock('@xyflow/react', () => ({
-  ReactFlow: ({ nodes }: any) => <div data-testid="react-flow">{nodes?.length ?? 0} nodes</div>,
-  ReactFlowProvider: ({ children }: any) => <div>{children}</div>,
+  ReactFlow: ({ nodes }: Record<string, unknown>) => <div data-testid="react-flow">{(nodes as unknown[])?.length ?? 0} nodes</div>,
+  ReactFlowProvider: ({ children }: Record<string, unknown>) => <div>{children as React.ReactNode}</div>,
   useReactFlow: () => ({ fitView: vi.fn() }),
 }));
-
-import { vi } from 'vitest';
 
 describe('TaskMapPanel', () => {
   it('shows empty state when no tasks', () => {

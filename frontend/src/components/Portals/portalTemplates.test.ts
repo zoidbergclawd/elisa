@@ -54,7 +54,7 @@ describe('portalTemplates', () => {
 
   it('templates do not have an id field', () => {
     for (const t of portalTemplates) {
-      expect((t as any).id).toBeUndefined();
+      expect((t as Record<string, unknown>).id).toBeUndefined();
     }
   });
 

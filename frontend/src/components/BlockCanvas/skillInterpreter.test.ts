@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { interpretSkillWorkspace } from './skillInterpreter';
-import type { SkillPlan, AskUserStep, BranchStep, RunAgentStep, SetContextStep, OutputStep, InvokeSkillStep } from '../Skills/types';
+import type { AskUserStep, BranchStep, RunAgentStep, SetContextStep, OutputStep, InvokeSkillStep } from '../Skills/types';
 
 function makeWorkspace(blocks: unknown[]) {
   return { blocks: { blocks } };

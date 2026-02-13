@@ -37,7 +37,7 @@ export default function QuestionModal({ taskId, questions, sessionId, onClose }:
     setSubmitting(true);
 
     // Build answers payload: map question index to selected option(s) or "Other" text
-    const payload: Record<string, any> = {};
+    const payload: Record<string, string | string[]> = {};
     for (let i = 0; i < questions.length; i++) {
       const answer = answers[i];
       if (answer === '__other__') {

@@ -18,7 +18,6 @@ export default function MissionControlPanel({
   agents,
   events,
   narratorMessages,
-  spec,
   uiState,
 }: MissionControlPanelProps) {
   const hasContent = tasks.length > 0;

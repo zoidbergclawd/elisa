@@ -28,7 +28,6 @@ export default function SkillFlowEditor({ skill, allSkills, onSave, onClose }: P
     outputs,
     questionRequest,
     startRun,
-    answerQuestion,
   } = useSkillSession();
 
   useEffect(() => {

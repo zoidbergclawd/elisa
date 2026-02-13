@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect } from 'vitest';
-import { EXAMPLE_NUGGETS, type ExampleNugget } from './index';
+import { EXAMPLE_NUGGETS } from './index';
 import { interpretWorkspace } from '../../components/BlockCanvas/blockInterpreter';
 
 describe('bundled example nuggets', () => {

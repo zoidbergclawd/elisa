@@ -124,10 +124,10 @@ function TaskDAGInner({ tasks, agents, className }: TaskDAGProps) {
     } catch {
       // Layout failed, skip
     }
-  }, [tasks, elkGraph, fitView]);
+  }, [tasks, agents, elkGraph, fitView]);
 
   useEffect(() => {
-    layoutNodes();
+    layoutNodes(); // eslint-disable-line react-hooks/set-state-in-effect
   }, [layoutNodes]);
 
   return (

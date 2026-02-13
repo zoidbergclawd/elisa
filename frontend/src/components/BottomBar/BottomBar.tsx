@@ -34,7 +34,7 @@ export default function BottomBar({
   // Auto-switch to Progress tab when build starts
   useEffect(() => {
     if (uiState === 'building') {
-      setActiveTab('Progress');
+      setActiveTab('Progress'); // eslint-disable-line react-hooks/set-state-in-effect
     }
   }, [uiState]);
 

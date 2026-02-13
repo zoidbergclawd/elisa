@@ -35,7 +35,7 @@ export default function SkillQuestionModal({ stepId, questions, sessionId, onClo
   const handleSubmit = async () => {
     setSubmitting(true);
 
-    const payload: Record<string, any> = {};
+    const payload: Record<string, string | string[]> = {};
     for (let i = 0; i < questions.length; i++) {
       payload[questions[i].header] = answers[i];
     }

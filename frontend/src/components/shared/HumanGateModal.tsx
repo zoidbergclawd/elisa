@@ -8,6 +8,7 @@ interface Props {
   onClose: () => void;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export default function HumanGateModal({ taskId, question, context, sessionId, onClose }: Props) {
   const [showFeedback, setShowFeedback] = useState(false);
   const [feedback, setFeedback] = useState('');

@@ -83,25 +83,25 @@ export async function loadNuggetFile(file: File): Promise<NuggetFileData> {
   if (!Array.isArray(rawPortals)) throw new Error('Invalid .elisa file: portals.json must be an array');
 
   const skills: Skill[] = rawSkills.filter(
-    (s: unknown): s is Skill =>
-      typeof s === 'object' && s !== null &&
-      typeof (s as any).id === 'string' &&
-      typeof (s as any).name === 'string' &&
-      typeof (s as any).prompt === 'string',
+    (s: unknown): s is Skill => {
+      if (typeof s !== 'object' || s === null) return false;
+      const o = s as Record<string, unknown>;
+      return typeof o.id === 'string' && typeof o.name === 'string' && typeof o.prompt === 'string';
+    },
   );
   const rules: Rule[] = rawRules.filter(
-    (r: unknown): r is Rule =>
-      typeof r === 'object' && r !== null &&
-      typeof (r as any).id === 'string' &&
-      typeof (r as any).name === 'string' &&
-      typeof (r as any).prompt === 'string',
+    (r: unknown): r is Rule => {
+      if (typeof r !== 'object' || r === null) return false;
+      const o = r as Record<string, unknown>;
+      return typeof o.id === 'string' && typeof o.name === 'string' && typeof o.prompt === 'string';
+    },
   );
   const portals: Portal[] = rawPortals.filter(
-    (p: unknown): p is Portal =>
-      typeof p === 'object' && p !== null &&
-      typeof (p as any).id === 'string' &&
-      typeof (p as any).name === 'string' &&
-      typeof (p as any).mechanism === 'string',
+    (p: unknown): p is Portal => {
+      if (typeof p !== 'object' || p === null) return false;
+      const o = p as Record<string, unknown>;
+      return typeof o.id === 'string' && typeof o.name === 'string' && typeof o.mechanism === 'string';
+    },
   );
 
   // Extract output/ or project/ folder back into a zip blob if present (backward compat)

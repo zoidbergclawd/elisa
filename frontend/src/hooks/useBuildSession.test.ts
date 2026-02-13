@@ -340,7 +340,7 @@ describe('useBuildSession', () => {
         from: 'Elisa',
         text: 'Your minion is getting started!',
         mood: 'excited',
-      } as any);
+      } as any); // eslint-disable-line @typescript-eslint/no-explicit-any
     });
     expect(result.current.narratorMessages).toHaveLength(1);
     expect(result.current.narratorMessages[0].text).toBe('Your minion is getting started!');
@@ -394,7 +394,7 @@ describe('useBuildSession', () => {
         agent_name: 'Sparky',
         old_status: 'idle',
         new_status: 'waiting',
-      } as any);
+      } as any); // eslint-disable-line @typescript-eslint/no-explicit-any
     });
     expect(result.current.agents[0].status).toBe('waiting');
   });

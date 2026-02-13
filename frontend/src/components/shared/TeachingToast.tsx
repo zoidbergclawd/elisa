@@ -11,7 +11,7 @@ export default function TeachingToast({ moment, onDismiss }: Props) {
 
   useEffect(() => {
     if (!moment) return;
-    setExpanded(false);
+    setExpanded(false); // eslint-disable-line react-hooks/set-state-in-effect
     const timer = setTimeout(onDismiss, 10000);
     return () => clearTimeout(timer);
   }, [moment, onDismiss]);

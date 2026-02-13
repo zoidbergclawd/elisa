@@ -15,10 +15,12 @@ export function useWebSocket({ sessionId, onEvent }: UseWebSocketOptions) {
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retriesRef = useRef(0);
   const onEventRef = useRef(onEvent);
-  onEventRef.current = onEvent;
+  const connectRef = useRef<() => void>();
   const [connected, setConnected] = useState(false);
   // Holds resolve callbacks for waitForOpen callers
   const openResolversRef = useRef<Array<() => void>>([]);
+
+  useEffect(() => { onEventRef.current = onEvent; });
 
   const connect = useCallback(() => {
     if (!sessionId) return;
@@ -58,11 +60,13 @@ export function useWebSocket({ sessionId, onEvent }: UseWebSocketOptions) {
       }
       const delay = Math.min(BASE_DELAY_MS * 2 ** retriesRef.current, MAX_DELAY_MS);
       retriesRef.current++;
-      reconnectTimer.current = setTimeout(connect, delay);
+      reconnectTimer.current = setTimeout(() => connectRef.current?.(), delay);
     };
 
     wsRef.current = ws;
   }, [sessionId]);
+
+  useEffect(() => { connectRef.current = connect; });
 
   useEffect(() => {
     retriesRef.current = 0;

@@ -61,7 +61,6 @@ export default function App() {
   const [portals, setPortals] = useState<Portal[]>(() => readLocalStorageJson<Portal[]>(LS_PORTALS) ?? []);
   const [skillsModalOpen, setSkillsModalOpen] = useState(false);
   const [portalsModalOpen, setPortalsModalOpen] = useState(false);
-  const [examplePickerOpen, setExamplePickerOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
 
   // The latest workspace JSON for saving nuggets
@@ -77,11 +76,7 @@ export default function App() {
   );
 
   // Open example picker on first launch (no saved workspace)
-  useEffect(() => {
-    if (!initialWorkspace) {
-      setExamplePickerOpen(true);
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const [examplePickerOpen, setExamplePickerOpen] = useState(!initialWorkspace);
 
   const blockCanvasRef = useRef<BlockCanvasHandle>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -93,7 +88,7 @@ export default function App() {
   useEffect(() => {
     const latestIndex = teachingMoments.length - 1;
     if (latestIndex > lastToastIndexRef.current && teachingMoments.length > 0) {
-      setCurrentToast(teachingMoments[latestIndex]);
+      setCurrentToast(teachingMoments[latestIndex]); // eslint-disable-line react-hooks/set-state-in-effect
       lastToastIndexRef.current = latestIndex;
     }
   }, [teachingMoments]);
@@ -118,14 +113,14 @@ export default function App() {
   // Re-interpret workspace when skills/rules/portals change (without Blockly interaction)
   useEffect(() => {
     if (workspaceJson) {
-      setSpec(interpretWorkspace(workspaceJson, skills, rules, portals));
+      setSpec(interpretWorkspace(workspaceJson, skills, rules, portals)); // eslint-disable-line react-hooks/set-state-in-effect
     }
   }, [skills, rules, portals]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-switch to agents tab when build starts
   useEffect(() => {
     if (uiState === 'building' && activeMainTab === 'workspace') {
-      setActiveMainTab('mission');
+      setActiveMainTab('mission'); // eslint-disable-line react-hooks/set-state-in-effect
     }
   }, [uiState]); // eslint-disable-line react-hooks/exhaustive-deps
 
