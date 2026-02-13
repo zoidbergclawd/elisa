@@ -18,6 +18,10 @@
 
 ---
 
+<p align="center">
+  <img src="frontend/assets/elisa.gif" alt="Elisa UI demo" width="800" />
+</p>
+
 ## What is Elisa?
 
 Elisa is an educational tool that turns block-based visual programming into real working software. Users drag and drop blocks to describe what they want -- goals, features, constraints, visual style, hardware targets -- and a team of AI agents collaborates to build it. The entire process is visible: you watch agents plan, code, test, and deploy in real time.
