@@ -18,6 +18,7 @@ import { useWebSocket } from './hooks/useWebSocket';
 import { useBuildSession } from './hooks/useBuildSession';
 import { useHealthCheck } from './hooks/useHealthCheck';
 import ReadinessBadge from './components/shared/ReadinessBadge';
+import DirectoryPickerModal from './components/shared/DirectoryPickerModal';
 import { saveNuggetFile, loadNuggetFile, downloadBlob } from './lib/nuggetFile';
 import type { TeachingMoment } from './types';
 import elisaLogo from '../assets/Elisa.png';
@@ -28,6 +29,7 @@ const LS_WORKSPACE = 'elisa:workspace';
 const LS_SKILLS = 'elisa:skills';
 const LS_RULES = 'elisa:rules';
 const LS_PORTALS = 'elisa:portals';
+const LS_WORKSPACE_PATH = 'elisa:workspace-path';
 
 function readLocalStorageJson<T>(key: string): T | null {
   try {
@@ -44,7 +46,7 @@ export default function App() {
   const {
     uiState, tasks, agents, commits, events, sessionId,
     teachingMoments, testResults, coveragePct, tokenUsage,
-    serialLines, deployProgress, deployChecklist, gateRequest, questionRequest,
+    serialLines, deployProgress, deployChecklist, deployUrl, gateRequest, questionRequest,
     nuggetDir, errorNotification, narratorMessages,
     handleEvent, startBuild, clearGateRequest, clearQuestionRequest,
     clearErrorNotification,
@@ -62,6 +64,12 @@ export default function App() {
   const [skillsModalOpen, setSkillsModalOpen] = useState(false);
   const [portalsModalOpen, setPortalsModalOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+
+  // Workspace directory path (user-chosen output location)
+  const [workspacePath, setWorkspacePath] = useState<string | null>(
+    () => localStorage.getItem(LS_WORKSPACE_PATH),
+  );
+  const [dirPickerOpen, setDirPickerOpen] = useState(false);
 
   // The latest workspace JSON for saving nuggets
   const [workspaceJson, setWorkspaceJson] = useState<Record<string, unknown> | null>(null);
@@ -145,17 +153,75 @@ export default function App() {
     }
   }, [skills, rules, portals]);
 
+  const pickDirectory = async (): Promise<string | null> => {
+    // Try Electron native dialog first
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const api = (window as unknown as Record<string, any>).elisaAPI;
+    if (api?.pickDirectory) {
+      return api.pickDirectory();
+    }
+    // Fall back to manual text input modal
+    return new Promise((resolve) => {
+      setDirPickerOpen(true);
+      dirPickerResolveRef.current = resolve;
+    });
+  };
+
+  const dirPickerResolveRef = useRef<((value: string | null) => void) | null>(null);
+
+  const handleDirPickerSelect = (dir: string) => {
+    setDirPickerOpen(false);
+    dirPickerResolveRef.current?.(dir);
+    dirPickerResolveRef.current = null;
+  };
+
+  const handleDirPickerCancel = () => {
+    setDirPickerOpen(false);
+    dirPickerResolveRef.current?.(null);
+    dirPickerResolveRef.current = null;
+  };
+
   const handleGo = async () => {
     if (!spec) return;
+
+    let wp = workspacePath;
+    if (!wp) {
+      wp = await pickDirectory();
+      if (!wp) return; // User cancelled
+      setWorkspacePath(wp);
+      localStorage.setItem(LS_WORKSPACE_PATH, wp);
+    }
+
     lastToastIndexRef.current = -1;
     setCurrentToast(null);
-    await startBuild(spec, waitForOpen);
+    await startBuild(spec, waitForOpen, wp ?? undefined, workspaceJson ?? undefined);
   };
 
   // -- Save Nugget --
   const handleSaveNugget = async () => {
     if (!workspaceJson) return;
 
+    // If workspace path is set, save design files to workspace via backend
+    if (workspacePath) {
+      try {
+        await fetch('/api/workspace/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            workspace_path: workspacePath,
+            workspace_json: workspaceJson,
+            skills,
+            rules,
+            portals,
+          }),
+        });
+      } catch {
+        // Fall through to zip download
+      }
+      return;
+    }
+
+    // No workspace path: fall back to .elisa ZIP download
     let outputArchive: Blob | undefined;
     if (sessionId) {
       try {
@@ -206,6 +272,47 @@ export default function App() {
 
     // Reset input so the same file can be selected again
     e.target.value = '';
+  };
+
+  // -- Open Folder (load workspace from directory) --
+  const handleOpenFolder = async () => {
+    const dir = await pickDirectory();
+    if (!dir) return;
+
+    try {
+      const resp = await fetch('/api/workspace/load', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspace_path: dir }),
+      });
+      if (!resp.ok) return;
+      const data = await resp.json();
+
+      if (data.workspace && Object.keys(data.workspace).length > 0) {
+        const ws = data.workspace;
+        migrateWorkspace(ws);
+        setWorkspaceJson(ws);
+        blockCanvasRef.current?.loadWorkspace(ws);
+        localStorage.setItem(LS_WORKSPACE, JSON.stringify(ws));
+      }
+      if (data.skills) {
+        setSkills(data.skills);
+        localStorage.setItem(LS_SKILLS, JSON.stringify(data.skills));
+      }
+      if (data.rules) {
+        setRules(data.rules);
+        localStorage.setItem(LS_RULES, JSON.stringify(data.rules));
+      }
+      if (data.portals) {
+        setPortals(data.portals);
+        localStorage.setItem(LS_PORTALS, JSON.stringify(data.portals));
+      }
+
+      setWorkspacePath(dir);
+      localStorage.setItem(LS_WORKSPACE_PATH, dir);
+    } catch (err) {
+      console.error('Failed to load workspace from folder:', err);
+    }
   };
 
   const handleSelectExample = useCallback((example: typeof EXAMPLE_NUGGETS[number]) => {
@@ -267,7 +374,9 @@ export default function App() {
             onPortals={() => setPortalsModalOpen(true)}
             onExamples={() => setExamplePickerOpen(true)}
             onHelp={() => setHelpOpen(true)}
+            onFolder={handleOpenFolder}
             saveDisabled={!workspaceJson}
+            workspacePath={workspacePath}
           />
           <div className="flex-1 relative">
             <BlockCanvas
@@ -352,6 +461,14 @@ export default function App() {
         />
       )}
 
+      {/* Directory picker modal (fallback for non-Electron) */}
+      {dirPickerOpen && (
+        <DirectoryPickerModal
+          onSelect={handleDirPickerSelect}
+          onCancel={handleDirPickerCancel}
+        />
+      )}
+
       {/* Example picker modal */}
       {examplePickerOpen && (
         <ExamplePickerModal
@@ -417,11 +534,11 @@ export default function App() {
       )}
 
       {/* Workspace path indicator */}
-      {nuggetDir && uiState !== 'design' && (
+      {(nuggetDir || workspacePath) && uiState !== 'design' && (
         <div className="fixed bottom-32 right-4 z-30">
           <div className="glass-panel rounded-lg px-3 py-1.5 text-xs text-atelier-text-secondary max-w-xs truncate"
-               title={nuggetDir}>
-            Output: {nuggetDir}
+               title={nuggetDir || workspacePath || ''}>
+            Output: {nuggetDir || workspacePath}
           </div>
         </div>
       )}
@@ -445,6 +562,16 @@ export default function App() {
                   ))}
                 </ul>
               </div>
+            )}
+            {deployUrl && (
+              <a
+                href={deployUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="go-btn px-6 py-2.5 rounded-xl text-sm inline-block mb-2"
+              >
+                Open in Browser
+              </a>
             )}
             <button
               onClick={() => {

@@ -13,4 +13,7 @@ contextBridge.exposeInMainWorld('elisaAPI', {
 
   openSettings: (): Promise<boolean> =>
     ipcRenderer.invoke('open-settings'),
+
+  pickDirectory: (): Promise<string | null> =>
+    ipcRenderer.invoke('pick-directory'),
 });

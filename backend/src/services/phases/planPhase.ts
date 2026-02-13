@@ -1,5 +1,7 @@
 /** Plan phase: decomposes NuggetSpec into a task DAG via MetaPlanner. */
 
+import fs from 'node:fs';
+import path from 'node:path';
 import type { PhaseContext, SendEvent } from './types.js';
 import { maybeTeach } from './types.js';
 import { MetaPlanner } from '../metaPlanner.js';
@@ -56,6 +58,14 @@ export class PlanPhase {
         recoverable: false,
       });
       throw new Error('Circular dependencies in task DAG');
+    }
+
+    // Persist DAG to workspace for traceability
+    try {
+      const dagPath = path.join(ctx.nuggetDir, 'dag.json');
+      fs.writeFileSync(dagPath, JSON.stringify(tasks, null, 2), 'utf-8');
+    } catch {
+      // Best-effort: don't fail the build if dag.json can't be written
     }
 
     ctx.session.tasks = tasks;

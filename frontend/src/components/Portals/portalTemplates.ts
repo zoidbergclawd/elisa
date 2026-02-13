@@ -73,4 +73,18 @@ export const portalTemplates: Omit<Portal, 'id'>[] = [
     },
     templateId: 'brave-search',
   },
+  {
+    name: 'Cloud Run Deploy',
+    description: 'Deploy your project to Google Cloud Run (requires gcloud CLI)',
+    mechanism: 'cli',
+    status: 'unconfigured',
+    capabilities: [
+      { id: 'deploy', name: 'Deploy to Cloud Run', kind: 'action', description: 'Build and deploy to Google Cloud Run' },
+    ],
+    cliConfig: {
+      command: 'gcloud',
+      args: ['run', 'deploy', '--source', '.', '--allow-unauthenticated'],
+    },
+    templateId: 'cloud-run',
+  },
 ];

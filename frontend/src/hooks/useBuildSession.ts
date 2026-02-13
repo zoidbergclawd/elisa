@@ -51,6 +51,7 @@ export function useBuildSession() {
   const [errorNotification, setErrorNotification] = useState<ErrorNotification | null>(null);
   const [narratorMessages, setNarratorMessages] = useState<NarratorMessage[]>([]);
   const [deployChecklist, setDeployChecklist] = useState<Array<{ name: string; prompt: string }> | null>(null);
+  const [deployUrl, setDeployUrl] = useState<string | null>(null);
   const tasksRef = useRef<Task[]>([]);
 
   const handleEvent = useCallback((event: WSEvent) => {
@@ -132,6 +133,7 @@ export function useBuildSession() {
       case 'deploy_complete':
         setDeployProgress(null);
         setDeployChecklist(null);
+        if (event.url) setDeployUrl(event.url);
         break;
       case 'serial_data':
         setSerialLines(prev => {
@@ -243,7 +245,12 @@ export function useBuildSession() {
     }
   }, []);
 
-  const startBuild = useCallback(async (spec: NuggetSpec, waitForWs?: () => Promise<void>) => {
+  const startBuild = useCallback(async (
+    spec: NuggetSpec,
+    waitForWs?: () => Promise<void>,
+    workspacePath?: string,
+    workspaceJson?: Record<string, unknown>,
+  ) => {
     setUiState('building');
     setEvents([]);
     setTasks([]);
@@ -257,6 +264,7 @@ export function useBuildSession() {
     setSerialLines([]);
     setDeployProgress(null);
     setDeployChecklist(null);
+    setDeployUrl(null);
     setGateRequest(null);
     setQuestionRequest(null);
     setNuggetDir(null);
@@ -278,10 +286,16 @@ export function useBuildSession() {
       await waitForWs();
     }
 
+    const startBody: Record<string, unknown> = { spec };
+    if (workspacePath) {
+      startBody.workspace_path = workspacePath;
+      startBody.workspace_json = workspaceJson ?? {};
+    }
+
     const startRes = await fetch(`/api/sessions/${session_id}/start`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ spec }),
+      body: JSON.stringify(startBody),
     });
     if (!startRes.ok) {
       const body = await startRes.json().catch(() => ({ detail: startRes.statusText }));
@@ -312,7 +326,7 @@ export function useBuildSession() {
   return {
     uiState, tasks, agents, commits, events, sessionId,
     teachingMoments, testResults, coveragePct, tokenUsage,
-    serialLines, deployProgress, deployChecklist, gateRequest, questionRequest,
+    serialLines, deployProgress, deployChecklist, deployUrl, gateRequest, questionRequest,
     nuggetDir, errorNotification, narratorMessages,
     handleEvent, startBuild, clearGateRequest, clearQuestionRequest,
     clearErrorNotification,

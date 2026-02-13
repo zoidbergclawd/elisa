@@ -4,7 +4,7 @@
  * and opens a BrowserWindow pointed at the local server.
  */
 
-import { app, BrowserWindow, ipcMain, safeStorage, Menu } from 'electron';
+import { app, BrowserWindow, ipcMain, safeStorage, Menu, dialog } from 'electron';
 import * as path from 'path';
 import * as net from 'net';
 // electron-store v10 is ESM-only; use dynamic import() from CommonJS.
@@ -210,6 +210,15 @@ ipcMain.handle('set-api-key', (_event, key: string) => {
 ipcMain.handle('open-settings', () => {
   openSettingsWindow();
   return true;
+});
+
+ipcMain.handle('pick-directory', async () => {
+  const result = await dialog.showOpenDialog(mainWindow!, {
+    properties: ['openDirectory', 'createDirectory'],
+    title: 'Choose Project Folder',
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  return result.filePaths[0];
 });
 
 // -- App Lifecycle --

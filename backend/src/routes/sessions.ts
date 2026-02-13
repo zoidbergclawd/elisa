@@ -92,10 +92,51 @@ export function createSessionRouter({ store, sendEvent, hardwareService }: Sessi
       }
     }
 
+    // Validate optional workspace_path
+    const rawWorkspacePath: string | undefined = req.body.workspace_path;
+    let workspacePath: string | undefined;
+    if (rawWorkspacePath) {
+      if (typeof rawWorkspacePath !== 'string' || rawWorkspacePath.length > 500) {
+        res.status(400).json({ detail: 'workspace_path must be a string of at most 500 characters' });
+        return;
+      }
+      const resolved = path.resolve(rawWorkspacePath);
+      // Block obvious system directories
+      const blocked = ['/bin', '/sbin', '/usr', '/etc', '/var', '/boot', '/lib',
+        'C:\\Windows', 'C:\\Program Files', 'C:\\Program Files (x86)'];
+      if (blocked.some(b => resolved.toLowerCase().startsWith(b.toLowerCase()))) {
+        res.status(400).json({ detail: 'workspace_path points to a protected system directory' });
+        return;
+      }
+      try {
+        fs.mkdirSync(resolved, { recursive: true });
+      } catch (err: any) {
+        res.status(400).json({ detail: `Cannot create workspace directory: ${err.message}` });
+        return;
+      }
+      workspacePath = resolved;
+      entry.userWorkspace = true;
+    }
+
+    // Write design artifacts to workspace when path is provided
+    if (workspacePath) {
+      const artifacts: Record<string, string> = {
+        'nugget.json': JSON.stringify(spec, null, 2),
+        'workspace.json': JSON.stringify(req.body.workspace_json ?? {}, null, 2),
+        'skills.json': JSON.stringify(spec.skills ?? [], null, 2),
+        'rules.json': JSON.stringify(spec.rules ?? [], null, 2),
+        'portals.json': JSON.stringify(spec.portals ?? [], null, 2),
+      };
+      for (const [name, content] of Object.entries(artifacts)) {
+        fs.writeFileSync(path.join(workspacePath, name), content, 'utf-8');
+      }
+    }
+
     const orchestrator = new Orchestrator(
       entry.session,
       (evt) => sendEvent(req.params.id, evt),
       hardwareService,
+      workspacePath,
     );
     entry.orchestrator = orchestrator;
 
@@ -182,10 +223,13 @@ export function createSessionRouter({ store, sendEvent, hardwareService }: Sessi
 
     const dir = entry.orchestrator.nuggetDir;
     const resolvedDir = path.resolve(dir);
-    const expectedPrefix = path.resolve(os.tmpdir());
-    if (!resolvedDir.startsWith(expectedPrefix + path.sep) && resolvedDir !== expectedPrefix) {
-      res.status(403).json({ detail: 'Nugget directory outside allowed path' });
-      return;
+    // For non-user workspaces, restrict to tmpdir; for user workspaces, allow their chosen path
+    if (!entry.userWorkspace) {
+      const expectedPrefix = path.resolve(os.tmpdir());
+      if (!resolvedDir.startsWith(expectedPrefix + path.sep) && resolvedDir !== expectedPrefix) {
+        res.status(403).json({ detail: 'Nugget directory outside allowed path' });
+        return;
+      }
     }
     if (!fs.existsSync(dir)) {
       res.status(404).json({ detail: 'Nugget directory not found' });

@@ -221,7 +221,7 @@ describe('session state transitions', () => {
 
     await orchestrator.run(minimalWebSpec);
 
-    expect(states).toEqual(['planning', 'executing', 'testing', 'done']);
+    expect(states).toEqual(['planning', 'executing', 'testing', 'deploying', 'done']);
   });
 
   it('includes deploying phase for hardware specs', async () => {
@@ -422,7 +422,7 @@ describe('spec-driven behavior', () => {
     expect(deployComplete.length).toBe(1);
   });
 
-  it('does not trigger hardware deploy for web-only target', async () => {
+  it('triggers web deploy (not hardware) for web-only target', async () => {
     const { orchestrator, events } = setup(minimalWebSpec);
     configurePlan(minimalWebPlan);
     configureAgentSuccess();
@@ -430,7 +430,12 @@ describe('spec-driven behavior', () => {
     await orchestrator.run(minimalWebSpec);
 
     const deployEvents = eventsOfType(events, 'deploy_started');
-    expect(deployEvents.length).toBe(0);
+    // Web target should trigger a web deploy_started, not a hardware one
+    expect(deployEvents.length).toBe(1);
+    expect(deployEvents[0].target).toBe('web');
+    // No hardware deploy should fire
+    const hwDeploy = deployEvents.filter((e: any) => e.target === 'esp32');
+    expect(hwDeploy.length).toBe(0);
   });
 
   it('emits deploy error when compilation fails', async () => {

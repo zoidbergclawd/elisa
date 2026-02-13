@@ -11,6 +11,8 @@ export interface SessionEntry {
   skillRunner: SkillRunner | null;
   cancelFn: (() => void) | null;
   createdAt: number;
+  /** True when user chose a workspace directory (skip auto-cleanup of files). */
+  userWorkspace: boolean;
 }
 
 export class SessionStore {
@@ -31,6 +33,7 @@ export class SessionStore {
       skillRunner: null,
       cancelFn: null,
       createdAt: Date.now(),
+      userWorkspace: false,
     };
     this.entries.set(id, entry);
     this.checkpoint(id);
@@ -77,6 +80,7 @@ export class SessionStore {
           skillRunner: null,
           cancelFn: null,
           createdAt: p.savedAt,
+          userWorkspace: false,
         };
         // Mark recovered sessions as done since orchestrators can't be restored
         if (entry.session.state !== 'idle' && entry.session.state !== 'done') {
@@ -99,7 +103,7 @@ export class SessionStore {
 
     const timer = setTimeout(() => {
       const entry = this.entries.get(id);
-      if (entry?.orchestrator) {
+      if (entry?.orchestrator && !entry.userWorkspace) {
         entry.orchestrator.cleanup();
       }
       this.entries.delete(id);

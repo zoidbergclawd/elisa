@@ -11,6 +11,7 @@ import { SessionStore } from './services/sessionStore.js';
 import { createSessionRouter } from './routes/sessions.js';
 import { createHardwareRouter } from './routes/hardware.js';
 import { createSkillRouter } from './routes/skills.js';
+import { createWorkspaceRouter } from './routes/workspace.js';
 
 // -- State --
 
@@ -124,6 +125,7 @@ function createApp(staticDir?: string) {
   app.use('/api/sessions', createSessionRouter({ store, sendEvent, hardwareService }));
   app.use('/api/skills', createSkillRouter({ store, sendEvent }));
   app.use('/api/hardware', createHardwareRouter({ store, hardwareService }));
+  app.use('/api/workspace', createWorkspaceRouter());
 
   // Templates
   app.get('/api/templates', (_req, res) => {

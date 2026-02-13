@@ -44,6 +44,8 @@ export const ALLOWED_COMMANDS: ReadonlySet<string> = new Set([
   'deno',
   'bun',
   'bunx',
+  'gcloud',
+  'firebase',
 ]);
 
 /** Shell metacharacters that must not appear in args. */

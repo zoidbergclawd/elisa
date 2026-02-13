@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import type { ChildProcess } from 'node:child_process';
 import type { BuildSession, CommitInfo } from '../models/session.js';
 import type { PhaseContext } from './phases/types.js';
 import { PlanPhase } from './phases/planPhase.js';
@@ -33,6 +34,8 @@ export class Orchestrator {
   private testResults: Record<string, any> = {};
   private commits: CommitInfo[] = [];
   private serialHandle: { close: () => void } | null = null;
+  private webServerProcess: ChildProcess | null = null;
+  private userWorkspace: boolean;
 
   // Cancellation
   private abortController = new AbortController();
@@ -60,10 +63,11 @@ export class Orchestrator {
   private testPhase: TestPhase;
   private deployPhase: DeployPhase;
 
-  constructor(session: BuildSession, sendEvent: SendEvent, hardwareService?: HardwareService) {
+  constructor(session: BuildSession, sendEvent: SendEvent, hardwareService?: HardwareService, workspacePath?: string) {
     this.session = session;
     this.send = sendEvent;
-    this.nuggetDir = path.join(os.tmpdir(), `elisa-nugget-${session.id}`);
+    this.nuggetDir = workspacePath || path.join(os.tmpdir(), `elisa-nugget-${session.id}`);
+    this.userWorkspace = !!workspacePath;
     this.hardwareService = hardwareService ?? new HardwareService();
     this.portalService = new PortalService(this.hardwareService);
 
@@ -139,6 +143,10 @@ export class Orchestrator {
 
       // Deploy
       const deployCtx = this.makeContext();
+      if (this.deployPhase.shouldDeployWeb(deployCtx)) {
+        const { process: webProc } = await this.deployPhase.deployWeb(deployCtx);
+        this.webServerProcess = webProc;
+      }
       if (this.deployPhase.shouldDeployPortals(deployCtx)) {
         const { serialHandle } = await this.deployPhase.deployPortals(deployCtx);
         this.serialHandle = serialHandle;
@@ -202,8 +210,15 @@ export class Orchestrator {
     this.abortController.abort();
   }
 
-  /** Clean up the nugget temp directory immediately. */
+  /** Clean up the nugget temp directory immediately (skipped for user workspaces). */
   cleanup(): void {
+    // Kill web server process if running
+    if (this.webServerProcess) {
+      try { this.webServerProcess.kill(); } catch { /* ignore */ }
+      this.webServerProcess = null;
+    }
+    // Skip directory cleanup for user-chosen workspaces
+    if (this.userWorkspace) return;
     try {
       if (fs.existsSync(this.nuggetDir)) {
         fs.rmSync(this.nuggetDir, { recursive: true, force: true });
