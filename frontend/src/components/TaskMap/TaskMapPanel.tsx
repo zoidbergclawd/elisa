@@ -1,11 +1,12 @@
-import type { Task } from '../../types';
+import type { Task, Agent } from '../../types';
 import TaskDAG from '../MissionControl/TaskDAG';
 
 interface TaskMapPanelProps {
   tasks: Task[];
+  agents?: Agent[];
 }
 
-export default function TaskMapPanel({ tasks }: TaskMapPanelProps) {
+export default function TaskMapPanel({ tasks, agents }: TaskMapPanelProps) {
   if (tasks.length === 0) {
     return (
       <div className="flex items-center justify-center h-full text-atelier-text-muted">
@@ -16,7 +17,7 @@ export default function TaskMapPanel({ tasks }: TaskMapPanelProps) {
 
   return (
     <div className="h-full p-4">
-      <TaskDAG tasks={tasks} className="h-full" />
+      <TaskDAG tasks={tasks} agents={agents} className="h-full" />
     </div>
   );
 }

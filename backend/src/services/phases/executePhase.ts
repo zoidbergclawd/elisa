@@ -12,6 +12,8 @@ import { AgentRunner } from '../agentRunner.js';
 import { GitService } from '../gitService.js';
 import { TeachingEngine } from '../teachingEngine.js';
 import { PortalService } from '../portalService.js';
+import { NarratorService } from '../narratorService.js';
+import { PermissionPolicy } from '../permissionPolicy.js';
 import { ContextManager } from '../../utils/contextManager.js';
 import { TokenTracker } from '../../utils/tokenTracker.js';
 import { TaskDAG } from '../../utils/dag.js';
@@ -55,6 +57,8 @@ export interface ExecuteDeps {
   dag: TaskDAG;
   questionResolvers: Map<string, (answers: Record<string, any>) => void>;
   gateResolver: { current: ((value: Record<string, any>) => void) | null };
+  narratorService?: NarratorService;
+  permissionPolicy?: PermissionPolicy;
 }
 
 export class ExecutePhase {
@@ -177,6 +181,14 @@ export class ExecutePhase {
     if (agent.status !== undefined) agent.status = 'working';
 
     await ctx.send({ type: 'task_started', task_id: taskId, agent_name: agentName });
+
+    if (this.deps.narratorService) {
+      const nuggetGoal = (ctx.session.spec ?? {}).nugget?.goal ?? '';
+      const msg = await this.deps.narratorService.translate('task_started', agentName, task.name ?? taskId, nuggetGoal);
+      await ctx.send({ type: 'narrator_message', from: 'Elisa', text: msg.text, mood: msg.mood, related_task_id: taskId });
+    }
+
+    await ctx.send({ type: 'minion_state_change', agent_name: agentName, old_status: 'idle', new_status: 'working' });
 
     const promptModule = PROMPT_MODULES[agentRole] ?? builderAgent;
     const nuggetData = (ctx.session.spec ?? {}).nugget ?? {};
@@ -454,6 +466,13 @@ export class ExecutePhase {
         summary: result?.summary ?? '',
       });
 
+      if (this.deps.narratorService) {
+        this.deps.narratorService.flushTask(taskId);
+        const nuggetGoal = (ctx.session.spec ?? {}).nugget?.goal ?? '';
+        const msg = await this.deps.narratorService.translate('task_completed', agentName, result?.summary ?? '', nuggetGoal);
+        await ctx.send({ type: 'narrator_message', from: 'Elisa', text: msg.text, mood: msg.mood, related_task_id: taskId });
+      }
+
       // Teaching moments for tester/reviewer
       if (agentRole === 'tester') {
         await maybeTeach(this.deps.teachingEngine, ctx, 'tester_task_completed', result?.summary ?? '');
@@ -477,6 +496,13 @@ export class ExecutePhase {
         error: result?.summary ?? 'Unknown error',
         retry_count: retryCount,
       });
+
+      if (this.deps.narratorService) {
+        this.deps.narratorService.flushTask(taskId);
+        const nuggetGoal = (ctx.session.spec ?? {}).nugget?.goal ?? '';
+        const msg = await this.deps.narratorService.translate('task_failed', agentName, result?.summary ?? 'Unknown error', nuggetGoal);
+        await ctx.send({ type: 'narrator_message', from: 'Elisa', text: msg.text, mood: msg.mood, related_task_id: taskId });
+      }
 
       if (retryCount > maxRetries) {
         await this.fireHumanGate(ctx, task, {
@@ -634,6 +660,12 @@ export class ExecutePhase {
         agent_name: agentName,
         content,
       });
+      if (this.deps.narratorService) {
+        const nuggetGoal = (ctx.session.spec ?? {}).nugget?.goal ?? '';
+        this.deps.narratorService.accumulateOutput(taskId, content, agentName, nuggetGoal, async (msg) => {
+          await ctx.send({ type: 'narrator_message', from: 'Elisa', text: msg.text, mood: msg.mood, related_task_id: taskId });
+        });
+      }
     };
   }
 
@@ -642,6 +674,47 @@ export class ExecutePhase {
     taskId: string,
   ): (taskId: string, payload: Record<string, any>) => Promise<Record<string, any>> {
     return async (_taskId: string, payload: Record<string, any>) => {
+      if (this.deps.permissionPolicy && payload) {
+        // Try to detect permission-type requests
+        const toolName = payload.tool_name ?? payload.type ?? '';
+        const toolInput = payload.tool_input ?? payload.input ?? '';
+
+        let permType = '';
+        let permDetail = '';
+        if (toolName === 'Write' || toolName === 'Edit' || toolName === 'MultiEdit') {
+          permType = 'file_write';
+          permDetail = typeof toolInput === 'object' ? (toolInput.file_path ?? '') : String(toolInput);
+        } else if (toolName === 'Bash') {
+          permType = 'command';
+          permDetail = typeof toolInput === 'object' ? (toolInput.command ?? '') : String(toolInput);
+        }
+
+        if (permType) {
+          const decision = this.deps.permissionPolicy.evaluate(permType, permDetail, taskId);
+          if (decision.decision === 'approved') {
+            await ctx.send({
+              type: 'permission_auto_resolved',
+              task_id: taskId,
+              permission_type: decision.permission_type,
+              decision: 'approved',
+              reason: decision.reason,
+            });
+            return { approved: true };
+          }
+          if (decision.decision === 'denied') {
+            await ctx.send({
+              type: 'permission_auto_resolved',
+              task_id: taskId,
+              permission_type: decision.permission_type,
+              decision: 'denied',
+              reason: decision.reason,
+            });
+            return { denied: true, reason: decision.reason };
+          }
+          // 'escalate' falls through to normal question flow
+        }
+      }
+
       await ctx.send({
         type: 'user_question',
         task_id: taskId,

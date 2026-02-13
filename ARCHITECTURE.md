@@ -61,7 +61,8 @@ Root `package.json` manages Electron and build tooling. Frontend and backend rem
                 Token budget tracked per agent; warning at 80%, halt on exceed
    c. TEST:    TestRunner executes pytest, parses results + coverage
    d. REVIEW:  Optional reviewer agent pass
-   e. DEPLOY:  If ESP32: compile -> flash -> serial monitor
+   e. DEPLOY:  Surface before_deploy rules as deploy_checklist event
+               If ESP32: compile -> flash -> serial monitor
                If CLI portals: execute via CliPortalAdapter (no shell)
 5. session_complete event with summary
 ```

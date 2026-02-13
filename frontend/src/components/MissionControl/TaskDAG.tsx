@@ -8,12 +8,12 @@ import {
 } from '@xyflow/react';
 import ELK from 'elkjs/lib/elk.bundled.js';
 import '@xyflow/react/dist/style.css';
-import type { Task } from '../../types';
+import type { Task, Agent } from '../../types';
 
 const elk = new ELK();
 
 const NODE_WIDTH = 170;
-const NODE_HEIGHT = 50;
+const NODE_HEIGHT = 60;
 
 const STATUS_COLORS: Record<string, string> = {
   pending: '#F5F2EE',
@@ -31,6 +31,7 @@ const STATUS_BORDERS: Record<string, string> = {
 
 interface TaskDAGProps {
   tasks: Task[];
+  agents?: Agent[];
   className?: string;
 }
 
@@ -38,7 +39,7 @@ function truncate(str: string, max: number): string {
   return str.length > max ? str.slice(0, max - 1) + '\u2026' : str;
 }
 
-function TaskDAGInner({ tasks, className }: TaskDAGProps) {
+function TaskDAGInner({ tasks, agents, className }: TaskDAGProps) {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
   const { fitView } = useReactFlow();
@@ -79,6 +80,7 @@ function TaskDAGInner({ tasks, className }: TaskDAGProps) {
             label: truncate(task.name, 25),
             agentName: task.agent_name,
             status: task.status,
+            agentRole: agents?.find(a => a.name === task.agent_name)?.role,
           },
           style: {
             width: NODE_WIDTH,
@@ -155,11 +157,11 @@ function TaskDAGInner({ tasks, className }: TaskDAGProps) {
   );
 }
 
-export default function TaskDAG({ tasks, className }: TaskDAGProps) {
+export default function TaskDAG({ tasks, agents, className }: TaskDAGProps) {
   if (tasks.length === 0) return null;
   return (
     <ReactFlowProvider>
-      <TaskDAGInner tasks={tasks} className={className} />
+      <TaskDAGInner tasks={tasks} agents={agents} className={className} />
     </ReactFlowProvider>
   );
 }

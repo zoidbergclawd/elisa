@@ -51,7 +51,7 @@ export const toolbox = {
     },
     {
       kind: 'category',
-      name: 'Agents',
+      name: 'Minions',
       colour: '30',
       contents: [
         { kind: 'block', type: 'agent_builder' },

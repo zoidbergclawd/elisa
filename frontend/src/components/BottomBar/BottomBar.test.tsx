@@ -12,6 +12,7 @@ const defaultProps = {
   uiState: 'design' as const,
   tasks: [],
   deployProgress: null,
+  deployChecklist: null,
   tokenUsage: { input: 0, output: 0, total: 0, costUsd: 0, maxBudget: 500_000, perAgent: {} },
 };
 

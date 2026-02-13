@@ -1,8 +1,13 @@
 # Elisa Project Instructions
 
+## Start Here
+
+**Read `docs/INDEX.md` first.** It is the master index of the project's directory structure, documentation, and key source files. Use it to orient before diving into code.
+
 ## Architecture Documentation
 
 This project maintains an architectural map for both human and agent use:
+- `docs/INDEX.md` - Master index: directory map, documentation map, key source files, data flow
 - `ARCHITECTURE.md` (repo root) - System-level overview
 - `CLAUDE.md` files in `frontend/`, `backend/`, `backend/src/services/`, `frontend/src/components/`
 
@@ -12,12 +17,14 @@ When making changes that alter the architecture, **update the relevant docs in t
 
 | Change Type | Update |
 |-------------|--------|
-| New module/service/component | Add to relevant CLAUDE.md + ARCHITECTURE.md if it changes system topology |
-| Removed module/service/component | Remove from relevant CLAUDE.md + ARCHITECTURE.md |
+| New module/service/component | Add to relevant CLAUDE.md + ARCHITECTURE.md if it changes system topology. Add to `docs/INDEX.md` key source files and directory map. |
+| Removed module/service/component | Remove from relevant CLAUDE.md + ARCHITECTURE.md + `docs/INDEX.md` |
 | New API endpoint | Add to `backend/CLAUDE.md` API table |
 | New WebSocket event type | Add to `backend/CLAUDE.md` event list |
-| Changed data flow or state machine | Update ARCHITECTURE.md diagram |
+| Changed data flow or state machine | Update ARCHITECTURE.md diagram + `docs/INDEX.md` data flow |
 | New dependency (major library) | Add to relevant module CLAUDE.md stack section |
+| New documentation file | Add to `docs/INDEX.md` documentation map table |
+| New top-level directory or significant subdirectory | Add to `docs/INDEX.md` directory map |
 
 Do NOT update docs for internal implementation changes that don't affect the structural map.
 

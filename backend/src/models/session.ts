@@ -23,7 +23,7 @@ export interface Task {
 
 export type AgentRole = 'builder' | 'tester' | 'reviewer' | 'custom';
 
-export type AgentStatus = 'idle' | 'working' | 'done' | 'error';
+export type AgentStatus = 'idle' | 'working' | 'done' | 'error' | 'waiting';
 
 export interface Agent {
   name: string;

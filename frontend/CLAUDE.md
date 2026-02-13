@@ -30,6 +30,7 @@ src/
     useWebSocket.ts          WebSocket connection with auto-reconnect (3s interval)
   lib/
     nuggetFile.ts            .elisa nugget file save/load utilities (JSZip-based)
+    skillTemplates.ts        Pre-built skill and rule templates for template library
     examples/                Bundled example nuggets (ES modules, offline-ready)
   types/
     index.ts                 All TypeScript interfaces (NuggetSpec, Task, Agent, WSEvent, etc.)

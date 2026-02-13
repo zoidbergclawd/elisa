@@ -47,7 +47,7 @@ describe('AgentRunner', () => {
     expect(callArgs.prompt).toBe('hello');
     expect(callArgs.options?.systemPrompt).toBe('you are a bot');
     expect(callArgs.options?.model).toBe('claude-opus-4-6');
-    expect(callArgs.options?.permissionMode).toBe('bypassPermissions');
+    expect(callArgs.options?.permissionMode).toBe('default');
     expect(callArgs.options?.maxTurns).toBe(25);
     expect(callArgs.options?.cwd).toBe('/tmp/test');
   });

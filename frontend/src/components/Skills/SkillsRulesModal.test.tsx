@@ -430,6 +430,88 @@ describe('SkillsRulesModal', () => {
     expect(screen.getByText(/No skills yet/)).toBeInTheDocument();
   });
 
+  // --- Templates tab ---
+  it('renders Templates tab', () => {
+    render(<SkillsRulesModal {...defaultProps} />);
+    expect(screen.getByText('Templates')).toBeInTheDocument();
+  });
+
+  it('shows skill and rule templates when Templates tab is clicked', () => {
+    render(<SkillsRulesModal {...defaultProps} />);
+    fireEvent.click(screen.getByText('Templates'));
+    expect(screen.getByText('Skill Templates')).toBeInTheDocument();
+    expect(screen.getByText('Rule Templates')).toBeInTheDocument();
+    expect(screen.getByText('Explain everything')).toBeInTheDocument();
+    expect(screen.getByText('Always add comments')).toBeInTheDocument();
+  });
+
+  it('adds a skill template with unique ID', () => {
+    const onSkillsChange = vi.fn();
+    render(<SkillsRulesModal {...defaultProps} onSkillsChange={onSkillsChange} />);
+    fireEvent.click(screen.getByText('Templates'));
+
+    const addButtons = screen.getAllByText('Add');
+    fireEvent.click(addButtons[0]);
+
+    expect(onSkillsChange).toHaveBeenCalledWith([
+      expect.objectContaining({
+        id: 'test-uuid-1234',
+        name: 'Explain everything',
+        category: 'agent',
+      }),
+    ]);
+  });
+
+  it('adds a rule template with unique ID', () => {
+    const onRulesChange = vi.fn();
+    render(<SkillsRulesModal {...defaultProps} onRulesChange={onRulesChange} />);
+    fireEvent.click(screen.getByText('Templates'));
+
+    // Skill templates come first, then rule templates. Find the rule "Add" buttons.
+    // The first rule template "Always add comments" has an Add button.
+    const allAddButtons = screen.getAllByText('Add');
+    // Skill templates have 7 Add buttons, rule templates have 8
+    // Click the first rule template Add button (index 7)
+    fireEvent.click(allAddButtons[7]);
+
+    expect(onRulesChange).toHaveBeenCalledWith([
+      expect.objectContaining({
+        id: 'test-uuid-1234',
+        name: 'Always add comments',
+        trigger: 'always',
+      }),
+    ]);
+  });
+
+  it('shows (added) badge and disables Add for duplicate skill name', () => {
+    const skills: Skill[] = [
+      { id: 'custom-1', name: 'Explain everything', prompt: 'custom prompt', category: 'agent' },
+    ];
+    render(<SkillsRulesModal {...defaultProps} skills={skills} />);
+    fireEvent.click(screen.getByText('Templates'));
+
+    // The "Explain everything" template should show "(added)" instead of "Add"
+    const addedBadges = screen.getAllByText('(added)');
+    expect(addedBadges.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('shows (added) badge and disables Add for duplicate rule name', () => {
+    const rules: Rule[] = [
+      { id: 'custom-1', name: 'Always add comments', prompt: 'custom', trigger: 'always' },
+    ];
+    render(<SkillsRulesModal {...defaultProps} rules={rules} />);
+    fireEvent.click(screen.getByText('Templates'));
+
+    const addedBadges = screen.getAllByText('(added)');
+    expect(addedBadges.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('shows helper text on templates tab', () => {
+    render(<SkillsRulesModal {...defaultProps} />);
+    fireEvent.click(screen.getByText('Templates'));
+    expect(screen.getByText(/place a Use Skill or Apply Rule block/)).toBeInTheDocument();
+  });
+
   // --- Close ---
   it('calls onClose when X is clicked', () => {
     const onClose = vi.fn();

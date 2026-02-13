@@ -30,8 +30,20 @@ export const hardwareBlink: ExampleNugget = {
                       fields: { PORTAL_ID: 'esp32-board', CAPABILITY_ID: 'led-blink' },
                       next: {
                         block: {
-                          type: 'deploy_esp32',
-                          fields: {},
+                          type: 'use_skill',
+                          fields: { SKILL_ID: 'skill-friendly-code' },
+                          next: {
+                            block: {
+                              type: 'use_rule',
+                              fields: { RULE_ID: 'rule-compile-check' },
+                              next: {
+                                block: {
+                                  type: 'deploy_esp32',
+                                  fields: {},
+                                },
+                              },
+                            },
+                          },
                         },
                       },
                     },
@@ -44,8 +56,12 @@ export const hardwareBlink: ExampleNugget = {
       ],
     },
   },
-  skills: [],
-  rules: [],
+  skills: [
+    { id: 'skill-friendly-code', name: 'Friendly code agent', prompt: 'Write code like you are teaching someone who has never programmed before. Use simple variable names and add print statements that explain what is happening.', category: 'agent' },
+  ],
+  rules: [
+    { id: 'rule-compile-check', name: 'Must compile cleanly', prompt: 'Before deploying, make sure the MicroPython code compiles without any errors or warnings.', trigger: 'before_deploy' },
+  ],
   portals: [
     {
       id: 'esp32-board',

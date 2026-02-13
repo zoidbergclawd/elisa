@@ -47,6 +47,12 @@ export default function ExamplePickerModal({ examples, onSelect, onClose }: Prop
                   </span>
                 </div>
                 <p className="text-sm text-atelier-text-secondary">{example.description}</p>
+                {(example.skills.length > 0 || example.rules.length > 0) && (
+                  <p className="text-xs text-atelier-text-muted mt-1">
+                    {example.skills.length} skill{example.skills.length !== 1 ? 's' : ''}
+                    {example.rules.length > 0 ? `, ${example.rules.length} rule${example.rules.length !== 1 ? 's' : ''}` : ''}
+                  </p>
+                )}
               </button>
             ))}
           </div>

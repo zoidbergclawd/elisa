@@ -38,12 +38,30 @@ export const spaceDodge: ExampleNugget = {
                               fields: { DATA_TEXT: 'a score that counts how many seconds I survived' },
                               next: {
                                 block: {
-                                  type: 'look_like',
-                                  fields: { STYLE_TEXT: 'dark space background with glowing neon colors' },
+                                  type: 'use_skill',
+                                  fields: { SKILL_ID: 'skill-retro-style' },
                                   next: {
                                     block: {
-                                      type: 'deploy_web',
-                                      fields: {},
+                                      type: 'use_rule',
+                                      fields: { RULE_ID: 'rule-game-playable' },
+                                      next: {
+                                        block: {
+                                          type: 'use_rule',
+                                          fields: { RULE_ID: 'rule-no-lag' },
+                                          next: {
+                                            block: {
+                                              type: 'look_like',
+                                              fields: { STYLE_TEXT: 'dark space background with glowing neon colors' },
+                                              next: {
+                                                block: {
+                                                  type: 'deploy_web',
+                                                  fields: {},
+                                                },
+                                              },
+                                            },
+                                          },
+                                        },
+                                      },
                                     },
                                   },
                                 },
@@ -70,6 +88,9 @@ export const spaceDodge: ExampleNugget = {
       category: 'style',
     },
   ],
-  rules: [],
+  rules: [
+    { id: 'rule-game-playable', name: 'Game must be playable', prompt: 'The game must load without errors, respond to arrow keys, and show a score. Test by opening index.html in a browser.', trigger: 'on_task_complete' },
+    { id: 'rule-no-lag', name: 'No lag allowed', prompt: 'The game must run smoothly at 60fps. Do not use heavy DOM manipulation inside the game loop. Use requestAnimationFrame.', trigger: 'always' },
+  ],
   portals: [],
 };

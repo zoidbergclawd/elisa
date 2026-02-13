@@ -73,4 +73,49 @@ describe('bundled example nuggets', () => {
     expect(spec.workflow.testing_enabled).toBe(true);
     expect(spec.workflow.review_enabled).toBe(true);
   });
+
+  // Ensure every skill/rule defined in an example has a corresponding workspace block
+  describe('skill/rule block alignment', () => {
+    function collectBlockTypes(block: any, results: Array<{ type: string; fields: Record<string, string> }> = []): typeof results {
+      if (!block) return results;
+      results.push({ type: block.type, fields: block.fields ?? {} });
+      if (block.next?.block) collectBlockTypes(block.next.block, results);
+      if (block.inputs) {
+        for (const input of Object.values(block.inputs) as any[]) {
+          if (input?.block) collectBlockTypes(input.block, results);
+        }
+      }
+      return results;
+    }
+
+    for (const example of EXAMPLE_NUGGETS) {
+      if (example.skills.length > 0) {
+        it(`${example.name}: every skill has a use_skill block`, () => {
+          const ws = example.workspace as any;
+          const blocks = (ws.blocks?.blocks ?? []).flatMap((b: any) => collectBlockTypes(b));
+          const skillBlockIds = blocks
+            .filter((b) => b.type === 'use_skill')
+            .map((b) => b.fields.SKILL_ID);
+
+          for (const skill of example.skills) {
+            expect(skillBlockIds, `Missing use_skill block for "${skill.name}" (${skill.id})`).toContain(skill.id);
+          }
+        });
+      }
+
+      if (example.rules.length > 0) {
+        it(`${example.name}: every rule has a use_rule block`, () => {
+          const ws = example.workspace as any;
+          const blocks = (ws.blocks?.blocks ?? []).flatMap((b: any) => collectBlockTypes(b));
+          const ruleBlockIds = blocks
+            .filter((b) => b.type === 'use_rule')
+            .map((b) => b.fields.RULE_ID);
+
+          for (const rule of example.rules) {
+            expect(ruleBlockIds, `Missing use_rule block for "${rule.name}" (${rule.id})`).toContain(rule.id);
+          }
+        });
+      }
+    }
+  });
 });

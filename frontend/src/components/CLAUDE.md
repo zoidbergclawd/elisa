@@ -28,7 +28,7 @@ App.tsx
   shared/TeachingToast.tsx           Floating notification for learning moments
   shared/AgentAvatar.tsx             Status dot + role icon
   shared/ExamplePickerModal.tsx      Card grid to choose bundled example nuggets
-  Skills/SkillsRulesModal.tsx        CRUD editor for custom skills and rules
+  Skills/SkillsRulesModal.tsx        CRUD editor for custom skills/rules + template library
   Portals/PortalsModal.tsx           CRUD editor for portal connections
 ```
 

@@ -69,4 +69,63 @@ describe('ExamplePickerModal', () => {
     expect(screen.getByText('Web')).toBeDefined();
     expect(screen.getByText('Game')).toBeDefined();
   });
+
+  it('shows skill/rule counts when examples have them', () => {
+    const withSkills: ExampleNugget[] = [
+      {
+        id: 'rich-1',
+        name: 'Rich Example',
+        description: 'Has skills and rules.',
+        category: 'web',
+        color: 'bg-blue-100',
+        accentColor: 'text-blue-700',
+        workspace: { blocks: { blocks: [{ type: 'nugget_goal', fields: { GOAL_TEXT: 'test' } }] } },
+        skills: [
+          { id: 's1', name: 'Skill 1', prompt: 'p', category: 'agent' },
+          { id: 's2', name: 'Skill 2', prompt: 'p', category: 'style' },
+        ],
+        rules: [
+          { id: 'r1', name: 'Rule 1', prompt: 'p', trigger: 'always' },
+        ],
+        portals: [],
+      },
+    ];
+    render(
+      <ExamplePickerModal examples={withSkills} onSelect={vi.fn()} onClose={vi.fn()} />,
+    );
+
+    expect(screen.getByText('2 skills, 1 rule')).toBeDefined();
+  });
+
+  it('hides skill/rule counts when both are empty', () => {
+    render(
+      <ExamplePickerModal examples={examples} onSelect={vi.fn()} onClose={vi.fn()} />,
+    );
+
+    // Default test examples have empty skills/rules arrays
+    expect(screen.queryByText(/skill/i)).toBeNull();
+    expect(screen.queryByText(/rule/i)).toBeNull();
+  });
+
+  it('shows only skills count when no rules exist', () => {
+    const skillsOnly: ExampleNugget[] = [
+      {
+        id: 'skills-only',
+        name: 'Skills Only',
+        description: 'Has skills but no rules.',
+        category: 'game',
+        color: 'bg-amber-100',
+        accentColor: 'text-amber-700',
+        workspace: { blocks: { blocks: [{ type: 'nugget_goal', fields: { GOAL_TEXT: 'test' } }] } },
+        skills: [{ id: 's1', name: 'Skill 1', prompt: 'p', category: 'feature' }],
+        rules: [],
+        portals: [],
+      },
+    ];
+    render(
+      <ExamplePickerModal examples={skillsOnly} onSelect={vi.fn()} onClose={vi.fn()} />,
+    );
+
+    expect(screen.getByText('1 skill')).toBeDefined();
+  });
 });

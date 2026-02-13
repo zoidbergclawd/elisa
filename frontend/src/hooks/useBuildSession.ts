@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import type { NuggetSpec } from '../components/BlockCanvas/blockInterpreter';
-import type { UIState, Task, Agent, Commit, WSEvent, TeachingMoment, TestResult, TokenUsage, QuestionPayload } from '../types';
+import type { UIState, Task, Agent, Commit, WSEvent, TeachingMoment, TestResult, TokenUsage, QuestionPayload, NarratorMessage } from '../types';
 
 export const MAX_EVENTS = 500;
 export const MAX_SERIAL_LINES = 1000;
@@ -49,6 +49,8 @@ export function useBuildSession() {
   const [questionRequest, setQuestionRequest] = useState<QuestionRequest | null>(null);
   const [nuggetDir, setNuggetDir] = useState<string | null>(null);
   const [errorNotification, setErrorNotification] = useState<ErrorNotification | null>(null);
+  const [narratorMessages, setNarratorMessages] = useState<NarratorMessage[]>([]);
+  const [deployChecklist, setDeployChecklist] = useState<Array<{ name: string; prompt: string }> | null>(null);
   const tasksRef = useRef<Task[]>([]);
 
   const handleEvent = useCallback((event: WSEvent) => {
@@ -124,8 +126,12 @@ export function useBuildSession() {
       case 'deploy_progress':
         setDeployProgress({ step: event.step, progress: event.progress });
         break;
+      case 'deploy_checklist':
+        setDeployChecklist(event.rules);
+        break;
       case 'deploy_complete':
         setDeployProgress(null);
+        setDeployChecklist(null);
         break;
       case 'serial_data':
         setSerialLines(prev => {
@@ -207,6 +213,23 @@ export function useBuildSession() {
           questions: event.questions,
         });
         break;
+      case 'narrator_message':
+        setNarratorMessages(prev => [...prev, {
+          from: event.from,
+          text: event.text,
+          mood: event.mood,
+          related_task_id: event.related_task_id,
+          timestamp: Date.now(),
+        }]);
+        break;
+      case 'permission_auto_resolved':
+        // Logged to events array above; no additional state updates
+        break;
+      case 'minion_state_change':
+        setAgents(prev => prev.map(a =>
+          a.name === event.agent_name ? { ...a, status: event.new_status as Agent['status'] } : a
+        ));
+        break;
       case 'workspace_created':
         setNuggetDir(event.nugget_dir);
         break;
@@ -233,10 +256,12 @@ export function useBuildSession() {
     setTokenUsage({ input: 0, output: 0, total: 0, costUsd: 0, maxBudget: 500_000, perAgent: {} });
     setSerialLines([]);
     setDeployProgress(null);
+    setDeployChecklist(null);
     setGateRequest(null);
     setQuestionRequest(null);
     setNuggetDir(null);
     setErrorNotification(null);
+    setNarratorMessages([]);
 
     const res = await fetch('/api/sessions', { method: 'POST' });
     if (!res.ok) {
@@ -287,8 +312,8 @@ export function useBuildSession() {
   return {
     uiState, tasks, agents, commits, events, sessionId,
     teachingMoments, testResults, coveragePct, tokenUsage,
-    serialLines, deployProgress, gateRequest, questionRequest,
-    nuggetDir, errorNotification,
+    serialLines, deployProgress, deployChecklist, gateRequest, questionRequest,
+    nuggetDir, errorNotification, narratorMessages,
     handleEvent, startBuild, clearGateRequest, clearQuestionRequest,
     clearErrorNotification,
   };

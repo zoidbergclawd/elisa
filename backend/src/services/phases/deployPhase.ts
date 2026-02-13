@@ -46,16 +46,16 @@ export class DeployPhase {
     ctx.session.state = 'deploying';
     await ctx.send({ type: 'deploy_started', target: 'esp32' });
 
-    // Log before_deploy rules
+    // Surface before_deploy rules to frontend as a checklist
     const specData = ctx.session.spec ?? {};
     const deployRules = (specData.rules ?? []).filter(
       (r: any) => r.trigger === 'before_deploy',
     );
     if (deployRules.length) {
-      const checklist = deployRules
-        .map((r: any) => `- ${r.name}: ${r.prompt}`)
-        .join('\n');
-      console.info('Before-deploy rules:\n' + checklist);
+      await ctx.send({
+        type: 'deploy_checklist',
+        rules: deployRules.map((r: any) => ({ name: r.name, prompt: r.prompt })),
+      });
     }
 
     // Step 1: Compile
@@ -133,6 +133,18 @@ export class DeployPhase {
   async deployPortals(ctx: PhaseContext): Promise<{ serialHandle: { close: () => void } | null }> {
     ctx.session.state = 'deploying';
     await ctx.send({ type: 'deploy_started', target: 'portals' });
+
+    // Surface before_deploy rules to frontend as a checklist
+    const specData = ctx.session.spec ?? {};
+    const deployRules = (specData.rules ?? []).filter(
+      (r: any) => r.trigger === 'before_deploy',
+    );
+    if (deployRules.length) {
+      await ctx.send({
+        type: 'deploy_checklist',
+        rules: deployRules.map((r: any) => ({ name: r.name, prompt: r.prompt })),
+      });
+    }
 
     let serialHandle: { close: () => void } | null = null;
 

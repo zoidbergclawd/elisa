@@ -102,4 +102,10 @@ export const NuggetSpecSchema = z.object({
   skills: z.array(SkillSchema).max(50).optional(),
   rules: z.array(RuleSchema).max(50).optional(),
   portals: z.array(PortalSchema).max(20).optional(),
+  permissions: z.object({
+    auto_approve_workspace_writes: z.boolean().optional(),
+    auto_approve_safe_commands: z.boolean().optional(),
+    allow_network: z.boolean().optional(),
+    escalation_threshold: z.number().int().min(1).max(10).optional(),
+  }).strict().optional(),
 }).passthrough();

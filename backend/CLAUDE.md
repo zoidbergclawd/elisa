@@ -74,7 +74,7 @@ src/
 | POST | /api/hardware/flash/:id | Flash to board |
 
 ### WebSocket Events (server -> client)
-`planning_started`, `plan_ready`, `task_started`, `task_completed`, `task_failed`, `agent_output`, `commit_created`, `token_usage`, `budget_warning`, `test_result`, `coverage_update`, `deploy_*`, `serial_data`, `human_gate`, `teaching_moment`, `error`, `session_complete`
+`planning_started`, `plan_ready`, `task_started`, `task_completed`, `task_failed`, `agent_output`, `commit_created`, `token_usage`, `budget_warning`, `test_result`, `coverage_update`, `deploy_started`, `deploy_progress`, `deploy_checklist`, `deploy_complete`, `serial_data`, `human_gate`, `user_question`, `skill_*`, `teaching_moment`, `narrator_message`, `permission_auto_resolved`, `minion_state_change`, `workspace_created`, `error`, `session_complete`
 
 ## Key Patterns
 

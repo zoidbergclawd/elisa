@@ -16,6 +16,8 @@ import { MetaPlanner } from './metaPlanner.js';
 import { PortalService } from './portalService.js';
 import { TeachingEngine } from './teachingEngine.js';
 import { TestRunner } from './testRunner.js';
+import { NarratorService } from './narratorService.js';
+import { PermissionPolicy } from './permissionPolicy.js';
 import { ContextManager } from '../utils/contextManager.js';
 import { SessionLogger } from '../utils/sessionLogger.js';
 import { TokenTracker } from '../utils/tokenTracker.js';
@@ -50,6 +52,8 @@ export class Orchestrator {
   private testRunner = new TestRunner();
   private hardwareService: HardwareService;
   private portalService: PortalService;
+  private narratorService = new NarratorService();
+  private permissionPolicy: PermissionPolicy | null = null;
 
   // Phase handlers
   private planPhase: PlanPhase;
@@ -98,6 +102,12 @@ export class Orchestrator {
       }
 
       // Execute
+      this.permissionPolicy = new PermissionPolicy(
+        this.nuggetDir,
+        (spec as any).permissions ?? {},
+      );
+      this.narratorService.reset();
+
       const executePhase = new ExecutePhase({
         agentRunner: this.agentRunner,
         git: this.git,
@@ -112,6 +122,8 @@ export class Orchestrator {
         dag: planResult.dag,
         questionResolvers: this.questionResolvers,
         gateResolver: this.gateResolver,
+        narratorService: this.narratorService,
+        permissionPolicy: this.permissionPolicy,
       });
 
       // Logger is initialized by setupWorkspace inside executePhase

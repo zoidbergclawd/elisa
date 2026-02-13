@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Skill, Rule } from './types';
 import SkillFlowEditor from './SkillFlowEditor';
+import { SKILL_TEMPLATES, RULE_TEMPLATES } from '../../lib/skillTemplates';
 
 interface Props {
   skills: Skill[];
@@ -43,7 +44,7 @@ function generateId(): string {
 }
 
 export default function SkillsRulesModal({ skills, rules, onSkillsChange, onRulesChange, onClose }: Props) {
-  const [activeTab, setActiveTab] = useState<'skills' | 'rules'>('skills');
+  const [activeTab, setActiveTab] = useState<'skills' | 'rules' | 'templates'>('skills');
   const [editingSkill, setEditingSkill] = useState<Skill | null>(null);
   const [editingRule, setEditingRule] = useState<Rule | null>(null);
   const [flowEditorSkill, setFlowEditorSkill] = useState<Skill | null>(null);
@@ -137,6 +138,12 @@ export default function SkillsRulesModal({ skills, rules, onSkillsChange, onRule
           >
             Rules ({rules.length})
           </button>
+          <button
+            onClick={() => { setActiveTab('templates'); setEditingSkill(null); setEditingRule(null); }}
+            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeTab === 'templates' ? 'bg-accent-gold/20 text-accent-gold' : 'bg-atelier-surface/60 text-atelier-text-muted hover:text-atelier-text-secondary'}`}
+          >
+            Templates
+          </button>
         </div>
 
         {/* Content */}
@@ -219,6 +226,15 @@ export default function SkillsRulesModal({ skills, rules, onSkillsChange, onRule
               onSave={handleSaveRule}
               onDelete={() => handleDeleteRule(editingRule.id)}
               onCancel={() => setEditingRule(null)}
+            />
+          )}
+
+          {activeTab === 'templates' && (
+            <TemplatesTab
+              skills={skills}
+              rules={rules}
+              onAddSkill={(skill) => onSkillsChange([...skills, skill])}
+              onAddRule={(rule) => onRulesChange([...rules, rule])}
             />
           )}
         </div>
@@ -308,6 +324,92 @@ function SkillEditor({ skill, onSave, onDelete, onCancel, onOpenFlowEditor }: {
           >
             Done
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const CATEGORY_BADGES: Record<Skill['category'], string> = {
+  agent: 'bg-accent-sky/20 text-accent-sky',
+  feature: 'bg-accent-lavender/20 text-accent-lavender',
+  style: 'bg-accent-gold/20 text-accent-gold',
+  composite: 'bg-accent-mint/20 text-accent-mint',
+};
+
+const TRIGGER_BADGES: Record<Rule['trigger'], string> = {
+  always: 'bg-accent-sky/20 text-accent-sky',
+  on_task_complete: 'bg-accent-mint/20 text-accent-mint',
+  on_test_fail: 'bg-accent-coral/20 text-accent-coral',
+  before_deploy: 'bg-accent-gold/20 text-accent-gold',
+};
+
+function TemplatesTab({ skills, rules, onAddSkill, onAddRule }: {
+  skills: Skill[];
+  rules: Rule[];
+  onAddSkill: (skill: Skill) => void;
+  onAddRule: (rule: Rule) => void;
+}) {
+  const skillNameSet = new Set(skills.map(s => s.name));
+  const ruleNameSet = new Set(rules.map(r => r.name));
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-atelier-text-muted">
+        After adding, place a Use Skill or Apply Rule block in your workspace to activate it.
+      </p>
+
+      <div>
+        <h3 className="text-sm font-semibold text-atelier-text mb-2">Skill Templates</h3>
+        <div className="grid grid-cols-1 gap-2">
+          {SKILL_TEMPLATES.map(tmpl => {
+            const added = skillNameSet.has(tmpl.name);
+            return (
+              <div key={tmpl.id} className="border border-border-subtle rounded-xl p-3 bg-atelier-surface/40 flex items-start justify-between">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-sm text-atelier-text">{tmpl.name}</span>
+                    <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${CATEGORY_BADGES[tmpl.category]}`}>{tmpl.category}</span>
+                  </div>
+                  <p className="text-xs text-atelier-text-muted mt-0.5">{tmpl.description}</p>
+                </div>
+                <button
+                  onClick={() => onAddSkill({ id: crypto.randomUUID(), name: tmpl.name, prompt: tmpl.prompt, category: tmpl.category })}
+                  disabled={added}
+                  className={`ml-2 text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${added ? 'bg-accent-mint/10 text-accent-mint' : 'bg-accent-lavender text-white hover:bg-accent-lavender/80 cursor-pointer'}`}
+                >
+                  {added ? '(added)' : 'Add'}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div>
+        <h3 className="text-sm font-semibold text-atelier-text mb-2">Rule Templates</h3>
+        <div className="grid grid-cols-1 gap-2">
+          {RULE_TEMPLATES.map(tmpl => {
+            const added = ruleNameSet.has(tmpl.name);
+            return (
+              <div key={tmpl.id} className="border border-border-subtle rounded-xl p-3 bg-atelier-surface/40 flex items-start justify-between">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-sm text-atelier-text">{tmpl.name}</span>
+                    <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${TRIGGER_BADGES[tmpl.trigger]}`}>{tmpl.trigger}</span>
+                  </div>
+                  <p className="text-xs text-atelier-text-muted mt-0.5">{tmpl.description}</p>
+                </div>
+                <button
+                  onClick={() => onAddRule({ id: crypto.randomUUID(), name: tmpl.name, prompt: tmpl.prompt, trigger: tmpl.trigger })}
+                  disabled={added}
+                  className={`ml-2 text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${added ? 'bg-accent-mint/10 text-accent-mint' : 'bg-accent-coral text-white hover:bg-accent-coral/80 cursor-pointer'}`}
+                >
+                  {added ? '(added)' : 'Add'}
+                </button>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

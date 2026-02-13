@@ -5,9 +5,10 @@ interface ProgressPanelProps {
   uiState: UIState;
   tasks: Task[];
   deployProgress: DeployProgress | null;
+  deployChecklist: Array<{ name: string; prompt: string }> | null;
 }
 
-export default function ProgressPanel({ uiState, tasks, deployProgress }: ProgressPanelProps) {
+export default function ProgressPanel({ uiState, tasks, deployProgress, deployChecklist }: ProgressPanelProps) {
   const doneCount = tasks.filter(t => t.status === 'done').length;
   const totalCount = tasks.length;
   const progressPct = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
@@ -39,6 +40,16 @@ export default function ProgressPanel({ uiState, tasks, deployProgress }: Progre
 
   return (
     <div className="p-4 space-y-2">
+      {deployChecklist && deployChecklist.length > 0 && (
+        <div className="mb-2">
+          <p className="text-xs font-medium text-accent-coral mb-1">Deploy checklist:</p>
+          <ul className="text-xs text-atelier-text-secondary space-y-0.5">
+            {deployChecklist.map((rule, i) => (
+              <li key={i}><span className="text-atelier-text">{rule.name}</span> -- {rule.prompt}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       {isDeploying ? (
         <div>
           <p className="text-sm text-accent-lavender font-medium mb-1.5">{getPhaseText()}</p>

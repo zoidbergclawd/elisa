@@ -34,8 +34,20 @@ export const simpleWebApp: ExampleNugget = {
                           fields: { STYLE_TEXT: 'colorful with smooth animations' },
                           next: {
                             block: {
-                              type: 'deploy_web',
-                              fields: {},
+                              type: 'use_skill',
+                              fields: { SKILL_ID: 'skill-big-button' },
+                              next: {
+                                block: {
+                                  type: 'use_rule',
+                                  fields: { RULE_ID: 'rule-comments' },
+                                  next: {
+                                    block: {
+                                      type: 'deploy_web',
+                                      fields: {},
+                                    },
+                                  },
+                                },
+                              },
                             },
                           },
                         },
@@ -50,7 +62,11 @@ export const simpleWebApp: ExampleNugget = {
       ],
     },
   },
-  skills: [],
-  rules: [],
+  skills: [
+    { id: 'skill-big-button', name: 'Big button details', prompt: 'Make the button really large (at least 200px wide), use a fun rounded shape, and add a hover effect that makes it grow slightly.', category: 'feature' },
+  ],
+  rules: [
+    { id: 'rule-comments', name: 'Add helpful comments', prompt: 'Add a comment above every function explaining what it does in simple words a kid can understand.', trigger: 'on_task_complete' },
+  ],
   portals: [],
 };

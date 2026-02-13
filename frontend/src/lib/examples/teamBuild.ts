@@ -42,12 +42,36 @@ export const teamBuild: ExampleNugget = {
                                   fields: { AGENT_NAME: 'Review Bot' },
                                   next: {
                                     block: {
-                                      type: 'look_like',
-                                      fields: { STYLE_PRESET: 'clean_simple' },
+                                      type: 'use_skill',
+                                      fields: { SKILL_ID: 'skill-clean-ui' },
                                       next: {
                                         block: {
-                                          type: 'deploy_web',
-                                          fields: {},
+                                          type: 'use_skill',
+                                          fields: { SKILL_ID: 'skill-pastel-style' },
+                                          next: {
+                                            block: {
+                                              type: 'use_rule',
+                                              fields: { RULE_ID: 'rule-test-all' },
+                                              next: {
+                                                block: {
+                                                  type: 'use_rule',
+                                                  fields: { RULE_ID: 'rule-fix-carefully' },
+                                                  next: {
+                                                    block: {
+                                                      type: 'look_like',
+                                                      fields: { STYLE_PRESET: 'clean_simple' },
+                                                      next: {
+                                                        block: {
+                                                          type: 'deploy_web',
+                                                          fields: {},
+                                                        },
+                                                      },
+                                                    },
+                                                  },
+                                                },
+                                              },
+                                            },
+                                          },
                                         },
                                       },
                                     },
@@ -68,7 +92,10 @@ export const teamBuild: ExampleNugget = {
       ],
     },
   },
-  skills: [],
+  skills: [
+    { id: 'skill-clean-ui', name: 'Clean UI details', prompt: 'Use a card-based layout for each todo item. Each card should have a checkbox on the left, the task text in the middle, and a red X delete button on the right.', category: 'feature' },
+    { id: 'skill-pastel-style', name: 'Pastel color scheme', prompt: 'Use soft pastel colors: light blue header, white cards with subtle shadows, and gentle rounded corners on everything.', category: 'style' },
+  ],
   rules: [
     {
       id: 'rule-test-all',
@@ -76,6 +103,7 @@ export const teamBuild: ExampleNugget = {
       prompt: 'Write tests for every feature. Every add, check, and delete action must have at least one test.',
       trigger: 'always',
     },
+    { id: 'rule-fix-carefully', name: 'Fix carefully on fail', prompt: 'Read the exact error message. Only change the specific line that caused the error. Do not rewrite working code.', trigger: 'on_test_fail' },
   ],
   portals: [],
 };

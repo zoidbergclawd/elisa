@@ -14,7 +14,7 @@ export interface Agent {
   name: string;
   role: 'builder' | 'tester' | 'reviewer' | 'custom';
   persona: string;
-  status: 'idle' | 'working' | 'done' | 'error';
+  status: 'idle' | 'working' | 'done' | 'error' | 'waiting';
 }
 
 export interface BuildSession {
@@ -69,6 +69,14 @@ export interface QuestionPayload {
   multiSelect: boolean;
 }
 
+export interface NarratorMessage {
+  from: string;
+  text: string;
+  mood: 'excited' | 'encouraging' | 'concerned' | 'celebrating';
+  related_task_id?: string;
+  timestamp: number;
+}
+
 export type WSEvent =
   | { type: 'session_started'; session_id: string }
   | { type: 'planning_started' }
@@ -97,6 +105,10 @@ export type WSEvent =
   | { type: 'skill_output'; skill_id: string; step_id: string; content: string }
   | { type: 'skill_completed'; skill_id: string; result: string }
   | { type: 'skill_error'; skill_id: string; message: string }
+  | { type: 'deploy_checklist'; rules: Array<{ name: string; prompt: string }> }
   | { type: 'workspace_created'; nugget_dir: string }
   | { type: 'error'; message: string; recoverable: boolean }
+  | { type: 'narrator_message'; from: string; text: string; mood: 'excited' | 'encouraging' | 'concerned' | 'celebrating'; related_task_id?: string }
+  | { type: 'permission_auto_resolved'; task_id: string; permission_type: string; decision: 'approved' | 'denied'; reason: string }
+  | { type: 'minion_state_change'; agent_name: string; old_status: string; new_status: string }
   | { type: 'session_complete'; summary: string };

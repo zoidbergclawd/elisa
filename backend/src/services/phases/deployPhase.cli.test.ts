@@ -63,6 +63,96 @@ function makeMockTeachingEngine() {
   } as any;
 }
 
+describe('DeployPhase - before_deploy rules', () => {
+  let hw: ReturnType<typeof makeMockHardwareService>;
+  let teachingEngine: ReturnType<typeof makeMockTeachingEngine>;
+
+  beforeEach(() => {
+    hw = makeMockHardwareService();
+    teachingEngine = makeMockTeachingEngine();
+  });
+
+  it('deployHardware sends deploy_checklist for before_deploy rules', async () => {
+    const portalService = makeMockPortalService();
+    const phase = new DeployPhase(hw, portalService, teachingEngine);
+
+    hw.compile.mockResolvedValue({ success: true, errors: [] });
+    hw.flash.mockResolvedValue({ success: true, message: 'ok' });
+    hw.detectBoard.mockResolvedValue(null);
+
+    const ctx = makeCtx({
+      session: {
+        id: 'test', state: 'executing',
+        spec: {
+          rules: [
+            { name: 'Must compile', prompt: 'No errors allowed', trigger: 'before_deploy' },
+            { name: 'Always on', prompt: 'Always applies', trigger: 'always' },
+          ],
+        },
+      } as any,
+    });
+
+    await phase.deployHardware(ctx);
+
+    const send = ctx.send as ReturnType<typeof vi.fn>;
+    const calls = send.mock.calls.map((c: any[]) => c[0]);
+
+    const checklist = calls.find((c: any) => c.type === 'deploy_checklist');
+    expect(checklist).toBeDefined();
+    expect(checklist.rules).toHaveLength(1);
+    expect(checklist.rules[0]).toEqual({ name: 'Must compile', prompt: 'No errors allowed' });
+  });
+
+  it('deployPortals sends deploy_checklist for before_deploy rules', async () => {
+    const portalService = makeMockPortalService();
+    const phase = new DeployPhase(hw, portalService, teachingEngine);
+
+    const ctx = makeCtx({
+      session: {
+        id: 'test', state: 'executing',
+        spec: {
+          rules: [
+            { name: 'Tests pass', prompt: 'All tests must pass', trigger: 'before_deploy' },
+          ],
+        },
+      } as any,
+    });
+
+    await phase.deployPortals(ctx);
+
+    const send = ctx.send as ReturnType<typeof vi.fn>;
+    const calls = send.mock.calls.map((c: any[]) => c[0]);
+
+    const checklist = calls.find((c: any) => c.type === 'deploy_checklist');
+    expect(checklist).toBeDefined();
+    expect(checklist.rules).toHaveLength(1);
+    expect(checklist.rules[0]).toEqual({ name: 'Tests pass', prompt: 'All tests must pass' });
+  });
+
+  it('deployPortals does not send deploy_checklist when no before_deploy rules exist', async () => {
+    const portalService = makeMockPortalService();
+    const phase = new DeployPhase(hw, portalService, teachingEngine);
+
+    const ctx = makeCtx({
+      session: {
+        id: 'test', state: 'executing',
+        spec: {
+          rules: [
+            { name: 'Always', prompt: 'Always applies', trigger: 'always' },
+          ],
+        },
+      } as any,
+    });
+
+    await phase.deployPortals(ctx);
+
+    const send = ctx.send as ReturnType<typeof vi.fn>;
+    const calls = send.mock.calls.map((c: any[]) => c[0]);
+
+    expect(calls.find((c: any) => c.type === 'deploy_checklist')).toBeUndefined();
+  });
+});
+
 describe('DeployPhase.deployPortals - CLI portals', () => {
   let hw: ReturnType<typeof makeMockHardwareService>;
   let teachingEngine: ReturnType<typeof makeMockTeachingEngine>;

@@ -36,7 +36,7 @@ const blockDefs = [
   },
   {
     type: 'agent_builder',
-    message0: 'Add a builder named %1 who is %2',
+    message0: 'Add a Builder Minion named %1 who is %2',
     args0: [
       {
         type: 'field_input',
@@ -52,12 +52,12 @@ const blockDefs = [
     previousStatement: null,
     nextStatement: null,
     colour: 30,
-    tooltip: 'Add a builder agent to your team',
+    tooltip: 'Add a Builder Minion to your squad',
     helpUrl: '',
   },
   {
     type: 'agent_tester',
-    message0: 'Add a tester named %1 who is %2',
+    message0: 'Add a Tester Minion named %1 who is %2',
     args0: [
       {
         type: 'field_input',
@@ -73,7 +73,7 @@ const blockDefs = [
     previousStatement: null,
     nextStatement: null,
     colour: 30,
-    tooltip: 'Add a tester agent to your team',
+    tooltip: 'Add a Tester Minion to your squad',
     helpUrl: '',
   },
   {
@@ -213,7 +213,7 @@ const blockDefs = [
   // Agents category additions
   {
     type: 'agent_reviewer',
-    message0: 'Add a reviewer named %1 who focuses on %2',
+    message0: 'Add a Reviewer Minion named %1 who focuses on %2',
     args0: [
       {
         type: 'field_input',
@@ -229,12 +229,12 @@ const blockDefs = [
     previousStatement: null,
     nextStatement: null,
     colour: 30,
-    tooltip: 'Add a reviewer agent to your team',
+    tooltip: 'Add a Reviewer Minion to your squad',
     helpUrl: '',
   },
   {
     type: 'agent_custom',
-    message0: 'Add a helper named %1 who %2',
+    message0: 'Add a Custom Minion named %1 who %2',
     args0: [
       {
         type: 'field_input',
@@ -250,7 +250,7 @@ const blockDefs = [
     previousStatement: null,
     nextStatement: null,
     colour: 30,
-    tooltip: 'Add a custom helper agent',
+    tooltip: 'Add a Custom Minion to your squad',
     helpUrl: '',
   },
   // Flow category (NEW - colour 60) - container blocks

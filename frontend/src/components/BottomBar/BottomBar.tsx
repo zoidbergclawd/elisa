@@ -17,6 +17,7 @@ interface Props {
   uiState: UIState;
   tasks: Task[];
   deployProgress: DeployProgress | null;
+  deployChecklist: Array<{ name: string; prompt: string }> | null;
   tokenUsage: TokenUsage;
 }
 
@@ -24,7 +25,7 @@ type Tab = 'Timeline' | 'Tests' | 'Board' | 'Learn' | 'Progress' | 'Tokens';
 
 export default function BottomBar({
   commits, testResults, coveragePct, teachingMoments, serialLines,
-  uiState, tasks, deployProgress, tokenUsage,
+  uiState, tasks, deployProgress, deployChecklist, tokenUsage,
 }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('Timeline');
 
@@ -61,7 +62,7 @@ export default function BottomBar({
         {activeTab === 'Tests' && <TestResults results={testResults} coveragePct={coveragePct} uiState={uiState} />}
         {activeTab === 'Board' && showBoard && <BoardOutput serialLines={serialLines} />}
         {activeTab === 'Learn' && <TeachingSidebar moments={teachingMoments} />}
-        {activeTab === 'Progress' && <ProgressPanel uiState={uiState} tasks={tasks} deployProgress={deployProgress} />}
+        {activeTab === 'Progress' && <ProgressPanel uiState={uiState} tasks={tasks} deployProgress={deployProgress} deployChecklist={deployChecklist} />}
         {activeTab === 'Tokens' && (
           <div className="p-4">
             <MetricsPanel tokenUsage={tokenUsage} />

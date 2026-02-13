@@ -332,6 +332,73 @@ describe('useBuildSession', () => {
     expect(result.current.serialLines[0].line).toBe('line-0');
   });
 
+  it('handles narrator_message event', () => {
+    const { result } = renderHook(() => useBuildSession());
+    act(() => {
+      result.current.handleEvent({
+        type: 'narrator_message',
+        from: 'Elisa',
+        text: 'Your minion is getting started!',
+        mood: 'excited',
+      } as any);
+    });
+    expect(result.current.narratorMessages).toHaveLength(1);
+    expect(result.current.narratorMessages[0].text).toBe('Your minion is getting started!');
+    expect(result.current.narratorMessages[0].mood).toBe('excited');
+  });
+
+  it('handles deploy_checklist event', () => {
+    const { result } = renderHook(() => useBuildSession());
+    act(() => {
+      result.current.handleEvent({
+        type: 'deploy_checklist',
+        rules: [
+          { name: 'Must compile', prompt: 'Code must compile cleanly' },
+          { name: 'Tests pass', prompt: 'All tests must pass' },
+        ],
+      });
+    });
+    expect(result.current.deployChecklist).toHaveLength(2);
+    expect(result.current.deployChecklist![0].name).toBe('Must compile');
+    expect(result.current.deployChecklist![1].prompt).toBe('All tests must pass');
+  });
+
+  it('clears deploy_checklist on deploy_complete', () => {
+    const { result } = renderHook(() => useBuildSession());
+    act(() => {
+      result.current.handleEvent({
+        type: 'deploy_checklist',
+        rules: [{ name: 'Rule', prompt: 'Prompt' }],
+      });
+    });
+    expect(result.current.deployChecklist).toHaveLength(1);
+    act(() => {
+      result.current.handleEvent({ type: 'deploy_complete', target: 'esp32' });
+    });
+    expect(result.current.deployChecklist).toBeNull();
+  });
+
+  it('handles minion_state_change event', () => {
+    const { result } = renderHook(() => useBuildSession());
+    act(() => {
+      result.current.handleEvent({
+        type: 'plan_ready',
+        tasks: [],
+        agents: [{ name: 'Sparky', role: 'builder', persona: '', status: 'idle' }],
+        explanation: '',
+      });
+    });
+    act(() => {
+      result.current.handleEvent({
+        type: 'minion_state_change',
+        agent_name: 'Sparky',
+        old_status: 'idle',
+        new_status: 'waiting',
+      } as any);
+    });
+    expect(result.current.agents[0].status).toBe('waiting');
+  });
+
   describe('startBuild validation error handling', () => {
     let originalFetch: typeof globalThis.fetch;
 

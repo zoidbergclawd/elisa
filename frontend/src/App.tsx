@@ -44,7 +44,7 @@ export default function App() {
   const {
     uiState, tasks, agents, commits, events, sessionId,
     teachingMoments, testResults, coveragePct, tokenUsage,
-    serialLines, deployProgress, gateRequest, questionRequest,
+    serialLines, deployProgress, deployChecklist, gateRequest, questionRequest,
     nuggetDir, errorNotification, narratorMessages,
     handleEvent, startBuild, clearGateRequest, clearQuestionRequest,
     clearErrorNotification,
@@ -312,6 +312,7 @@ export default function App() {
         uiState={uiState}
         tasks={tasks}
         deployProgress={deployProgress ?? null}
+        deployChecklist={deployChecklist ?? null}
         tokenUsage={tokenUsage}
       />
 
