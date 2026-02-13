@@ -9,7 +9,7 @@ elisa/
   electron/          Electron main process + preload
   backend/           Express 5 API server
     src/
-      routes/        REST endpoints (sessions, health)
+      routes/        REST endpoints (sessions, workspace, health)
       services/      Orchestrator, phases, runners, hardware, portals
         phases/      Plan, execute, test, deploy phase handlers
       models/        TypeScript type definitions
@@ -64,7 +64,7 @@ elisa/
 | `backend/src/services/phases/planPhase.ts` | Calls MetaPlanner, builds DAG, early teaching moments |
 | `backend/src/services/phases/executePhase.ts` | Streaming-parallel task execution (3 concurrent, Promise.race) |
 | `backend/src/services/phases/testPhase.ts` | Test runner invocation and result reporting |
-| `backend/src/services/phases/deployPhase.ts` | Hardware flash, portal deploy, serial monitor |
+| `backend/src/services/phases/deployPhase.ts` | Web preview, hardware flash, portal deploy, serial monitor |
 
 ### Backend Support Services
 
@@ -77,6 +77,7 @@ elisa/
 | `backend/src/services/skillRunner.ts` | Step-by-step SkillPlan execution with user interaction |
 | `backend/src/services/teachingEngine.ts` | Age-appropriate learning moments (curriculum + Claude) |
 | `backend/src/services/portalService.ts` | MCP + CLI portal adapters with command allowlist |
+| `backend/src/routes/workspace.ts` | Workspace save/load endpoints for design artifact persistence |
 
 ### Backend Utilities
 

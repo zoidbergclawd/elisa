@@ -62,6 +62,7 @@ Root `package.json` manages Electron and build tooling. Frontend and backend rem
    c. TEST:    TestRunner executes pytest, parses results + coverage
    d. REVIEW:  Optional reviewer agent pass
    e. DEPLOY:  Surface before_deploy rules as deploy_checklist event
+               If web: build -> find serve dir -> start local HTTP server -> open browser
                If ESP32: compile -> flash -> serial monitor
                If CLI portals: execute via CliPortalAdapter (no shell)
 5. session_complete event with summary
@@ -119,7 +120,7 @@ idle -> planning -> executing -> testing -> reviewing -> deploying -> done
 ## Storage
 
 - **Session state**: In-memory `Map<sessionId, Session>` with optional JSON persistence for crash recovery
-- **Workspace**: Temp directory per session (`/tmp/elisa-nugget-{timestamp}`) containing generated code, tests, git repo, and `.elisa/` metadata
+- **Workspace**: Temp directory per session (`/tmp/elisa-nugget-{timestamp}`) or user-chosen directory. Contains generated code, tests, git repo, `.elisa/` metadata, and design artifacts (nugget.json, dag.json, workspace.json, etc.)
 - **localStorage**: Workspace JSON, skills, and rules auto-saved in browser (`elisa:workspace`, `elisa:skills`, `elisa:rules`). Restored on page load.
 - **Nugget files**: `.elisa` zip format for export/import (workspace + skills + rules + generated code)
 - **No database**

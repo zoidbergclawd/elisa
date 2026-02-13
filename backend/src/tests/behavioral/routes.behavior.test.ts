@@ -152,6 +152,63 @@ describe('POST /api/sessions/:id/start', () => {
     });
     expect(res.status).toBe(404);
   });
+
+  it('rejects workspace_path that is not a string', async () => {
+    server = await startServer(0);
+    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST' });
+    const { session_id } = await createRes.json();
+
+    const validSpec = { nugget: { goal: 'Build an app', type: 'software' } };
+    const res = await fetch(`${baseUrl()}/api/sessions/${session_id}/start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ spec: validSpec, workspace_path: 12345 }),
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.detail).toMatch(/workspace_path/i);
+  });
+
+  it('rejects workspace_path exceeding 500 characters', async () => {
+    server = await startServer(0);
+    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST' });
+    const { session_id } = await createRes.json();
+
+    const validSpec = { nugget: { goal: 'Build an app', type: 'software' } };
+    const longPath = 'C:\\' + 'a'.repeat(500);
+    const res = await fetch(`${baseUrl()}/api/sessions/${session_id}/start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ spec: validSpec, workspace_path: longPath }),
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.detail).toMatch(/workspace_path/i);
+  });
+
+  it('accepts a valid spec with workspace_path and returns started', async () => {
+    server = await startServer(0);
+    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST' });
+    const { session_id } = await createRes.json();
+
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const tmpDir = path.join(os.tmpdir(), `elisa-ws-session-test-${Date.now()}`);
+
+    const validSpec = { nugget: { goal: 'Build a weather app', type: 'software' } };
+    const res = await fetch(`${baseUrl()}/api/sessions/${session_id}/start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ spec: validSpec, workspace_path: tmpDir }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.status).toBe('started');
+
+    // Cleanup
+    const fs = await import('node:fs');
+    if (fs.existsSync(tmpDir)) fs.rmSync(tmpDir, { recursive: true });
+  });
 });
 
 describe('POST /api/sessions/:id/stop', () => {
@@ -369,6 +426,121 @@ describe('POST /api/skills/run', () => {
       body: JSON.stringify({ plan }),
     });
     expect(res.status).toBe(400);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Workspace routes: /api/workspace
+// ---------------------------------------------------------------------------
+
+describe('POST /api/workspace/save', () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    server = await startServer(0);
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const fs = await import('node:fs');
+    tmpDir = path.join(os.tmpdir(), `elisa-ws-test-${Date.now()}`);
+    // Ensure clean start
+    if (fs.existsSync(tmpDir)) fs.rmSync(tmpDir, { recursive: true });
+  });
+
+  it('returns 400 when workspace_path is missing', async () => {
+    const res = await fetch(`${baseUrl()}/api/workspace/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.detail).toBe('workspace_path is required');
+  });
+
+  it('saves design files to the specified directory', async () => {
+    const res = await fetch(`${baseUrl()}/api/workspace/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        workspace_path: tmpDir,
+        workspace_json: { blocks: [] },
+        skills: [{ id: 's1', name: 'test' }],
+        rules: [],
+        portals: [],
+      }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.status).toBe('saved');
+
+    // Verify files were written
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    expect(fs.existsSync(path.join(tmpDir, 'workspace.json'))).toBe(true);
+    expect(fs.existsSync(path.join(tmpDir, 'skills.json'))).toBe(true);
+    expect(fs.existsSync(path.join(tmpDir, 'rules.json'))).toBe(true);
+    expect(fs.existsSync(path.join(tmpDir, 'portals.json'))).toBe(true);
+
+    const skills = JSON.parse(fs.readFileSync(path.join(tmpDir, 'skills.json'), 'utf-8'));
+    expect(skills).toEqual([{ id: 's1', name: 'test' }]);
+
+    // Cleanup
+    fs.rmSync(tmpDir, { recursive: true });
+  });
+});
+
+describe('POST /api/workspace/load', () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    server = await startServer(0);
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const fs = await import('node:fs');
+    tmpDir = path.join(os.tmpdir(), `elisa-ws-load-test-${Date.now()}`);
+    fs.mkdirSync(tmpDir, { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, 'workspace.json'), JSON.stringify({ blocks: [1] }), 'utf-8');
+    fs.writeFileSync(path.join(tmpDir, 'skills.json'), JSON.stringify([{ id: 's1' }]), 'utf-8');
+  });
+
+  it('returns 400 when workspace_path is missing', async () => {
+    const res = await fetch(`${baseUrl()}/api/workspace/load`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.detail).toBe('workspace_path is required');
+  });
+
+  it('returns 404 for nonexistent directory', async () => {
+    const res = await fetch(`${baseUrl()}/api/workspace/load`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workspace_path: '/nonexistent/path/that/does/not/exist' }),
+    });
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body.detail).toBe('Directory not found');
+  });
+
+  it('loads design files from the specified directory', async () => {
+    const res = await fetch(`${baseUrl()}/api/workspace/load`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workspace_path: tmpDir }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.workspace).toEqual({ blocks: [1] });
+    expect(body.skills).toEqual([{ id: 's1' }]);
+    expect(body.rules).toEqual([]);  // file doesn't exist, defaults to []
+    expect(body.portals).toEqual([]); // file doesn't exist, defaults to []
+
+    // Cleanup
+    const fs = await import('node:fs');
+    fs.rmSync(tmpDir, { recursive: true });
   });
 });
 

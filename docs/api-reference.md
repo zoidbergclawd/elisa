@@ -10,7 +10,7 @@ Base URL: `http://localhost:8000/api`
 |--------|------|--------------|----------|-------------|
 | POST | `/sessions` | -- | `{ session_id: string }` | Create a new build session |
 | GET | `/sessions/:id` | -- | `BuildSession` | Get full session state |
-| POST | `/sessions/:id/start` | `{ spec: ProjectSpec }` | `{ status: "started" }` | Start build with a ProjectSpec |
+| POST | `/sessions/:id/start` | `{ spec: ProjectSpec, workspace_path?: string, workspace_json?: object }` | `{ status: "started" }` | Start build with a ProjectSpec |
 | POST | `/sessions/:id/stop` | -- | `{ status: "stopped" }` | Cancel a running build |
 | GET | `/sessions/:id/tasks` | -- | `Task[]` | List all tasks in session |
 | GET | `/sessions/:id/git` | -- | `CommitInfo[]` | Get commit history |
@@ -24,6 +24,13 @@ Base URL: `http://localhost:8000/api`
 |--------|------|--------------|----------|-------------|
 | POST | `/hardware/detect` | -- | `{ detected: boolean, port?: string, board_type?: string }` | Detect connected ESP32 |
 | POST | `/hardware/flash/:id` | -- | `{ success: boolean, message: string }` | Flash session output to board |
+
+### Workspace
+
+| Method | Path | Request Body | Response | Description |
+|--------|------|--------------|----------|-------------|
+| POST | `/workspace/save` | `{ workspace_path, workspace_json?, skills?, rules?, portals? }` | `{ status: "saved" }` | Save design files to directory |
+| POST | `/workspace/load` | `{ workspace_path }` | `{ workspace, skills, rules, portals }` | Load design files from directory |
 
 ### Other
 

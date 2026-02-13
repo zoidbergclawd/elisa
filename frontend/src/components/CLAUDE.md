@@ -10,7 +10,7 @@ App.tsx
   shared/ErrorBoundary.tsx             Class component error boundary (wraps App in main.tsx)
   shared/GoButton.tsx                Build trigger with ready/building/disabled states
   shared/ReadinessBadge.tsx          Backend readiness indicator
-  BlockCanvas/WorkspaceSidebar.tsx   Vertical icon toolbar (Open/Save/Skills/Portals/Examples/Help)
+  BlockCanvas/WorkspaceSidebar.tsx   Vertical icon toolbar (Folder/Open/Save/Skills/Portals/Examples/Help)
   BlockCanvas/BlockCanvas.tsx        Blockly editor wrapper. Read-only during build. Always mounted.
   AgentTeam/AgentTeamPanel.tsx       Full-width agent cards + comms feed (Agents tab)
   TaskMap/TaskMapPanel.tsx           Full-width interactive task DAG (Tasks tab)
@@ -28,6 +28,7 @@ App.tsx
   shared/TeachingToast.tsx           Floating notification for learning moments
   shared/AgentAvatar.tsx             Status dot + role icon
   shared/ExamplePickerModal.tsx      Card grid to choose bundled example nuggets
+  shared/DirectoryPickerModal.tsx   Text input fallback for non-Electron workspace directory selection
   Skills/SkillsRulesModal.tsx        CRUD editor for custom skills/rules + template library
   Portals/PortalsModal.tsx           CRUD editor for portal connections
 ```

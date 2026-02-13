@@ -9,12 +9,14 @@ const defaultProps = {
   onPortals: vi.fn(),
   onExamples: vi.fn(),
   onHelp: vi.fn(),
+  onFolder: vi.fn(),
   saveDisabled: false,
 };
 
 describe('WorkspaceSidebar', () => {
-  it('renders all six buttons', () => {
+  it('renders all seven buttons', () => {
     render(<WorkspaceSidebar {...defaultProps} />);
+    expect(screen.getByText('Folder')).toBeInTheDocument();
     expect(screen.getByText('Open')).toBeInTheDocument();
     expect(screen.getByText('Save')).toBeInTheDocument();
     expect(screen.getByText('Skills')).toBeInTheDocument();
@@ -58,8 +60,33 @@ describe('WorkspaceSidebar', () => {
     expect(onExamples).toHaveBeenCalled();
   });
 
+  it('fires onFolder when Folder is clicked', () => {
+    const onFolder = vi.fn();
+    render(<WorkspaceSidebar {...defaultProps} onFolder={onFolder} />);
+    fireEvent.click(screen.getByText('Folder'));
+    expect(onFolder).toHaveBeenCalled();
+  });
+
   it('Save is disabled when saveDisabled is true', () => {
     render(<WorkspaceSidebar {...defaultProps} saveDisabled={true} />);
     expect(screen.getByText('Save')).toBeDisabled();
+  });
+
+  it('Folder is disabled when onFolder is not provided', () => {
+    const { onFolder: _onFolder, ...propsWithoutFolder } = defaultProps; // eslint-disable-line @typescript-eslint/no-unused-vars
+    render(<WorkspaceSidebar {...propsWithoutFolder} saveDisabled={false} />);
+    expect(screen.getByText('Folder')).toBeDisabled();
+  });
+
+  it('shows workspace path as tooltip when workspacePath is set', () => {
+    render(<WorkspaceSidebar {...defaultProps} workspacePath="C:\Projects\my-nugget" />);
+    const folderBtn = screen.getByText('Folder');
+    expect(folderBtn).toHaveAttribute('title', 'C:\\Projects\\my-nugget');
+  });
+
+  it('has no tooltip on Folder when workspacePath is not set', () => {
+    render(<WorkspaceSidebar {...defaultProps} />);
+    const folderBtn = screen.getByText('Folder');
+    expect(folderBtn).not.toHaveAttribute('title');
   });
 });

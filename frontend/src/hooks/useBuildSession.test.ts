@@ -378,6 +378,27 @@ describe('useBuildSession', () => {
     expect(result.current.deployChecklist).toBeNull();
   });
 
+  it('initializes deployUrl as null', () => {
+    const { result } = renderHook(() => useBuildSession());
+    expect(result.current.deployUrl).toBeNull();
+  });
+
+  it('sets deployUrl from deploy_complete event with url', () => {
+    const { result } = renderHook(() => useBuildSession());
+    act(() => {
+      result.current.handleEvent({ type: 'deploy_complete', target: 'web', url: 'http://localhost:3000' });
+    });
+    expect(result.current.deployUrl).toBe('http://localhost:3000');
+  });
+
+  it('does not set deployUrl when deploy_complete has no url', () => {
+    const { result } = renderHook(() => useBuildSession());
+    act(() => {
+      result.current.handleEvent({ type: 'deploy_complete', target: 'esp32' });
+    });
+    expect(result.current.deployUrl).toBeNull();
+  });
+
   it('handles minion_state_change event', () => {
     const { result } = renderHook(() => useBuildSession());
     act(() => {

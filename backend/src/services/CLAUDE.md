@@ -11,7 +11,7 @@ Delegates to phase handlers in sequence: plan -> execute -> test -> deploy. Owns
 - **planPhase.ts** -- MetaPlanner invocation, DAG setup, teaching moments
 - **executePhase.ts** -- Streaming-parallel task execution (Promise.race pool, up to 3 concurrent), workspace setup, git mutex, context chain, token budget enforcement
 - **testPhase.ts** -- Test runner invocation, result reporting
-- **deployPhase.ts** -- Hardware flash, serial portal deployment, CLI portal execution, serial monitor
+- **deployPhase.ts** -- Web preview (local HTTP server), hardware flash, serial portal deployment, CLI portal execution, serial monitor
 - **types.ts** -- Shared `PhaseContext` and `SendEvent` types
 
 ### agentRunner.ts (SDK agent runner)
@@ -53,5 +53,5 @@ Orchestrator.run(spec)
   |       TeachingEngine.check()        returns teaching moment (if any)
   |       ContextManager.update()       writes summary + structural digest
   |-> TestPhase.execute(ctx)            returns test results + coverage
-  |-> DeployPhase.deploy*(ctx)          hardware flash or portal deploy
+  |-> DeployPhase.deploy*(ctx)          web preview, hardware flash, or portal deploy
 ```

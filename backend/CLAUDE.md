@@ -19,6 +19,7 @@ src/
     sessions.ts          /api/sessions/* endpoints (create, start, stop, gate, question, export)
     hardware.ts          /api/hardware/* endpoints (detect, flash)
     skills.ts            /api/skills/* endpoints (run, answer)
+    workspace.ts         /api/workspace/* endpoints (save, load design files)
   models/
     session.ts           Type definitions: Session, Task, Agent, BuildPhase, WSEvent
   services/
@@ -68,13 +69,15 @@ src/
 | GET | /api/sessions/:id/git | Commit history |
 | GET | /api/sessions/:id/tests | Test results |
 | GET | /api/sessions/:id/export | Export nugget directory as zip |
+| POST | /api/workspace/save | Save design files to workspace directory |
+| POST | /api/workspace/load | Load design files from workspace directory |
 | POST | /api/skills/run | Start standalone skill execution |
 | POST | /api/skills/:id/answer | Answer skill question |
 | POST | /api/hardware/detect | Detect ESP32 |
 | POST | /api/hardware/flash/:id | Flash to board |
 
 ### WebSocket Events (server -> client)
-`planning_started`, `plan_ready`, `task_started`, `task_completed`, `task_failed`, `agent_output`, `commit_created`, `token_usage`, `budget_warning`, `test_result`, `coverage_update`, `deploy_started`, `deploy_progress`, `deploy_checklist`, `deploy_complete`, `serial_data`, `human_gate`, `user_question`, `skill_*`, `teaching_moment`, `narrator_message`, `permission_auto_resolved`, `minion_state_change`, `workspace_created`, `error`, `session_complete`
+`planning_started`, `plan_ready`, `task_started`, `task_completed`, `task_failed`, `agent_output`, `commit_created`, `token_usage`, `budget_warning`, `test_result`, `coverage_update`, `deploy_started`, `deploy_progress`, `deploy_checklist`, `deploy_complete` (includes `url?` for web deploys), `serial_data`, `human_gate`, `user_question`, `skill_*`, `teaching_moment`, `narrator_message`, `permission_auto_resolved`, `minion_state_change`, `workspace_created`, `error`, `session_complete`
 
 ## Key Patterns
 
