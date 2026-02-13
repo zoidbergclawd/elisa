@@ -185,7 +185,10 @@ export class ExecutePhase {
     if (this.deps.narratorService) {
       const nuggetGoal = (ctx.session.spec ?? {}).nugget?.goal ?? '';
       const msg = await this.deps.narratorService.translate('task_started', agentName, task.name ?? taskId, nuggetGoal);
-      await ctx.send({ type: 'narrator_message', from: 'Elisa', text: msg.text, mood: msg.mood, related_task_id: taskId });
+      if (msg) {
+        this.deps.narratorService.recordEmission(taskId);
+        await ctx.send({ type: 'narrator_message', from: 'Elisa', text: msg.text, mood: msg.mood, related_task_id: taskId });
+      }
     }
 
     await ctx.send({ type: 'minion_state_change', agent_name: agentName, old_status: 'idle', new_status: 'working' });
@@ -470,7 +473,10 @@ export class ExecutePhase {
         this.deps.narratorService.flushTask(taskId);
         const nuggetGoal = (ctx.session.spec ?? {}).nugget?.goal ?? '';
         const msg = await this.deps.narratorService.translate('task_completed', agentName, result?.summary ?? '', nuggetGoal);
-        await ctx.send({ type: 'narrator_message', from: 'Elisa', text: msg.text, mood: msg.mood, related_task_id: taskId });
+        if (msg) {
+          this.deps.narratorService.recordEmission(taskId);
+          await ctx.send({ type: 'narrator_message', from: 'Elisa', text: msg.text, mood: msg.mood, related_task_id: taskId });
+        }
       }
 
       // Teaching moments for tester/reviewer
@@ -501,7 +507,10 @@ export class ExecutePhase {
         this.deps.narratorService.flushTask(taskId);
         const nuggetGoal = (ctx.session.spec ?? {}).nugget?.goal ?? '';
         const msg = await this.deps.narratorService.translate('task_failed', agentName, result?.summary ?? 'Unknown error', nuggetGoal);
-        await ctx.send({ type: 'narrator_message', from: 'Elisa', text: msg.text, mood: msg.mood, related_task_id: taskId });
+        if (msg) {
+          this.deps.narratorService.recordEmission(taskId);
+          await ctx.send({ type: 'narrator_message', from: 'Elisa', text: msg.text, mood: msg.mood, related_task_id: taskId });
+        }
       }
 
       if (retryCount > maxRetries) {

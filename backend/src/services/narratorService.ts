@@ -19,12 +19,53 @@ const TRANSLATABLE_EVENTS = new Set([
   'session_complete',
 ]);
 
+interface FallbackEntry {
+  template: string;
+  mood: NarratorMessage['mood'];
+}
+
+const FALLBACKS: Record<string, FallbackEntry[]> = {
+  task_started: [
+    { template: '{agent} is getting to work!', mood: 'excited' },
+    { template: '{agent} is diving in!', mood: 'excited' },
+    { template: '{agent} just got a new mission!', mood: 'excited' },
+  ],
+  task_completed: [
+    { template: '{agent} finished their part!', mood: 'celebrating' },
+    { template: '{agent} nailed it!', mood: 'celebrating' },
+    { template: 'Another task done by {agent}!', mood: 'celebrating' },
+  ],
+  task_failed: [
+    { template: '{agent} ran into a tricky spot. Let\'s figure it out!', mood: 'concerned' },
+    { template: '{agent} hit a snag, but we can work through it!', mood: 'concerned' },
+    { template: 'Oops, {agent} needs a little help here!', mood: 'concerned' },
+  ],
+  session_complete: [
+    { template: 'Your minion squad did it! The project is complete!', mood: 'celebrating' },
+    { template: 'All done! Your minions built something awesome!', mood: 'celebrating' },
+    { template: 'Mission accomplished! Great teamwork by your minions!', mood: 'celebrating' },
+  ],
+  error: [
+    { template: 'Hmm, something unexpected happened. Hang tight!', mood: 'concerned' },
+    { template: 'We hit a bump in the road, but don\'t worry!', mood: 'concerned' },
+    { template: 'Something tricky happened. Let\'s sort it out!', mood: 'concerned' },
+  ],
+  default: [
+    { template: '{agent} is making progress!', mood: 'encouraging' },
+    { template: '{agent} is chugging along nicely!', mood: 'encouraging' },
+    { template: '{agent} is working away!', mood: 'encouraging' },
+  ],
+};
+
 export class NarratorService {
   private client: Anthropic | null = null;
   private history: string[] = [];
   private model: string;
   private debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private debounceBuffers = new Map<string, string[]>();
+  private lastMessageTimes = new Map<string, number>();
+  private lastMessageText = '';
+  private fallbackIndex = 0;
 
   constructor(model?: string) {
     this.model = model ?? process.env.NARRATOR_MODEL ?? 'claude-haiku-4-5-20241022';
@@ -39,7 +80,7 @@ export class NarratorService {
     agentName: string,
     content: string,
     nuggetGoal: string,
-  ): Promise<NarratorMessage> {
+  ): Promise<NarratorMessage | null> {
     const prompt = narratorUserPrompt({
       eventType,
       agentName,
@@ -48,13 +89,14 @@ export class NarratorService {
       recentHistory: this.history.slice(-5),
     });
 
+    let msg: NarratorMessage;
     try {
       if (!this.client) {
         this.client = new Anthropic();
       }
 
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 1000);
+      const timeout = setTimeout(() => controller.abort(), 4000);
 
       const response = await this.client.messages.create(
         {
@@ -69,17 +111,26 @@ export class NarratorService {
       clearTimeout(timeout);
 
       const text = response.content[0]?.type === 'text' ? response.content[0].text : '';
-      const parsed = this.parseResponse(text);
-      this.history.push(parsed.text);
-      if (this.history.length > 10) this.history.shift();
-      return parsed;
+      msg = this.parseResponse(text);
     } catch {
-      // Timeout or API error -- return fallback
-      return this.fallback(eventType, agentName);
+      // Timeout or API error -- use fallback
+      msg = this.fallback(eventType, agentName);
     }
+
+    // Dedup: suppress if identical to last message
+    if (msg.text === this.lastMessageText) return null;
+    this.lastMessageText = msg.text;
+    this.history.push(msg.text);
+    if (this.history.length > 10) this.history.shift();
+    return msg;
   }
 
-  /** Accumulate agent_output events and translate after 2s of silence. */
+  /** Record that a narrator message was emitted for a task (for rate limiting). */
+  recordEmission(taskId: string): void {
+    this.lastMessageTimes.set(taskId, Date.now());
+  }
+
+  /** Accumulate agent_output events and translate after 10s of silence. */
   accumulateOutput(
     taskId: string,
     content: string,
@@ -102,14 +153,17 @@ export class NarratorService {
       this.debounceBuffers.delete(taskId);
       if (!accumulated || accumulated.length === 0) return;
 
+      // Rate limit: skip if <15s since last emission for this task
+      const lastTime = this.lastMessageTimes.get(taskId) ?? 0;
+      if (Date.now() - lastTime < 15000) return;
+
       const batchText = accumulated.join('\n').slice(0, 1000);
-      try {
-        const msg = await this.translate('agent_output', agentName, batchText, nuggetGoal);
+      const msg = await this.translate('agent_output', agentName, batchText, nuggetGoal);
+      if (msg) {
+        this.lastMessageTimes.set(taskId, Date.now());
         onTranslated(msg);
-      } catch {
-        onTranslated(this.fallback('agent_output', agentName));
       }
-    }, 2000);
+    }, 10000);
 
     this.debounceTimers.set(taskId, timer);
   }
@@ -122,6 +176,7 @@ export class NarratorService {
       this.debounceTimers.delete(taskId);
     }
     this.debounceBuffers.delete(taskId);
+    this.lastMessageTimes.delete(taskId);
   }
 
   reset(): void {
@@ -129,6 +184,9 @@ export class NarratorService {
     for (const timer of this.debounceTimers.values()) clearTimeout(timer);
     this.debounceTimers.clear();
     this.debounceBuffers.clear();
+    this.lastMessageTimes.clear();
+    this.lastMessageText = '';
+    this.fallbackIndex = 0;
   }
 
   getHistory(): string[] {
@@ -149,19 +207,8 @@ export class NarratorService {
   }
 
   private fallback(eventType: string, agentName: string): NarratorMessage {
-    switch (eventType) {
-      case 'task_started':
-        return { text: `${agentName} is getting to work!`, mood: 'excited' };
-      case 'task_completed':
-        return { text: `${agentName} finished their part!`, mood: 'celebrating' };
-      case 'task_failed':
-        return { text: `${agentName} ran into a tricky spot. Let's figure it out!`, mood: 'concerned' };
-      case 'session_complete':
-        return { text: 'Your minion squad did it! The project is complete!', mood: 'celebrating' };
-      case 'error':
-        return { text: 'Hmm, something unexpected happened. Hang tight!', mood: 'concerned' };
-      default:
-        return { text: `${agentName} is making progress!`, mood: 'encouraging' };
-    }
+    const entries = FALLBACKS[eventType] ?? FALLBACKS.default;
+    const entry = entries[this.fallbackIndex++ % entries.length];
+    return { text: entry.template.replace('{agent}', agentName), mood: entry.mood };
   }
 }
