@@ -110,13 +110,14 @@ export default function SkillsRulesModal({ skills, rules, onSkillsChange, onRule
   }
 
   return (
-    <div className="fixed inset-0 modal-backdrop z-50 flex items-center justify-center">
+    <div className="fixed inset-0 modal-backdrop z-50 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="skills-modal-title">
       <div className="glass-elevated rounded-2xl shadow-2xl p-6 max-w-lg mx-4 w-full max-h-[80vh] flex flex-col animate-float-in">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-display font-bold text-atelier-text">Skills & Rules</h2>
+          <h2 id="skills-modal-title" className="text-xl font-display font-bold text-atelier-text">Skills & Rules</h2>
           <button
             onClick={onClose}
             className="text-atelier-text-muted hover:text-atelier-text text-lg font-bold transition-colors"
+            aria-label="Close"
           >
             X
           </button>

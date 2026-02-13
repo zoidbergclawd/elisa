@@ -6,8 +6,7 @@ import BottomBar from './components/BottomBar/BottomBar';
 import GoButton from './components/shared/GoButton';
 import MainTabBar, { type MainTab } from './components/shared/MainTabBar';
 import WorkspaceSidebar from './components/BlockCanvas/WorkspaceSidebar';
-import AgentTeamPanel from './components/AgentTeam/AgentTeamPanel';
-import TaskMapPanel from './components/TaskMap/TaskMapPanel';
+import MissionControlPanel from './components/MissionControl/MissionControlPanel';
 import TeachingToast from './components/shared/TeachingToast';
 import HumanGateModal from './components/shared/HumanGateModal';
 import QuestionModal from './components/shared/QuestionModal';
@@ -46,7 +45,7 @@ export default function App() {
     uiState, tasks, agents, commits, events, sessionId,
     teachingMoments, testResults, coveragePct, tokenUsage,
     serialLines, deployProgress, gateRequest, questionRequest,
-    nuggetDir, errorNotification,
+    nuggetDir, errorNotification, narratorMessages,
     handleEvent, startBuild, clearGateRequest, clearQuestionRequest,
     clearErrorNotification,
   } = useBuildSession();
@@ -126,7 +125,7 @@ export default function App() {
   // Auto-switch to agents tab when build starts
   useEffect(() => {
     if (uiState === 'building' && activeMainTab === 'workspace') {
-      setActiveMainTab('agents');
+      setActiveMainTab('mission');
     }
   }, [uiState]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -263,7 +262,7 @@ export default function App() {
       />
 
       {/* Main area: tabbed content */}
-      <div className="flex flex-1 overflow-hidden relative z-10">
+      <main className="flex flex-1 overflow-hidden relative z-10">
         {/* Workspace tab: sidebar + BlockCanvas (always mounted, hidden when not active) */}
         <div className={activeMainTab === 'workspace' ? 'flex w-full h-full' : 'hidden'}>
           <WorkspaceSidebar
@@ -288,20 +287,20 @@ export default function App() {
           </div>
         </div>
 
-        {/* Agents tab */}
-        {activeMainTab === 'agents' && (
+        {/* Mission Control tab */}
+        {activeMainTab === 'mission' && (
           <div className="w-full h-full">
-            <AgentTeamPanel spec={spec} agents={agents} events={events} />
+            <MissionControlPanel
+              tasks={tasks}
+              agents={agents}
+              events={events}
+              narratorMessages={narratorMessages}
+              spec={spec}
+              uiState={uiState}
+            />
           </div>
         )}
-
-        {/* Tasks tab */}
-        {activeMainTab === 'tasks' && (
-          <div className="w-full h-full">
-            <TaskMapPanel tasks={tasks} />
-          </div>
-        )}
-      </div>
+      </main>
 
       {/* Bottom bar */}
       <BottomBar
@@ -368,11 +367,11 @@ export default function App() {
 
       {/* Help modal */}
       {helpOpen && (
-        <div className="fixed inset-0 modal-backdrop z-50 flex items-center justify-center" onClick={() => setHelpOpen(false)}>
+        <div className="fixed inset-0 modal-backdrop z-50 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="help-modal-title" onClick={() => setHelpOpen(false)}>
           <div className="glass-elevated rounded-2xl shadow-2xl p-6 max-w-md mx-4 animate-float-in" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-display font-bold gradient-text-warm">Getting Started</h2>
-              <button onClick={() => setHelpOpen(false)} className="text-atelier-text-secondary hover:text-atelier-text cursor-pointer">x</button>
+              <h2 id="help-modal-title" className="text-lg font-display font-bold gradient-text-warm">Getting Started</h2>
+              <button onClick={() => setHelpOpen(false)} className="text-atelier-text-secondary hover:text-atelier-text cursor-pointer" aria-label="Close">x</button>
             </div>
             <div className="space-y-3 text-sm text-atelier-text-secondary">
               <div>
@@ -385,7 +384,7 @@ export default function App() {
               </div>
               <div>
                 <h3 className="font-semibold text-atelier-text mb-1">3. Press GO</h3>
-                <p>Elisa plans tasks, assigns agents, and builds your project automatically.</p>
+                <p>Elisa plans tasks, sends your minion squad, and builds your project automatically.</p>
               </div>
               <div className="pt-2 border-t border-border-subtle">
                 <h3 className="font-semibold text-atelier-text mb-1">Sidebar</h3>
@@ -403,7 +402,7 @@ export default function App() {
 
       {/* Error notification banner */}
       {errorNotification && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 max-w-lg w-full mx-4 animate-float-in">
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 max-w-lg w-full mx-4 animate-float-in" role="alert">
           <div className="glass-elevated rounded-xl border border-red-500/30 bg-red-950/40 px-5 py-3 flex items-start gap-3 shadow-lg">
             <span className="text-red-400 text-lg leading-none mt-0.5">!</span>
             <div className="flex-1 min-w-0">
@@ -413,6 +412,7 @@ export default function App() {
             <button
               onClick={clearErrorNotification}
               className="text-red-400/60 hover:text-red-300 text-lg leading-none cursor-pointer"
+              aria-label="Dismiss error"
             >
               x
             </button>
@@ -432,9 +432,9 @@ export default function App() {
 
       {/* Done mode overlay */}
       {uiState === 'done' && (
-        <div className="fixed inset-0 modal-backdrop z-40 flex items-center justify-center">
+        <div className="fixed inset-0 modal-backdrop z-40 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="done-modal-title">
           <div className="glass-elevated rounded-2xl shadow-2xl p-8 max-w-md mx-4 text-center animate-float-in">
-            <h2 className="text-2xl font-display font-bold mb-4 gradient-text-warm">Nugget Complete!</h2>
+            <h2 id="done-modal-title" className="text-2xl font-display font-bold mb-4 gradient-text-warm">Nugget Complete!</h2>
             <p className="text-atelier-text-secondary mb-4">
               {events.find(e => e.type === 'session_complete')?.type === 'session_complete'
                 ? (events.find(e => e.type === 'session_complete') as { type: 'session_complete'; summary: string }).summary

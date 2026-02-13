@@ -22,10 +22,10 @@ const CATEGORY_COLORS: Record<ExampleNugget['category'], string> = {
 
 export default function ExamplePickerModal({ examples, onSelect, onClose }: Props) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center modal-backdrop">
+    <div className="fixed inset-0 z-50 flex items-center justify-center modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="examples-modal-title">
       <div className="glass-elevated rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[80vh] flex flex-col animate-float-in">
         <div className="px-6 py-5 border-b border-border-subtle">
-          <h2 className="text-xl font-display font-bold text-atelier-text">Choose a Nugget to Explore</h2>
+          <h2 id="examples-modal-title" className="text-xl font-display font-bold text-atelier-text">Choose a Nugget to Explore</h2>
           <p className="text-sm text-atelier-text-muted mt-1">Pick an example to see how it works, or start from scratch.</p>
         </div>
 

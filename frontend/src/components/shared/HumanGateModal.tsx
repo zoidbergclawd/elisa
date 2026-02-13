@@ -38,9 +38,9 @@ export default function HumanGateModal({ taskId, question, context, sessionId, o
   };
 
   return (
-    <div className="fixed inset-0 modal-backdrop z-50 flex items-center justify-center">
+    <div className="fixed inset-0 modal-backdrop z-50 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="gate-modal-title">
       <div className="glass-elevated rounded-2xl shadow-2xl p-6 max-w-lg mx-4 w-full animate-float-in">
-        <h2 className="text-xl font-display font-bold mb-3 text-atelier-text">{question}</h2>
+        <h2 id="gate-modal-title" className="text-xl font-display font-bold mb-3 text-atelier-text">{question}</h2>
         <p className="text-atelier-text-secondary text-sm mb-4">{context}</p>
 
         {showFeedback && (

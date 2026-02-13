@@ -60,9 +60,9 @@ export default function QuestionModal({ taskId, questions, sessionId, onClose }:
   };
 
   return (
-    <div className="fixed inset-0 modal-backdrop z-50 flex items-center justify-center">
+    <div className="fixed inset-0 modal-backdrop z-50 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="question-modal-title">
       <div className="glass-elevated rounded-2xl shadow-2xl p-6 max-w-lg mx-4 w-full max-h-[80vh] overflow-y-auto animate-float-in">
-        <h2 className="text-lg font-display font-bold mb-4 text-atelier-text">Your helpers have a question</h2>
+        <h2 id="question-modal-title" className="text-lg font-display font-bold mb-4 text-atelier-text">Your helpers have a question</h2>
 
         {questions.map((q, qIndex) => (
           <div key={qIndex} className="mb-5">

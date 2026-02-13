@@ -36,7 +36,7 @@ describe('TeachingToast', () => {
       explanation: 'Testing.',
     };
     render(<TeachingToast moment={moment} onDismiss={onDismiss} />);
-    fireEvent.click(screen.getByLabelText('Dismiss'));
+    fireEvent.click(screen.getByLabelText('Dismiss notification'));
     expect(onDismiss).toHaveBeenCalledOnce();
   });
 

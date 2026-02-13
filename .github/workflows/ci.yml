@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            backend/node_modules
+            frontend/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+      - run: npm install
+      - run: cd backend && npm test
+
+  frontend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            backend/node_modules
+            frontend/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+      - run: npm install
+      - run: cd frontend && npm test
+
+  frontend-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            backend/node_modules
+            frontend/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+      - run: npm install
+      - run: cd frontend && npm run lint

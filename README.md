@@ -13,6 +13,7 @@
   <img alt="React 19" src="https://img.shields.io/badge/React-19-61dafb.svg" />
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5.9-3178c6.svg" />
   <img alt="Express 5" src="https://img.shields.io/badge/Express-5-000000.svg" />
+  <img alt="CI" src="https://github.com/zoidbergclawd/elisa/actions/workflows/ci.yml/badge.svg" />
 </p>
 
 ---

@@ -20,6 +20,7 @@ export default function GoButton({ disabled, onClick, uiState }: GoButtonProps) 
     <button
       onClick={onClick}
       disabled={disabled}
+      aria-label="Start build"
       className={`go-btn px-8 py-2 text-base rounded-xl cursor-pointer ${stateClass} ${
         isReady ? 'animate-breathe-mint' : ''
       }`}

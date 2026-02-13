@@ -28,7 +28,7 @@ export default function TeachingToast({ moment, onDismiss }: Props) {
         <button
           onClick={onDismiss}
           className="text-atelier-text-muted hover:text-atelier-text ml-2 transition-colors"
-          aria-label="Dismiss"
+          aria-label="Dismiss notification"
         >
           x
         </button>
