@@ -17,6 +17,7 @@ import { TeachingEngine } from '../../services/teachingEngine.js';
 import { NuggetSpecSchema } from '../../utils/specValidator.js';
 
 let server: http.Server | null = null;
+let authToken: string | null = null;
 
 function getPort(srv: http.Server): number {
   const addr = srv.address();
@@ -28,10 +29,12 @@ function request(
   urlPath: string,
   method = 'GET',
   body?: string,
+  extraHeaders?: Record<string, string>,
 ): Promise<{ status: number; headers: http.IncomingHttpHeaders; body: string }> {
   return new Promise((resolve, reject) => {
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = { ...extraHeaders };
     if (body) headers['Content-Type'] = 'application/json';
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
     const req = http.request(
       { hostname: '127.0.0.1', port, path: urlPath, method, headers },
       (res) => {
@@ -51,7 +54,14 @@ afterEach(async () => {
     await new Promise<void>((r) => server!.close(() => r()));
     server = null;
   }
+  authToken = null;
 });
+
+async function startTestServer(): Promise<void> {
+  const result = await startServer(0);
+  server = result.server;
+  authToken = result.authToken;
+}
 
 describe('BUG-1: TeachingEngine nuggetType fix', () => {
   it('calls apiFallback with nuggetType parameter', async () => {
@@ -161,8 +171,8 @@ describe('SEC-S2: NuggetSpec Zod validation', () => {
   });
 
   it('returns 400 on invalid spec at /api/sessions/:id/start', async () => {
-    server = await startServer(0);
-    const port = getPort(server);
+    await startTestServer();
+    const port = getPort(server!);
 
     // Create a session first
     const createRes = await request(port, '/api/sessions', 'POST');
@@ -188,9 +198,21 @@ describe('SEC-S2: NuggetSpec Zod validation', () => {
 
 describe('SEC-S5: Health endpoint error sanitization', () => {
   it('does not expose raw API key error messages', async () => {
-    server = await startServer(0);
-    const port = getPort(server);
-    const res = await request(port, '/api/health');
+    await startTestServer();
+    const port = getPort(server!);
+    // Health endpoint doesn't need auth; use a direct request without token
+    const res = await new Promise<{ status: number; body: string }>((resolve, reject) => {
+      const req = http.request(
+        { hostname: '127.0.0.1', port, path: '/api/health', method: 'GET' },
+        (res) => {
+          let data = '';
+          res.on('data', (chunk) => { data += chunk; });
+          res.on('end', () => resolve({ status: res.statusCode!, body: data }));
+        },
+      );
+      req.on('error', reject);
+      req.end();
+    });
     const body = JSON.parse(res.body);
     // apiKeyError should be either undefined or a generic message
     if (body.apiKeyError) {
@@ -201,11 +223,11 @@ describe('SEC-S5: Health endpoint error sanitization', () => {
 
 describe('SEC-S6: WebSocket session validation', () => {
   it('rejects WebSocket connection for non-existent session', async () => {
-    server = await startServer(0);
-    const port = getPort(server);
+    await startTestServer();
+    const port = getPort(server!);
 
     const connectPromise = new Promise<void>((resolve, reject) => {
-      const ws = new WebSocket(`ws://127.0.0.1:${port}/ws/session/nonexistent-session-id`);
+      const ws = new WebSocket(`ws://127.0.0.1:${port}/ws/session/nonexistent-session-id?token=${authToken}`);
       ws.on('open', () => {
         ws.close();
         reject(new Error('Connection should have been rejected'));
@@ -218,15 +240,15 @@ describe('SEC-S6: WebSocket session validation', () => {
   });
 
   it('accepts WebSocket connection for existing session', async () => {
-    server = await startServer(0);
-    const port = getPort(server);
+    await startTestServer();
+    const port = getPort(server!);
 
     // Create a session
     const createRes = await request(port, '/api/sessions', 'POST');
     const { session_id } = JSON.parse(createRes.body);
 
     const ws = await new Promise<WebSocket>((resolve, reject) => {
-      const ws = new WebSocket(`ws://127.0.0.1:${port}/ws/session/${session_id}`);
+      const ws = new WebSocket(`ws://127.0.0.1:${port}/ws/session/${session_id}?token=${authToken}`);
       ws.on('open', () => resolve(ws));
       ws.on('error', reject);
     });

@@ -45,6 +45,7 @@ vi.mock('../../services/skillRunner.js', () => {
 import { startServer } from '../../server.js';
 
 let server: http.Server | null = null;
+let authToken: string | null = null;
 
 function getPort(srv: http.Server): number {
   const addr = srv.address();
@@ -55,11 +56,30 @@ function baseUrl(): string {
   return `http://127.0.0.1:${getPort(server!)}`;
 }
 
+/** Convenience: returns headers with auth token. */
+function authHeaders(extra?: Record<string, string>): Record<string, string> {
+  return {
+    ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+    ...extra,
+  };
+}
+
+function jsonAuthHeaders(): Record<string, string> {
+  return authHeaders({ 'Content-Type': 'application/json' });
+}
+
+async function startTestServer(): Promise<void> {
+  const result = await startServer(0);
+  server = result.server;
+  authToken = result.authToken;
+}
+
 afterEach(async () => {
   if (server) {
     await new Promise<void>((r) => server!.close(() => r()));
     server = null;
   }
+  authToken = null;
 });
 
 // ---------------------------------------------------------------------------
@@ -68,8 +88,8 @@ afterEach(async () => {
 
 describe('POST /api/sessions', () => {
   it('creates a session and returns session_id', async () => {
-    server = await startServer(0);
-    const res = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST' });
+    await startTestServer();
+    const res = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST', headers: authHeaders() });
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body).toHaveProperty('session_id');
@@ -80,12 +100,12 @@ describe('POST /api/sessions', () => {
 
 describe('GET /api/sessions/:id', () => {
   it('returns session data for an existing session', async () => {
-    server = await startServer(0);
+    await startTestServer();
     // Create a session first
-    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST' });
+    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST', headers: authHeaders() });
     const { session_id } = await createRes.json();
 
-    const res = await fetch(`${baseUrl()}/api/sessions/${session_id}`);
+    const res = await fetch(`${baseUrl()}/api/sessions/${session_id}`, { headers: authHeaders() });
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.id).toBe(session_id);
@@ -95,8 +115,8 @@ describe('GET /api/sessions/:id', () => {
   });
 
   it('returns 404 for a non-existent session', async () => {
-    server = await startServer(0);
-    const res = await fetch(`${baseUrl()}/api/sessions/nonexistent`);
+    await startTestServer();
+    const res = await fetch(`${baseUrl()}/api/sessions/nonexistent`, { headers: authHeaders() });
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body.detail).toBe('Session not found');
@@ -105,8 +125,8 @@ describe('GET /api/sessions/:id', () => {
 
 describe('POST /api/sessions/:id/start', () => {
   it('rejects an invalid spec with 400', async () => {
-    server = await startServer(0);
-    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST' });
+    await startTestServer();
+    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST', headers: authHeaders() });
     const { session_id } = await createRes.json();
 
     // Send a spec with a field that violates the schema (e.g. goal > 2000 chars)
@@ -115,7 +135,7 @@ describe('POST /api/sessions/:id/start', () => {
     };
     const res = await fetch(`${baseUrl()}/api/sessions/${session_id}/start`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: jsonAuthHeaders(),
       body: JSON.stringify({ spec: invalidSpec }),
     });
     expect(res.status).toBe(400);
@@ -126,8 +146,8 @@ describe('POST /api/sessions/:id/start', () => {
   });
 
   it('accepts a valid spec and returns started', async () => {
-    server = await startServer(0);
-    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST' });
+    await startTestServer();
+    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST', headers: authHeaders() });
     const { session_id } = await createRes.json();
 
     const validSpec = {
@@ -135,7 +155,7 @@ describe('POST /api/sessions/:id/start', () => {
     };
     const res = await fetch(`${baseUrl()}/api/sessions/${session_id}/start`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: jsonAuthHeaders(),
       body: JSON.stringify({ spec: validSpec }),
     });
     expect(res.status).toBe(200);
@@ -144,24 +164,24 @@ describe('POST /api/sessions/:id/start', () => {
   });
 
   it('returns 404 for non-existent session', async () => {
-    server = await startServer(0);
+    await startTestServer();
     const res = await fetch(`${baseUrl()}/api/sessions/nonexistent/start`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: jsonAuthHeaders(),
       body: JSON.stringify({ spec: {} }),
     });
     expect(res.status).toBe(404);
   });
 
   it('rejects workspace_path that is not a string', async () => {
-    server = await startServer(0);
-    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST' });
+    await startTestServer();
+    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST', headers: authHeaders() });
     const { session_id } = await createRes.json();
 
     const validSpec = { nugget: { goal: 'Build an app', type: 'software' } };
     const res = await fetch(`${baseUrl()}/api/sessions/${session_id}/start`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: jsonAuthHeaders(),
       body: JSON.stringify({ spec: validSpec, workspace_path: 12345 }),
     });
     expect(res.status).toBe(400);
@@ -170,15 +190,15 @@ describe('POST /api/sessions/:id/start', () => {
   });
 
   it('rejects workspace_path exceeding 500 characters', async () => {
-    server = await startServer(0);
-    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST' });
+    await startTestServer();
+    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST', headers: authHeaders() });
     const { session_id } = await createRes.json();
 
     const validSpec = { nugget: { goal: 'Build an app', type: 'software' } };
     const longPath = 'C:\\' + 'a'.repeat(500);
     const res = await fetch(`${baseUrl()}/api/sessions/${session_id}/start`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: jsonAuthHeaders(),
       body: JSON.stringify({ spec: validSpec, workspace_path: longPath }),
     });
     expect(res.status).toBe(400);
@@ -187,8 +207,8 @@ describe('POST /api/sessions/:id/start', () => {
   });
 
   it('accepts a valid spec with workspace_path and returns started', async () => {
-    server = await startServer(0);
-    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST' });
+    await startTestServer();
+    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST', headers: authHeaders() });
     const { session_id } = await createRes.json();
 
     const os = await import('node:os');
@@ -198,7 +218,7 @@ describe('POST /api/sessions/:id/start', () => {
     const validSpec = { nugget: { goal: 'Build a weather app', type: 'software' } };
     const res = await fetch(`${baseUrl()}/api/sessions/${session_id}/start`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: jsonAuthHeaders(),
       body: JSON.stringify({ spec: validSpec, workspace_path: tmpDir }),
     });
     expect(res.status).toBe(200);
@@ -213,13 +233,13 @@ describe('POST /api/sessions/:id/start', () => {
 
 describe('POST /api/sessions/:id/start - race condition (#73)', () => {
   it('rejects concurrent start requests with 409', async () => {
-    server = await startServer(0);
-    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST' });
+    await startTestServer();
+    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST', headers: authHeaders() });
     const { session_id } = await createRes.json();
 
     const validSpec = { nugget: { goal: 'Build an app', type: 'software' } };
     const body = JSON.stringify({ spec: validSpec });
-    const opts = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body };
+    const opts = { method: 'POST', headers: jsonAuthHeaders(), body };
 
     // Fire two start requests concurrently
     const [res1, res2] = await Promise.all([
@@ -233,21 +253,21 @@ describe('POST /api/sessions/:id/start - race condition (#73)', () => {
   });
 
   it('resets state to idle when spec validation fails after claiming session', async () => {
-    server = await startServer(0);
-    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST' });
+    await startTestServer();
+    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST', headers: authHeaders() });
     const { session_id } = await createRes.json();
 
     // Send invalid spec
     const invalidSpec = { nugget: { goal: 'x'.repeat(2001) } };
     const res = await fetch(`${baseUrl()}/api/sessions/${session_id}/start`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: jsonAuthHeaders(),
       body: JSON.stringify({ spec: invalidSpec }),
     });
     expect(res.status).toBe(400);
 
     // Session should be back to idle so a valid start can proceed
-    const getRes = await fetch(`${baseUrl()}/api/sessions/${session_id}`);
+    const getRes = await fetch(`${baseUrl()}/api/sessions/${session_id}`, { headers: authHeaders() });
     const session = await getRes.json();
     expect(session.state).toBe('idle');
   });
@@ -255,12 +275,13 @@ describe('POST /api/sessions/:id/start - race condition (#73)', () => {
 
 describe('POST /api/sessions/:id/stop', () => {
   it('stops a session and returns stopped', async () => {
-    server = await startServer(0);
-    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST' });
+    await startTestServer();
+    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST', headers: authHeaders() });
     const { session_id } = await createRes.json();
 
     const res = await fetch(`${baseUrl()}/api/sessions/${session_id}/stop`, {
       method: 'POST',
+      headers: authHeaders(),
     });
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -268,9 +289,10 @@ describe('POST /api/sessions/:id/stop', () => {
   });
 
   it('returns 404 for a non-existent session', async () => {
-    server = await startServer(0);
+    await startTestServer();
     const res = await fetch(`${baseUrl()}/api/sessions/nonexistent/stop`, {
       method: 'POST',
+      headers: authHeaders(),
     });
     expect(res.status).toBe(404);
     const body = await res.json();
@@ -280,11 +302,11 @@ describe('POST /api/sessions/:id/stop', () => {
 
 describe('GET /api/sessions/:id/tasks', () => {
   it('returns tasks array for an existing session', async () => {
-    server = await startServer(0);
-    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST' });
+    await startTestServer();
+    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST', headers: authHeaders() });
     const { session_id } = await createRes.json();
 
-    const res = await fetch(`${baseUrl()}/api/sessions/${session_id}/tasks`);
+    const res = await fetch(`${baseUrl()}/api/sessions/${session_id}/tasks`, { headers: authHeaders() });
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(Array.isArray(body)).toBe(true);
@@ -292,8 +314,8 @@ describe('GET /api/sessions/:id/tasks', () => {
   });
 
   it('returns 404 for a non-existent session', async () => {
-    server = await startServer(0);
-    const res = await fetch(`${baseUrl()}/api/sessions/nonexistent/tasks`);
+    await startTestServer();
+    const res = await fetch(`${baseUrl()}/api/sessions/nonexistent/tasks`, { headers: authHeaders() });
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body.detail).toBe('Session not found');
@@ -302,12 +324,12 @@ describe('GET /api/sessions/:id/tasks', () => {
 
 describe('GET /api/sessions/:id/git', () => {
   it('returns 404 when session has no orchestrator', async () => {
-    server = await startServer(0);
-    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST' });
+    await startTestServer();
+    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST', headers: authHeaders() });
     const { session_id } = await createRes.json();
 
     // Session exists but has no orchestrator (not started)
-    const res = await fetch(`${baseUrl()}/api/sessions/${session_id}/git`);
+    const res = await fetch(`${baseUrl()}/api/sessions/${session_id}/git`, { headers: authHeaders() });
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body.detail).toBe('Session not found');
@@ -316,11 +338,11 @@ describe('GET /api/sessions/:id/git', () => {
 
 describe('GET /api/sessions/:id/tests', () => {
   it('returns 404 when session has no orchestrator', async () => {
-    server = await startServer(0);
-    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST' });
+    await startTestServer();
+    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST', headers: authHeaders() });
     const { session_id } = await createRes.json();
 
-    const res = await fetch(`${baseUrl()}/api/sessions/${session_id}/tests`);
+    const res = await fetch(`${baseUrl()}/api/sessions/${session_id}/tests`, { headers: authHeaders() });
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body.detail).toBe('Session not found');
@@ -329,13 +351,13 @@ describe('GET /api/sessions/:id/tests', () => {
 
 describe('POST /api/sessions/:id/gate', () => {
   it('returns 404 when session has no orchestrator', async () => {
-    server = await startServer(0);
-    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST' });
+    await startTestServer();
+    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST', headers: authHeaders() });
     const { session_id } = await createRes.json();
 
     const res = await fetch(`${baseUrl()}/api/sessions/${session_id}/gate`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: jsonAuthHeaders(),
       body: JSON.stringify({ approved: true }),
     });
     expect(res.status).toBe(404);
@@ -346,13 +368,13 @@ describe('POST /api/sessions/:id/gate', () => {
 
 describe('POST /api/sessions/:id/question', () => {
   it('returns 404 when session has no orchestrator', async () => {
-    server = await startServer(0);
-    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST' });
+    await startTestServer();
+    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST', headers: authHeaders() });
     const { session_id } = await createRes.json();
 
     const res = await fetch(`${baseUrl()}/api/sessions/${session_id}/question`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: jsonAuthHeaders(),
       body: JSON.stringify({ task_id: 'task-1', answers: {} }),
     });
     expect(res.status).toBe(404);
@@ -367,8 +389,8 @@ describe('POST /api/sessions/:id/question', () => {
 
 describe('GET /api/hardware/detect', () => {
   it('returns detected: false when no hardware connected', async () => {
-    server = await startServer(0);
-    const res = await fetch(`${baseUrl()}/api/hardware/detect`);
+    await startTestServer();
+    const res = await fetch(`${baseUrl()}/api/hardware/detect`, { headers: authHeaders() });
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.detected).toBe(false);
@@ -377,12 +399,13 @@ describe('GET /api/hardware/detect', () => {
 
 describe('POST /api/hardware/flash/:id', () => {
   it('returns 404 when session has no orchestrator', async () => {
-    server = await startServer(0);
-    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST' });
+    await startTestServer();
+    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST', headers: authHeaders() });
     const { session_id } = await createRes.json();
 
     const res = await fetch(`${baseUrl()}/api/hardware/flash/${session_id}`, {
       method: 'POST',
+      headers: authHeaders(),
     });
     expect(res.status).toBe(404);
     const body = await res.json();
@@ -396,10 +419,10 @@ describe('POST /api/hardware/flash/:id', () => {
 
 describe('POST /api/skills/run', () => {
   it('returns 400 when no plan is provided', async () => {
-    server = await startServer(0);
+    await startTestServer();
     const res = await fetch(`${baseUrl()}/api/skills/run`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: jsonAuthHeaders(),
       body: JSON.stringify({}),
     });
     expect(res.status).toBe(400);
@@ -408,14 +431,14 @@ describe('POST /api/skills/run', () => {
   });
 
   it('returns session_id when valid plan is provided', async () => {
-    server = await startServer(0);
+    await startTestServer();
     const plan = {
       skillName: 'test-skill',
       steps: [{ id: 'step-1', type: 'output', template: 'hello' }],
     };
     const res = await fetch(`${baseUrl()}/api/skills/run`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: jsonAuthHeaders(),
       body: JSON.stringify({ plan }),
     });
     expect(res.status).toBe(200);
@@ -425,14 +448,14 @@ describe('POST /api/skills/run', () => {
   });
 
   it('returns 400 when plan has invalid step type', async () => {
-    server = await startServer(0);
+    await startTestServer();
     const plan = {
       skillName: 'test-skill',
       steps: [{ id: 'step-1', type: 'unknown_type' }],
     };
     const res = await fetch(`${baseUrl()}/api/skills/run`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: jsonAuthHeaders(),
       body: JSON.stringify({ plan }),
     });
     expect(res.status).toBe(400);
@@ -441,21 +464,21 @@ describe('POST /api/skills/run', () => {
   });
 
   it('returns 400 when step prompt exceeds 5000 chars', async () => {
-    server = await startServer(0);
+    await startTestServer();
     const plan = {
       skillName: 'test-skill',
       steps: [{ id: 'step-1', type: 'run_agent', prompt: 'x'.repeat(5001), storeAs: 'result' }],
     };
     const res = await fetch(`${baseUrl()}/api/skills/run`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: jsonAuthHeaders(),
       body: JSON.stringify({ plan }),
     });
     expect(res.status).toBe(400);
   });
 
   it('returns 400 when plan has more than 50 steps', async () => {
-    server = await startServer(0);
+    await startTestServer();
     const steps = Array.from({ length: 51 }, (_, i) => ({
       id: `step-${i}`,
       type: 'output' as const,
@@ -464,7 +487,7 @@ describe('POST /api/skills/run', () => {
     const plan = { skillName: 'test-skill', steps };
     const res = await fetch(`${baseUrl()}/api/skills/run`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: jsonAuthHeaders(),
       body: JSON.stringify({ plan }),
     });
     expect(res.status).toBe(400);
@@ -479,7 +502,7 @@ describe('POST /api/workspace/save', () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    server = await startServer(0);
+    await startTestServer();
     const os = await import('node:os');
     const path = await import('node:path');
     const fs = await import('node:fs');
@@ -491,7 +514,7 @@ describe('POST /api/workspace/save', () => {
   it('returns 400 when workspace_path is missing', async () => {
     const res = await fetch(`${baseUrl()}/api/workspace/save`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: jsonAuthHeaders(),
       body: JSON.stringify({}),
     });
     expect(res.status).toBe(400);
@@ -502,7 +525,7 @@ describe('POST /api/workspace/save', () => {
   it('saves design files to the specified directory', async () => {
     const res = await fetch(`${baseUrl()}/api/workspace/save`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: jsonAuthHeaders(),
       body: JSON.stringify({
         workspace_path: tmpDir,
         workspace_json: { blocks: [] },
@@ -535,7 +558,7 @@ describe('POST /api/workspace/load', () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    server = await startServer(0);
+    await startTestServer();
     const os = await import('node:os');
     const path = await import('node:path');
     const fs = await import('node:fs');
@@ -548,7 +571,7 @@ describe('POST /api/workspace/load', () => {
   it('returns 400 when workspace_path is missing', async () => {
     const res = await fetch(`${baseUrl()}/api/workspace/load`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: jsonAuthHeaders(),
       body: JSON.stringify({}),
     });
     expect(res.status).toBe(400);
@@ -556,11 +579,25 @@ describe('POST /api/workspace/load', () => {
     expect(body.detail).toBe('workspace_path is required');
   });
 
-  it('returns 404 for nonexistent directory', async () => {
+  it('returns 400 for path outside allowed roots', async () => {
     const res = await fetch(`${baseUrl()}/api/workspace/load`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: jsonAuthHeaders(),
       body: JSON.stringify({ workspace_path: '/nonexistent/path/that/does/not/exist' }),
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.detail).toContain('outside allowed');
+  });
+
+  it('returns 404 for nonexistent directory under allowed root', async () => {
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const missingDir = path.join(os.tmpdir(), 'elisa-nonexistent-' + Date.now());
+    const res = await fetch(`${baseUrl()}/api/workspace/load`, {
+      method: 'POST',
+      headers: jsonAuthHeaders(),
+      body: JSON.stringify({ workspace_path: missingDir }),
     });
     expect(res.status).toBe(404);
     const body = await res.json();
@@ -570,7 +607,7 @@ describe('POST /api/workspace/load', () => {
   it('loads design files from the specified directory', async () => {
     const res = await fetch(`${baseUrl()}/api/workspace/load`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: jsonAuthHeaders(),
       body: JSON.stringify({ workspace_path: tmpDir }),
     });
     expect(res.status).toBe(200);
@@ -588,14 +625,14 @@ describe('POST /api/workspace/load', () => {
 
 describe('POST /api/skills/:sessionId/answer', () => {
   it('returns 404 when no skill runner exists for session', async () => {
-    server = await startServer(0);
+    await startTestServer();
     // Create a regular session (no skill runner)
-    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST' });
+    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST', headers: authHeaders() });
     const { session_id } = await createRes.json();
 
     const res = await fetch(`${baseUrl()}/api/skills/${session_id}/answer`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: jsonAuthHeaders(),
       body: JSON.stringify({ step_id: 'step-1', answers: {} }),
     });
     expect(res.status).toBe(404);

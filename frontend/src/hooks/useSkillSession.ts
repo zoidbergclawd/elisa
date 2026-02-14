@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import type { SkillPlan } from '../components/Skills/types';
 import type { WSEvent, QuestionPayload } from '../types';
 import { useWebSocket } from './useWebSocket';
+import { authFetch } from '../lib/apiClient';
 
 export interface SkillStepProgress {
   stepId: string;
@@ -76,9 +77,8 @@ export function useSkillSession() {
     setError(null);
     setQuestionRequest(null);
 
-    const res = await fetch('/api/skills/run', {
+    const res = await authFetch('/api/skills/run', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ plan, allSkills }),
     });
     if (!res.ok) {
@@ -92,9 +92,8 @@ export function useSkillSession() {
 
   const answerQuestion = useCallback(async (stepId: string, answers: Record<string, unknown>) => {
     if (!sessionId) return;
-    const res = await fetch(`/api/skills/${sessionId}/answer`, {
+    const res = await authFetch(`/api/skills/${sessionId}/answer`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ step_id: stepId, answers }),
     });
     if (!res.ok) {

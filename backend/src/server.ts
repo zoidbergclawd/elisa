@@ -2,6 +2,7 @@
 
 import 'dotenv/config';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import express from 'express';
 import { WebSocketServer, WebSocket } from 'ws';
 import http from 'node:http';
@@ -91,7 +92,7 @@ const manager = new ConnectionManager();
 
 // -- Express App --
 
-function createApp(staticDir?: string) {
+function createApp(staticDir?: string, authToken?: string) {
   const app = express();
   app.use(express.json({ limit: '1mb' }));
 
@@ -107,7 +108,7 @@ function createApp(staticDir?: string) {
     });
   }
 
-  // Health
+  // Health (no auth required)
   app.get('/api/health', (_req, res) => {
     const ready = healthStatus.apiKey === 'valid' && healthStatus.agentSdk === 'available';
     res.json({
@@ -117,6 +118,19 @@ function createApp(staticDir?: string) {
       agentSdk: healthStatus.agentSdk,
     });
   });
+
+  // Auth middleware for all other /api/* routes
+  if (authToken) {
+    app.use('/api', (req, res, next) => {
+      if (req.method === 'OPTIONS') { next(); return; }
+      const header = req.headers.authorization;
+      if (!header || header !== `Bearer ${authToken}`) {
+        res.status(401).json({ detail: 'Unauthorized' });
+        return;
+      }
+      next();
+    });
+  }
 
   // Route modules
   const sendEvent = (sessionId: string, event: Record<string, any>) =>
@@ -182,13 +196,16 @@ function createApp(staticDir?: string) {
  * Start the Express + WebSocket server.
  * @param port - Port to listen on
  * @param staticDir - If provided, serve frontend static files from this directory
- * @returns Promise that resolves with the HTTP server instance
+ * @param authToken - If provided, use as the auth token; otherwise generate one
+ * @returns Promise that resolves with the HTTP server and auth token
  */
 export function startServer(
   port: number,
   staticDir?: string,
-): Promise<http.Server> {
-  const app = createApp(staticDir);
+  authToken?: string,
+): Promise<{ server: http.Server; authToken: string }> {
+  const token = authToken ?? randomUUID();
+  const app = createApp(staticDir, token);
   const server = http.createServer(app);
   const wss = new WebSocketServer({ noServer: true });
 
@@ -197,6 +214,13 @@ export function startServer(
     const url = new URL(request.url ?? '', `http://${request.headers.host}`);
     const match = url.pathname.match(/^\/ws\/session\/(.+)$/);
     if (!match) {
+      socket.destroy();
+      return;
+    }
+
+    // Check auth token from query parameter
+    const wsToken = url.searchParams.get('token');
+    if (wsToken !== token) {
       socket.destroy();
       return;
     }
@@ -252,10 +276,11 @@ export function startServer(
   return new Promise((resolve) => {
     server.listen(port, '127.0.0.1', () => {
       console.log(`Elisa backend listening on 127.0.0.1:${port}`);
+      console.log(`Auth token: ${token}`);
       validateStartupHealth().then(() => {
         console.log(`Health: API key=${healthStatus.apiKey}, SDK=${healthStatus.agentSdk}`);
       });
-      resolve(server);
+      resolve({ server, authToken: token });
     });
   });
 }
@@ -268,7 +293,9 @@ const isDirectRun =
 
 if (isDirectRun) {
   const port = Number(process.env.PORT ?? 8000);
-  startServer(port).catch((err) => {
+  startServer(port).then(({ authToken: t }) => {
+    console.log(`Dev auth token: ${t}`);
+  }).catch((err) => {
     console.error('Failed to start server:', err.message);
     process.exit(1);
   });

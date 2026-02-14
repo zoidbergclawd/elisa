@@ -1,7 +1,7 @@
 /** Behavioral tests for server startup, CORS, and static file serving.
  *
  * Covers the startServer() refactor for Electron packaging:
- * - startServer() returns a listening HTTP server
+ * - startServer() returns a listening HTTP server + auth token
  * - CORS headers applied in dev mode (no staticDir)
  * - CORS headers absent in production mode (with staticDir)
  * - Static files served from staticDir when provided
@@ -17,6 +17,7 @@ import os from 'node:os';
 import { startServer } from '../../server.js';
 
 let server: http.Server | null = null;
+let token: string | null = null;
 let tmpDir: string | null = null;
 
 function getPort(srv: http.Server): number {
@@ -28,10 +29,11 @@ function request(
   port: number,
   urlPath: string,
   method = 'GET',
+  headers?: Record<string, string>,
 ): Promise<{ status: number; headers: http.IncomingHttpHeaders; body: string }> {
   return new Promise((resolve, reject) => {
     const req = http.request(
-      { hostname: '127.0.0.1', port, path: urlPath, method },
+      { hostname: '127.0.0.1', port, path: urlPath, method, headers },
       (res) => {
         let body = '';
         res.on('data', (chunk) => { body += chunk; });
@@ -48,6 +50,7 @@ afterEach(async () => {
     await new Promise<void>((r) => server!.close(() => r()));
     server = null;
   }
+  token = null;
   if (tmpDir) {
     fs.rmSync(tmpDir, { recursive: true, force: true });
     tmpDir = null;
@@ -64,15 +67,19 @@ function createStaticDir(): string {
 }
 
 describe('startServer', () => {
-  it('returns a listening HTTP server on the requested port', async () => {
-    server = await startServer(0);
+  it('returns a listening HTTP server and auth token', async () => {
+    const result = await startServer(0);
+    server = result.server;
+    token = result.authToken;
     const port = getPort(server);
     expect(port).toBeGreaterThan(0);
     expect(server.listening).toBe(true);
+    expect(token).toBeTruthy();
   });
 
-  it('responds to /api/health', async () => {
-    server = await startServer(0);
+  it('responds to /api/health without auth', async () => {
+    const result = await startServer(0);
+    server = result.server;
     const port = getPort(server);
     const res = await request(port, '/api/health');
     expect(res.status).toBe(200);
@@ -85,7 +92,8 @@ describe('startServer', () => {
 
 describe('CORS behavior', () => {
   it('includes CORS headers in dev mode (no staticDir)', async () => {
-    server = await startServer(0);
+    const result = await startServer(0);
+    server = result.server;
     const port = getPort(server);
     const res = await request(port, '/api/health');
     expect(res.headers['access-control-allow-origin']).toBe('http://localhost:5173');
@@ -96,7 +104,8 @@ describe('CORS behavior', () => {
 
   it('omits CORS headers in production mode (with staticDir)', async () => {
     tmpDir = createStaticDir();
-    server = await startServer(0, tmpDir);
+    const result = await startServer(0, tmpDir);
+    server = result.server;
     const port = getPort(server);
     const res = await request(port, '/api/health');
     expect(res.headers['access-control-allow-origin']).toBeUndefined();
@@ -110,7 +119,8 @@ describe('static file serving', () => {
   });
 
   it('serves static files from staticDir', async () => {
-    server = await startServer(0, tmpDir!);
+    const result = await startServer(0, tmpDir!);
+    server = result.server;
     const port = getPort(server);
     const res = await request(port, '/test.txt');
     expect(res.status).toBe(200);
@@ -118,7 +128,8 @@ describe('static file serving', () => {
   });
 
   it('serves nested static files', async () => {
-    server = await startServer(0, tmpDir!);
+    const result = await startServer(0, tmpDir!);
+    server = result.server;
     const port = getPort(server);
     const res = await request(port, '/assets/style.css');
     expect(res.status).toBe(200);
@@ -126,7 +137,8 @@ describe('static file serving', () => {
   });
 
   it('returns index.html for unknown non-API routes (SPA fallback)', async () => {
-    server = await startServer(0, tmpDir!);
+    const result = await startServer(0, tmpDir!);
+    server = result.server;
     const port = getPort(server);
     const res = await request(port, '/some/deep/route');
     expect(res.status).toBe(200);
@@ -134,16 +146,21 @@ describe('static file serving', () => {
   });
 
   it('does not apply SPA fallback to /api routes', async () => {
-    server = await startServer(0, tmpDir!);
+    const result = await startServer(0, tmpDir!);
+    server = result.server;
+    token = result.authToken;
     const port = getPort(server);
-    const res = await request(port, '/api/sessions/nonexistent');
+    const res = await request(port, '/api/sessions/nonexistent', 'GET', {
+      Authorization: `Bearer ${token}`,
+    });
     expect(res.status).toBe(404);
     const body = JSON.parse(res.body);
     expect(body.detail).toBe('Session not found');
   });
 
   it('does not serve static files when staticDir is omitted', async () => {
-    server = await startServer(0);
+    const result = await startServer(0);
+    server = result.server;
     const port = getPort(server);
     const res = await request(port, '/test.txt');
     // Without staticDir, unknown routes get no handler -> 404 or framework default

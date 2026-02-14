@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { QuestionPayload } from '../../types';
+import { authFetch } from '../../lib/apiClient';
 
 interface Props {
   taskId: string;
@@ -51,9 +52,8 @@ export default function QuestionModal({ taskId, questions, sessionId, onClose }:
       }
     }
 
-    await fetch(`/api/sessions/${sessionId}/question`, {
+    await authFetch(`/api/sessions/${sessionId}/question`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ task_id: taskId, answers: payload }),
     });
     onClose();

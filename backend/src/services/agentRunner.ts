@@ -23,6 +23,7 @@ export interface AgentRunnerParams {
   model?: string;
   maxTurns?: number;
   mcpServers?: Array<{ name: string; command: string; args?: string[]; env?: Record<string, string> }>;
+  allowedTools?: string[];
 }
 
 export class AgentRunner {
@@ -37,6 +38,7 @@ export class AgentRunner {
       model = process.env.CLAUDE_MODEL || 'claude-opus-4-6',
       maxTurns = 25,
       mcpServers,
+      allowedTools,
     } = params;
 
     const mcpConfig = mcpServers?.length
@@ -51,7 +53,7 @@ export class AgentRunner {
 
     try {
       return await withTimeout(
-        this.runQuery(prompt, systemPrompt, workingDir, taskId, onOutput, model, maxTurns, mcpConfig, abortController),
+        this.runQuery(prompt, systemPrompt, workingDir, taskId, onOutput, model, maxTurns, mcpConfig, abortController, allowedTools),
         timeout * 1000,
       );
     } catch (err: any) {
@@ -86,6 +88,7 @@ export class AgentRunner {
     maxTurns: number,
     mcpConfig?: Record<string, any>,
     abortController?: AbortController,
+    allowedTools?: string[],
   ): Promise<AgentResult> {
     const conversation = query({
       prompt,
@@ -95,6 +98,7 @@ export class AgentRunner {
         maxTurns,
         permissionMode: 'bypassPermissions',
         systemPrompt,
+        ...(allowedTools ? { allowedTools } : {}),
         ...(mcpConfig ? { mcpServers: mcpConfig } : {}),
         ...(abortController ? { abortController } : {}),
       },

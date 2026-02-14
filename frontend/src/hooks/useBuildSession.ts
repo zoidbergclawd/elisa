@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import type { NuggetSpec } from '../components/BlockCanvas/blockInterpreter';
 import type { UIState, Task, Agent, Commit, WSEvent, TeachingMoment, TestResult, TokenUsage, QuestionPayload, NarratorMessage } from '../types';
+import { authFetch } from '../lib/apiClient';
 
 export const MAX_EVENTS = 500;
 export const MAX_SERIAL_LINES = 1000;
@@ -311,7 +312,7 @@ export function useBuildSession() {
     setErrorNotification(null);
     setNarratorMessages([]);
 
-    const res = await fetch('/api/sessions', { method: 'POST' });
+    const res = await authFetch('/api/sessions', { method: 'POST' });
     if (!res.ok) {
       const body = await res.json().catch(() => ({ detail: res.statusText }));
       setUiState('design');
@@ -332,9 +333,8 @@ export function useBuildSession() {
       startBody.workspace_json = workspaceJson ?? {};
     }
 
-    const startRes = await fetch(`/api/sessions/${session_id}/start`, {
+    const startRes = await authFetch(`/api/sessions/${session_id}/start`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(startBody),
     });
     if (!startRes.ok) {

@@ -183,6 +183,8 @@ describe('useBoardDetect', () => {
       await vi.advanceTimersByTimeAsync(0);
     });
 
-    expect(fetchMock).toHaveBeenCalledWith('/api/hardware/detect');
+    expect(fetchMock).toHaveBeenCalledWith('/api/hardware/detect', expect.objectContaining({
+      headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
+    }));
   });
 });

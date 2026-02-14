@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import type { WSEvent } from '../types';
+import { getAuthToken } from '../lib/apiClient';
 
 interface UseWebSocketOptions {
   sessionId: string | null;
@@ -26,7 +27,9 @@ export function useWebSocket({ sessionId, onEvent }: UseWebSocketOptions) {
     if (!sessionId) return;
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const url = `${protocol}//${window.location.host}/ws/session/${sessionId}`;
+    const token = getAuthToken();
+    const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
+    const url = `${protocol}//${window.location.host}/ws/session/${sessionId}${tokenParam}`;
     const ws = new WebSocket(url);
 
     ws.onopen = () => {

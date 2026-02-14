@@ -19,6 +19,7 @@ let mainWindow: BrowserWindow | null = null;
 let settingsWindow: BrowserWindow | null = null;
 let serverPort: number = 8000;
 let serverInstance: { close: () => void } | null = null;
+let authToken: string | null = null;
 
 // -- API Key Management --
 
@@ -118,16 +119,19 @@ async function startBackend(): Promise<void> {
     // Dev mode: backend runs separately via concurrently (npm run dev).
     // Just use the existing backend on port 8000.
     serverPort = 8000;
+    authToken = 'dev-token';
     return;
   }
 
   // Production: start the bundled backend in-process
   serverPort = await findFreePort(8000);
   const prodPath = path.join(process.resourcesPath, 'backend-dist', 'server-entry.js');
-  const serverModule: { startServer: (port: number, staticDir?: string) => Promise<any> } =
+  const serverModule: { startServer: (port: number, staticDir?: string) => Promise<{ server: any; authToken: string }> } =
     await import(prodPath);
   const frontendDist = path.join(process.resourcesPath, 'frontend-dist');
-  serverInstance = await serverModule.startServer(serverPort, frontendDist);
+  const result = await serverModule.startServer(serverPort, frontendDist);
+  serverInstance = result.server;
+  authToken = result.authToken;
 }
 
 // -- Main Window --
@@ -219,6 +223,10 @@ ipcMain.handle('set-api-key', (_event, key: string) => {
 ipcMain.handle('open-settings', () => {
   openSettingsWindow();
   return true;
+});
+
+ipcMain.handle('get-auth-token', () => {
+  return authToken;
 });
 
 ipcMain.handle('pick-directory', async () => {

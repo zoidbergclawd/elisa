@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { authFetch } from '../lib/apiClient';
 
 export interface BoardInfo {
   port: string;
@@ -14,7 +15,7 @@ export function useBoardDetect(enabled: boolean) {
 
   const fetchBoard = useCallback(async () => {
     try {
-      const res = await fetch('/api/hardware/detect');
+      const res = await authFetch('/api/hardware/detect');
       const data = await res.json();
       if (data.detected) {
         setBoardInfo({ port: data.port, boardType: data.board_type });

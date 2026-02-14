@@ -10,6 +10,7 @@ import { Orchestrator } from '../services/orchestrator.js';
 import { AgentRunner } from '../services/agentRunner.js';
 import { SkillRunner } from '../services/skillRunner.js';
 import { NuggetSpecSchema } from '../utils/specValidator.js';
+import { validateWorkspacePath } from '../utils/pathValidator.js';
 import type { HardwareService } from '../services/hardwareService.js';
 import type { SessionStore } from '../services/sessionStore.js';
 import type { SkillSpec } from '../models/skillPlan.js';
@@ -104,21 +105,18 @@ export function createSessionRouter({ store, sendEvent, hardwareService }: Sessi
         res.status(400).json({ detail: 'workspace_path must be a string of at most 500 characters' });
         return;
       }
-      const resolved = path.resolve(rawWorkspacePath);
-      // Block obvious system directories
-      const blocked = ['/bin', '/sbin', '/usr', '/etc', '/var', '/boot', '/lib',
-        'C:\\Windows', 'C:\\Program Files', 'C:\\Program Files (x86)'];
-      if (blocked.some(b => resolved.toLowerCase().startsWith(b.toLowerCase()))) {
-        res.status(400).json({ detail: 'workspace_path points to a protected system directory' });
+      const validation = validateWorkspacePath(rawWorkspacePath);
+      if (!validation.valid) {
+        res.status(400).json({ detail: validation.reason });
         return;
       }
       try {
-        fs.mkdirSync(resolved, { recursive: true });
+        fs.mkdirSync(validation.resolved, { recursive: true });
       } catch (err: any) {
         res.status(400).json({ detail: `Cannot create workspace directory: ${err.message}` });
         return;
       }
-      workspacePath = resolved;
+      workspacePath = validation.resolved;
       entry.userWorkspace = true;
     }
 
