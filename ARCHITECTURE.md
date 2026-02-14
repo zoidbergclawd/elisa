@@ -114,8 +114,10 @@ idle -> planning -> executing -> testing -> reviewing -> deploying -> done
 - **Agent isolation**: Each agent task runs as a separate SDK `query()` call. No shared state between agents except via context summaries written to `.elisa/` in the workspace.
 - **Context chain**: After each task, a summary is written to `.elisa/context/nugget_context.md`. Subsequent agents receive this as input, creating a chain of context.
 - **Graceful degradation**: Missing tools (git, pytest, mpremote, serialport) cause warnings, not crashes.
-- **No auth**: Local-only tool. CORS enabled only in dev mode (frontend on separate origin). In production (Electron), same-origin -- no CORS needed.
-- **API key management**: In dev, read from `ANTHROPIC_API_KEY` env var. In Electron, encrypted via OS keychain (`safeStorage`) and stored locally.
+- **Bearer token auth**: Server generates a random auth token on startup. All `/api/*` routes (except `/api/health`) require `Authorization: Bearer <token>`. WebSocket upgrades require `?token=<token>` query param. In Electron, token is shared to renderer via IPC.
+- **Content safety**: All agent prompts include a Content Safety section enforcing age-appropriate output (ages 8-14). User-controlled placeholder values are sanitized before prompt interpolation.
+- **Abort propagation**: Orchestrator's AbortController signal is forwarded to each agent's SDK `query()` call. On cancel or error, agents are aborted immediately.
+- **API key management**: In dev, read from `ANTHROPIC_API_KEY` env var. In Electron, encrypted via OS keychain (`safeStorage`) and stored locally. Child processes (test runners, flash scripts, builds) receive sanitized env without the API key.
 
 ## Storage
 

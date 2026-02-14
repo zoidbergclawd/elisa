@@ -4,6 +4,7 @@ import type { BuildSession } from '../models/session.js';
 import type { Orchestrator } from './orchestrator.js';
 import type { SkillRunner } from './skillRunner.js';
 import { SessionPersistence } from '../utils/sessionPersistence.js';
+import { CLEANUP_DELAY_MS, SESSION_MAX_AGE_MS } from '../utils/constants.js';
 
 export interface SessionEntry {
   session: BuildSession;
@@ -19,6 +20,8 @@ export class SessionStore {
   private entries = new Map<string, SessionEntry>();
   private cleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private persistence: SessionPersistence | null;
+  /** Optional callback invoked when a session is removed (for external resource cleanup). */
+  onCleanup: ((sessionId: string) => void) | null = null;
 
   constructor(persistenceDir?: string | false) {
     this.persistence = persistenceDir === false
@@ -96,7 +99,7 @@ export class SessionStore {
   }
 
   /** Schedule cleanup of a session after a grace period. */
-  scheduleCleanup(id: string, delayMs = 300_000): void {
+  scheduleCleanup(id: string, delayMs = CLEANUP_DELAY_MS): void {
     // Clear any existing timer
     const existing = this.cleanupTimers.get(id);
     if (existing) clearTimeout(existing);
@@ -111,13 +114,16 @@ export class SessionStore {
       if (this.persistence) {
         try { this.persistence.remove(id); } catch { /* ignore */ }
       }
+      if (this.onCleanup) {
+        try { this.onCleanup(id); } catch { /* ignore */ }
+      }
     }, delayMs);
 
     this.cleanupTimers.set(id, timer);
   }
 
   /** Remove stale sessions older than maxAge (default 1 hour). */
-  pruneStale(maxAgeMs = 3_600_000): string[] {
+  pruneStale(maxAgeMs = SESSION_MAX_AGE_MS): string[] {
     const now = Date.now();
     const pruned: string[] = [];
     for (const [id, entry] of this.entries) {
@@ -133,6 +139,9 @@ export class SessionStore {
         }
         if (this.persistence) {
           try { this.persistence.remove(id); } catch { /* ignore */ }
+        }
+        if (this.onCleanup) {
+          try { this.onCleanup(id); } catch { /* ignore */ }
         }
         pruned.push(id);
       }

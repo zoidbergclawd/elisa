@@ -59,15 +59,17 @@ export class ContextManager {
           if (entries.length >= maxEntries) return;
           const rel = path.relative(workDir, full).replace(/\\/g, '/');
           let hint = '';
+          let fd: number | undefined;
           try {
-            const fd = fs.openSync(full, 'r');
+            fd = fs.openSync(full, 'r');
             const buf = Buffer.alloc(256);
             const bytesRead = fs.readSync(fd, buf, 0, 256, 0);
-            fs.closeSync(fd);
             const firstLine = buf.toString('utf-8', 0, bytesRead).split('\n')[0].trim();
             if (firstLine) hint = `  # ${firstLine.slice(0, 80)}`;
           } catch {
             // skip
+          } finally {
+            if (fd !== undefined) try { fs.closeSync(fd); } catch { /* ignore */ }
           }
           entries.push(`${rel}${hint}`);
         }

@@ -6,6 +6,14 @@ import {
 } from './metaPlanner.js';
 
 describe('buildMetaPlannerSystem', () => {
+  it('contains Content Safety section', () => {
+    const result = buildMetaPlannerSystem({
+      nugget: { goal: 'A game', type: 'software' },
+    });
+    expect(result).toContain('Content Safety');
+    expect(result).toContain('appropriate for children ages 8-14');
+  });
+
   it('always includes base prompt sections', () => {
     const result = buildMetaPlannerSystem({
       nugget: { goal: 'A game', type: 'software' },
@@ -175,17 +183,18 @@ describe('META_PLANNER_SYSTEM (deprecated constant)', () => {
 });
 
 describe('metaPlannerUser', () => {
-  it('wraps spec JSON into a user prompt', () => {
+  it('wraps spec JSON into a user prompt with nugget_spec tags', () => {
     const spec = JSON.stringify({ nugget: { goal: 'A game' } });
     const result = metaPlannerUser(spec);
     expect(result).toContain("kid's nugget specification");
-    expect(result).toContain('NuggetSpec:');
+    expect(result).toContain('<nugget_spec>');
+    expect(result).toContain('</nugget_spec>');
     expect(result).toContain(spec);
   });
 
-  it('preserves exact JSON content', () => {
+  it('preserves exact JSON content inside nugget_spec tags', () => {
     const spec = '{"nugget":{"goal":"Test","type":"software"},"portals":[]}';
     const result = metaPlannerUser(spec);
-    expect(result).toContain(spec);
+    expect(result).toContain(`<nugget_spec>\n${spec}\n</nugget_spec>`);
   });
 });

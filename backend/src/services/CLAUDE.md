@@ -24,7 +24,7 @@ Calls Claude API (opus model) with NuggetSpec + system prompt. Returns structure
 Wraps simple-git. Inits repo per session workspace, commits after each task with agent attribution. Tracks files changed per commit. Silently no-ops if git unavailable.
 
 ### hardwareService.ts (ESP32 integration)
-Board detection via USB VID:PID matching. Compiles MicroPython with py_compile. Flashes via mpremote. Serial monitor via serialport at 115200 baud. 60s flash timeout.
+Board detection via USB VID:PID matching. Compiles MicroPython with py_compile. Flashes via mpremote with Promise-chain mutex for concurrent flash protection. Serial monitor via serialport at 115200 baud. 60s flash timeout. Uses crypto.randomUUID() for temp file names. `probeForRepl` promisifies `sp.close()`.
 
 ### testRunner.ts (test execution)
 Detects project type from file extensions in `tests/`. Runs `pytest` for `.py` files, `node` for `.js`/`.mjs` files, merges results if both exist. Parses PASS/FAIL and TAP output formats for JS; pytest verbose output for Python. Extracts coverage for Python only. 120s timeout per runner.

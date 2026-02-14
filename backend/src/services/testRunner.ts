@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { safeEnv } from '../utils/safeEnv.js';
 import { withTimeout } from '../utils/withTimeout.js';
+import { TEST_TIMEOUT_MS } from '../utils/constants.js';
 
 /** Detect which test file types exist in a directory. */
 function detectTestTypes(testsDir: string): { hasPython: boolean; hasJs: boolean } {
@@ -105,7 +106,7 @@ export class TestRunner {
         });
         const result = await withTimeout(
           execPromise,
-          120_000,
+          TEST_TIMEOUT_MS,
           { childProcess: childProc },
         );
         stdout = result.stdout ?? '';

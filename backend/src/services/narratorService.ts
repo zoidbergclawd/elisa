@@ -2,6 +2,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { NARRATOR_SYSTEM_PROMPT, narratorUserPrompt } from '../prompts/narratorAgent.js';
+import { NARRATOR_TIMEOUT_MS, RATE_LIMIT_DELAY_MS } from '../utils/constants.js';
 
 export interface NarratorMessage {
   text: string;
@@ -97,7 +98,7 @@ export class NarratorService {
       }
 
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 4000);
+      const timeout = setTimeout(() => controller.abort(), NARRATOR_TIMEOUT_MS);
 
       const response = await this.client.messages.create(
         {
@@ -160,7 +161,7 @@ export class NarratorService {
 
       // Rate limit: skip if <15s since last emission for this task
       const lastTime = this.lastMessageTimes.get(taskId) ?? 0;
-      if (Date.now() - lastTime < 15000) return;
+      if (Date.now() - lastTime < RATE_LIMIT_DELAY_MS) return;
 
       const batchText = accumulated.join('\n').slice(0, 1000);
       const msg = await this.translate('agent_output', agentName, batchText, nuggetGoal);

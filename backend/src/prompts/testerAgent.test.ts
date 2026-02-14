@@ -26,6 +26,11 @@ describe('testerAgent SYSTEM_PROMPT', () => {
     expect(SYSTEM_PROMPT).toContain('TESTER');
   });
 
+  it('contains Content Safety section', () => {
+    expect(SYSTEM_PROMPT).toContain('Content Safety');
+    expect(SYSTEM_PROMPT).toContain('appropriate for children ages 8-14');
+  });
+
   it('contains security restrictions', () => {
     expect(SYSTEM_PROMPT).toContain('Security Restrictions');
   });

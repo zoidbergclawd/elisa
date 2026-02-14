@@ -2,6 +2,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { buildMetaPlannerSystem, META_PLANNER_SYSTEM, metaPlannerUser } from '../prompts/metaPlanner.js';
+import { DEFAULT_MODEL } from '../utils/constants.js';
 
 const DEFAULT_AGENTS = [
   {
@@ -37,7 +38,7 @@ export class MetaPlanner {
     const userMsg = metaPlannerUser(specJson);
     const systemPrompt = buildMetaPlannerSystem(spec);
 
-    const model = process.env.CLAUDE_MODEL || 'claude-opus-4-6';
+    const model = process.env.CLAUDE_MODEL || DEFAULT_MODEL;
     const response = await this.client.messages.create({
       model,
       system: systemPrompt,
@@ -64,7 +65,7 @@ export class MetaPlanner {
     originalUserMsg: string,
     badResponse: string,
   ): Promise<Record<string, any>> {
-    const model = process.env.CLAUDE_MODEL || 'claude-opus-4-6';
+    const model = process.env.CLAUDE_MODEL || DEFAULT_MODEL;
     const response = await this.client.messages.create({
       model,
       system: systemPrompt,

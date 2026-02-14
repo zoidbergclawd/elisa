@@ -86,9 +86,22 @@ class ConnectionManager {
       }
     }
   }
+
+  cleanup(sessionId: string): void {
+    const conns = this.connections.get(sessionId);
+    if (conns) {
+      for (const ws of conns) {
+        try { ws.close(); } catch { /* ignore */ }
+      }
+      this.connections.delete(sessionId);
+    }
+  }
 }
 
 const manager = new ConnectionManager();
+
+// Wire up WebSocket cleanup when sessions are removed
+store.onCleanup = (sessionId: string) => manager.cleanup(sessionId);
 
 // -- Express App --
 
