@@ -73,7 +73,7 @@ src/
 | POST | /api/workspace/load | Load design files from workspace directory |
 | POST | /api/skills/run | Start standalone skill execution |
 | POST | /api/skills/:id/answer | Answer skill question |
-| POST | /api/hardware/detect | Detect ESP32 |
+| GET | /api/hardware/detect | Detect ESP32 (fast VID:PID only) |
 | POST | /api/hardware/flash/:id | Flash to board |
 
 ### WebSocket Events (server -> client)

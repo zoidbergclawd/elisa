@@ -12,9 +12,9 @@ interface HardwareRouterDeps {
 export function createHardwareRouter({ store, hardwareService }: HardwareRouterDeps): Router {
   const router = Router();
 
-  // Hardware detect
-  router.post('/detect', async (_req, res) => {
-    const board = await hardwareService.detectBoard();
+  // Hardware detect (fast VID:PID only -- safe for polling)
+  router.get('/detect', async (_req, res) => {
+    const board = await hardwareService.detectBoardFast();
     if (board) {
       res.json({ detected: true, port: board.port, board_type: board.boardType });
     } else {

@@ -469,35 +469,47 @@ print('FLASH_OK')
   }
 
   /**
-   * Detect a connected MicroPython board.
-   * First checks USB VID:PID against known boards, then probes serial ports
-   * for a MicroPython REPL prompt (>>>) as a fallback for unknown boards.
+   * Fast board detection using only USB VID:PID matching.
+   * Never opens a serial port -- safe for repeated polling.
    */
-  async detectBoard(): Promise<BoardInfo | null> {
+  async detectBoardFast(): Promise<BoardInfo | null> {
     try {
       const { SerialPort } = await import('serialport');
       const ports = await SerialPort.list();
-      console.log(`[elisa] detectBoard: found ${ports.length} serial port(s)`);
 
-      // Phase 1: VID:PID matching (fast, no port opening needed)
       for (const portInfo of ports) {
         const vid = portInfo.vendorId?.toUpperCase();
         const pid = portInfo.productId?.toUpperCase();
-        console.log(`[elisa] detectBoard: ${portInfo.path} vid=${vid} pid=${pid}`);
         if (vid && pid) {
           const key = `${vid}:${pid}`;
           const boardType = KNOWN_BOARDS.get(key);
           if (boardType) {
-            console.log(`[elisa] detectBoard: matched ${boardType} on ${portInfo.path}`);
             return { port: portInfo.path, boardType };
           }
-          // VID-only fallback for Espressif native USB (PIDs vary by firmware/board)
           if (vid === ESPRESSIF_VID) {
-            console.log(`[elisa] detectBoard: Espressif VID match (unknown PID ${pid}) on ${portInfo.path}`);
             return { port: portInfo.path, boardType: 'ESP32 Native USB' };
           }
         }
       }
+    } catch (err: any) {
+      console.error(`[elisa] detectBoardFast error: ${err.message}`);
+    }
+    return null;
+  }
+
+  /**
+   * Detect a connected MicroPython board.
+   * First checks USB VID:PID against known boards (fast), then probes serial
+   * ports for a MicroPython REPL prompt (>>>) as a fallback for unknown boards.
+   */
+  async detectBoard(): Promise<BoardInfo | null> {
+    // Phase 1: fast VID:PID matching
+    const fast = await this.detectBoardFast();
+    if (fast) return fast;
+
+    try {
+      const { SerialPort } = await import('serialport');
+      const ports = await SerialPort.list();
 
       // Phase 2: REPL probe -- open each serial port, send Ctrl+C, look for >>>
       for (const portInfo of ports) {

@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import type { Portal, PortalMechanism } from './types';
+import type { BoardInfo } from '../../hooks/useBoardDetect';
 import { portalTemplates } from './portalTemplates';
 
 interface Props {
   portals: Portal[];
   onPortalsChange: (portals: Portal[]) => void;
   onClose: () => void;
+  boardInfo?: BoardInfo | null;
 }
 
 const MECHANISM_LABELS: Record<PortalMechanism, string> = {
@@ -21,7 +23,7 @@ function generateId(): string {
 
 type View = 'list' | 'editor' | 'templates';
 
-export default function PortalsModal({ portals, onPortalsChange, onClose }: Props) {
+export default function PortalsModal({ portals, onPortalsChange, onClose, boardInfo }: Props) {
   const [view, setView] = useState<View>('list');
   const [editingPortal, setEditingPortal] = useState<Portal | null>(null);
 
@@ -136,6 +138,7 @@ export default function PortalsModal({ portals, onPortalsChange, onClose }: Prop
               onSave={handleSave}
               onDelete={() => handleDelete(editingPortal.id)}
               onCancel={() => { setEditingPortal(null); setView('list'); }}
+              boardInfo={boardInfo}
             />
           )}
 
@@ -175,18 +178,21 @@ export default function PortalsModal({ portals, onPortalsChange, onClose }: Prop
   );
 }
 
-function PortalEditor({ portal, onSave, onDelete, onCancel }: {
+function PortalEditor({ portal, onSave, onDelete, onCancel, boardInfo }: {
   portal: Portal;
   onSave: (portal: Portal) => void;
   onDelete: () => void;
   onCancel: () => void;
+  boardInfo?: BoardInfo | null;
 }) {
   const [name, setName] = useState(portal.name);
   const [description, setDescription] = useState(portal.description);
   const [mechanism, setMechanism] = useState<PortalMechanism>(portal.mechanism);
 
-  // Serial config
-  const [serialPort, setSerialPort] = useState(portal.serialConfig?.port ?? '');
+  // Serial config -- auto-fill from detected board if port is empty
+  const [serialPort, setSerialPort] = useState(
+    portal.serialConfig?.port || (portal.mechanism === 'serial' && boardInfo?.port) || '',
+  );
   const [baudRate, setBaudRate] = useState(portal.serialConfig?.baudRate ?? 115200);
 
   // MCP config
@@ -259,6 +265,22 @@ function PortalEditor({ portal, onSave, onDelete, onCancel }: {
 
       {mechanism === 'serial' && (
         <div className="space-y-2 border-t border-border-subtle pt-2">
+          {boardInfo && (
+            <div className="flex items-center justify-between text-xs bg-green-900/20 border border-green-500/20 rounded-lg px-3 py-1.5">
+              <span className="text-green-300">
+                Detected: {boardInfo.boardType} on {boardInfo.port}
+              </span>
+              {serialPort !== boardInfo.port && (
+                <button
+                  type="button"
+                  onClick={() => setSerialPort(boardInfo.port)}
+                  className="text-green-400 hover:text-green-300 underline"
+                >
+                  Use detected port
+                </button>
+              )}
+            </div>
+          )}
           <div>
             <label className="block text-xs font-medium text-atelier-text-secondary mb-1">Serial Port</label>
             <input

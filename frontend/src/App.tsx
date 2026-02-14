@@ -17,6 +17,7 @@ import { EXAMPLE_NUGGETS } from './lib/examples';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useBuildSession } from './hooks/useBuildSession';
 import { useHealthCheck } from './hooks/useHealthCheck';
+import { useBoardDetect } from './hooks/useBoardDetect';
 import ReadinessBadge from './components/shared/ReadinessBadge';
 import DirectoryPickerModal from './components/shared/DirectoryPickerModal';
 import { saveNuggetFile, loadNuggetFile, downloadBlob } from './lib/nuggetFile';
@@ -53,6 +54,7 @@ export default function App() {
   } = useBuildSession();
   const { waitForOpen } = useWebSocket({ sessionId, onEvent: handleEvent });
   const { health, loading: healthLoading } = useHealthCheck(uiState === 'design');
+  const { boardInfo } = useBoardDetect(uiState === 'design');
 
   // Main tab state
   const [activeMainTab, setActiveMainTab] = useState<MainTab>('workspace');
@@ -418,6 +420,7 @@ export default function App() {
         deployProgress={deployProgress ?? null}
         deployChecklist={deployChecklist ?? null}
         tokenUsage={tokenUsage}
+        boardInfo={boardInfo}
       />
 
       {/* Human gate modal */}
@@ -458,6 +461,7 @@ export default function App() {
           portals={portals}
           onPortalsChange={setPortals}
           onClose={() => setPortalsModalOpen(false)}
+          boardInfo={boardInfo}
         />
       )}
 
