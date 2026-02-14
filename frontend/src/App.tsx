@@ -21,6 +21,7 @@ import { useBoardDetect } from './hooks/useBoardDetect';
 import ReadinessBadge from './components/shared/ReadinessBadge';
 import DirectoryPickerModal from './components/shared/DirectoryPickerModal';
 import { saveNuggetFile, loadNuggetFile, downloadBlob } from './lib/nuggetFile';
+import { setAuthToken, authFetch } from './lib/apiClient';
 import type { TeachingMoment } from './types';
 import elisaLogo from '../assets/elisa.svg';
 import type { Skill, Rule } from './components/Skills/types';
@@ -55,6 +56,20 @@ export default function App() {
   const { waitForOpen } = useWebSocket({ sessionId, onEvent: handleEvent });
   const { health, loading: healthLoading } = useHealthCheck(uiState === 'design');
   const { boardInfo } = useBoardDetect(uiState === 'design');
+
+  // Fetch auth token on mount
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const api = (window as unknown as Record<string, any>).elisaAPI;
+    if (api?.getAuthToken) {
+      api.getAuthToken().then((token: string | null) => {
+        if (token) setAuthToken(token);
+      });
+    } else {
+      // Dev mode without Electron: use dev default
+      setAuthToken('dev-token');
+    }
+  }, []);
 
   // Main tab state
   const [activeMainTab, setActiveMainTab] = useState<MainTab>('workspace');
@@ -206,9 +221,8 @@ export default function App() {
     // If workspace path is set, save design files to workspace via backend
     if (workspacePath) {
       try {
-        await fetch('/api/workspace/save', {
+        await authFetch('/api/workspace/save', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             workspace_path: workspacePath,
             workspace_json: workspaceJson,
@@ -227,7 +241,7 @@ export default function App() {
     let outputArchive: Blob | undefined;
     if (sessionId) {
       try {
-        const resp = await fetch(`/api/sessions/${sessionId}/export`);
+        const resp = await authFetch(`/api/sessions/${sessionId}/export`);
         if (resp.ok) {
           outputArchive = await resp.blob();
         }
@@ -282,9 +296,8 @@ export default function App() {
     if (!dir) return;
 
     try {
-      const resp = await fetch('/api/workspace/load', {
+      const resp = await authFetch('/api/workspace/load', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ workspace_path: dir }),
       });
       if (!resp.ok) return;

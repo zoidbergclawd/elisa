@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { authFetch } from '../../lib/apiClient';
 
 interface Props {
   taskId: string;
@@ -16,9 +17,8 @@ export default function HumanGateModal({ taskId, question, context, sessionId, o
 
   const handleApprove = async () => {
     setSubmitting(true);
-    await fetch(`/api/sessions/${sessionId}/gate`, {
+    await authFetch(`/api/sessions/${sessionId}/gate`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ approved: true }),
     });
     onClose();
@@ -30,9 +30,8 @@ export default function HumanGateModal({ taskId, question, context, sessionId, o
       return;
     }
     setSubmitting(true);
-    await fetch(`/api/sessions/${sessionId}/gate`, {
+    await authFetch(`/api/sessions/${sessionId}/gate`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ approved: false, feedback }),
     });
     onClose();

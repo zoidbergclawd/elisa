@@ -36,11 +36,11 @@ describe('PermissionPolicy', () => {
     });
   });
 
-  describe('safe command evaluation', () => {
-    const safeCommands = ['ls', 'cat', 'python', 'python3', 'node', 'pytest', 'mkdir', 'cp', 'mv'];
+  describe('always-safe command evaluation', () => {
+    const alwaysSafe = ['ls', 'cat', 'echo', 'head', 'tail', 'wc', 'sort', 'grep', 'find', 'pwd', 'tree'];
 
-    for (const cmd of safeCommands) {
-      it(`approves safe command: ${cmd}`, () => {
+    for (const cmd of alwaysSafe) {
+      it(`approves always-safe command without cwd: ${cmd}`, () => {
         const result = policy.evaluate('command', `${cmd} some-arg`);
         expect(result.decision).toBe('approved');
         expect(result.permission_type).toBe('bash_safe');
@@ -51,6 +51,31 @@ describe('PermissionPolicy', () => {
       const result = policy.evaluate('bash', 'ls -la');
       expect(result.decision).toBe('approved');
     });
+  });
+
+  describe('workspace-restricted command evaluation', () => {
+    const workspaceCommands = ['rm', 'mkdir', 'cp', 'mv', 'touch', 'python', 'python3', 'node', 'npm', 'npx', 'pytest'];
+
+    for (const cmd of workspaceCommands) {
+      it(`approves "${cmd}" when cwd is within workspace`, () => {
+        const cwd = path.join(WORKSPACE, 'src');
+        const result = policy.evaluate('command', `${cmd} some-arg`, undefined, cwd);
+        expect(result.decision).toBe('approved');
+        expect(result.permission_type).toBe('bash_safe');
+      });
+
+      it(`escalates "${cmd}" when cwd is outside workspace`, () => {
+        const result = policy.evaluate('command', `${cmd} some-arg`, undefined, '/home/user');
+        expect(result.decision).toBe('escalate');
+        expect(result.permission_type).toBe('bash_workspace');
+      });
+
+      it(`escalates "${cmd}" when no cwd is provided`, () => {
+        const result = policy.evaluate('command', `${cmd} some-arg`);
+        expect(result.decision).toBe('escalate');
+        expect(result.permission_type).toBe('bash_workspace');
+      });
+    }
   });
 
   describe('unknown command evaluation', () => {
@@ -88,14 +113,14 @@ describe('PermissionPolicy', () => {
   });
 
   describe('npm test', () => {
-    it('approves npm test', () => {
-      const result = policy.evaluate('command', 'npm test');
+    it('approves npm test when cwd is within workspace', () => {
+      const result = policy.evaluate('command', 'npm test', undefined, WORKSPACE);
       expect(result.decision).toBe('approved');
       expect(result.permission_type).toBe('bash_safe');
     });
 
-    it('approves npm run test', () => {
-      const result = policy.evaluate('command', 'npm run test');
+    it('approves npm run test when cwd is within workspace', () => {
+      const result = policy.evaluate('command', 'npm run test', undefined, WORKSPACE);
       expect(result.decision).toBe('approved');
     });
   });
@@ -113,7 +138,7 @@ describe('PermissionPolicy', () => {
     });
 
     it('escalates npm install', () => {
-      const result = policy.evaluate('command', 'npm install lodash');
+      const result = policy.evaluate('command', 'npm install lodash', undefined, WORKSPACE);
       expect(result.decision).toBe('escalate');
       expect(result.permission_type).toBe('package_install');
     });
@@ -189,13 +214,23 @@ describe('PermissionPolicy', () => {
   });
 
   describe('path-based command names', () => {
-    it('handles full path commands', () => {
-      const result = policy.evaluate('command', '/usr/bin/python script.py');
+    it('handles full path to always-safe command', () => {
+      const result = policy.evaluate('command', '/usr/bin/cat file.txt');
       expect(result.decision).toBe('approved');
     });
 
+    it('handles full path to workspace command with cwd', () => {
+      const result = policy.evaluate('command', '/usr/bin/python script.py', undefined, WORKSPACE);
+      expect(result.decision).toBe('approved');
+    });
+
+    it('escalates full path to workspace command without cwd', () => {
+      const result = policy.evaluate('command', '/usr/bin/python script.py');
+      expect(result.decision).toBe('escalate');
+    });
+
     it('handles .exe extension on Windows', () => {
-      const result = policy.evaluate('command', 'python.exe script.py');
+      const result = policy.evaluate('command', 'python.exe script.py', undefined, WORKSPACE);
       expect(result.decision).toBe('approved');
     });
   });

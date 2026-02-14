@@ -16,4 +16,7 @@ contextBridge.exposeInMainWorld('elisaAPI', {
 
   pickDirectory: (): Promise<string | null> =>
     ipcRenderer.invoke('pick-directory'),
+
+  getAuthToken: (): Promise<string | null> =>
+    ipcRenderer.invoke('get-auth-token'),
 });

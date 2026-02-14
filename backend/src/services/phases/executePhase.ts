@@ -369,6 +369,12 @@ export class ExecutePhase {
         onQuestion: this.makeQuestionHandler(ctx, taskId),
         workingDir: ctx.nuggetDir,
         model: process.env.CLAUDE_MODEL || 'claude-opus-4-6',
+        allowedTools: [
+          'Read', 'Write', 'Edit', 'MultiEdit',
+          'Glob', 'Grep', 'LS',
+          'Bash',
+          'NotebookEdit', 'NotebookRead',
+        ],
         ...(mcpServers.length > 0 ? { mcpServers } : {}),
       });
 
@@ -754,7 +760,7 @@ export class ExecutePhase {
         }
 
         if (permType) {
-          const decision = this.deps.permissionPolicy.evaluate(permType, permDetail, taskId);
+          const decision = this.deps.permissionPolicy.evaluate(permType, permDetail, taskId, ctx.nuggetDir);
           if (decision.decision === 'approved') {
             await ctx.send({
               type: 'permission_auto_resolved',

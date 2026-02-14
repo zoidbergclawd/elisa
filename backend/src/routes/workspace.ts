@@ -3,6 +3,7 @@
 import { Router } from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
+import { validateWorkspacePath } from '../utils/pathValidator.js';
 
 export function createWorkspaceRouter(): Router {
   const router = Router();
@@ -19,7 +20,12 @@ export function createWorkspaceRouter(): Router {
       return;
     }
 
-    const resolved = path.resolve(workspace_path);
+    const validation = validateWorkspacePath(workspace_path);
+    if (!validation.valid) {
+      res.status(400).json({ detail: validation.reason });
+      return;
+    }
+    const resolved = validation.resolved;
     try {
       fs.mkdirSync(resolved, { recursive: true });
     } catch (err: any) {
@@ -58,7 +64,12 @@ export function createWorkspaceRouter(): Router {
       return;
     }
 
-    const resolved = path.resolve(workspace_path);
+    const validation = validateWorkspacePath(workspace_path);
+    if (!validation.valid) {
+      res.status(400).json({ detail: validation.reason });
+      return;
+    }
+    const resolved = validation.resolved;
     if (!fs.existsSync(resolved)) {
       res.status(404).json({ detail: 'Directory not found' });
       return;

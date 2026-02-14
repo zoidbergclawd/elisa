@@ -15,10 +15,16 @@ export interface PermissionDecision {
   permission_type: string;
 }
 
+/** Commands that are always safe (read-only or trivial). */
 const SAFE_COMMANDS = new Set([
-  'ls', 'cat', 'echo', 'python', 'python3', 'node', 'pytest', 'npm',
-  'mkdir', 'cp', 'mv', 'head', 'tail', 'wc', 'sort', 'grep', 'find',
-  'pwd', 'tree', 'touch', 'rm', 'dir', 'type', 'copy', 'move',
+  'ls', 'cat', 'echo', 'head', 'tail', 'wc', 'sort', 'grep', 'find',
+  'pwd', 'tree', 'dir', 'type',
+]);
+
+/** Commands that are safe ONLY when running within the workspace directory. */
+const WORKSPACE_COMMANDS = new Set([
+  'mkdir', 'cp', 'mv', 'touch', 'copy', 'move', 'rm',
+  'python', 'python3', 'node', 'npm', 'npx', 'pytest',
 ]);
 
 const NETWORK_COMMANDS = new Set([
@@ -42,13 +48,13 @@ export class PermissionPolicy {
     this.config = { ...DEFAULTS, ...config };
   }
 
-  evaluate(permissionType: string, detail: string, taskId?: string): PermissionDecision {
+  evaluate(permissionType: string, detail: string, taskId?: string, cwd?: string): PermissionDecision {
     let decision: PermissionDecision;
 
     if (permissionType === 'file_write' || permissionType === 'file_edit') {
       decision = this.evaluateFileWrite(detail);
     } else if (permissionType === 'bash' || permissionType === 'command') {
-      decision = this.evaluateCommand(detail);
+      decision = this.evaluateCommand(detail, cwd);
     } else {
       decision = { decision: 'denied', reason: `Unknown permission type: ${permissionType}`, permission_type: permissionType };
     }
@@ -84,7 +90,7 @@ export class PermissionPolicy {
     return { decision: 'escalate', reason: 'Workspace writes require approval per policy', permission_type: 'file_write' };
   }
 
-  private evaluateCommand(command: string): PermissionDecision {
+  private evaluateCommand(command: string, cwd?: string): PermissionDecision {
     const trimmed = command.trim();
     // Extract the first token (the command name)
     const firstToken = trimmed.split(/\s+/)[0]?.toLowerCase() ?? '';
@@ -109,12 +115,20 @@ export class PermissionPolicy {
       return { decision: 'escalate', reason: 'Package installation requires review', permission_type: 'package_install' };
     }
 
-    // Check against safe list
+    // Check against always-safe list (read-only / trivial commands)
     if (SAFE_COMMANDS.has(baseName) && this.config.auto_approve_safe_commands) {
       return { decision: 'approved', reason: `Command "${baseName}" is on the safe list`, permission_type: 'bash_safe' };
     }
 
-    // Special case: npm test is safe
+    // Check against workspace-restricted commands
+    if (WORKSPACE_COMMANDS.has(baseName) && this.config.auto_approve_safe_commands) {
+      if (cwd && path.resolve(cwd).startsWith(this.nuggetDir)) {
+        return { decision: 'approved', reason: `Command "${baseName}" is allowed within workspace`, permission_type: 'bash_safe' };
+      }
+      return { decision: 'escalate', reason: `Command "${baseName}" requires workspace context`, permission_type: 'bash_workspace' };
+    }
+
+    // Special case: npm test is safe (already handled above for workspace, but keep for completeness)
     if (baseName === 'npm' && (trimmed.includes('test') || trimmed.includes('run test'))) {
       return { decision: 'approved', reason: 'npm test is safe', permission_type: 'bash_safe' };
     }
