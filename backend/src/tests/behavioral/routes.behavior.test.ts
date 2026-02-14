@@ -579,15 +579,18 @@ describe('POST /api/workspace/load', () => {
     expect(body.detail).toBe('workspace_path is required');
   });
 
-  it('returns 400 for path outside allowed roots', async () => {
+  it('returns 400 for path in system directory', async () => {
+    const blockedPath = process.platform === 'win32'
+      ? 'C:\\Windows\\System32\\evil'
+      : '/etc/evil';
     const res = await fetch(`${baseUrl()}/api/workspace/load`, {
       method: 'POST',
       headers: jsonAuthHeaders(),
-      body: JSON.stringify({ workspace_path: '/nonexistent/path/that/does/not/exist' }),
+      body: JSON.stringify({ workspace_path: blockedPath }),
     });
     expect(res.status).toBe(400);
     const body = await res.json();
-    expect(body.detail).toContain('outside allowed');
+    expect(body.detail).toContain('protected system directory');
   });
 
   it('returns 404 for nonexistent directory under allowed root', async () => {

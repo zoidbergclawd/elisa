@@ -293,7 +293,8 @@ const isDirectRun =
 
 if (isDirectRun) {
   const port = Number(process.env.PORT ?? 8000);
-  startServer(port).then(({ authToken: t }) => {
+  const devToken = process.env.ELISA_AUTH_TOKEN ?? 'dev-token';
+  startServer(port, undefined, devToken).then(({ authToken: t }) => {
     console.log(`Dev auth token: ${t}`);
   }).catch((err) => {
     console.error('Failed to start server:', err.message);
