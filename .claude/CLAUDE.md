@@ -41,6 +41,7 @@ Do NOT update docs for internal implementation changes that don't affect the str
 
 - `ANTHROPIC_API_KEY` -- Required for Claude API/SDK access
 - `CLAUDE_MODEL` -- Override agent model (default: `claude-opus-4-6`)
+- `NARRATOR_MODEL` -- Override narrator model (default: `claude-haiku-4-5-20241022`)
 - `CORS_ORIGIN` -- Override CORS origin in dev mode (default: `http://localhost:5173`)
 - `PORT` -- Backend port (default: 8000)
 

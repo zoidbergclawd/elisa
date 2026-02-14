@@ -22,7 +22,7 @@ import ReadinessBadge from './components/shared/ReadinessBadge';
 import DirectoryPickerModal from './components/shared/DirectoryPickerModal';
 import { saveNuggetFile, loadNuggetFile, downloadBlob } from './lib/nuggetFile';
 import type { TeachingMoment } from './types';
-import elisaLogo from '../assets/Elisa.png';
+import elisaLogo from '../assets/elisa-sticker.svg';
 import type { Skill, Rule } from './components/Skills/types';
 import type { Portal } from './components/Portals/types';
 
@@ -336,7 +336,7 @@ export default function App() {
       <header className="relative z-10 flex items-center justify-between px-5 py-2 glass-panel border-t-0 border-x-0">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-3">
-            <img src={elisaLogo} alt="Elisa logo" className="h-8 w-8 rounded-full ring-2 ring-accent-lavender/30" />
+            <img src={elisaLogo} alt="Elisa logo" className="h-9 w-auto drop-shadow-sm" />
             <h1 className="text-xl font-display font-bold tracking-tight gradient-text-warm">Elisa</h1>
           </div>
           <MainTabBar

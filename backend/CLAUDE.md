@@ -18,7 +18,7 @@ src/
   routes/
     sessions.ts          /api/sessions/* endpoints (create, start, stop, gate, question, export)
     hardware.ts          /api/hardware/* endpoints (detect, flash)
-    skills.ts            /api/skills/* endpoints (run, answer)
+    skills.ts            /api/skills/* endpoints (run, answer, list)
     workspace.ts         /api/workspace/* endpoints (save, load design files)
   models/
     session.ts           Type definitions: Session, Task, Agent, BuildPhase, WSEvent
@@ -38,12 +38,15 @@ src/
     testRunner.ts        Runs pytest for Python, Node test runner for JS. Parses results + coverage.
     skillRunner.ts       Executes SkillPlans step-by-step (ask_user, branch, run_agent, invoke_skill)
     teachingEngine.ts    Generates contextual learning moments (curriculum + API fallback)
+    narratorService.ts   Generates narrator messages for build events (Claude Haiku)
+    permissionPolicy.ts  Auto-resolves agent permission requests based on policy rules
   prompts/
     metaPlanner.ts       System prompt for task decomposition
     builderAgent.ts      Builder role prompt template
     testerAgent.ts       Tester role prompt template
     reviewerAgent.ts     Reviewer role prompt template
     teaching.ts          Teaching moment curriculum and templates
+    narratorAgent.ts     Narrator role prompt for build event narration
   utils/
     dag.ts               Task DAG with Kahn's topological sort, cycle detection
     contextManager.ts    Builds file manifests, nugget context, structural digests, state snapshots
@@ -51,6 +54,7 @@ src/
     sessionLogger.ts     Per-session structured logging to .elisa/logs/
     sessionPersistence.ts Atomic JSON persistence for session checkpoint/recovery
     tokenTracker.ts      Tracks input/output tokens, cost per agent, budget limits
+    withTimeout.ts       Generic promise timeout wrapper with AbortSignal support
 ```
 
 ## API Surface

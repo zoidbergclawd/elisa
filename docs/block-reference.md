@@ -1,10 +1,12 @@
 # Block Reference
 
-Complete guide to Elisa's block palette. Blocks snap together on the canvas to produce a [ProjectSpec](api-reference.md#projectspec-schema) that drives the build.
+Complete guide to Elisa's 8-category block palette. Blocks snap together on the canvas to produce a [ProjectSpec](api-reference.md#projectspec-schema) that drives the build.
+
+Categories: [Goals](#goals) | [Requirements](#requirements) | [Style](#style) | [Skills](#skills) | [Portals](#portals) | [Minions](#minions) | [Flow](#flow) | [Deploy](#deploy)
 
 ---
 
-## Goal
+## Goals
 
 Define what you're building. Every project needs at least one goal block.
 
@@ -45,18 +47,45 @@ Control the look and personality of the output.
 
 ---
 
-## Agents
+## Skills
 
-Configure the AI agents that will build your project. If no agent blocks are placed, defaults are used.
+Reusable prompt snippets and rules that extend agent capabilities. Both blocks are in the Skills toolbox category.
+
+| Block | Fields | ProjectSpec Output |
+|-------|--------|--------------------|
+| **Use Skill** | `SKILL_ID` (dropdown, dynamically populated) | `skills[]` |
+| **Apply Rule** | `RULE_ID` (dropdown, dynamically populated) | `rules[]` |
+
+Skills are created in the Skills & Rules modal. Each skill has a name, prompt, and category (`agent`, `feature`, or `style`). Rules have a name, prompt, and trigger (`always`, `on_task_complete`, `on_test_fail`, `before_deploy`).
+
+---
+
+## Portals
+
+Connect to external hardware and services. Portal dropdowns are dynamically populated from configured portals.
+
+| Block | Fields | ProjectSpec Output |
+|-------|--------|--------------------|
+| **Tell** | `PORTAL_ID` (dropdown), `CAPABILITY_ID` (dropdown, filtered to actions), plus dynamic `PARAM_*` fields | `portals[]` with `command: "tell"` |
+| **When** | `PORTAL_ID` (dropdown), `CAPABILITY_ID` (dropdown, filtered to events), `ACTION_BLOCKS` (statement slot), plus dynamic `PARAM_*` fields | `portals[]` with `command: "when"` |
+| **Ask** | `PORTAL_ID` (dropdown), `CAPABILITY_ID` (dropdown, filtered to queries), plus dynamic `PARAM_*` fields | `portals[]` with `command: "ask"` |
+
+**Tell** sends a one-shot command to a portal (e.g., "Tell LED Strip to set_color"). **When** reacts to portal events (e.g., "When Button pressed, do..."). **Ask** queries a portal for data (e.g., "Ask Sensor for temperature"). Parameter fields are added dynamically based on the selected capability.
+
+---
+
+## Minions
+
+Configure the AI minions that will build your project. If no minion blocks are placed, defaults are used.
 
 | Block | Fields | Role | ProjectSpec Output |
 |-------|--------|------|--------------------|
-| **Builder Agent** | `AGENT_NAME`, `AGENT_PERSONA` (text) | `builder` | `agents[]` |
-| **Tester Agent** | `AGENT_NAME`, `AGENT_PERSONA` (text) | `tester` | `agents[]` |
-| **Reviewer Agent** | `AGENT_NAME`, `AGENT_PERSONA` (text) | `reviewer` | `agents[]` |
-| **Custom Agent** | `AGENT_NAME`, `AGENT_PERSONA` (text) | `custom` | `agents[]` |
+| **Builder Minion** | `AGENT_NAME`, `AGENT_PERSONA` (text) | `builder` | `agents[]` |
+| **Tester Minion** | `AGENT_NAME`, `AGENT_PERSONA` (text) | `tester` | `agents[]` |
+| **Reviewer Minion** | `AGENT_NAME`, `AGENT_PERSONA` (text) | `reviewer` | `agents[]` |
+| **Custom Minion** | `AGENT_NAME`, `AGENT_PERSONA` (text) | `custom` | `agents[]` |
 
-The persona field shapes the agent's behavior. Example: a Builder named "SpeedBot" with persona "writes minimal, fast code" will be prompted accordingly.
+The persona field shapes the minion's behavior. Example: a Builder named "SpeedBot" with persona "writes minimal, fast code" will be prompted accordingly.
 
 ---
 
@@ -70,26 +99,9 @@ Control execution order. These are container blocks that hold other blocks insid
 | **At Same Time** | `PARALLEL_BLOCKS` (statement slot) | `workflow.flow_hints[]` with `type: "parallel"` |
 | **Keep Improving** | `CONDITION_TEXT` (text) | `workflow.iteration_conditions[]` |
 | **Check With Me** | `GATE_DESCRIPTION` (text) | `workflow.human_gates[]` |
+| **Timer Every** | `INTERVAL` (number, default 5), `ACTION_BLOCKS` (statement slot) | `workflow.timers[]` |
 
-**First/Then** runs blocks in the first slot before blocks in the second. **At Same Time** runs contained blocks concurrently. **Keep Improving** loops until a condition is met. **Check With Me** pauses the build and asks the user for approval.
-
----
-
-## Hardware
-
-Target ESP32 microcontrollers. Adding any hardware block sets `hardware.target` to `"esp32"`.
-
-| Block | Fields | ProjectSpec Output |
-|-------|--------|--------------------|
-| **LED Control** | `LED_ACTION` (on/off/blink), `LED_SPEED` (slow/normal/fast) | `hardware.components[]` with `type: "led"` |
-| **Button Input** | `PIN` (number, default 12), `ACTION_BLOCKS` (statement slot) | `hardware.components[]` with `type: "button"` |
-| **Sensor Read** | `SENSOR_TYPE` (temperature/light/motion/custom) | `hardware.components[]` with `type: "sensor"` |
-| **LoRa Send** | `MESSAGE` (text), `CHANNEL` (number, default 1) | `hardware.components[]` with `type: "lora_tx"` |
-| **LoRa Receive** | `CHANNEL` (number, default 1), `ACTION_BLOCKS` (statement slot) | `hardware.components[]` with `type: "lora_rx"` |
-| **Timer Every** | `INTERVAL` (number, default 5s), `ACTION_BLOCKS` (statement slot) | `hardware.components[]` with `type: "timer"` |
-| **Buzzer Play** | `FREQUENCY` (Hz, default 1000), `DURATION` (s, default 0.5) | `hardware.components[]` with `type: "buzzer"` |
-
-**Supported boards**: Heltec WiFi LoRa 32 V3 (CP210x), ESP32-S3 Native USB, ESP32 (CH9102).
+**First/Then** runs blocks in the first slot before blocks in the second. **At Same Time** runs contained blocks concurrently. **Keep Improving** loops until a condition is met. **Check With Me** pauses the build and asks the user for approval. **Timer Every** runs contained blocks on a recurring interval.
 
 ---
 
@@ -107,30 +119,6 @@ If no deploy block is placed, defaults to `"preview"`.
 
 ---
 
-## Skills
-
-Reusable prompt snippets that extend agent capabilities.
-
-| Block | Fields | ProjectSpec Output |
-|-------|--------|--------------------|
-| **Use Skill** | `SKILL_ID` (dropdown, dynamically populated) | `skills[]` |
-
-Skills are created in the Skills & Rules modal. Each skill has a name, prompt, and category (`agent`, `feature`, or `style`).
-
----
-
-## Rules
-
-Trigger-based prompts that activate at specific build phases.
-
-| Block | Fields | ProjectSpec Output |
-|-------|--------|--------------------|
-| **Use Rule** | `RULE_ID` (dropdown, dynamically populated) | `rules[]` |
-
-Rules are created in the Skills & Rules modal. Each rule has a name, prompt, and trigger (`always`, `on_task_complete`, `on_test_fail`, `before_deploy`).
-
----
-
 ## Example Composition
 
 A simple game project might use:
@@ -140,10 +128,10 @@ A simple game project might use:
 3. **Feature**: "Three lives and a score counter"
 4. **Feature**: "Increasing difficulty each wave"
 5. **Look Like**: `space`
-6. **Builder Agent**: name "GameDev", persona "writes clean HTML5 canvas games"
-7. **Tester Agent**: name "QA", persona "tests edge cases thoroughly"
+6. **Builder Minion**: name "GameDev", persona "writes clean HTML5 canvas games"
+7. **Tester Minion**: name "QA", persona "tests edge cases thoroughly"
 8. **First/Then**: Builder in first slot, Tester in then slot
 9. **Check With Me**: "Review the game before deploying"
 10. **Deploy Web**
 
-This produces a ProjectSpec with sequential flow, a human gate before deploy, two agents, and a web deployment target.
+This produces a ProjectSpec with sequential flow, a human gate before deploy, two minions, and a web deployment target.

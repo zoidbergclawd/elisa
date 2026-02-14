@@ -9,7 +9,7 @@ Express 5 + WebSocket server. Orchestrates AI agents, manages build sessions, an
 - simple-git 3 (git operations)
 - serialport 12 (ESP32 communication)
 - @anthropic-ai/sdk (Claude API for planner/teaching)
-- zod 3 (validation)
+- zod 4 (validation)
 
 ## Dev Commands
 

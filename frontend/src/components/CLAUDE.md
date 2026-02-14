@@ -27,6 +27,7 @@ App.tsx
   shared/QuestionModal.tsx           Multi-choice from agent, user picks answer
   shared/TeachingToast.tsx           Floating notification for learning moments
   shared/AgentAvatar.tsx             Status dot + role icon
+  shared/MinionAvatar.tsx            Animated avatar for narrator/minion characters
   shared/ExamplePickerModal.tsx      Card grid to choose bundled example nuggets
   shared/DirectoryPickerModal.tsx   Text input fallback for non-Electron workspace directory selection
   Skills/SkillsRulesModal.tsx        CRUD editor for custom skills/rules + template library

@@ -26,11 +26,14 @@ src/
     shared/                  MainTabBar, GoButton, HumanGateModal, QuestionModal, TeachingToast, AgentAvatar, ReadinessBadge, ExamplePickerModal, DirectoryPickerModal
   hooks/
     useBuildSession.ts       All build session state (tasks, agents, commits, events, etc.)
+    useSkillSession.ts       Standalone skill execution state + WebSocket events
+    useBoardDetect.ts        ESP32 board detection polling via /api/hardware/detect
     useHealthCheck.ts        Polls /api/health for backend readiness (API key + SDK status)
     useWebSocket.ts          WebSocket connection with auto-reconnect (3s interval)
   lib/
     nuggetFile.ts            .elisa nugget file save/load utilities (JSZip-based)
     skillTemplates.ts        Pre-built skill and rule templates for template library
+    terminology.ts           Kid-friendly term mappings (technical -> friendly labels)
     examples/                Bundled example nuggets (ES modules, offline-ready)
   types/
     index.ts                 All TypeScript interfaces (NuggetSpec, Task, Agent, WSEvent, etc.)

@@ -15,14 +15,22 @@ Base URL: `http://localhost:8000/api`
 | GET | `/sessions/:id/tasks` | -- | `Task[]` | List all tasks in session |
 | GET | `/sessions/:id/git` | -- | `CommitInfo[]` | Get commit history |
 | GET | `/sessions/:id/tests` | -- | Test results object | Get test outcomes |
+| GET | `/sessions/:id/export` | -- | `application/zip` | Export nugget directory as zip |
 | POST | `/sessions/:id/gate` | `{ approved?: boolean, feedback?: string }` | `{ status: "ok" }` | Respond to a human gate |
 | POST | `/sessions/:id/question` | `{ task_id: string, answers: Record<string, any> }` | `{ status: "ok" }` | Answer an agent question |
+
+### Skills
+
+| Method | Path | Request Body | Response | Description |
+|--------|------|--------------|----------|-------------|
+| POST | `/skills/run` | `{ plan: SkillPlan, allSkills?: SkillSpec[] }` | `{ session_id: string }` | Start standalone skill execution |
+| POST | `/skills/:sessionId/answer` | `{ step_id: string, answers: Record<string, any> }` | `{ status: "ok" }` | Answer a skill's ask_user question |
 
 ### Hardware
 
 | Method | Path | Request Body | Response | Description |
 |--------|------|--------------|----------|-------------|
-| POST | `/hardware/detect` | -- | `{ detected: boolean, port?: string, board_type?: string }` | Detect connected ESP32 |
+| GET | `/hardware/detect` | -- | `{ detected: boolean, port?: string, board_type?: string }` | Detect connected ESP32 |
 | POST | `/hardware/flash/:id` | -- | `{ success: boolean, message: string }` | Flash session output to board |
 
 ### Workspace
@@ -53,7 +61,8 @@ All events flow server to client as JSON with a `type` discriminator field.
 |-------|---------|-------------|
 | `session_started` | `{ session_id }` | Session created |
 | `planning_started` | -- | Meta-planner decomposing spec |
-| `plan_ready` | `{ tasks: Task[], agents: Agent[], explanation: string }` | Task DAG ready for execution |
+| `plan_ready` | `{ tasks: Task[], agents: Agent[], explanation: string, deployment_target?: string }` | Task DAG ready for execution |
+| `workspace_created` | `{ nugget_dir: string }` | Nugget workspace directory created |
 | `session_complete` | `{ summary }` | Build finished |
 | `error` | `{ message, recoverable: boolean }` | Error occurred |
 
@@ -70,9 +79,13 @@ All events flow server to client as JSON with a `type` discriminator field.
 | Event | Payload | Description |
 |-------|---------|-------------|
 | `agent_output` | `{ task_id, agent_name, content }` | Streamed agent message chunk |
-| `agent_status` | `{ agent: Agent }` | Agent status changed (idle/working/done/error) |
+| `agent_status` | `{ agent: Agent }` | Agent status changed (idle/working/done/error/waiting) |
 | `agent_message` | `{ from, to, content }` | Inter-agent communication |
-| `token_usage` | `{ agent_name, input_tokens, output_tokens }` | Token consumption per agent |
+| `token_usage` | `{ agent_name, input_tokens, output_tokens, cost_usd }` | Token consumption per agent |
+| `budget_warning` | `{ total_tokens, max_budget, cost_usd }` | Token budget threshold reached |
+| `minion_state_change` | `{ agent_name, old_status, new_status }` | Minion status transition |
+| `narrator_message` | `{ from, text, mood, related_task_id? }` | Narrator commentary on build events |
+| `permission_auto_resolved` | `{ task_id, permission_type, decision, reason }` | Agent permission auto-resolved by policy |
 
 ### Build Artifacts
 
@@ -82,12 +95,24 @@ All events flow server to client as JSON with a `type` discriminator field.
 | `test_result` | `{ test_name, passed: boolean, details }` | Individual test outcome |
 | `coverage_update` | `{ percentage, details?: CoverageReport }` | Code coverage report |
 
+### Skill Execution
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `skill_started` | `{ skill_id, skill_name }` | Skill plan execution started |
+| `skill_step` | `{ skill_id, step_id, step_type, status }` | Skill step started/completed/failed |
+| `skill_question` | `{ skill_id, step_id, questions: QuestionPayload[] }` | Skill asking user a question |
+| `skill_output` | `{ skill_id, step_id, content }` | Skill step produced output |
+| `skill_completed` | `{ skill_id, result }` | Skill plan finished |
+| `skill_error` | `{ skill_id, message }` | Skill plan failed |
+
 ### Deployment
 
 | Event | Payload | Description |
 |-------|---------|-------------|
 | `deploy_started` | `{ target }` | Deploy phase started |
 | `deploy_progress` | `{ step, progress: number }` | Deploy progress (0-100) |
+| `deploy_checklist` | `{ rules: Array<{ name, prompt }> }` | Pre-deploy rules checklist |
 | `deploy_complete` | `{ target, url? }` | Deploy finished |
 | `serial_data` | `{ line, timestamp }` | ESP32 serial monitor output |
 
@@ -108,6 +133,8 @@ All events flow server to client as JSON with a `type` discriminator field.
   multiSelect: boolean;
 }
 ```
+
+**NarratorMessage moods**: `excited`, `encouraging`, `concerned`, `celebrating`
 
 ---
 
@@ -173,6 +200,6 @@ interface ProjectSpec {
 ```typescript
 type TaskStatus = "pending" | "in_progress" | "done" | "failed";
 type AgentRole = "builder" | "tester" | "reviewer" | "custom";
-type AgentStatus = "idle" | "working" | "done" | "error";
+type AgentStatus = "idle" | "working" | "done" | "error" | "waiting";
 type SessionState = "idle" | "planning" | "executing" | "testing" | "deploying" | "reviewing" | "done";
 ```
