@@ -225,11 +225,25 @@ describe('NuggetSpecSchema basic validation', () => {
     expect(result.success).toBe(false);
   });
 
+  it('accepts auto_flash in deployment', () => {
+    const result = NuggetSpecSchema.safeParse({
+      deployment: { target: 'esp32', auto_flash: true },
+    });
+    expect(result.success).toBe(true);
+  });
+
   it('rejects unknown fields in workflow object (#70)', () => {
     const result = NuggetSpecSchema.safeParse({
       workflow: { human_gates: ['before_deploy'], hacked: true },
     });
     expect(result.success).toBe(false);
+  });
+
+  it('accepts review_enabled and testing_enabled in workflow', () => {
+    const result = NuggetSpecSchema.safeParse({
+      workflow: { review_enabled: true, testing_enabled: false, human_gates: [] },
+    });
+    expect(result.success).toBe(true);
   });
 
   it('rejects unknown fields in capability schema (#70)', () => {

@@ -97,8 +97,11 @@ export const NuggetSpecSchema = z.object({
   agents: z.array(AgentSchema).max(20).optional(),
   deployment: z.object({
     target: z.string().max(100).optional(),
+    auto_flash: z.boolean().optional(),
   }).strict().optional(),
   workflow: z.object({
+    review_enabled: z.boolean().optional(),
+    testing_enabled: z.boolean().optional(),
     human_gates: z.array(z.string().max(200)).max(10).optional(),
     flow_hints: z.array(z.record(z.string(), z.unknown())).max(50).optional(),
     iteration_conditions: z.array(z.record(z.string(), z.unknown())).max(20).optional(),
