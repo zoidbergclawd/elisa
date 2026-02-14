@@ -1,11 +1,31 @@
 /** Tests for DeployPhase web deployment: shouldDeployWeb(), deployWeb(), findFreePort(). */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { EventEmitter } from 'node:events';
 import type { PhaseContext } from '../../services/phases/types.js';
 import type { BuildSession } from '../../models/session.js';
+
+// Mock child_process to prevent spawning real servers and opening browser tabs
+vi.mock('node:child_process', async (importOriginal) => {
+  const original = await importOriginal<typeof import('node:child_process')>();
+  return {
+    ...original,
+    execFile: vi.fn(),
+    spawn: vi.fn(() => {
+      const proc = new EventEmitter() as any;
+      proc.stdout = new EventEmitter();
+      proc.stderr = new EventEmitter();
+      proc.pid = 99999;
+      proc.kill = vi.fn();
+      // Do NOT emit 'close' or 'error' so deployWeb's 2s timeout
+      // resolves with started=true
+      return proc;
+    }),
+  };
+});
 
 // Inline mock factories for services
 function makeMockHardwareService() {
@@ -98,6 +118,14 @@ describe('DeployPhase - deployWeb', () => {
     phase = new DeployPhase(makeMockHardwareService(), makeMockPortalService(), makeMockTeachingEngine());
     tmpDir = path.join(os.tmpdir(), `elisa-deploy-web-test-${Date.now()}`);
     fs.mkdirSync(tmpDir, { recursive: true });
+  });
+
+  afterEach(() => {
+    try {
+      if (fs.existsSync(tmpDir)) fs.rmSync(tmpDir, { recursive: true, force: true });
+    } catch {
+      // Windows: ignore EPERM
+    }
   });
 
   it('sends deploy_started and deploy_complete events', async () => {

@@ -15,17 +15,18 @@ const defaultProps = {
   deployProgress: null,
   deployChecklist: null,
   tokenUsage: { input: 0, output: 0, total: 0, costUsd: 0, maxBudget: 500_000, perAgent: {} },
+  boardInfo: null,
 };
 
 describe('BottomBar', () => {
-  it('renders default tabs (no Board when no serial data)', () => {
+  it('renders all default tabs', () => {
     render(<BottomBar {...defaultProps} />);
     expect(screen.getByText('Timeline')).toBeInTheDocument();
     expect(screen.getByText('Tests')).toBeInTheDocument();
+    expect(screen.getByText('Board')).toBeInTheDocument();
     expect(screen.getByText('Learn')).toBeInTheDocument();
     expect(screen.getByText('Progress')).toBeInTheDocument();
     expect(screen.getByText('Tokens')).toBeInTheDocument();
-    expect(screen.queryByText('Board')).not.toBeInTheDocument();
   });
 
   it('shows Board tab when serial data exists', () => {

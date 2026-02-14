@@ -323,10 +323,10 @@ describe('POST /api/sessions/:id/question', () => {
 // Hardware routes: /api/hardware
 // ---------------------------------------------------------------------------
 
-describe('POST /api/hardware/detect', () => {
+describe('GET /api/hardware/detect', () => {
   it('returns detected: false when no hardware connected', async () => {
     server = await startServer(0);
-    const res = await fetch(`${baseUrl()}/api/hardware/detect`, { method: 'POST' });
+    const res = await fetch(`${baseUrl()}/api/hardware/detect`);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.detected).toBe(false);

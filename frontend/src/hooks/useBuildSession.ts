@@ -64,9 +64,8 @@ export function useBuildSession() {
       case 'plan_ready': {
         const planTasks: Task[] = event.tasks;
         // Inject a synthetic deploy node for hardware targets
-        const spec = event as any;
         const lastTaskId = planTasks.length > 0 ? planTasks[planTasks.length - 1].id : undefined;
-        const deployTarget = (spec.deployment_target as string) ?? '';
+        const deployTarget = event.deployment_target ?? '';
         if (deployTarget === 'esp32' || deployTarget === 'both') {
           planTasks.push({
             id: '__deploy__',
