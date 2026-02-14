@@ -55,6 +55,9 @@ src/
     sessionPersistence.ts Atomic JSON persistence for session checkpoint/recovery
     tokenTracker.ts      Tracks input/output tokens, cost per agent, budget limits
     withTimeout.ts       Generic promise timeout wrapper with AbortSignal support
+    constants.ts         Named constants for timeouts, limits, intervals, default model
+    pathValidator.ts     Workspace path validation (blocklist for system/sensitive dirs)
+    safeEnv.ts           Sanitized process.env copy (strips ANTHROPIC_API_KEY)
 ```
 
 ## API Surface
@@ -91,8 +94,10 @@ src/
 - **Streaming-parallel execution**: Up to 3 independent tasks run concurrently via Promise.race pool. New tasks schedule as soon as any completes. Git commits serialized via mutex.
 - **Token budget**: Default 500k token limit per session. Warning event at 80%. Graceful stop when exceeded. Cost tracking per agent.
 - **Context chain**: After each task, summary + structural digest written to `.elisa/context/nugget_context.md`.
-- **Cancellation**: `Orchestrator.cancel()` via AbortController; checked at top of each loop iteration.
-- **Graceful shutdown**: SIGTERM/SIGINT handlers cancel orchestrators, close WS server, 10s force-exit.
+- **Cancellation**: `Orchestrator.cancel()` via AbortController; signal propagated to Agent SDK `query()` calls. Session state set to `done` on error.
+- **Content safety**: All agent prompts enforce age-appropriate output (8-14). Placeholder values sanitized before interpolation (`sanitizePlaceholder()`).
+- **Flash mutex**: `HardwareService.flash()` serializes concurrent calls via Promise-chain mutex.
+- **Graceful shutdown**: SIGTERM/SIGINT handlers cancel orchestrators, close WS server, 10s force-exit. `SessionStore.onCleanup` invokes `ConnectionManager.cleanup()` for WS teardown.
 - **Graceful degradation**: Missing external tools (git, pytest, mpremote) produce warnings, not crashes.
 - **Timeouts**: Agent=300s, Tests=120s, Flash=60s. Task retry limit=2.
 

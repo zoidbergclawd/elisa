@@ -22,6 +22,11 @@ describe('builderAgent SYSTEM_PROMPT', () => {
     expect(SYSTEM_PROMPT).toContain('multi-agent team');
   });
 
+  it('contains Content Safety section', () => {
+    expect(SYSTEM_PROMPT).toContain('Content Safety');
+    expect(SYSTEM_PROMPT).toContain('appropriate for children ages 8-14');
+  });
+
   it('contains security restrictions', () => {
     expect(SYSTEM_PROMPT).toContain('Security Restrictions');
     expect(SYSTEM_PROMPT).toContain('kid_skill');

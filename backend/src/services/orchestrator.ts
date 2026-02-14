@@ -161,6 +161,7 @@ export class Orchestrator {
         message: String(err.message || err),
         stack: err.stack,
       });
+      this.session.state = 'done';
       await this.send({
         type: 'error',
         message: String(err.message || err),
@@ -168,6 +169,7 @@ export class Orchestrator {
       });
     } finally {
       await this.deployPhase.teardown();
+      this.logger?.close();
     }
   }
 
@@ -212,7 +214,6 @@ export class Orchestrator {
   /** Signal cancellation to the execution loop and release resources. */
   cancel(): void {
     this.abortController.abort();
-    this.cleanup();
   }
 
   /** Clean up the nugget temp directory immediately (skipped for user workspaces). */

@@ -1,6 +1,7 @@
 /** Manages ESP32 compilation and flashing via native serialport. */
 
 import { execFile } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -44,6 +45,8 @@ const ESPRESSIF_VID = '303A';
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 export class HardwareService {
+  private flashMutex = Promise.resolve();
+
   async compile(workDir: string): Promise<CompileResult> {
     const errors: string[] = [];
     const pyFiles = collectPyFiles(workDir);
@@ -75,6 +78,18 @@ export class HardwareService {
   }
 
   async flash(workDir: string, port?: string): Promise<FlashResult> {
+    let resolve: () => void;
+    const previous = this.flashMutex;
+    this.flashMutex = new Promise<void>(r => { resolve = r; });
+    await previous;
+    try {
+      return await this._flashImpl(workDir, port);
+    } finally {
+      resolve!();
+    }
+  }
+
+  private async _flashImpl(workDir: string, port?: string): Promise<FlashResult> {
     let boardType = '';
     if (!port) {
       const board = await this.detectBoard();
@@ -195,8 +210,9 @@ export class HardwareService {
     }));
 
     const tmpDir = process.env.TEMP || process.env.TMP || '/tmp';
-    const scriptPath = path.join(tmpDir, `elisa_flash_${Date.now()}.py`);
-    const manifestPath = path.join(tmpDir, `elisa_manifest_${Date.now()}.json`);
+    const tempName = `elisa-flash-${randomUUID()}`;
+    const scriptPath = path.join(tmpDir, `${tempName}.py`);
+    const manifestPath = path.join(tmpDir, `${tempName}.json`);
 
     fs.writeFileSync(manifestPath, JSON.stringify(files), 'utf-8');
 
@@ -559,10 +575,22 @@ print('FLASH_OK')
       // Wait for response
       await sleep(1500);
 
-      sp.close();
+      await new Promise<void>((resolve) => {
+        sp!.close((err) => {
+          if (err) console.warn('Port close warning:', err.message);
+          resolve();
+        });
+      });
       return received.includes('>>>');
     } catch {
-      try { sp?.close(); } catch { /* ignore */ }
+      try {
+        await new Promise<void>((resolve) => {
+          sp?.close((err) => {
+            if (err) console.warn('Port close warning:', err.message);
+            resolve();
+          });
+        });
+      } catch { /* ignore */ }
       return false;
     }
   }

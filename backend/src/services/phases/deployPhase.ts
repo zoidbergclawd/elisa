@@ -5,6 +5,7 @@ import net from 'node:net';
 import path from 'node:path';
 import { spawn, execFile, type ChildProcess } from 'node:child_process';
 import { safeEnv } from '../../utils/safeEnv.js';
+import { BUILD_TIMEOUT_MS } from '../../utils/constants.js';
 import type { PhaseContext } from './types.js';
 import { maybeTeach } from './types.js';
 import { HardwareService } from '../hardwareService.js';
@@ -26,17 +27,7 @@ export class DeployPhase {
     this.teachingEngine = teachingEngine;
   }
 
-  shouldDeployWeb(ctx: PhaseContext): boolean {
-    const spec = ctx.session.spec ?? {};
-    const target = spec.deployment?.target ?? 'preview';
-    return target === 'web' || target === 'both';
-  }
-
-  async deployWeb(ctx: PhaseContext): Promise<{ process: ChildProcess | null; url: string | null }> {
-    ctx.session.state = 'deploying';
-    await ctx.send({ type: 'deploy_started', target: 'web' });
-
-    // Surface before_deploy rules
+  private async sendDeployChecklist(ctx: PhaseContext): Promise<void> {
     const specData = ctx.session.spec ?? {};
     const deployRules = (specData.rules ?? []).filter(
       (r: any) => r.trigger === 'before_deploy',
@@ -47,6 +38,19 @@ export class DeployPhase {
         rules: deployRules.map((r: any) => ({ name: r.name, prompt: r.prompt })),
       });
     }
+  }
+
+  shouldDeployWeb(ctx: PhaseContext): boolean {
+    const spec = ctx.session.spec ?? {};
+    const target = spec.deployment?.target ?? 'preview';
+    return target === 'web' || target === 'both';
+  }
+
+  async deployWeb(ctx: PhaseContext): Promise<{ process: ChildProcess | null; url: string | null }> {
+    ctx.session.state = 'deploying';
+    await ctx.send({ type: 'deploy_started', target: 'web' });
+
+    await this.sendDeployChecklist(ctx);
 
     await ctx.send({ type: 'deploy_progress', step: 'Preparing web preview...', progress: 10 });
 
@@ -72,7 +76,7 @@ export class DeployPhase {
               else reject(new Error(`Build failed (exit ${code}): ${stderr.slice(0, 500)}`));
             });
             buildProc.on('error', reject);
-            setTimeout(() => { buildProc.kill(); reject(new Error('Build timed out')); }, 120_000);
+            setTimeout(() => { buildProc.kill(); reject(new Error('Build timed out')); }, BUILD_TIMEOUT_MS);
           });
         }
       } catch (err: any) {
@@ -200,17 +204,7 @@ export class DeployPhase {
     ctx.session.state = 'deploying';
     await ctx.send({ type: 'deploy_started', target: 'esp32' });
 
-    // Surface before_deploy rules to frontend as a checklist
-    const specData = ctx.session.spec ?? {};
-    const deployRules = (specData.rules ?? []).filter(
-      (r: any) => r.trigger === 'before_deploy',
-    );
-    if (deployRules.length) {
-      await ctx.send({
-        type: 'deploy_checklist',
-        rules: deployRules.map((r: any) => ({ name: r.name, prompt: r.prompt })),
-      });
-    }
+    await this.sendDeployChecklist(ctx);
 
     // Step 1: Compile
     await ctx.send({
@@ -272,17 +266,7 @@ export class DeployPhase {
     ctx.session.state = 'deploying';
     await ctx.send({ type: 'deploy_started', target: 'portals' });
 
-    // Surface before_deploy rules to frontend as a checklist
-    const specData = ctx.session.spec ?? {};
-    const deployRules = (specData.rules ?? []).filter(
-      (r: any) => r.trigger === 'before_deploy',
-    );
-    if (deployRules.length) {
-      await ctx.send({
-        type: 'deploy_checklist',
-        rules: deployRules.map((r: any) => ({ name: r.name, prompt: r.prompt })),
-      });
-    }
+    await this.sendDeployChecklist(ctx);
 
     let serialHandle: { close: () => void } | null = null;
 

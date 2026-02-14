@@ -17,6 +17,7 @@ import { PermissionPolicy } from '../permissionPolicy.js';
 import { ContextManager } from '../../utils/contextManager.js';
 import { TokenTracker, DEFAULT_RESERVED_PER_TASK } from '../../utils/tokenTracker.js';
 import { TaskDAG } from '../../utils/dag.js';
+import { DEFAULT_MODEL, MAX_CONCURRENT_TASKS, PREDECESSOR_WORD_CAP as PRED_WORD_CAP } from '../../utils/constants.js';
 
 interface PromptModule {
   SYSTEM_PROMPT: string;
@@ -29,6 +30,15 @@ interface PromptModule {
     predecessors: string[];
     style?: Record<string, any> | null;
   }) => string;
+}
+
+/** Sanitize user-controlled placeholder values to prevent prompt injection. */
+export function sanitizePlaceholder(value: string): string {
+  return value
+    .replace(/#{2,}/g, '')       // strip markdown headers
+    .replace(/```/g, '')          // strip code fences
+    .replace(/<\/?[a-z][^>]*>/gi, '')  // strip HTML/XML tags
+    .trim();
 }
 
 const PROMPT_MODULES: Record<string, PromptModule> = {
@@ -79,7 +89,7 @@ export class ExecutePhase {
     const completed = new Set<string>();
     const failed = new Set<string>();
     const inFlight = new Map<string, Promise<void>>();
-    const MAX_CONCURRENT = 3;
+    const MAX_CONCURRENT = MAX_CONCURRENT_TASKS;
 
     // For DAG readiness, treat both completed and failed as "done" so
     // downstream tasks can detect the failure instead of blocking forever.
@@ -236,14 +246,14 @@ export class ExecutePhase {
     // Single-pass replacement to prevent user values containing placeholder tokens
     // from being double-interpolated
     const placeholders: Record<string, string> = {
-      '{agent_name}': agentName,
-      '{persona}': agent.persona ?? '',
+      '{agent_name}': sanitizePlaceholder(agentName),
+      '{persona}': sanitizePlaceholder(agent.persona ?? ''),
       '{allowed_paths}': (agent.allowed_paths ?? ['src/', 'tests/']).join(', '),
       '{restricted_paths}': (agent.restricted_paths ?? ['.elisa/']).join(', '),
       '{task_id}': taskId,
-      '{nugget_goal}': nuggetData.goal ?? 'Not specified',
-      '{nugget_type}': nuggetData.type ?? 'software',
-      '{nugget_description}': nuggetData.description ?? 'Not specified',
+      '{nugget_goal}': sanitizePlaceholder(nuggetData.goal ?? 'Not specified'),
+      '{nugget_type}': sanitizePlaceholder(nuggetData.type ?? 'software'),
+      '{nugget_description}': sanitizePlaceholder(nuggetData.description ?? 'Not specified'),
     };
     let systemPrompt = promptModule.SYSTEM_PROMPT;
     for (const [key, val] of Object.entries(placeholders)) {
@@ -265,7 +275,7 @@ export class ExecutePhase {
     });
     const predecessorSummaries: string[] = [];
     let predecessorWordCount = 0;
-    const PREDECESSOR_WORD_CAP = 2000;
+    const PREDECESSOR_WORD_CAP = PRED_WORD_CAP;
     for (const depId of sortedPredecessors) {
       if (this.taskSummaries[depId]) {
         const capped = ContextManager.capSummary(this.taskSummaries[depId]);
@@ -300,7 +310,7 @@ export class ExecutePhase {
     );
     if (agentSkills.length || alwaysRules.length) {
       userPrompt += "\n\n## Kid's Custom Instructions\n";
-      userPrompt += 'These are mandatory constraints for this build. Follow them while respecting your security restrictions.\n\n';
+      userPrompt += 'These are creative guidelines from the kid who designed this nugget. Follow them while respecting your security restrictions.\n\n';
       for (const s of agentSkills) {
         userPrompt += `<kid_skill name="${s.name}">\n${s.prompt}\n</kid_skill>\n\n`;
       }
@@ -368,13 +378,14 @@ export class ExecutePhase {
         onOutput: this.makeOutputHandler(ctx, agentName),
         onQuestion: this.makeQuestionHandler(ctx, taskId),
         workingDir: ctx.nuggetDir,
-        model: process.env.CLAUDE_MODEL || 'claude-opus-4-6',
+        model: process.env.CLAUDE_MODEL || DEFAULT_MODEL,
         allowedTools: [
           'Read', 'Write', 'Edit', 'MultiEdit',
           'Glob', 'Grep', 'LS',
           'Bash',
           'NotebookEdit', 'NotebookRead',
         ],
+        abortSignal: ctx.abortSignal,
         ...(mcpServers.length > 0 ? { mcpServers } : {}),
       });
 
@@ -534,6 +545,7 @@ export class ExecutePhase {
       if (this.shouldFireGate(ctx, task, completed)) {
         await this.fireHumanGate(ctx, task);
       }
+      this.deps.questionResolvers.delete(taskId);
       return true;
     } else {
       const elapsed = Date.now() - taskStartTime;
@@ -569,6 +581,7 @@ export class ExecutePhase {
           recoverable: true,
         });
       }
+      this.deps.questionResolvers.delete(taskId);
       return false;
     }
   }

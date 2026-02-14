@@ -106,6 +106,9 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/utils/sessionPersistence.ts` | Atomic JSON checkpoint/recovery |
 | `backend/src/utils/tokenTracker.ts` | Token tracking, cost per agent, budget enforcement |
 | `backend/src/utils/withTimeout.ts` | Generic promise timeout wrapper with AbortSignal support |
+| `backend/src/utils/constants.ts` | Named constants for timeouts, limits, intervals, default model |
+| `backend/src/utils/pathValidator.ts` | Workspace path validation (blocklist for system/sensitive dirs) |
+| `backend/src/utils/safeEnv.ts` | Sanitized process.env copy (strips ANTHROPIC_API_KEY) |
 
 ### Prompts
 

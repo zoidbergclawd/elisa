@@ -24,6 +24,7 @@ export interface AgentRunnerParams {
   maxTurns?: number;
   mcpServers?: Array<{ name: string; command: string; args?: string[]; env?: Record<string, string> }>;
   allowedTools?: string[];
+  abortSignal?: AbortSignal;
 }
 
 export class AgentRunner {
@@ -50,6 +51,14 @@ export class AgentRunner {
       : undefined;
 
     const abortController = new AbortController();
+
+    if (params.abortSignal) {
+      if (params.abortSignal.aborted) {
+        abortController.abort();
+      } else {
+        params.abortSignal.addEventListener('abort', () => abortController.abort(), { once: true });
+      }
+    }
 
     try {
       return await withTimeout(
