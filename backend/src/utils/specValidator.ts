@@ -7,13 +7,13 @@ const CapabilitySchema = z.object({
   name: z.string().max(200).optional(),
   kind: z.string().max(50).optional(),
   description: z.string().max(2000).optional(),
-}).passthrough();
+}).strict();
 
 const InteractionSchema = z.object({
   type: z.string().max(100).optional(),
   capabilityId: z.string().max(200).optional(),
   params: z.record(z.string().max(200), z.union([z.string().max(2000), z.number(), z.boolean()])).optional(),
-}).passthrough();
+}).strict();
 
 /** Shell metacharacters forbidden in portal args. */
 const SHELL_META_RE = /[;&|`$(){}[\]<>!\n\r\\'"]/;
@@ -69,7 +69,7 @@ const RuleSchema = z.object({
 const RequirementSchema = z.object({
   type: z.string().max(100).optional(),
   description: z.string().max(2000).optional(),
-}).passthrough();
+}).strict();
 
 const AgentSchema = z.object({
   name: z.string().max(200).optional(),
@@ -77,14 +77,14 @@ const AgentSchema = z.object({
   persona: z.string().max(500).optional(),
   allowed_paths: z.array(z.string().max(200)).max(50).optional(),
   restricted_paths: z.array(z.string().max(200)).max(50).optional(),
-}).passthrough();
+}).strict();
 
 export const NuggetSpecSchema = z.object({
   nugget: z.object({
     goal: z.string().max(2000).optional(),
     type: z.string().max(100).optional(),
     description: z.string().max(2000).optional(),
-  }).passthrough().optional(),
+  }).strict().optional(),
   style: z.object({
     visual: z.string().max(500).nullable().optional(),
     personality: z.string().max(500).nullable().optional(),
@@ -92,17 +92,20 @@ export const NuggetSpecSchema = z.object({
     colors: z.string().max(500).optional(),
     theme: z.string().max(500).optional(),
     tone: z.string().max(500).optional(),
-  }).passthrough().nullable().optional(),
+  }).strict().nullable().optional(),
   requirements: z.array(RequirementSchema).max(50).optional(),
   agents: z.array(AgentSchema).max(20).optional(),
   deployment: z.object({
     target: z.string().max(100).optional(),
-  }).passthrough().optional(),
+    auto_flash: z.boolean().optional(),
+  }).strict().optional(),
   workflow: z.object({
+    review_enabled: z.boolean().optional(),
+    testing_enabled: z.boolean().optional(),
     human_gates: z.array(z.string().max(200)).max(10).optional(),
     flow_hints: z.array(z.record(z.string(), z.unknown())).max(50).optional(),
     iteration_conditions: z.array(z.record(z.string(), z.unknown())).max(20).optional(),
-  }).passthrough().optional(),
+  }).strict().optional(),
   skills: z.array(SkillSchema).max(50).optional(),
   rules: z.array(RuleSchema).max(50).optional(),
   portals: z.array(PortalSchema).max(20).optional(),
@@ -112,4 +115,4 @@ export const NuggetSpecSchema = z.object({
     allow_network: z.boolean().optional(),
     escalation_threshold: z.number().int().min(1).max(10).optional(),
   }).strict().optional(),
-}).passthrough();
+}).strict();

@@ -105,6 +105,44 @@ describe('CliPortalAdapter', () => {
     const adapter = new CliPortalAdapter([]);
     await expect(adapter.teardown()).resolves.toBeUndefined();
   });
+
+  it('rejects args with shell metacharacters (#69)', async () => {
+    const adapter = new CliPortalAdapter([]);
+    await expect(
+      adapter.initialize({ command: 'python3', args: ['script.py; rm -rf /'] }),
+    ).rejects.toThrow('forbidden shell metacharacters');
+  });
+
+  it('rejects non-array args (#69)', async () => {
+    const adapter = new CliPortalAdapter([]);
+    await expect(
+      adapter.initialize({ command: 'python3', args: 'not-an-array' }),
+    ).rejects.toThrow('Portal args must be an array');
+  });
+
+  it('rejects env with shell metacharacters in keys (#69)', async () => {
+    const adapter = new CliPortalAdapter([]);
+    await expect(
+      adapter.initialize({ command: 'python3', env: { 'BAD;KEY': 'val' } }),
+    ).rejects.toThrow('forbidden characters');
+  });
+
+  it('rejects env with control characters in values (#69)', async () => {
+    const adapter = new CliPortalAdapter([]);
+    await expect(
+      adapter.initialize({ command: 'python3', env: { KEY: 'val\x00ue' } }),
+    ).rejects.toThrow('forbidden control characters');
+  });
+
+  it('accepts valid args and env through validation (#69)', async () => {
+    const adapter = new CliPortalAdapter([]);
+    await adapter.initialize({
+      command: 'python3',
+      args: ['script.py', '--verbose'],
+      env: { MY_VAR: 'hello' },
+    });
+    expect(adapter.getArgs()).toEqual(['script.py', '--verbose']);
+  });
 });
 
 // ---------------------------------------------------------------------------

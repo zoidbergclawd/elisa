@@ -53,9 +53,14 @@ export function createSessionRouter({ store, sendEvent, hardwareService }: Sessi
       return;
     }
 
+    // Claim the session synchronously to prevent duplicate orchestrators
+    // from concurrent POST /start requests hitting the idle guard above.
+    entry.session.state = 'planning';
+
     const rawSpec = req.body.spec;
     const parseResult = NuggetSpecSchema.safeParse(rawSpec);
     if (!parseResult.success) {
+      entry.session.state = 'idle';
       res.status(400).json({
         detail: 'Invalid NuggetSpec',
         errors: parseResult.error.issues.map((i) => ({
@@ -66,7 +71,6 @@ export function createSessionRouter({ store, sendEvent, hardwareService }: Sessi
       return;
     }
     const spec = parseResult.data;
-    entry.session.state = 'planning';
     entry.session.spec = spec;
 
     // Pre-execute composite skills

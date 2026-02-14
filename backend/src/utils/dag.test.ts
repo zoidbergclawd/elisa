@@ -223,4 +223,25 @@ describe('TaskDAG', () => {
       expect(ready).toEqual([]);
     });
   });
+
+  describe('getDeps', () => {
+    it('should return direct dependencies for a task', () => {
+      const dag = new TaskDAG();
+      dag.addTask('a');
+      dag.addTask('b', ['a']);
+      dag.addTask('c', ['a', 'b']);
+      expect(dag.getDeps('c')).toEqual(new Set(['a', 'b']));
+    });
+
+    it('should return empty set for a task with no dependencies', () => {
+      const dag = new TaskDAG();
+      dag.addTask('a');
+      expect(dag.getDeps('a')).toEqual(new Set());
+    });
+
+    it('should return empty set for unknown task', () => {
+      const dag = new TaskDAG();
+      expect(dag.getDeps('nonexistent')).toEqual(new Set());
+    });
+  });
 });

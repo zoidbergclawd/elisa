@@ -747,3 +747,37 @@ describe('plan contents propagation', () => {
     }
   });
 });
+
+// ============================================================
+// Logger initialization ordering (#81)
+// ============================================================
+
+describe('logger initialization', () => {
+  it('logger is available during execute phase, not only after (#81)', async () => {
+    const { orchestrator, events } = setup(minimalWebSpec);
+    configurePlan(minimalWebPlan);
+
+    // Capture the logger value when AgentRunner.execute is called (during execute phase)
+    let loggerDuringExecute: unknown = 'not-called';
+    vi.mocked(AgentRunner.prototype.execute).mockImplementation(async function (this: any) {
+      // Access the orchestrator's internal logger via the context passed to execute phase
+      // We can't directly access private fields, but we can verify the logger exists
+      // by checking that task events during execution reference a valid logger path
+      loggerDuringExecute = (orchestrator as any).logger;
+      return {
+        success: true,
+        summary: 'done',
+        inputTokens: 100,
+        outputTokens: 50,
+        costUsd: 0.01,
+      };
+    });
+
+    await orchestrator.run(minimalWebSpec);
+
+    // Logger must have been initialized before execute phase ran
+    expect(loggerDuringExecute).not.toBeNull();
+    expect(loggerDuringExecute).toBeDefined();
+    expect(loggerDuringExecute).not.toBe('not-called');
+  });
+});

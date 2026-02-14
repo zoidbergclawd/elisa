@@ -79,7 +79,7 @@ export class SessionStore {
           orchestrator: null,
           skillRunner: null,
           cancelFn: null,
-          createdAt: p.savedAt,
+          createdAt: new Date(p.savedAt).getTime(),
           userWorkspace: false,
         };
         // Mark recovered sessions as done since orchestrators can't be restored

@@ -64,6 +64,7 @@ export class NarratorService {
   private debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private debounceBuffers = new Map<string, string[]>();
   private lastMessageTimes = new Map<string, number>();
+  private flushGeneration = new Map<string, number>();
   private lastMessageText = '';
   private fallbackIndex = 0;
 
@@ -146,12 +147,16 @@ export class NarratorService {
     const existingTimer = this.debounceTimers.get(taskId);
     if (existingTimer) clearTimeout(existingTimer);
 
-    // Set new debounce timer
+    // Set new debounce timer -- capture flush generation to detect stale callbacks
+    const genAtSchedule = this.flushGeneration.get(taskId) ?? 0;
     const timer = setTimeout(async () => {
       this.debounceTimers.delete(taskId);
       const accumulated = this.debounceBuffers.get(taskId);
       this.debounceBuffers.delete(taskId);
       if (!accumulated || accumulated.length === 0) return;
+
+      // Skip if task was flushed after this timer was scheduled (avoids out-of-order messages after task_completed)
+      if ((this.flushGeneration.get(taskId) ?? 0) > genAtSchedule) return;
 
       // Rate limit: skip if <15s since last emission for this task
       const lastTime = this.lastMessageTimes.get(taskId) ?? 0;
@@ -177,6 +182,7 @@ export class NarratorService {
     }
     this.debounceBuffers.delete(taskId);
     this.lastMessageTimes.delete(taskId);
+    this.flushGeneration.set(taskId, (this.flushGeneration.get(taskId) ?? 0) + 1);
   }
 
   reset(): void {
@@ -185,6 +191,7 @@ export class NarratorService {
     this.debounceTimers.clear();
     this.debounceBuffers.clear();
     this.lastMessageTimes.clear();
+    this.flushGeneration.clear();
     this.lastMessageText = '';
     this.fallbackIndex = 0;
   }

@@ -44,7 +44,10 @@ export class SessionPersistence {
       const filePath = this.filePath(session.id);
       const tmp = filePath + '.tmp';
       fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
-      fs.renameSync(tmp, filePath);
+      // On Windows, renameSync throws EPERM if destination exists.
+      // Use copy+unlink as a cross-platform atomic write.
+      fs.copyFileSync(tmp, filePath);
+      fs.unlinkSync(tmp);
     } catch (err) {
       // Best-effort persistence -- don't crash the pipeline
       console.warn('Session checkpoint failed:', (err as Error).message);

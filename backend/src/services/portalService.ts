@@ -193,8 +193,8 @@ export class CliPortalAdapter implements PortalAdapter {
     const command = (config.command as string) ?? '';
     validateCommand(command);
     this.command = command;
-    this.args = (config.args as string[]) ?? [];
-    this.env = (config.env as Record<string, string>) ?? undefined;
+    this.args = validateArgs(config.args) ?? [];
+    this.env = validateEnv(config.env);
   }
 
   getCapabilities(): PortalCapability[] {

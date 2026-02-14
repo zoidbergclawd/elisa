@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { TokenTracker, DEFAULT_TOKEN_BUDGET, BUDGET_WARNING_THRESHOLD } from './tokenTracker.js';
+import { TokenTracker, DEFAULT_TOKEN_BUDGET, BUDGET_WARNING_THRESHOLD, DEFAULT_RESERVED_PER_TASK } from './tokenTracker.js';
 
 describe('TokenTracker', () => {
   it('has default budget of 500_000', () => {
@@ -94,9 +94,68 @@ describe('TokenTracker', () => {
     expect(snap.input_tokens).toBe(100);
     expect(snap.output_tokens).toBe(50);
     expect(snap.total).toBe(150);
+    expect(snap.reserved_tokens).toBe(0);
+    expect(snap.effective_total).toBe(150);
     expect(snap.cost_usd).toBeCloseTo(0.01);
     expect(snap.max_budget).toBe(10_000);
     expect(snap.budget_remaining).toBe(9_850);
     expect(snap.per_agent).toEqual({ bot: { input: 100, output: 50 } });
+  });
+
+  it('DEFAULT_RESERVED_PER_TASK is 50_000', () => {
+    expect(DEFAULT_RESERVED_PER_TASK).toBe(50_000);
+  });
+
+  describe('token reservation (#80)', () => {
+    it('reserve increases reservedTokens and effectiveTotal', () => {
+      const t = new TokenTracker(500_000);
+      t.add(100_000, 50_000);
+      expect(t.reservedTokens).toBe(0);
+      expect(t.effectiveTotal).toBe(150_000);
+
+      t.reserve(50_000);
+      expect(t.reservedTokens).toBe(50_000);
+      expect(t.effectiveTotal).toBe(200_000);
+    });
+
+    it('releaseReservation decreases reservedTokens', () => {
+      const t = new TokenTracker(500_000);
+      t.reserve(50_000);
+      t.reserve(50_000);
+      expect(t.reservedTokens).toBe(100_000);
+
+      t.releaseReservation(50_000);
+      expect(t.reservedTokens).toBe(50_000);
+    });
+
+    it('releaseReservation does not go below zero', () => {
+      const t = new TokenTracker(500_000);
+      t.reserve(10_000);
+      t.releaseReservation(50_000);
+      expect(t.reservedTokens).toBe(0);
+    });
+
+    it('effectiveBudgetExceeded accounts for reserved tokens', () => {
+      const t = new TokenTracker(200_000);
+      t.add(50_000, 50_000); // total = 100k
+      expect(t.budgetExceeded).toBe(false);
+      expect(t.effectiveBudgetExceeded).toBe(false);
+
+      // Reserve 3 tasks worth = 150k, effective total = 250k > 200k
+      t.reserve(50_000);
+      t.reserve(50_000);
+      t.reserve(50_000);
+      expect(t.budgetExceeded).toBe(false);       // actual total still 100k
+      expect(t.effectiveBudgetExceeded).toBe(true); // effective = 250k
+    });
+
+    it('budgetExceeded is unaffected by reservations', () => {
+      const t = new TokenTracker(200_000);
+      t.add(50_000, 50_000);
+      t.reserve(200_000);
+      // budgetExceeded only considers actual tokens
+      expect(t.budgetExceeded).toBe(false);
+      expect(t.total).toBe(100_000);
+    });
   });
 });

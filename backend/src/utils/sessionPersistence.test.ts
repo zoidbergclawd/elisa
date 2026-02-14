@@ -141,4 +141,31 @@ describe('SessionPersistence', () => {
     expect(all).toHaveLength(1);
     expect(all[0].session.id).toBe('good');
   });
+
+  it('does not leave .tmp files after checkpoint (#77)', () => {
+    persistence.checkpoint(makeSession());
+    const files = fs.readdirSync(dir);
+    const tmpFiles = files.filter((f) => f.endsWith('.tmp'));
+    expect(tmpFiles).toHaveLength(0);
+  });
+
+  it('overwrites existing file without EPERM on Windows (#77)', () => {
+    // Simulate the Windows scenario: checkpoint twice to the same session.
+    // Before the fix, renameSync would throw EPERM on Windows when the
+    // destination already exists. The copy+unlink approach avoids this.
+    const session = makeSession({ state: 'planning' });
+    persistence.checkpoint(session);
+
+    // Second checkpoint overwrites the file
+    session.state = 'executing';
+    persistence.checkpoint(session);
+
+    const loaded = persistence.load('test-session-1');
+    expect(loaded).not.toBeNull();
+    expect(loaded!.session.state).toBe('executing');
+
+    // Verify no .tmp left behind
+    const files = fs.readdirSync(dir);
+    expect(files.filter((f) => f.endsWith('.tmp'))).toHaveLength(0);
+  });
 });

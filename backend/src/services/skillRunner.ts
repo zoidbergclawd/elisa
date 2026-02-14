@@ -163,9 +163,16 @@ export class SkillRunner {
               questions,
             });
 
-            // Block until answer arrives
-            const answers = await new Promise<Record<string, any>>((resolve) => {
-              this.questionResolvers.set(step.id, resolve);
+            // Block until answer arrives (5-minute timeout)
+            const answers = await new Promise<Record<string, any>>((resolve, reject) => {
+              const timeout = setTimeout(() => {
+                this.questionResolvers.delete(step.id);
+                reject(new Error(`ask_user step "${step.id}" timed out after 5 minutes waiting for a response`));
+              }, 300_000);
+              this.questionResolvers.set(step.id, (ans) => {
+                clearTimeout(timeout);
+                resolve(ans);
+              });
             });
 
             // Store the answer -- use header as key, or fall back to storeAs

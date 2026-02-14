@@ -125,4 +125,20 @@ describe('SessionStore persistence integration', () => {
     expect(mockCheckpoint).not.toHaveBeenCalled();
     expect(store.recover()).toBe(0);
   });
+
+  it('converts ISO savedAt string to numeric createdAt so pruneStale arithmetic works (#74)', () => {
+    const twoHoursAgo = new Date(Date.now() - 7_200_000).toISOString();
+    mockLoadAll.mockReturnValue([
+      { session: makeSession('r1', 'done'), savedAt: twoHoursAgo },
+    ]);
+    const store = new SessionStore();
+    store.recover();
+
+    const entry = store.get('r1')!;
+    // createdAt must be a number, not an ISO string
+    expect(typeof entry.createdAt).toBe('number');
+    // And pruneStale should recognize it as stale (older than 1 hour)
+    const pruned = store.pruneStale(3_600_000);
+    expect(pruned).toContain('r1');
+  });
 });

@@ -5,6 +5,7 @@
  */
 
 import { vi, describe, it, expect, beforeEach } from 'vitest';
+import net from 'node:net';
 import { DeployPhase } from './deployPhase.js';
 import type { PhaseContext } from './types.js';
 import type { CliExecResult } from '../portalService.js';
@@ -561,5 +562,54 @@ describe('deployHardware - progress values', () => {
     const progressValues = progressEvents.map((e) => e.progress);
     expect(progressValues).toContain(25);
     expect(progressValues).toContain(60);
+  });
+});
+
+// ============================================================
+// findFreePort - iterative, EADDRINUSE-only retry (#77)
+// ============================================================
+
+describe('findFreePort', () => {
+  it('returns a free port', async () => {
+    const port = await DeployPhase.findFreePort(0);
+    expect(port).toBeGreaterThan(0);
+  });
+
+  it('skips ports that are in use (EADDRINUSE)', async () => {
+    // Occupy a port, then ask findFreePort to start from it
+    const occupied = net.createServer();
+    const occupiedPort = await new Promise<number>((resolve) => {
+      occupied.listen(0, () => {
+        resolve((occupied.address() as net.AddressInfo).port);
+      });
+    });
+
+    try {
+      const port = await DeployPhase.findFreePort(occupiedPort);
+      expect(port).toBeGreaterThanOrEqual(occupiedPort);
+      // Should have found a different port since occupiedPort is taken
+      expect(port).not.toBe(occupiedPort);
+    } finally {
+      occupied.close();
+    }
+  });
+
+  it('rejects non-EADDRINUSE errors instead of retrying (#77)', async () => {
+    // Port 1 requires root/admin privileges and should fail with EACCES, not EADDRINUSE.
+    // The fix ensures we reject on non-EADDRINUSE instead of recursing infinitely.
+    // Use a port that is likely to fail with a permission error.
+    // If the OS doesn't reject it, skip the assertion.
+    try {
+      await DeployPhase.findFreePort(1);
+      // If it somehow succeeds (e.g., running as root), that's fine
+    } catch (err: any) {
+      // Should get an EACCES error, not 'No free port found'
+      expect(err.message).not.toBe('No free port found');
+      expect(err.code).toBeDefined();
+    }
+  });
+
+  it('rejects when no port is available (port > 65535)', async () => {
+    await expect(DeployPhase.findFreePort(65536)).rejects.toThrow('No free port found');
   });
 });

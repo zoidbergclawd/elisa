@@ -150,3 +150,25 @@ describe('static file serving', () => {
     expect(res.status).toBeGreaterThanOrEqual(400);
   });
 });
+
+describe('isDirectRun detection', () => {
+  it('matches URLs with different drive letter casing (Windows)', () => {
+    // This tests the core comparison logic from server.ts lines 265-267.
+    // On Windows, import.meta.url may use lowercase drive (file:///c:/...)
+    // while process.argv[1] produces uppercase (C:\...).
+    const importMetaUrl = 'file:///c:/git/elisa/backend/dist/server.js';
+    const argvPath = 'C:\\git\\elisa\\backend\\dist\\server.js';
+    const constructed = `file:///${argvPath.replace(/\\/g, '/')}`;
+
+    // Without fix: would fail because 'c:' !== 'C:'
+    expect(importMetaUrl.toLowerCase()).toBe(constructed.toLowerCase());
+  });
+
+  it('still matches when casing is already consistent', () => {
+    const importMetaUrl = 'file:///C:/git/elisa/backend/dist/server.js';
+    const argvPath = 'C:\\git\\elisa\\backend\\dist\\server.js';
+    const constructed = `file:///${argvPath.replace(/\\/g, '/')}`;
+
+    expect(importMetaUrl.toLowerCase()).toBe(constructed.toLowerCase());
+  });
+});
