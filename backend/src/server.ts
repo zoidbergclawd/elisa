@@ -264,7 +264,7 @@ export function startServer(
 
 const isDirectRun =
   !process.env.ELECTRON_RUN_AS_NODE &&
-  import.meta.url === `file:///${process.argv[1]?.replace(/\\/g, '/')}`;
+  import.meta.url.toLowerCase() === `file:///${process.argv[1]?.replace(/\\/g, '/')}`.toLowerCase();
 
 if (isDirectRun) {
   const port = Number(process.env.PORT ?? 8000);

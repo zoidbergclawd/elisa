@@ -56,6 +56,11 @@ export class TaskDAG {
     }
     return ready;
   }
+
+  /** Return the direct dependencies of a task. */
+  getDeps(taskId: string): Set<string> {
+    return this.graph.get(taskId) ?? new Set();
+  }
 }
 
 function isSubset(a: Set<string>, b: Set<string>): boolean {

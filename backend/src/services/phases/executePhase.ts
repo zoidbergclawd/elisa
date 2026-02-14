@@ -15,7 +15,7 @@ import { PortalService } from '../portalService.js';
 import { NarratorService } from '../narratorService.js';
 import { PermissionPolicy } from '../permissionPolicy.js';
 import { ContextManager } from '../../utils/contextManager.js';
-import { TokenTracker } from '../../utils/tokenTracker.js';
+import { TokenTracker, DEFAULT_RESERVED_PER_TASK } from '../../utils/tokenTracker.js';
 import { TaskDAG } from '../../utils/dag.js';
 
 interface PromptModule {
@@ -89,7 +89,25 @@ export class ExecutePhase {
       return s;
     };
 
+    const skipTask = async (taskId: string, reason: string) => {
+      const task = this.deps.taskMap[taskId];
+      const agentName: string = task?.agent_name ?? '';
+      task.status = 'failed';
+      const agent = this.deps.agentMap[agentName] ?? {};
+      if (agent.status !== undefined) agent.status = 'idle';
+      this.taskSummaries[taskId] = reason;
+      await ctx.send({
+        type: 'agent_output',
+        task_id: taskId,
+        agent_name: agentName,
+        content: reason,
+      });
+      await ctx.send({ type: 'task_failed', task_id: taskId, error: reason, retry_count: 0 });
+      failed.add(taskId);
+    };
+
     const launchTask = (taskId: string) => {
+      this.deps.tokenTracker.reserve(DEFAULT_RESERVED_PER_TASK);
       const promise = (async () => {
         try {
           const success = await this.executeOneTask(ctx, taskId, completed);
@@ -101,6 +119,7 @@ export class ExecutePhase {
         } catch {
           failed.add(taskId);
         } finally {
+          this.deps.tokenTracker.releaseReservation(DEFAULT_RESERVED_PER_TASK);
           inFlight.delete(taskId);
         }
       })();
@@ -129,10 +148,29 @@ export class ExecutePhase {
         break;
       }
 
+      // Skip tasks whose dependencies have failed
+      for (const taskId of ready) {
+        const deps = this.deps.dag.getDeps(taskId);
+        for (const dep of deps) {
+          if (failed.has(dep)) {
+            await skipTask(taskId, `Skipped: dependency '${dep}' failed`);
+            break;
+          }
+        }
+      }
+
+      // Re-filter ready list after skipping
+      const launchable = ready.filter((id) => !failed.has(id) && !inFlight.has(id));
+
       // Fill available slots with ready tasks (streaming-parallel)
       const slots = MAX_CONCURRENT - inFlight.size;
-      const toSchedule = ready.slice(0, Math.max(0, slots));
+      const toSchedule = launchable.slice(0, Math.max(0, slots));
       for (const taskId of toSchedule) {
+        // Check effective budget (including reserved tokens for in-flight tasks)
+        if (this.deps.tokenTracker.effectiveBudgetExceeded) {
+          await skipTask(taskId, `Token budget exceeded (${this.deps.tokenTracker.effectiveTotal} / ${this.deps.tokenTracker.maxBudget}). Skipping remaining tasks.`);
+          continue;
+        }
         launchTask(taskId);
       }
 

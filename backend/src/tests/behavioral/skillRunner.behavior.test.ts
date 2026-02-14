@@ -5,7 +5,7 @@
  * AgentRunner is mocked; SkillRunner's control flow runs for real.
  */
 
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SkillRunner, resolveTemplate, wrapUserData } from '../../services/skillRunner.js';
 import type { SkillPlan, SkillContext, SkillSpec } from '../../models/skillPlan.js';
 import { tmpdir } from 'node:os';
@@ -635,6 +635,63 @@ describe('SkillRunner interpretWorkspaceOnBackend', () => {
     const invokeStep = plan.steps[0] as any;
     expect(invokeStep.skillId).toBe('child-id');
     expect(invokeStep.storeAs).toBe('child_out');
+  });
+});
+
+describe('SkillRunner ask_user timeout', () => {
+  it('rejects after 5 minutes if no answer is provided', async () => {
+    vi.useFakeTimers();
+    try {
+      const { runner, events } = createRunner();
+      const plan: SkillPlan = {
+        skillId: 's1',
+        skillName: 'Test',
+        steps: [
+          { id: 'step-1', type: 'ask_user', question: 'Pick one', header: 'Choice', options: ['A', 'B'], storeAs: 'choice' },
+        ],
+      };
+
+      // Attach rejection handler immediately to prevent unhandled rejection
+      const resultPromise = runner.execute(plan).catch((e: Error) => e);
+
+      // Wait for the question event
+      await vi.waitFor(() => {
+        expect(events.some(e => e.type === 'skill_question')).toBe(true);
+      }, { timeout: 2000 });
+
+      // Advance past the 5-minute timeout
+      await vi.advanceTimersByTimeAsync(300_001);
+
+      const result = await resultPromise;
+      expect(result).toBeInstanceOf(Error);
+      expect((result as Error).message).toMatch(/timed out after 5 minutes/);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('clears timeout when answer arrives before deadline', async () => {
+    const { runner, events } = createRunner();
+    const plan: SkillPlan = {
+      skillId: 's1',
+      skillName: 'Test',
+      steps: [
+        { id: 'step-1', type: 'ask_user', question: 'Pick one', header: 'Choice', options: ['A', 'B'], storeAs: 'choice' },
+        { id: 'step-2', type: 'output', template: 'Chose {{choice}}' },
+      ],
+    };
+
+    const resultPromise = runner.execute(plan);
+
+    await vi.waitFor(() => {
+      expect(events.some(e => e.type === 'skill_question')).toBe(true);
+    }, { timeout: 2000 });
+
+    // Answer before timeout
+    runner.respondToQuestion('step-1', { Choice: 'A' });
+
+    const result = await resultPromise;
+    expect(result).toBe('Chose A');
   });
 });
 

@@ -211,6 +211,48 @@ describe('POST /api/sessions/:id/start', () => {
   });
 });
 
+describe('POST /api/sessions/:id/start - race condition (#73)', () => {
+  it('rejects concurrent start requests with 409', async () => {
+    server = await startServer(0);
+    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST' });
+    const { session_id } = await createRes.json();
+
+    const validSpec = { nugget: { goal: 'Build an app', type: 'software' } };
+    const body = JSON.stringify({ spec: validSpec });
+    const opts = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body };
+
+    // Fire two start requests concurrently
+    const [res1, res2] = await Promise.all([
+      fetch(`${baseUrl()}/api/sessions/${session_id}/start`, opts),
+      fetch(`${baseUrl()}/api/sessions/${session_id}/start`, opts),
+    ]);
+
+    const statuses = [res1.status, res2.status].sort();
+    // One should succeed (200), the other should be rejected (409)
+    expect(statuses).toEqual([200, 409]);
+  });
+
+  it('resets state to idle when spec validation fails after claiming session', async () => {
+    server = await startServer(0);
+    const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST' });
+    const { session_id } = await createRes.json();
+
+    // Send invalid spec
+    const invalidSpec = { nugget: { goal: 'x'.repeat(2001) } };
+    const res = await fetch(`${baseUrl()}/api/sessions/${session_id}/start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ spec: invalidSpec }),
+    });
+    expect(res.status).toBe(400);
+
+    // Session should be back to idle so a valid start can proceed
+    const getRes = await fetch(`${baseUrl()}/api/sessions/${session_id}`);
+    const session = await getRes.json();
+    expect(session.state).toBe('idle');
+  });
+});
+
 describe('POST /api/sessions/:id/stop', () => {
   it('stops a session and returns stopped', async () => {
     server = await startServer(0);

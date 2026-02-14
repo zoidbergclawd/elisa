@@ -149,20 +149,29 @@ export class DeployPhase {
     return { process: serverProcess, url: finalUrl };
   }
 
-  private static findFreePort(startPort: number): Promise<number> {
+  static findFreePort(startPort: number): Promise<number> {
     return new Promise((resolve, reject) => {
-      const server = net.createServer();
-      server.listen(startPort, () => {
-        const addr = server.address() as net.AddressInfo;
-        server.close(() => resolve(addr.port));
-      });
-      server.on('error', () => {
-        if (startPort < 65535) {
-          resolve(DeployPhase.findFreePort(startPort + 1));
-        } else {
+      let port = startPort;
+      const tryNext = (): void => {
+        if (port > 65535) {
           reject(new Error('No free port found'));
+          return;
         }
-      });
+        const server = net.createServer();
+        server.listen(port, () => {
+          const addr = server.address() as net.AddressInfo;
+          server.close(() => resolve(addr.port));
+        });
+        server.on('error', (err: NodeJS.ErrnoException) => {
+          if (err.code === 'EADDRINUSE') {
+            port++;
+            tryNext();
+          } else {
+            reject(err);
+          }
+        });
+      };
+      tryNext();
     });
   }
 

@@ -496,9 +496,9 @@ describe('task retry', () => {
 // ============================================================
 
 describe('failed task DAG propagation', () => {
-  it('allows downstream tasks to run after a dependency fails', async () => {
-    // When task-1 fails, task-2 (depends on task-1) should still get a chance
-    // to run because the DAG treats failed tasks as "settled"
+  it('skips downstream tasks when a dependency fails (#72)', async () => {
+    // When task-1 fails, task-2 (depends on task-1) should be skipped
+    // rather than executing with missing prerequisite work
     const executeMock = vi.fn()
       .mockImplementation(async (opts: any) => {
         if (opts.taskId === 'task-1') {
@@ -528,13 +528,24 @@ describe('failed task DAG propagation', () => {
     );
     deps.gateResolver.current!({ approved: true });
 
-    const result = await runPromise;
+    await runPromise;
 
-    // task-1 should be failed, task-2 should still have executed
+    // Both tasks should be failed
     expect(tasks[0].status).toBe('failed');
-    // task-2 gets to run because failed deps are treated as settled
-    const task2Started = events.filter((e) => e.type === 'task_started' && e.task_id === 'task-2');
-    expect(task2Started.length).toBe(1);
+    expect(tasks[1].status).toBe('failed');
+
+    // task-2 should NOT have been started by the agent runner (it was skipped)
+    const task2StartedByAgent = executeMock.mock.calls.filter(
+      (call: any[]) => call[0]?.taskId === 'task-2',
+    );
+    expect(task2StartedByAgent.length).toBe(0);
+
+    // task-2 should have a task_failed event with skip message
+    const task2Failed = events.filter(
+      (e) => e.type === 'task_failed' && e.task_id === 'task-2',
+    );
+    expect(task2Failed.length).toBe(1);
+    expect(task2Failed[0].error).toContain("Skipped: dependency 'task-1' failed");
   });
 
   it('terminates when all remaining tasks are blocked and no in-flight', async () => {
@@ -677,9 +688,13 @@ describe('token budget enforcement', () => {
       total: 1000,
       maxBudget: 500,
       budgetExceeded: true,
+      effectiveBudgetExceeded: true,
       budgetRemaining: 0,
+      reservedTokens: 0,
       addForAgent: vi.fn(),
       checkWarning: vi.fn().mockReturnValue(false),
+      reserve: vi.fn(),
+      releaseReservation: vi.fn(),
     } as any;
     const deps = makeDeps(executeMock, {
       tasks,

@@ -133,6 +133,36 @@ describe('NarratorService', () => {
 
       expect(onTranslated).not.toHaveBeenCalled();
     });
+
+    it('prevents late debounce callback from firing after flush (race condition)', async () => {
+      mockApiResponse('{"text": "Late message", "mood": "excited"}');
+
+      const service = new NarratorService();
+      const onTranslated = vi.fn();
+
+      // Accumulate output to start a 10s debounce timer
+      service.accumulateOutput('task-1', 'output 1', 'Bot', 'Build a game', onTranslated);
+
+      // Make clearTimeout a no-op so the timer fires even after flushTask.
+      // This simulates the race where the timer callback is already queued
+      // in the event loop when flushTask runs.
+      const realClearTimeout = globalThis.clearTimeout;
+      vi.spyOn(globalThis, 'clearTimeout').mockImplementation(() => {});
+
+      // Flush the task (simulates task_completed)
+      service.flushTask('task-1');
+
+      // Restore clearTimeout so other timers still work
+      vi.spyOn(globalThis, 'clearTimeout').mockImplementation(realClearTimeout);
+
+      // Advance past the 10s debounce -- the timer fires, but the generation
+      // guard detects that the task was flushed after this timer was scheduled
+      await vi.advanceTimersByTimeAsync(10100);
+
+      // Without the fix, onTranslated would fire with "Late message".
+      // With the generation guard, the callback is suppressed.
+      expect(onTranslated).not.toHaveBeenCalled();
+    });
   });
 
   describe('reset()', () => {

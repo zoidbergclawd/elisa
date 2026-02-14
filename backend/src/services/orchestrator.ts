@@ -130,13 +130,11 @@ export class Orchestrator {
         permissionPolicy: this.permissionPolicy,
       });
 
-      // Logger is initialized by setupWorkspace inside executePhase
+      // Initialize logger before execute so plan and execute phases get logging
+      this.logger = new SessionLogger(this.nuggetDir);
+
       const executeResult = await executePhase.execute(this.makeContext());
       this.commits = executeResult.commits;
-
-      // After workspace setup, logger is available -- update context
-      // (logger was created inside executePhase.setupWorkspace)
-      this.logger = new SessionLogger(this.nuggetDir);
 
       // Test
       await this.testPhase.execute(this.makeContext());

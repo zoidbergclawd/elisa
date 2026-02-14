@@ -45,18 +45,27 @@ function hasApiKey(): boolean {
 
 function findFreePort(startPort: number): Promise<number> {
   return new Promise((resolve, reject) => {
-    const server = net.createServer();
-    server.listen(startPort, () => {
-      const port = (server.address() as net.AddressInfo).port;
-      server.close(() => resolve(port));
-    });
-    server.on('error', () => {
-      if (startPort < 65535) {
-        resolve(findFreePort(startPort + 1));
-      } else {
+    let port = startPort;
+    const tryNext = (): void => {
+      if (port > 65535) {
         reject(new Error('No free port found'));
+        return;
       }
-    });
+      const server = net.createServer();
+      server.listen(port, () => {
+        const addr = (server.address() as net.AddressInfo).port;
+        server.close(() => resolve(addr));
+      });
+      server.on('error', (err: NodeJS.ErrnoException) => {
+        if (err.code === 'EADDRINUSE') {
+          port++;
+          tryNext();
+        } else {
+          reject(err);
+        }
+      });
+    };
+    tryNext();
   });
 }
 

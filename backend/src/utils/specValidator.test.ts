@@ -181,6 +181,80 @@ describe('NuggetSpecSchema basic validation', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it('rejects unknown fields at root level (#70)', () => {
+    const result = NuggetSpecSchema.safeParse({
+      nugget: { goal: 'Build a game' },
+      unknownField: 'should-be-rejected',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects unknown fields in nugget object (#70)', () => {
+    const result = NuggetSpecSchema.safeParse({
+      nugget: { goal: 'Build a game', extraProp: true },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects unknown fields in agents array items (#70)', () => {
+    const result = NuggetSpecSchema.safeParse({
+      agents: [{ name: 'builder', role: 'builder', evil: 'injection' }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects unknown fields in requirements array items (#70)', () => {
+    const result = NuggetSpecSchema.safeParse({
+      requirements: [{ type: 'functional', description: 'test', extra: 'bad' }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects unknown fields in style object (#70)', () => {
+    const result = NuggetSpecSchema.safeParse({
+      style: { visual: 'modern', unknownStyleProp: true },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects unknown fields in deployment object (#70)', () => {
+    const result = NuggetSpecSchema.safeParse({
+      deployment: { target: 'web', badField: 'x' },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects unknown fields in workflow object (#70)', () => {
+    const result = NuggetSpecSchema.safeParse({
+      workflow: { human_gates: ['before_deploy'], hacked: true },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects unknown fields in capability schema (#70)', () => {
+    const result = NuggetSpecSchema.safeParse({
+      portals: [{
+        name: 'Test',
+        description: 'desc',
+        mechanism: 'serial',
+        capabilities: [{ id: 'cap', name: 'Cap', extraCap: 'bad' }],
+      }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects unknown fields in interaction schema (#70)', () => {
+    const result = NuggetSpecSchema.safeParse({
+      portals: [{
+        name: 'Test',
+        description: 'desc',
+        mechanism: 'serial',
+        interactions: [{ type: 'tell', capabilityId: 'cap', extraField: true }],
+      }],
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe('portal interaction params', () => {
