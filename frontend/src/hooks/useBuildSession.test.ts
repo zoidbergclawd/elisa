@@ -719,7 +719,7 @@ describe('useBuildSession', () => {
       });
       expect(result.current.events.length).toBe(MAX_EVENTS);
       // Oldest should have been trimmed
-      expect((result.current.events[0] as any).line).toBe('line-20');
+      expect((result.current.events[0] as Record<string, unknown>).line).toBe('line-20');
     });
   });
 
