@@ -195,6 +195,18 @@ describe('DeployPhase - deployWeb', () => {
     if (result.process) result.process.kill();
   });
 
+  it('does not auto-open browser after starting server', async () => {
+    const { execFile } = await import('node:child_process');
+    const { ctx } = makeCtx({ spec: { deployment: { target: 'web' } } });
+    ctx.nuggetDir = tmpDir;
+
+    const result = await phase.deployWeb(ctx);
+
+    expect(execFile).not.toHaveBeenCalled();
+
+    if (result.process) result.process.kill();
+  });
+
   it('does not send deploy_checklist when no before_deploy rules exist', async () => {
     const { ctx, events } = makeCtx({
       spec: {

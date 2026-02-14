@@ -2,7 +2,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawn, execFile, type ChildProcess } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { safeEnv } from '../../utils/safeEnv.js';
 import { BUILD_TIMEOUT_MS } from '../../utils/constants.js';
 import { findFreePort } from '../../utils/findFreePort.js';
@@ -127,20 +127,7 @@ export class DeployPhase {
         }, 2000);
       });
 
-      if (started) {
-        // Open browser (best-effort, only hardcoded localhost URL)
-        try {
-          if (isWin) {
-            execFile('cmd.exe', ['/c', 'start', '', url], { env: safeEnv() });
-          } else if (process.platform === 'darwin') {
-            execFile('open', [url], { env: safeEnv() });
-          } else {
-            execFile('xdg-open', [url], { env: safeEnv() });
-          }
-        } catch {
-          // Browser open is best-effort
-        }
-      } else {
+      if (!started) {
         serverProcess = null;
       }
     } catch (err: any) {
