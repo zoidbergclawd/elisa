@@ -80,7 +80,7 @@ export interface NarratorMessage {
 export type WSEvent =
   | { type: 'session_started'; session_id: string }
   | { type: 'planning_started' }
-  | { type: 'plan_ready'; tasks: Task[]; agents: Agent[]; explanation: string }
+  | { type: 'plan_ready'; tasks: Task[]; agents: Agent[]; explanation: string; deployment_target?: string }
   | { type: 'task_started'; task_id: string; agent_name: string }
   | { type: 'task_completed'; task_id: string; summary: string }
   | { type: 'task_failed'; task_id: string; error: string; retry_count: number }

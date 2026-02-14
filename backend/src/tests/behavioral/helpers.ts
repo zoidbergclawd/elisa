@@ -202,6 +202,10 @@ export function firstIndexWhere(
 export function cleanupNuggetDir(orchestrator: Orchestrator): void {
   const dir = orchestrator.nuggetDir;
   if (fs.existsSync(dir)) {
-    fs.rmSync(dir, { recursive: true, force: true });
+    try {
+      fs.rmSync(dir, { recursive: true, force: true });
+    } catch {
+      // Windows: open handles may prevent deletion; ignore in tests
+    }
   }
 }

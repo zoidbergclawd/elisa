@@ -604,7 +604,7 @@ describe('deploy task skip', () => {
     expect(outputs.length).toBe(1);
   });
 
-  it('does not skip deploy task when esp32 target is configured', async () => {
+  it('skips deploy task when esp32 target is configured (handled by DeployPhase)', async () => {
     const executeMock = makeExecuteMock();
     const tasks = [
       makeTask('task-1', 'Deploy code', 'Agent-A'),
@@ -628,7 +628,37 @@ describe('deploy task skip', () => {
 
     await phase.execute(ctx);
 
-    // Agent should have been called because esp32 target is configured
+    // Agent should NOT have been called -- esp32 deploy is handled by DeployPhase
+    expect(executeMock).not.toHaveBeenCalled();
+    // Task should still be marked as done (skipped)
+    expect(tasks[0].status).toBe('done');
+  });
+
+  it('does not skip deploy task when web target is configured', async () => {
+    const executeMock = makeExecuteMock();
+    const tasks = [
+      makeTask('task-1', 'Deploy code', 'Agent-A'),
+    ];
+    tasks[0].description = 'Deploy to the web';
+    const agents = [makeAgent('Agent-A')];
+    const deps = makeDeps(executeMock, { tasks, agents });
+    const ctx = makeCtx({
+      session: {
+        id: 'test-session',
+        state: 'idle',
+        spec: {
+          nugget: { goal: 'test', type: 'software', description: 'test' },
+          deployment: { target: 'web' },
+        },
+        tasks: [],
+        agents: [],
+      } as any,
+    });
+    const phase = new ExecutePhase(deps);
+
+    await phase.execute(ctx);
+
+    // Agent should have been called because web target deploy is not handled by DeployPhase
     expect(executeMock).toHaveBeenCalled();
   });
 });
