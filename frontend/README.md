@@ -47,7 +47,9 @@ src/
       TeachingToast.tsx    Floating notification
       AgentAvatar.tsx      Status dot + role icon
     Skills/
-      SkillsRulesModal.tsx CRUD editor for skills and rules
+      SkillsModal.tsx      CRUD editor for custom skills + template library
+    Rules/
+      RulesModal.tsx       CRUD editor for rules + template library
   hooks/
     useBuildSession.ts   WebSocket connection + session state
   App.tsx                Root layout, all top-level state (useState)

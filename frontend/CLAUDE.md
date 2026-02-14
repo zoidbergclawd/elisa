@@ -21,7 +21,8 @@ src/
     TaskMap/                 Full-width interactive task DAG panel (Tasks tab)
     MissionControl/          Shared subcomponents: TaskDAG, CommsFeed, MetricsPanel
     BottomBar/               Bottom tabs: timeline, tests, board, learn, progress, tokens
-    Skills/                  Skills & Rules editor modal + registry
+    Skills/                  Skills editor modal + template library
+    Rules/                   Rules editor modal + template library
     Portals/                 Portals editor modal + registry
     shared/                  MainTabBar, GoButton, HumanGateModal, QuestionModal, TeachingToast, AgentAvatar, ReadinessBadge, ExamplePickerModal, DirectoryPickerModal
   hooks/

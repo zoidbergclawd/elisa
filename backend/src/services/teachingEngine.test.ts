@@ -135,4 +135,45 @@ describe('TeachingEngine', () => {
     expect(planning!.concept).toBe('decomposition');
     expect(testing!.concept).toBe('testing');
   });
+
+  it('composite_skill_created returns a teaching moment on first call', async () => {
+    const moment = await engine.getMoment('composite_skill_created');
+
+    expect(moment).not.toBeNull();
+    expect(moment!.concept).toBe('prompt_engineering');
+    expect(moment!.headline).toBeTruthy();
+    expect(moment!.explanation).toBeTruthy();
+    expect(moment!.tell_me_more).toBeTruthy();
+  });
+
+  it('composite_skill_created deduplicates on second call', async () => {
+    const first = await engine.getMoment('composite_skill_created');
+    expect(first).not.toBeNull();
+
+    const second = await engine.getMoment('composite_skill_created');
+    expect(second).toBeNull();
+  });
+
+  it('context_variable_used returns a teaching moment', async () => {
+    const moment = await engine.getMoment('context_variable_used');
+
+    expect(moment).not.toBeNull();
+    expect(moment!.concept).toBe('prompt_engineering');
+    expect(moment!.headline).toBeTruthy();
+    expect(moment!.explanation).toBeTruthy();
+    expect(moment!.tell_me_more).toBeTruthy();
+  });
+
+  it('composite_skill and context_variables curriculum content is non-empty', async () => {
+    const composite = await engine.getMoment('composite_skill_created');
+    const context = await engine.getMoment('context_variable_used');
+
+    expect(composite!.headline.length).toBeGreaterThan(0);
+    expect(composite!.explanation.length).toBeGreaterThan(0);
+    expect(composite!.tell_me_more.length).toBeGreaterThan(0);
+
+    expect(context!.headline.length).toBeGreaterThan(0);
+    expect(context!.explanation.length).toBeGreaterThan(0);
+    expect(context!.tell_me_more.length).toBeGreaterThan(0);
+  });
 });

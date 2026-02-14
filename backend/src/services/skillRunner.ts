@@ -124,6 +124,8 @@ export class SkillRunner {
     if (resolver) {
       resolver(answers);
       this.questionResolvers.delete(stepId);
+    } else {
+      console.warn(`respondToQuestion: no resolver found for stepId "${stepId}"`);
     }
   }
 
@@ -175,8 +177,8 @@ export class SkillRunner {
               });
             });
 
-            // Store the answer -- use header as key, or fall back to storeAs
-            const answer = answers[step.header] ?? Object.values(answers)[0] ?? '';
+            // Store the answer -- use header as key, fall back to storeAs key, then first value
+            const answer = answers[step.header] ?? answers[step.storeAs] ?? Object.values(answers)[0] ?? '';
             context.entries[step.storeAs] = answer;
             break;
           }
@@ -303,11 +305,13 @@ export class SkillRunner {
     function interpretBlock(block: any): SkillStep | null {
       switch (block.type) {
         case 'skill_ask_user': {
+          const question = (block.fields?.QUESTION as string) ?? '';
+          if (!question.trim()) return null;
           const optionsRaw = (block.fields?.OPTIONS as string) ?? '';
           return {
             id: block.id ?? nextId(),
             type: 'ask_user',
-            question: (block.fields?.QUESTION as string) ?? '',
+            question,
             header: (block.fields?.HEADER as string) ?? '',
             options: optionsRaw.split(',').map((o: string) => o.trim()).filter(Boolean),
             storeAs: (block.fields?.STORE_AS as string) ?? '',
@@ -332,13 +336,16 @@ export class SkillRunner {
             skillId: (block.fields?.SKILL_ID as string) ?? '',
             storeAs: (block.fields?.STORE_AS as string) ?? '',
           };
-        case 'skill_run_agent':
+        case 'skill_run_agent': {
+          const prompt = (block.fields?.PROMPT as string) ?? '';
+          if (!prompt.trim()) return null;
           return {
             id: block.id ?? nextId(),
             type: 'run_agent',
-            prompt: (block.fields?.PROMPT as string) ?? '',
+            prompt,
             storeAs: (block.fields?.STORE_AS as string) ?? '',
           };
+        }
         case 'skill_set_context':
           return {
             id: block.id ?? nextId(),
@@ -382,13 +389,19 @@ function walkNextChain(block: any): any[] {
 function resolveContextKey(key: string, context: SkillContext): string {
   // Check current context first
   const val = context.entries[key];
-  if (val !== undefined) return Array.isArray(val) ? val.join(', ') : val;
+  if (val !== undefined) {
+    if (Array.isArray(val)) return val.join(', ');
+    return typeof val === 'string' ? val : String(val);
+  }
 
   // Walk parent chain
   let parent = context.parentContext;
   while (parent) {
     const pVal = parent.entries[key];
-    if (pVal !== undefined) return Array.isArray(pVal) ? pVal.join(', ') : pVal;
+    if (pVal !== undefined) {
+      if (Array.isArray(pVal)) return pVal.join(', ');
+      return typeof pVal === 'string' ? pVal : String(pVal);
+    }
     parent = parent.parentContext;
   }
 

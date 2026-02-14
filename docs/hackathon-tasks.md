@@ -103,7 +103,7 @@ Files and specific changes:
    - Backdrop div: add `role="dialog"` `aria-modal="true"` `aria-labelledby="question-modal-title"`
    - Heading element: add `id="question-modal-title"`
 
-3. `frontend/src/components/Skills/SkillsRulesModal.tsx`
+3. `frontend/src/components/Skills/SkillsModal.tsx`
    - Backdrop div: add `role="dialog"` `aria-modal="true"` `aria-labelledby="skills-modal-title"`
    - Heading: add `id="skills-modal-title"`
 
@@ -163,5 +163,5 @@ No new test files needed for a11y attributes. Existing tests should continue to 
 - `frontend/src/components/shared/GoButton.tsx`
 - `frontend/src/components/shared/TeachingToast.tsx`
 - `frontend/src/components/shared/ExamplePickerModal.tsx`
-- `frontend/src/components/Skills/SkillsRulesModal.tsx`
+- `frontend/src/components/Skills/SkillsModal.tsx`
 - `frontend/src/components/Portals/PortalsModal.tsx`

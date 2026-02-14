@@ -36,7 +36,7 @@ const skillFlowBlockDefs = [
     previousStatement: null,
     nextStatement: null,
     colour: 315,
-    tooltip: 'Branch based on a context value. First match wins; remaining blocks run as else path.',
+    tooltip: 'If the context value matches, run the nested blocks. Blocks after this one always run regardless.',
     helpUrl: '',
   },
   {
@@ -67,7 +67,7 @@ const skillFlowBlockDefs = [
     previousStatement: null,
     nextStatement: null,
     colour: 315,
-    tooltip: 'Spawn a Claude agent with a prompt template. Use {{key}} for context values.',
+    tooltip: 'Spawn a Claude agent with a prompt template. Use {{key}} syntax to insert context values (e.g. {{answer}}, {{topic}}).',
     helpUrl: '',
   },
   {

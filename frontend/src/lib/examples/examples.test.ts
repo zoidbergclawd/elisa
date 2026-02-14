@@ -75,6 +75,52 @@ describe('bundled example nuggets', () => {
     expect(spec.workflow.review_enabled).toBe(true);
   });
 
+  // skillShowcase-specific tests
+
+  it('skillShowcase example includes a simple skill and a composite skill', () => {
+    const showcase = EXAMPLE_NUGGETS.find((e) => e.id === 'skill-showcase')!;
+    expect(showcase).toBeDefined();
+    const simpleSkill = showcase.skills.find(s => s.category === 'feature');
+    const compositeSkill = showcase.skills.find(s => s.category === 'composite');
+    expect(simpleSkill, 'Missing simple (feature) skill').toBeDefined();
+    expect(compositeSkill, 'Missing composite skill').toBeDefined();
+  });
+
+  it('skillShowcase composite skill has valid workspace JSON', () => {
+    const showcase = EXAMPLE_NUGGETS.find((e) => e.id === 'skill-showcase')!;
+    const compositeSkill = showcase.skills.find(s => s.category === 'composite')!;
+    expect(compositeSkill.workspace).toBeDefined();
+    const ws = compositeSkill.workspace as any;
+    expect(ws.blocks.blocks).toBeDefined();
+    expect(ws.blocks.blocks[0].type).toBe('skill_flow_start');
+  });
+
+  it('skillShowcase example includes an always-trigger rule', () => {
+    const showcase = EXAMPLE_NUGGETS.find((e) => e.id === 'skill-showcase')!;
+    const alwaysRule = showcase.rules.find(r => r.trigger === 'always');
+    expect(alwaysRule, 'Missing always-trigger rule').toBeDefined();
+  });
+
+  it('skillShowcase example uses use_skill and use_rule blocks on canvas', () => {
+    const showcase = EXAMPLE_NUGGETS.find((e) => e.id === 'skill-showcase')!;
+    const ws = showcase.workspace as any;
+    const allBlocks: any[] = [];
+    function collect(block: any) {
+      if (!block) return;
+      allBlocks.push(block);
+      if (block.next?.block) collect(block.next.block);
+      if (block.inputs) {
+        for (const input of Object.values(block.inputs) as any[]) {
+          if ((input as any)?.block) collect((input as any).block);
+        }
+      }
+    }
+    for (const b of ws.blocks.blocks) collect(b);
+    const types = allBlocks.map(b => b.type);
+    expect(types).toContain('use_skill');
+    expect(types).toContain('use_rule');
+  });
+
   // Ensure every skill/rule defined in an example has a corresponding workspace block
   describe('skill/rule block alignment', () => {
     function collectBlockTypes(block: any, results: Array<{ type: string; fields: Record<string, string> }> = []): typeof results {

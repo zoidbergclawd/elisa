@@ -24,6 +24,8 @@ const TRIGGER_MAP: Record<string, [string, string]> = {
   hardware_lora: ['hardware', 'lora'],
   skill_used: ['prompt_engineering', 'first_skill'],
   rule_used: ['prompt_engineering', 'first_rule'],
+  composite_skill_created: ['prompt_engineering', 'composite_skill'],
+  context_variable_used: ['prompt_engineering', 'context_variables'],
 };
 
 export class TeachingEngine {

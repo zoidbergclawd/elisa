@@ -1,8 +1,8 @@
 # Block Reference
 
-Complete guide to Elisa's 8-category block palette. Blocks snap together on the canvas to produce a [ProjectSpec](api-reference.md#projectspec-schema) that drives the build.
+Complete guide to Elisa's block palette. Blocks snap together on the canvas to produce a [ProjectSpec](api-reference.md#projectspec-schema) that drives the build.
 
-Categories: [Goals](#goals) | [Requirements](#requirements) | [Style](#style) | [Skills](#skills) | [Portals](#portals) | [Minions](#minions) | [Flow](#flow) | [Deploy](#deploy)
+Categories: [Goals](#goals) | [Requirements](#requirements) | [Style](#style) | [Skills](#skills) | [Rules](#rules) | [Skill Flow](#skill-flow) | [Portals](#portals) | [Minions](#minions) | [Flow](#flow) | [Deploy](#deploy)
 
 ---
 
@@ -49,14 +49,66 @@ Control the look and personality of the output.
 
 ## Skills
 
-Reusable prompt snippets and rules that extend agent capabilities. Both blocks are in the Skills toolbox category.
+Reusable prompt snippets that extend agent capabilities. Created in the Skills modal (wrench icon in sidebar).
 
 | Block | Fields | ProjectSpec Output |
 |-------|--------|--------------------|
 | **Use Skill** | `SKILL_ID` (dropdown, dynamically populated) | `skills[]` |
+
+Each skill has a name, prompt, and category (`agent`, `feature`, or `style`). Simple skills contain a prompt template. Composite skills use the flow editor (see [Skill Flow](#skill-flow)).
+
+---
+
+## Rules
+
+Guardrails that trigger automatically during builds. Created in the Rules modal (shield icon in sidebar).
+
+| Block | Fields | ProjectSpec Output |
+|-------|--------|--------------------|
 | **Apply Rule** | `RULE_ID` (dropdown, dynamically populated) | `rules[]` |
 
-Skills are created in the Skills & Rules modal. Each skill has a name, prompt, and category (`agent`, `feature`, or `style`). Rules have a name, prompt, and trigger (`always`, `on_task_complete`, `on_test_fail`, `before_deploy`).
+Each rule has a name, prompt, and trigger: `always`, `on_task_complete`, `on_test_fail`, or `before_deploy`.
+
+---
+
+## Skill Flow
+
+Visual flow editor for composite skills. Chain steps together to create multi-step agent workflows. Open the flow editor inside the Skills modal.
+
+All 7 flow blocks connect top-to-bottom starting from "Skill Flow".
+
+| Block | Fields | Behavior |
+|-------|--------|----------|
+| **Skill Flow** | *(none)* | Entry point. Must be the first block in every flow. |
+| **Ask User** | `QUESTION` (text), `HEADER` (text), `OPTIONS` (comma-separated text), `STORE_AS` (key name) | Pauses execution and presents a choice to the user. Stores the selected answer in context under `STORE_AS`. |
+| **If** | `CONTEXT_KEY` (key name), `MATCH_VALUE` (text), `THEN_BLOCKS` (statement slot) | Branch on a context value. Runs `THEN_BLOCKS` only if the value of `CONTEXT_KEY` equals `MATCH_VALUE`. No else branch -- use multiple If blocks for each case. |
+| **Run Skill** | `SKILL_ID` (dropdown), `STORE_AS` (key name) | Invokes another skill by ID. Stores the skill's output in context. Supports nesting up to 10 levels deep with cycle detection. |
+| **Run Agent** | `PROMPT` (multiline text), `STORE_AS` (key name) | Spawns a Claude agent with the given prompt template. Stores the agent's result summary in context. |
+| **Set Context** | `KEY` (key name), `VALUE` (text) | Sets a context variable. Useful for combining or transforming values. |
+| **Output** | `TEMPLATE` (text) | Produces the final output of the skill flow. Terminal block (no next connector). |
+
+### Context Variables
+
+Use `{{key}}` syntax in any text field to reference context values:
+
+```
+Ask User -> store as "topic"
+Run Agent -> prompt "Build a {{topic}} app" -> store as "result"
+Output -> template "Done: {{result}}"
+```
+
+Context resolution walks the current context first, then parent contexts (for nested skill invocations).
+
+### Branch Behavior
+
+`If` blocks have no else branch. To handle multiple cases, chain multiple `If` blocks:
+
+```
+If answer equals "Game"    -> [Run Agent: build a game]
+If answer equals "Website" -> [Run Agent: build a website]
+```
+
+First match wins per block. All `If` blocks are evaluated independently (not mutually exclusive).
 
 ---
 

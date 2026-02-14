@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import SkillQuestionModal from './SkillQuestionModal';
 import type { QuestionPayload } from '../../types';
+import { setAuthToken } from '../../lib/apiClient';
 
 // Mock global fetch
 const mockFetch = vi.fn().mockResolvedValue({ ok: true });
@@ -97,14 +98,16 @@ describe('SkillQuestionModal', () => {
     fireEvent.click(screen.getByText('Submit'));
 
     await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith('/api/skills/session-abc/answer', {
+      expect(mockFetch).toHaveBeenCalledWith('/api/skills/session-abc/answer', expect.objectContaining({
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           step_id: 'step-1',
           answers: { 'Color Theme': 'Light' },
         }),
-      });
+      }));
+      // Verify Content-Type header is present (set by authFetch)
+      const callHeaders = mockFetch.mock.calls[0][1].headers;
+      expect(callHeaders['Content-Type']).toBe('application/json');
     });
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
@@ -124,14 +127,13 @@ describe('SkillQuestionModal', () => {
     fireEvent.click(screen.getByText('Submit'));
 
     await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith('/api/skills/session-abc/answer', {
+      expect(mockFetch).toHaveBeenCalledWith('/api/skills/session-abc/answer', expect.objectContaining({
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           step_id: 'step-1',
           answers: { Features: ['Animations', 'Haptics'] },
         }),
-      });
+      }));
     });
   });
 
@@ -168,5 +170,24 @@ describe('SkillQuestionModal', () => {
     // Verify the other options have their descriptions
     expect(screen.getByText('Smooth transitions')).toBeInTheDocument();
     expect(screen.getByText('Audio feedback')).toBeInTheDocument();
+  });
+
+  it('includes Authorization header when auth token is set', async () => {
+    setAuthToken('test-token-123');
+    try {
+      render(<SkillQuestionModal {...defaultProps} questions={[singleSelectQuestion]} />);
+      const radios = screen.getAllByRole('radio');
+      fireEvent.click(radios[0]); // Select "Dark"
+      fireEvent.click(screen.getByText('Submit'));
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalled();
+        const callHeaders = mockFetch.mock.calls[0][1].headers;
+        expect(callHeaders['Authorization']).toBe('Bearer test-token-123');
+        expect(callHeaders['Content-Type']).toBe('application/json');
+      });
+    } finally {
+      setAuthToken(null);
+    }
   });
 });

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { QuestionPayload } from '../../types';
+import { authFetch } from '../../lib/apiClient';
 
 interface Props {
   stepId: string;
@@ -40,9 +41,8 @@ export default function SkillQuestionModal({ stepId, questions, sessionId, onClo
       payload[questions[i].header] = answers[i];
     }
 
-    await fetch(`/api/skills/${sessionId}/answer`, {
+    await authFetch(`/api/skills/${sessionId}/answer`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ step_id: stepId, answers: payload }),
     });
     onClose();

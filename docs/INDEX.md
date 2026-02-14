@@ -24,7 +24,8 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/components/TaskMap/` | DAG visualization (@xyflow/react) |
 | `frontend/src/components/MissionControl/` | Shared: TaskDAG, CommsFeed, MetricsPanel |
 | `frontend/src/components/BottomBar/` | Tabs: Timeline, Tests, Board, Learn, Progress, Tokens |
-| `frontend/src/components/Skills/` | Skills/rules CRUD modal |
+| `frontend/src/components/Skills/` | Skills CRUD modal + template library |
+| `frontend/src/components/Rules/` | Rules CRUD modal + template library |
 | `frontend/src/components/Portals/` | Portal connections modal |
 | `frontend/src/components/shared/` | Reusable: tabs, buttons, modals, toasts, avatars |
 | `frontend/src/hooks/` | React hooks (session state, health, WebSocket, board detect, skills) |

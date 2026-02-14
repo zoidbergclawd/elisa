@@ -716,4 +716,506 @@ describe('resolveTemplate', () => {
     const ctx: SkillContext = { entries: { tags: ['a', 'b', 'c'] } };
     expect(resolveTemplate('Tags: {{tags}}', ctx)).toBe('Tags: a, b, c');
   });
+
+  it('coerces non-string non-array values to string (A2)', () => {
+    const ctx: SkillContext = { entries: { count: 42 as any, flag: true as any, zero: 0 as any } };
+    expect(resolveTemplate('count={{count}} flag={{flag}} zero={{zero}}', ctx))
+      .toBe('count=42 flag=true zero=0');
+  });
+
+  it('coerces non-string values from parent context (A2)', () => {
+    const parent: SkillContext = { entries: { num: 99 as any } };
+    const ctx: SkillContext = { entries: {}, parentContext: parent };
+    expect(resolveTemplate('num={{num}}', ctx)).toBe('num=99');
+  });
+});
+
+describe('SkillRunner ask_user answer extraction fallback (A3)', () => {
+  it('falls back to storeAs key when header key is missing from answers', async () => {
+    const { runner, events } = createRunner();
+    const plan: SkillPlan = {
+      skillId: 's1',
+      skillName: 'Test',
+      steps: [
+        { id: 'step-1', type: 'ask_user', question: 'Pick one', header: 'Choice', options: ['A', 'B'], storeAs: 'user_choice' },
+        { id: 'step-2', type: 'output', template: 'Picked: {{user_choice}}' },
+      ],
+    };
+
+    const resultPromise = runner.execute(plan);
+
+    await vi.waitFor(() => {
+      expect(events.some(e => e.type === 'skill_question')).toBe(true);
+    }, { timeout: 2000 });
+
+    // Answer keyed by storeAs instead of header -- triggers the new fallback
+    runner.respondToQuestion('step-1', { user_choice: 'B' });
+
+    const result = await resultPromise;
+    expect(result).toBe('Picked: B');
+  });
+});
+
+describe('SkillRunner interpretWorkspaceOnBackend invalid blocks (A4)', () => {
+  it('skips ask_user blocks with empty QUESTION field', () => {
+    const { runner } = createRunner();
+    const skill: SkillSpec = {
+      id: 'test',
+      name: 'Test',
+      prompt: '',
+      category: 'composite',
+      workspace: {
+        blocks: {
+          blocks: [
+            {
+              type: 'skill_flow_start',
+              next: {
+                block: {
+                  id: 'ask-empty',
+                  type: 'skill_ask_user',
+                  fields: { QUESTION: '', HEADER: 'H', OPTIONS: 'A,B', STORE_AS: 'x' },
+                  next: {
+                    block: {
+                      id: 'out1',
+                      type: 'skill_output',
+                      fields: { TEMPLATE: 'done' },
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        },
+      },
+    };
+
+    const plan = runner.interpretWorkspaceOnBackend(skill);
+    // The ask_user block with empty question should be filtered out
+    expect(plan.steps).toHaveLength(1);
+    expect(plan.steps[0].type).toBe('output');
+  });
+
+  it('skips ask_user blocks with whitespace-only QUESTION field', () => {
+    const { runner } = createRunner();
+    const skill: SkillSpec = {
+      id: 'test',
+      name: 'Test',
+      prompt: '',
+      category: 'composite',
+      workspace: {
+        blocks: {
+          blocks: [
+            {
+              type: 'skill_flow_start',
+              next: {
+                block: {
+                  id: 'ask-ws',
+                  type: 'skill_ask_user',
+                  fields: { QUESTION: '   ', HEADER: 'H', OPTIONS: 'A,B', STORE_AS: 'x' },
+                },
+              },
+            },
+          ],
+        },
+      },
+    };
+
+    const plan = runner.interpretWorkspaceOnBackend(skill);
+    expect(plan.steps).toHaveLength(0);
+  });
+
+  it('skips run_agent blocks with empty PROMPT field', () => {
+    const { runner } = createRunner();
+    const skill: SkillSpec = {
+      id: 'test',
+      name: 'Test',
+      prompt: '',
+      category: 'composite',
+      workspace: {
+        blocks: {
+          blocks: [
+            {
+              type: 'skill_flow_start',
+              next: {
+                block: {
+                  id: 'agent-empty',
+                  type: 'skill_run_agent',
+                  fields: { PROMPT: '', STORE_AS: 'x' },
+                  next: {
+                    block: {
+                      id: 'out1',
+                      type: 'skill_output',
+                      fields: { TEMPLATE: 'done' },
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        },
+      },
+    };
+
+    const plan = runner.interpretWorkspaceOnBackend(skill);
+    expect(plan.steps).toHaveLength(1);
+    expect(plan.steps[0].type).toBe('output');
+  });
+});
+
+describe('SkillRunner respondToQuestion unknown stepId (A5)', () => {
+  it('logs a warning but does not throw for unknown stepId', () => {
+    const { runner } = createRunner();
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    // Should not throw
+    expect(() => runner.respondToQuestion('nonexistent-step', { answer: 'yes' })).not.toThrow();
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('nonexistent-step'),
+    );
+
+    warnSpy.mockRestore();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// B2: Nested composite skills -- parent -> child -> grandchild context threading
+// ---------------------------------------------------------------------------
+
+describe('Nested composite skills', () => {
+  it('executes parent -> child -> grandchild with context threading', async () => {
+    const skills: SkillSpec[] = [
+      {
+        id: 'grandchild',
+        name: 'Grandchild',
+        prompt: '',
+        category: 'composite',
+        workspace: {
+          blocks: {
+            blocks: [
+              {
+                type: 'skill_flow_start',
+                next: {
+                  block: {
+                    type: 'skill_set_context',
+                    fields: { KEY: 'grandchild_data', VALUE: 'gc-value' },
+                    next: {
+                      block: {
+                        type: 'skill_output',
+                        fields: { TEMPLATE: 'grandchild says {{parent_data}}' },
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+      {
+        id: 'child',
+        name: 'Child',
+        prompt: '',
+        category: 'composite',
+        workspace: {
+          blocks: {
+            blocks: [
+              {
+                type: 'skill_flow_start',
+                next: {
+                  block: {
+                    type: 'skill_set_context',
+                    fields: { KEY: 'child_data', VALUE: 'child-value' },
+                    next: {
+                      block: {
+                        type: 'skill_invoke',
+                        fields: { SKILL_ID: 'grandchild', STORE_AS: 'gc_result' },
+                        next: {
+                          block: {
+                            type: 'skill_output',
+                            fields: { TEMPLATE: '{{gc_result}}' },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+    ];
+    const { runner } = createRunner(skills);
+
+    const plan: SkillPlan = {
+      skillId: 'parent',
+      skillName: 'Parent',
+      steps: [
+        { id: 'p1', type: 'set_context', key: 'parent_data', value: 'from-parent' },
+        { id: 'p2', type: 'invoke_skill', skillId: 'child', storeAs: 'child_out' },
+        { id: 'p3', type: 'output', template: 'Final: {{child_out}}' },
+      ],
+    };
+
+    const result = await runner.execute(plan);
+    // Grandchild resolves {{parent_data}} from the parent context chain
+    expect(result).toBe('Final: grandchild says from-parent');
+  });
+
+  it('child ask_user can read parent context', async () => {
+    const skills: SkillSpec[] = [
+      {
+        id: 'asking-child',
+        name: 'AskingChild',
+        prompt: '',
+        category: 'composite',
+        workspace: {
+          blocks: {
+            blocks: [
+              {
+                type: 'skill_flow_start',
+                next: {
+                  block: {
+                    id: 'ask-step',
+                    type: 'skill_ask_user',
+                    fields: {
+                      QUESTION: 'Parent set: {{parent_val}}. Pick one?',
+                      HEADER: 'Choice',
+                      OPTIONS: 'X,Y',
+                      STORE_AS: 'user_pick',
+                    },
+                    next: {
+                      block: {
+                        type: 'skill_output',
+                        fields: { TEMPLATE: 'picked={{user_pick}}' },
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+    ];
+    const { runner, events } = createRunner(skills);
+
+    const plan: SkillPlan = {
+      skillId: 'parent-ask',
+      skillName: 'ParentAsk',
+      steps: [
+        { id: 'p1', type: 'set_context', key: 'parent_val', value: 'hello' },
+        { id: 'p2', type: 'invoke_skill', skillId: 'asking-child', storeAs: 'child_out' },
+        { id: 'p3', type: 'output', template: '{{child_out}}' },
+      ],
+    };
+
+    const resultPromise = runner.execute(plan);
+
+    // Wait for the question event from the child
+    await vi.waitFor(() => {
+      expect(events.some(e => e.type === 'skill_question')).toBe(true);
+    }, { timeout: 2000 });
+
+    const questionEvt = events.find(e => e.type === 'skill_question')!;
+    // The question should have resolved {{parent_val}} from parent context
+    expect(questionEvt.questions[0].question).toBe('Parent set: hello. Pick one?');
+
+    // Answer it
+    runner.respondToQuestion('ask-step', { Choice: 'Y' });
+
+    const result = await resultPromise;
+    expect(result).toBe('picked=Y');
+  });
+
+  it('parent context is not polluted by child writes', async () => {
+    const skills: SkillSpec[] = [
+      {
+        id: 'writing-child',
+        name: 'WritingChild',
+        prompt: '',
+        category: 'composite',
+        workspace: {
+          blocks: {
+            blocks: [
+              {
+                type: 'skill_flow_start',
+                next: {
+                  block: {
+                    type: 'skill_set_context',
+                    fields: { KEY: 'child_only', VALUE: 'should-not-leak' },
+                    next: {
+                      block: {
+                        type: 'skill_set_context',
+                        fields: { KEY: 'shared_key', VALUE: 'child-override' },
+                        next: {
+                          block: {
+                            type: 'skill_output',
+                            fields: { TEMPLATE: 'done' },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+    ];
+    const { runner } = createRunner(skills);
+
+    const plan: SkillPlan = {
+      skillId: 'parent-isolation',
+      skillName: 'ParentIsolation',
+      steps: [
+        { id: 'p1', type: 'set_context', key: 'shared_key', value: 'parent-original' },
+        { id: 'p2', type: 'invoke_skill', skillId: 'writing-child', storeAs: 'child_out' },
+        // After child runs, parent's shared_key should still be its original value
+        { id: 'p3', type: 'output', template: 'shared={{shared_key}} child_only={{child_only}}' },
+      ],
+    };
+
+    const result = await runner.execute(plan);
+    // Parent's shared_key should be unchanged; child_only should not exist in parent
+    expect(result).toBe('shared=parent-original child_only=');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// B3: run_agent streaming -- verify skill_output events during agent execution
+// ---------------------------------------------------------------------------
+
+describe('run_agent streaming', () => {
+  it('emits skill_output events during agent execution via onOutput', async () => {
+    // Create a custom agent runner that invokes onOutput callbacks
+    const streamingAgentRunner = {
+      execute: vi.fn(async (opts: { onOutput?: (taskId: string, content: string) => Promise<void>; [key: string]: any }) => {
+        // Simulate streaming: call onOutput several times before resolving
+        if (opts.onOutput) {
+          await opts.onOutput('skill-step-1', 'Thinking...');
+          await opts.onOutput('skill-step-1', 'Writing code...');
+          await opts.onOutput('skill-step-1', 'Done!');
+        }
+        return {
+          success: true,
+          summary: 'Agent finished',
+          costUsd: 0.01,
+          inputTokens: 100,
+          outputTokens: 50,
+        };
+      }),
+    } as any;
+
+    const events: Record<string, any>[] = [];
+    const send = vi.fn(async (evt: Record<string, any>) => {
+      events.push(evt);
+    });
+    const runner = new SkillRunner(send, [], streamingAgentRunner, TEST_WORKING_DIR);
+
+    const plan: SkillPlan = {
+      skillId: 'stream-test',
+      skillName: 'StreamTest',
+      steps: [
+        { id: 'step-1', type: 'run_agent', prompt: 'Build something', storeAs: 'result' },
+        { id: 'step-2', type: 'output', template: '{{result}}' },
+      ],
+    };
+
+    const result = await runner.execute(plan);
+    expect(result).toBe('Agent finished');
+
+    // Collect all skill_output events
+    const outputEvents = events.filter(e => e.type === 'skill_output');
+
+    // There should be outputs from the streaming (onOutput calls) plus the
+    // "Running agent:" output plus the final output step
+    // The run_agent step emits: 1 "Running agent:..." + 3 streaming + 1 from output step = 5
+    expect(outputEvents.length).toBeGreaterThanOrEqual(4);
+
+    // Check that streaming outputs are present
+    const outputContents = outputEvents.map(e => e.content);
+    expect(outputContents).toContain('Thinking...');
+    expect(outputContents).toContain('Writing code...');
+    expect(outputContents).toContain('Done!');
+  });
+
+  it('stores agent summary in context even when onOutput streams', async () => {
+    const streamingAgentRunner = {
+      execute: vi.fn(async (opts: { onOutput?: (taskId: string, content: string) => Promise<void>; [key: string]: any }) => {
+        if (opts.onOutput) {
+          await opts.onOutput('skill-step-1', 'partial output');
+        }
+        return {
+          success: true,
+          summary: 'Final summary',
+          costUsd: 0,
+          inputTokens: 10,
+          outputTokens: 5,
+        };
+      }),
+    } as any;
+
+    const events: Record<string, any>[] = [];
+    const send = vi.fn(async (evt: Record<string, any>) => {
+      events.push(evt);
+    });
+    const runner = new SkillRunner(send, [], streamingAgentRunner, TEST_WORKING_DIR);
+
+    const plan: SkillPlan = {
+      skillId: 'store-test',
+      skillName: 'StoreTest',
+      steps: [
+        { id: 'step-1', type: 'run_agent', prompt: 'Do work', storeAs: 'work_result' },
+        { id: 'step-2', type: 'output', template: 'Got: {{work_result}}' },
+      ],
+    };
+
+    const result = await runner.execute(plan);
+    // The agent's summary should be stored and used in the template
+    expect(result).toBe('Got: Final summary');
+  });
+
+  it('emits skill_output with step_id matching the run_agent step', async () => {
+    const streamingAgentRunner = {
+      execute: vi.fn(async (opts: { onOutput?: (taskId: string, content: string) => Promise<void>; [key: string]: any }) => {
+        if (opts.onOutput) {
+          await opts.onOutput('skill-agent-step', 'streamed line');
+        }
+        return {
+          success: true,
+          summary: 'ok',
+          costUsd: 0,
+          inputTokens: 10,
+          outputTokens: 5,
+        };
+      }),
+    } as any;
+
+    const events: Record<string, any>[] = [];
+    const send = vi.fn(async (evt: Record<string, any>) => {
+      events.push(evt);
+    });
+    const runner = new SkillRunner(send, [], streamingAgentRunner, TEST_WORKING_DIR);
+
+    const plan: SkillPlan = {
+      skillId: 'stepid-test',
+      skillName: 'StepIdTest',
+      steps: [
+        { id: 'agent-step', type: 'run_agent', prompt: 'Do it', storeAs: 'out' },
+      ],
+    };
+
+    await runner.execute(plan);
+
+    // All skill_output events for the run_agent step should have the correct step_id
+    const agentOutputs = events.filter(
+      e => e.type === 'skill_output' && e.step_id === 'agent-step',
+    );
+    expect(agentOutputs.length).toBeGreaterThanOrEqual(1);
+    // The streaming output should be among them
+    expect(agentOutputs.some(e => e.content === 'streamed line')).toBe(true);
+  });
 });

@@ -39,6 +39,18 @@ Open `http://localhost:5173` in your browser.
 4. **Interact** -- If you placed a "check with me" block, the build pauses with a modal asking for your approval. Agents may also ask questions mid-build.
 5. **Done** -- When the session completes, you have a working project with git history.
 
+## Skills and Rules
+
+After your first build, try extending your agents with custom Skills and Rules.
+
+**Create a Skill** -- Open the Skills modal from the sidebar (wrench icon). Give it a name, a prompt, and a category (`agent`, `feature`, or `style`). Drag a "Use Skill" block onto the canvas to include it in your next build.
+
+**Create a Rule** -- Open the Rules modal from the sidebar (shield icon). Rules are guardrails that trigger automatically (`always`, `on_task_complete`, `on_test_fail`, `before_deploy`). Drag an "Apply Rule" block onto the canvas.
+
+**Composite Skills** -- Open the flow editor inside the Skills modal to chain steps together: ask the user a question, branch on the answer, run agents, and invoke other skills. Use `{{key}}` syntax to reference context variables between steps.
+
+Skills and Rules have separate sidebar buttons for quick access.
+
 ## Troubleshooting
 
 **Backend won't start** -- Confirm `ANTHROPIC_API_KEY` is set in your environment. The server needs it for the meta-planner and teaching engine.

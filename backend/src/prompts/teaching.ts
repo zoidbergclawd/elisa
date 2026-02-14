@@ -188,6 +188,29 @@ export const CONCEPT_CURRICULUM: Record<string, Record<string, TeachingMomentDat
         "In real software teams, these are called 'linting rules' or 'code standards'. " +
         'They catch mistakes automatically so the team can focus on building cool stuff.',
     },
+    composite_skill: {
+      concept: 'prompt_engineering',
+      headline: 'You built a multi-step skill -- nice work!',
+      explanation:
+        'A composite skill chains multiple steps together: ask questions, branch on answers, ' +
+        'and run different agents. It is like writing a recipe with decision points -- ' +
+        '"if the user wants chocolate, do this; if vanilla, do that."',
+      tell_me_more:
+        'Composite skills can even call other skills inside them, like nesting functions ' +
+        'in a program. This lets you build complex workflows from simple, reusable pieces.',
+    },
+    context_variables: {
+      concept: 'prompt_engineering',
+      headline: 'Context variables connect your skill steps!',
+      explanation:
+        'When you use {{key}} in a prompt, the skill engine replaces it with a value ' +
+        'from an earlier step. It is like filling in blanks on a form -- each step ' +
+        'can read what the previous steps wrote.',
+      tell_me_more:
+        'Context flows from parent skills to child skills too. If a skill calls another ' +
+        'skill, the inner skill can read the outer skill\'s values. This is similar to ' +
+        'how variables work in programming -- inner scopes can see outer scopes.',
+    },
   },
   code_review: {
     first_review: {

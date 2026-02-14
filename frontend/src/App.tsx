@@ -10,7 +10,8 @@ import MissionControlPanel from './components/MissionControl/MissionControlPanel
 import TeachingToast from './components/shared/TeachingToast';
 import HumanGateModal from './components/shared/HumanGateModal';
 import QuestionModal from './components/shared/QuestionModal';
-import SkillsRulesModal from './components/Skills/SkillsRulesModal';
+import SkillsModal from './components/Skills/SkillsModal';
+import RulesModal from './components/Rules/RulesModal';
 import PortalsModal from './components/Portals/PortalsModal';
 import ExamplePickerModal from './components/shared/ExamplePickerModal';
 import { EXAMPLE_NUGGETS } from './lib/examples';
@@ -79,6 +80,7 @@ export default function App() {
   const [rules, setRules] = useState<Rule[]>(() => readLocalStorageJson<Rule[]>(LS_RULES) ?? []);
   const [portals, setPortals] = useState<Portal[]>(() => readLocalStorageJson<Portal[]>(LS_PORTALS) ?? []);
   const [skillsModalOpen, setSkillsModalOpen] = useState(false);
+  const [rulesModalOpen, setRulesModalOpen] = useState(false);
   const [portalsModalOpen, setPortalsModalOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
 
@@ -386,6 +388,7 @@ export default function App() {
             onOpen={() => fileInputRef.current?.click()}
             onSave={handleSaveNugget}
             onSkills={() => setSkillsModalOpen(true)}
+            onRules={() => setRulesModalOpen(true)}
             onPortals={() => setPortalsModalOpen(true)}
             onExamples={() => setExamplePickerOpen(true)}
             onHelp={() => setHelpOpen(true)}
@@ -458,14 +461,21 @@ export default function App() {
         />
       )}
 
-      {/* Skills & Rules modal */}
+      {/* Skills modal */}
       {skillsModalOpen && (
-        <SkillsRulesModal
+        <SkillsModal
           skills={skills}
-          rules={rules}
           onSkillsChange={setSkills}
-          onRulesChange={setRules}
           onClose={() => setSkillsModalOpen(false)}
+        />
+      )}
+
+      {/* Rules modal */}
+      {rulesModalOpen && (
+        <RulesModal
+          rules={rules}
+          onRulesChange={setRules}
+          onClose={() => setRulesModalOpen(false)}
         />
       )}
 
@@ -521,7 +531,8 @@ export default function App() {
                 <h3 className="font-semibold text-atelier-text mb-1">Sidebar</h3>
                 <ul className="space-y-0.5">
                   <li><span className="text-atelier-text">Open / Save</span> - Load or save .elisa nugget files</li>
-                  <li><span className="text-atelier-text">Skills</span> - Custom agent skills and rules</li>
+                  <li><span className="text-atelier-text">Skills</span> - Custom agent skills and behaviors</li>
+                  <li><span className="text-atelier-text">Rules</span> - Constraints and checks for your agents</li>
                   <li><span className="text-atelier-text">Portals</span> - Connect external tools (MCP, CLI, hardware)</li>
                   <li><span className="text-atelier-text">Examples</span> - Load a pre-built example nugget</li>
                 </ul>

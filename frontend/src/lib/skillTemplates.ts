@@ -3,6 +3,7 @@ import type { Skill, Rule } from '../components/Skills/types';
 export interface SkillTemplate extends Omit<Skill, 'workspace'> {
   description: string;
   tags: string[];
+  workspace?: Record<string, unknown>;
 }
 
 export interface RuleTemplate extends Rule {
@@ -66,6 +67,187 @@ export const SKILL_TEMPLATES: SkillTemplate[] = [
     category: 'style',
     description: 'Retro 8-bit aesthetic with limited palette.',
     tags: ['style', 'retro', 'game'],
+  },
+  {
+    id: 'tmpl-presentation-builder',
+    name: 'Presentation builder',
+    prompt: 'Build a presentation on the requested topic using the chosen format.',
+    category: 'composite',
+    description: 'Asks for topic and style (slides vs poster), then runs agent with targeted prompt.',
+    tags: ['composite', 'productivity'],
+    workspace: {
+      blocks: {
+        blocks: [
+          {
+            type: 'skill_flow_start',
+            id: 'pres-start',
+            next: {
+              block: {
+                type: 'skill_ask_user',
+                id: 'pres-ask-topic',
+                fields: {
+                  QUESTION: 'What topic should the presentation cover?',
+                  HEADER: 'Topic',
+                  OPTIONS: '',
+                  STORE_AS: 'topic',
+                },
+                next: {
+                  block: {
+                    type: 'skill_ask_user',
+                    id: 'pres-ask-style',
+                    fields: {
+                      QUESTION: 'What format do you want?',
+                      HEADER: 'Format',
+                      OPTIONS: 'slides, poster',
+                      STORE_AS: 'format',
+                    },
+                    next: {
+                      block: {
+                        type: 'skill_branch_if',
+                        id: 'pres-branch-slides',
+                        fields: { CONTEXT_KEY: 'format', MATCH_VALUE: 'slides' },
+                        inputs: {
+                          THEN_BLOCKS: {
+                            block: {
+                              type: 'skill_run_agent',
+                              id: 'pres-agent-slides',
+                              fields: {
+                                PROMPT: 'Create a slide deck on "{{topic}}". Use clear headings, bullet points, and speaker notes for each slide. Output as an HTML presentation.',
+                                STORE_AS: 'result',
+                              },
+                            },
+                          },
+                        },
+                        next: {
+                          block: {
+                            type: 'skill_branch_if',
+                            id: 'pres-branch-poster',
+                            fields: { CONTEXT_KEY: 'format', MATCH_VALUE: 'poster' },
+                            inputs: {
+                              THEN_BLOCKS: {
+                                block: {
+                                  type: 'skill_run_agent',
+                                  id: 'pres-agent-poster',
+                                  fields: {
+                                    PROMPT: 'Create a single-page poster on "{{topic}}". Use a bold title, key points in large text, and a visual layout suitable for printing. Output as HTML/CSS.',
+                                    STORE_AS: 'result',
+                                  },
+                                },
+                              },
+                            },
+                            next: {
+                              block: {
+                                type: 'skill_output',
+                                id: 'pres-output',
+                                fields: { TEMPLATE: '{{result}}' },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+    },
+  },
+  {
+    id: 'tmpl-code-review-checklist',
+    name: 'Code review checklist',
+    prompt: 'Review code with focus on the selected area of concern.',
+    category: 'composite',
+    description: 'Asks what to focus on (performance, security, readability), then runs targeted review.',
+    tags: ['composite', 'quality', 'review'],
+    workspace: {
+      blocks: {
+        blocks: [
+          {
+            type: 'skill_flow_start',
+            id: 'review-start',
+            next: {
+              block: {
+                type: 'skill_ask_user',
+                id: 'review-ask-focus',
+                fields: {
+                  QUESTION: 'What should the review focus on?',
+                  HEADER: 'Review Focus',
+                  OPTIONS: 'performance, security, readability',
+                  STORE_AS: 'focus',
+                },
+                next: {
+                  block: {
+                    type: 'skill_branch_if',
+                    id: 'review-branch-perf',
+                    fields: { CONTEXT_KEY: 'focus', MATCH_VALUE: 'performance' },
+                    inputs: {
+                      THEN_BLOCKS: {
+                        block: {
+                          type: 'skill_run_agent',
+                          id: 'review-agent-perf',
+                          fields: {
+                            PROMPT: 'Review the code for performance issues. Check for: unnecessary re-renders, O(n^2) loops, memory leaks, missing memoization, large bundle imports, and synchronous blocking calls. List each issue with file, line, and suggested fix.',
+                            STORE_AS: 'review_result',
+                          },
+                        },
+                      },
+                    },
+                    next: {
+                      block: {
+                        type: 'skill_branch_if',
+                        id: 'review-branch-sec',
+                        fields: { CONTEXT_KEY: 'focus', MATCH_VALUE: 'security' },
+                        inputs: {
+                          THEN_BLOCKS: {
+                            block: {
+                              type: 'skill_run_agent',
+                              id: 'review-agent-sec',
+                              fields: {
+                                PROMPT: 'Review the code for security vulnerabilities. Check for: XSS, SQL injection, command injection, insecure dependencies, exposed secrets, missing input validation, and improper auth checks. List each issue with severity, file, line, and remediation.',
+                                STORE_AS: 'review_result',
+                              },
+                            },
+                          },
+                        },
+                        next: {
+                          block: {
+                            type: 'skill_branch_if',
+                            id: 'review-branch-read',
+                            fields: { CONTEXT_KEY: 'focus', MATCH_VALUE: 'readability' },
+                            inputs: {
+                              THEN_BLOCKS: {
+                                block: {
+                                  type: 'skill_run_agent',
+                                  id: 'review-agent-read',
+                                  fields: {
+                                    PROMPT: 'Review the code for readability. Check for: unclear variable names, functions longer than 30 lines, missing comments on complex logic, inconsistent formatting, deep nesting, and magic numbers. List each issue with file, line, and suggested improvement.',
+                                    STORE_AS: 'review_result',
+                                  },
+                                },
+                              },
+                            },
+                            next: {
+                              block: {
+                                type: 'skill_output',
+                                id: 'review-output',
+                                fields: { TEMPLATE: '{{review_result}}' },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+    },
   },
 ];
 

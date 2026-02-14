@@ -4,6 +4,7 @@ import { simpleWebApp } from './simpleWebApp';
 import { hardwareBlink } from './hardwareBlink';
 import { teamBuild } from './teamBuild';
 import { spaceDodge } from './spaceDodge';
+import { skillShowcase } from './skillShowcase';
 
 export interface ExampleNugget {
   id: string;
@@ -23,4 +24,5 @@ export const EXAMPLE_NUGGETS: ExampleNugget[] = [
   hardwareBlink,
   teamBuild,
   spaceDodge,
+  skillShowcase,
 ];
