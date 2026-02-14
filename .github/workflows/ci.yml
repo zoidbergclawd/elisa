@@ -22,7 +22,7 @@ jobs:
             frontend/node_modules
           key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
       - run: npm install
-      - run: cd backend && npm test
+      - run: cd backend && npm run test:coverage
 
   frontend-tests:
     runs-on: ubuntu-latest
@@ -39,7 +39,7 @@ jobs:
             frontend/node_modules
           key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
       - run: npm install
-      - run: cd frontend && npm test
+      - run: cd frontend && npm run test:coverage
 
   frontend-lint:
     runs-on: ubuntu-latest

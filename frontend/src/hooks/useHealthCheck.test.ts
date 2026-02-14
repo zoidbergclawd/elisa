@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { renderHook, waitFor, act } from '@testing-library/react';
 import { useHealthCheck } from './useHealthCheck';
 
 describe('useHealthCheck', () => {
@@ -84,5 +84,68 @@ describe('useHealthCheck', () => {
     renderHook(() => useHealthCheck(false));
 
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('polls at 30s interval', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: () => Promise.resolve({
+        status: 'ready',
+        apiKey: 'valid',
+        agentSdk: 'available',
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderHook(() => useHealthCheck(true));
+
+    // Initial fetch
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // After 30s, second poll
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    // After another 30s, third poll
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    vi.useRealTimers();
+  });
+
+  it('clears interval on unmount', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: () => Promise.resolve({
+        status: 'ready',
+        apiKey: 'valid',
+        agentSdk: 'available',
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { unmount } = renderHook(() => useHealthCheck(true));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    unmount();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    // No additional calls after unmount
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    vi.useRealTimers();
   });
 });

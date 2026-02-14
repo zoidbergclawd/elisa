@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import JSZip from 'jszip';
-import { saveNuggetFile, loadNuggetFile } from './nuggetFile';
+import { saveNuggetFile, loadNuggetFile, downloadBlob } from './nuggetFile';
 import type { Skill, Rule } from '../components/Skills/types';
 import type { Portal } from '../components/Portals/types';
 
@@ -167,5 +167,82 @@ describe('loadNuggetFile', () => {
     expect(result.skills).toEqual([]);
     expect(result.rules).toEqual([]);
     expect(result.portals).toEqual([]);
+  });
+
+  it('throws on workspace.json that is not an object', async () => {
+    const zip = new JSZip();
+    zip.file('workspace.json', JSON.stringify([1, 2, 3]));
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const file = blobToFile(blob, 'array-ws.elisa');
+
+    await expect(loadNuggetFile(file)).rejects.toThrow('workspace.json must be a JSON object');
+  });
+
+  it('throws on skills.json that is not an array', async () => {
+    const zip = new JSZip();
+    zip.file('workspace.json', JSON.stringify(workspace));
+    zip.file('skills.json', JSON.stringify({ not: 'array' }));
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const file = blobToFile(blob, 'bad-skills.elisa');
+
+    await expect(loadNuggetFile(file)).rejects.toThrow('skills.json must be an array');
+  });
+
+  it('filters out malformed skill entries', async () => {
+    const zip = new JSZip();
+    zip.file('workspace.json', JSON.stringify(workspace));
+    zip.file('skills.json', JSON.stringify([
+      { id: 's1', name: 'Good', prompt: 'ok', category: 'agent' },
+      { id: 's2', name: 'Missing prompt' }, // no prompt field
+      'not an object',
+      null,
+    ]));
+    zip.file('rules.json', JSON.stringify([]));
+    zip.file('portals.json', JSON.stringify([]));
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const file = blobToFile(blob, 'partial-skills.elisa');
+
+    const result = await loadNuggetFile(file);
+    expect(result.skills).toHaveLength(1);
+    expect(result.skills[0].name).toBe('Good');
+  });
+});
+
+describe('downloadBlob', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('creates a download link and triggers click', () => {
+    const revokeObjectURL = vi.fn();
+    const createObjectURL = vi.fn().mockReturnValue('blob:test-url');
+    vi.stubGlobal('URL', { createObjectURL, revokeObjectURL });
+
+    const clickMock = vi.fn();
+    const appendChildMock = vi.fn();
+    const removeChildMock = vi.fn();
+
+    const fakeAnchor = {
+      href: '',
+      download: '',
+      click: clickMock,
+    };
+
+    vi.spyOn(document, 'createElement').mockReturnValue(fakeAnchor as unknown as HTMLElement);
+    vi.spyOn(document.body, 'appendChild').mockImplementation(appendChildMock);
+    vi.spyOn(document.body, 'removeChild').mockImplementation(removeChildMock);
+
+    const blob = new Blob(['test'], { type: 'application/zip' });
+    downloadBlob(blob, 'test.elisa');
+
+    expect(createObjectURL).toHaveBeenCalledWith(blob);
+    expect(fakeAnchor.href).toBe('blob:test-url');
+    expect(fakeAnchor.download).toBe('test.elisa');
+    expect(appendChildMock).toHaveBeenCalledWith(fakeAnchor);
+    expect(clickMock).toHaveBeenCalled();
+    expect(removeChildMock).toHaveBeenCalledWith(fakeAnchor);
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:test-url');
+
+    vi.unstubAllGlobals();
   });
 });
