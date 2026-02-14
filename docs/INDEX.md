@@ -109,6 +109,8 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/utils/constants.ts` | Named constants for timeouts, limits, intervals, default model |
 | `backend/src/utils/pathValidator.ts` | Workspace path validation (blocklist for system/sensitive dirs) |
 | `backend/src/utils/safeEnv.ts` | Sanitized process.env copy (strips ANTHROPIC_API_KEY) |
+| `backend/src/utils/findFreePort.ts` | Scans for available TCP port from a starting port |
+| `backend/src/utils/anthropicClient.ts` | Singleton factory for the Anthropic SDK client |
 
 ### Prompts
 

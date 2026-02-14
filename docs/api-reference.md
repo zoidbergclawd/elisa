@@ -44,7 +44,7 @@ Base URL: `http://localhost:8000/api`
 
 | Method | Path | Response | Description |
 |--------|------|----------|-------------|
-| GET | `/health` | `{ status: "ok" }` | Health check |
+| GET | `/health` | `{ status: "ready"\|"degraded", apiKey: "valid"\|"invalid"\|"missing"\|"unchecked", apiKeyError?: string, agentSdk: "available"\|"not_found" }` | Health check |
 | GET | `/templates` | `[]` | Template list (not yet implemented) |
 
 ---
@@ -135,6 +135,62 @@ All events flow server to client as JSON with a `type` discriminator field.
 ```
 
 **NarratorMessage moods**: `excited`, `encouraging`, `concerned`, `celebrating`
+
+---
+
+## Narrator System
+
+The narrator translates raw build events into kid-friendly commentary via Claude Haiku.
+
+### Trigger Events
+
+Narrator messages are triggered by these build events: `task_started`, `task_completed`, `task_failed`, `agent_message`, `error`, `session_complete`.
+
+### WebSocket Event
+
+```typescript
+{
+  type: "narrator_message";
+  from: string;           // narrator character name
+  text: string;           // kid-friendly message (max 200 chars)
+  mood: string;           // "excited" | "encouraging" | "concerned" | "celebrating"
+  related_task_id?: string;
+}
+```
+
+### Configuration
+
+- `NARRATOR_MODEL` env var overrides the model (default: `claude-haiku-4-5-20241022`)
+
+### Debounce
+
+`agent_output` events are accumulated per task and translated after a 10-second silence window. This avoids flooding the UI with narrator messages during rapid agent output.
+
+### Rate Limit
+
+Max 1 narrator message per task per 15 seconds. Messages that would exceed this limit are silently dropped.
+
+---
+
+## Portal Security
+
+### Command Allowlist
+
+CLI portals validate commands against a strict allowlist before execution:
+
+```
+node, npx, python, python3, pip, pip3, mpremote, arduino-cli, esptool, git
+```
+
+Any command not in this list is rejected with an error.
+
+### Execution Model
+
+`CliPortalAdapter.execute()` uses `execFile` (not `spawn` with `shell: true`). This prevents shell injection because `execFile` bypasses the shell entirely -- arguments are passed directly to the executable without shell interpretation.
+
+### Serial Portal Validation
+
+Serial portals are validated via board detection (USB VID:PID matching) before flash operations proceed. This ensures the target device is actually an ESP32 before attempting to write firmware.
 
 ---
 

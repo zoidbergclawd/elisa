@@ -3,6 +3,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { NARRATOR_SYSTEM_PROMPT, narratorUserPrompt } from '../prompts/narratorAgent.js';
 import { NARRATOR_TIMEOUT_MS, RATE_LIMIT_DELAY_MS } from '../utils/constants.js';
+import { getAnthropicClient } from '../utils/anthropicClient.js';
 
 export interface NarratorMessage {
   text: string;
@@ -94,7 +95,7 @@ export class NarratorService {
     let msg: NarratorMessage;
     try {
       if (!this.client) {
-        this.client = new Anthropic();
+        this.client = getAnthropicClient();
       }
 
       const controller = new AbortController();

@@ -3,6 +3,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { buildMetaPlannerSystem, META_PLANNER_SYSTEM, metaPlannerUser } from '../prompts/metaPlanner.js';
 import { DEFAULT_MODEL } from '../utils/constants.js';
+import { getAnthropicClient } from '../utils/anthropicClient.js';
 
 const DEFAULT_AGENTS = [
   {
@@ -26,7 +27,7 @@ export class MetaPlanner {
   private client: Anthropic;
 
   constructor() {
-    this.client = new Anthropic();
+    this.client = getAnthropicClient();
   }
 
   async plan(spec: Record<string, any>): Promise<Record<string, any>> {

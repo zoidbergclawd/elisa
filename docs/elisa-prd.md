@@ -99,7 +99,7 @@ This closes the loop from idea → agents → working thing.
                           │ WebSocket
                           ▼
 ┌─────────────────────────────────────────────────────────┐
-│                   BACKEND (FastAPI)                       │
+│                   BACKEND (Express 5)                      │
 │  ┌──────────────┐  ┌────────────────┐  ┌─────────────┐  │
 │  │  Block        │  │  Agent         │  │  GitHub      │  │
 │  │  Interpreter  │  │  Orchestrator  │  │  Integration │  │
@@ -1048,6 +1048,8 @@ Respond with:
 
 ## 11. Technical Stack & Implementation
 
+> **Note:** The original PRD specified Python/FastAPI. The implementation uses TypeScript/Express 5. References below reflect the original design; see ARCHITECTURE.md and docs/INDEX.md for current stack.
+
 ### 11.1 Technology Choices
 
 | Component | Technology | Rationale |
@@ -1057,13 +1059,13 @@ Respond with:
 | DAG visualization | React Flow + Elkjs auto-layout | Purpose-built for node graphs, great DX |
 | Real-time comms | WebSocket (native) | Low latency for streaming agent output |
 | Styling | Tailwind CSS | Rapid prototyping, consistent design |
-| Backend framework | FastAPI (Python) | WebSocket support, async, fast to build |
-| Agent execution | Claude Code CLI (subprocess) | Direct integration with hackathon tools |
-| DAG management | Python graphlib.TopologicalSorter | Stdlib, purpose-built for task scheduling |
-| Database | SQLite | Simple, file-based, you know it well |
-| Git operations | GitPython | Programmatic git from Python |
+| Backend framework | Express 5 (TypeScript) | WebSocket support, async, fast to build |
+| Agent execution | Claude Agent SDK (@anthropic-ai/claude-agent-sdk) | Direct integration with hackathon tools |
+| DAG management | Custom TaskDAG with Kahn's sort | Purpose-built for task scheduling |
+| Database | None (in-memory with JSON persistence) | Simple, no external dependencies |
+| Git operations | simple-git | Programmatic git from Node.js |
 | Hardware flash | mpremote / arduino-cli | Standard ESP32 toolchain |
-| Testing (backend) | pytest + pytest-asyncio + httpx | Standard Python testing |
+| Testing (backend) | Vitest | Vite-native, fast, same config as build |
 | Testing (frontend) | Vitest + React Testing Library | Vite-native, fast, same config as build |
 
 ### 11.1.1 Test-Driven Development (Mandatory)
@@ -1116,33 +1118,27 @@ elisa/
 │   ├── package.json
 │   └── vite.config.ts
 ├── backend/
-│   ├── app/
-│   │   ├── main.py                      # FastAPI app + WebSocket
+│   ├── src/
+│   │   ├── server.ts                    # Express + WS composition root
+│   │   ├── routes/
+│   │   │   ├── sessions.ts              # /api/sessions/* endpoints
+│   │   │   ├── hardware.ts              # /api/hardware/* endpoints
+│   │   │   ├── skills.ts                # /api/skills/* endpoints
+│   │   │   └── workspace.ts             # /api/workspace/* endpoints
 │   │   ├── models/
-│   │   │   ├── session.py               # Build session state
-│   │   │   ├── task.py                  # Task model
-│   │   │   └── agent.py                 # Agent model
+│   │   │   └── session.ts               # Type definitions
 │   │   ├── services/
-│   │   │   ├── block_interpreter.py     # JSON spec validation
-│   │   │   ├── meta_planner.py          # Opus 4.6 decomposition
-│   │   │   ├── orchestrator.py          # Agent lifecycle management
-│   │   │   ├── agent_runner.py          # Claude Code subprocess mgmt
-│   │   │   ├── git_service.py           # Git operations
-│   │   │   ├── test_runner.py           # pytest execution + coverage
-│   │   │   ├── teaching_engine.py       # Teaching moment generation
-│   │   │   └── hardware_service.py      # ESP32 compile + flash
-│   │   ├── prompts/
-│   │   │   ├── meta_planner.py          # Meta-planner prompt templates
-│   │   │   ├── builder_agent.py         # Builder prompt templates
-│   │   │   ├── tester_agent.py          # Tester prompt templates
-│   │   │   ├── reviewer_agent.py        # Reviewer prompt templates
-│   │   │   └── teaching.py             # Teaching moment templates
-│   │   └── utils/
-│   │       ├── dag.py                   # TopologicalSorter wrapper
-│   │       ├── context_manager.py       # Agent context assembly
-│   │       └── token_tracker.py         # Token usage monitoring
-│   ├── requirements.txt
-│   └── pyproject.toml
+│   │   │   ├── orchestrator.ts          # Phase coordination
+│   │   │   ├── metaPlanner.ts           # Task decomposition via Claude
+│   │   │   ├── agentRunner.ts           # Agent SDK query() runner
+│   │   │   ├── gitService.ts            # Git operations
+│   │   │   ├── testRunner.ts            # Test execution + coverage
+│   │   │   ├── teachingEngine.ts        # Learning moments
+│   │   │   └── hardwareService.ts       # ESP32 flash + serial
+│   │   ├── prompts/                     # Agent role prompt templates
+│   │   └── utils/                       # DAG, validation, logging, tokens
+│   ├── package.json
+│   └── vitest.config.ts
 ├── hardware/
 │   ├── lib/
 │   │   └── elisa_hardware.py            # Hardware abstraction library
@@ -1210,11 +1206,11 @@ GET  /api/hardware/serial/{id}  # Get serial monitor output (SSE)
 
 **Goal:** Skeleton up, blocks rendering, basic plumbing.
 
-- [x] Initialize repo (React + Vite + FastAPI)
+- [x] Initialize repo (React + Vite + Express)
 - [x] Set up Blockly workspace with 5-6 custom blocks (Goal, Feature, Agent, Deploy)
 - [x] Block canvas renders and blocks snap together
 - [x] Block interpreter serializes block tree to JSON
-- [x] FastAPI skeleton with WebSocket endpoint
+- [x] Express skeleton with WebSocket endpoint
 - [x] Basic frontend-backend WebSocket connection
 
 ### Day 2 — Wednesday Feb 11

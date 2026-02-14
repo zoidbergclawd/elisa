@@ -58,6 +58,8 @@ src/
     constants.ts         Named constants for timeouts, limits, intervals, default model
     pathValidator.ts     Workspace path validation (blocklist for system/sensitive dirs)
     safeEnv.ts           Sanitized process.env copy (strips ANTHROPIC_API_KEY)
+    findFreePort.ts      Scans for available TCP port from a starting port
+    anthropicClient.ts   Singleton factory for the Anthropic SDK client
 ```
 
 ## API Surface

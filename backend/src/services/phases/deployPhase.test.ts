@@ -7,6 +7,7 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import net from 'node:net';
 import { DeployPhase } from './deployPhase.js';
+import { findFreePort } from '../../utils/findFreePort.js';
 import type { PhaseContext } from './types.js';
 import type { CliExecResult } from '../portalService.js';
 
@@ -571,7 +572,7 @@ describe('deployHardware - progress values', () => {
 
 describe('findFreePort', () => {
   it('returns a free port', async () => {
-    const port = await DeployPhase.findFreePort(0);
+    const port = await findFreePort(0);
     expect(port).toBeGreaterThan(0);
   });
 
@@ -585,7 +586,7 @@ describe('findFreePort', () => {
     });
 
     try {
-      const port = await DeployPhase.findFreePort(occupiedPort);
+      const port = await findFreePort(occupiedPort);
       expect(port).toBeGreaterThanOrEqual(occupiedPort);
       // Should have found a different port since occupiedPort is taken
       expect(port).not.toBe(occupiedPort);
@@ -600,7 +601,7 @@ describe('findFreePort', () => {
     // Use a port that is likely to fail with a permission error.
     // If the OS doesn't reject it, skip the assertion.
     try {
-      await DeployPhase.findFreePort(1);
+      await findFreePort(1);
       // If it somehow succeeds (e.g., running as root), that's fine
     } catch (err: any) {
       // Should get an EACCES error, not 'No free port found'
@@ -610,6 +611,6 @@ describe('findFreePort', () => {
   });
 
   it('rejects when no port is available (port > 65535)', async () => {
-    await expect(DeployPhase.findFreePort(65536)).rejects.toThrow('No free port found');
+    await expect(findFreePort(65536)).rejects.toThrow('No free port found');
   });
 });

@@ -43,6 +43,7 @@ function hasApiKey(): boolean {
 }
 
 // -- Free Port Detection --
+// Canonical implementation: backend/src/utils/findFreePort.ts
 
 function findFreePort(startPort: number): Promise<number> {
   return new Promise((resolve, reject) => {

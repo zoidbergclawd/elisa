@@ -1,11 +1,11 @@
 /** Deploy phase: handles hardware flash, portal deployment, and web preview. */
 
 import fs from 'node:fs';
-import net from 'node:net';
 import path from 'node:path';
 import { spawn, execFile, type ChildProcess } from 'node:child_process';
 import { safeEnv } from '../../utils/safeEnv.js';
 import { BUILD_TIMEOUT_MS } from '../../utils/constants.js';
+import { findFreePort } from '../../utils/findFreePort.js';
 import type { PhaseContext } from './types.js';
 import { maybeTeach } from './types.js';
 import { HardwareService } from '../hardwareService.js';
@@ -96,7 +96,7 @@ export class DeployPhase {
     }
 
     await ctx.send({ type: 'deploy_progress', step: 'Finding free port...', progress: 60 });
-    const port = await DeployPhase.findFreePort(3000);
+    const port = await findFreePort(3000);
 
     await ctx.send({ type: 'deploy_progress', step: `Starting local server on port ${port}...`, progress: 80 });
 
@@ -151,32 +151,6 @@ export class DeployPhase {
     const finalUrl = serverProcess ? url : null;
     await ctx.send({ type: 'deploy_complete', target: 'web', ...(finalUrl ? { url: finalUrl } : {}) });
     return { process: serverProcess, url: finalUrl };
-  }
-
-  static findFreePort(startPort: number): Promise<number> {
-    return new Promise((resolve, reject) => {
-      let port = startPort;
-      const tryNext = (): void => {
-        if (port > 65535) {
-          reject(new Error('No free port found'));
-          return;
-        }
-        const server = net.createServer();
-        server.listen(port, () => {
-          const addr = server.address() as net.AddressInfo;
-          server.close(() => resolve(addr.port));
-        });
-        server.on('error', (err: NodeJS.ErrnoException) => {
-          if (err.code === 'EADDRINUSE') {
-            port++;
-            tryNext();
-          } else {
-            reject(err);
-          }
-        });
-      };
-      tryNext();
-    });
   }
 
   shouldDeployHardware(ctx: PhaseContext): boolean {

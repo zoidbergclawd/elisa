@@ -76,6 +76,7 @@ function makeCtx(overrides: Partial<BuildSession> = {}): { ctx: PhaseContext; ev
 
 // Import after helpers are defined (uses real fs for nuggetDir)
 import { DeployPhase } from '../../services/phases/deployPhase.js';
+import { findFreePort } from '../../utils/findFreePort.js';
 
 describe('DeployPhase - shouldDeployWeb', () => {
   let phase: DeployPhase;
@@ -212,10 +213,9 @@ describe('DeployPhase - deployWeb', () => {
   });
 });
 
-describe('DeployPhase.findFreePort', () => {
+describe('findFreePort', () => {
   it('finds a free port', async () => {
-    // Access findFreePort via the class (it's private static, so we use bracket notation)
-    const port = await (DeployPhase as any).findFreePort(3000);
+    const port = await findFreePort(3000);
     expect(typeof port).toBe('number');
     expect(port).toBeGreaterThanOrEqual(3000);
     expect(port).toBeLessThan(65536);

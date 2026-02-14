@@ -7,6 +7,7 @@ import {
   teachingUserPrompt,
   type TeachingMomentData,
 } from '../prompts/teaching.js';
+import { getAnthropicClient } from '../utils/anthropicClient.js';
 
 const TRIGGER_MAP: Record<string, [string, string]> = {
   plan_ready: ['decomposition', 'task_breakdown'],
@@ -83,7 +84,7 @@ export class TeachingEngine {
     nuggetType: string,
   ): Promise<TeachingMomentData | null> {
     if (!this.client) {
-      this.client = new Anthropic();
+      this.client = getAnthropicClient();
     }
 
     const prompt = teachingUserPrompt(eventType, eventDetails, nuggetType || 'software');
