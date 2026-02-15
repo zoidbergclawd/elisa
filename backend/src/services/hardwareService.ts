@@ -236,7 +236,7 @@ import platform
 port = sys.argv[1]
 manifest_path = sys.argv[2]
 
-with open(manifest_path, 'r') as mf:
+with open(manifest_path, 'r', encoding='utf-8') as mf:
     files = json.load(mf)
 
 # ----- Monkey-patch pyserial for ESP32 USB serial (Windows only) -----

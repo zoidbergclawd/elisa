@@ -42,4 +42,29 @@ describe('GoButton', () => {
     fireEvent.click(screen.getByText('GO'));
     expect(onClick).not.toHaveBeenCalled();
   });
+
+  it('renders STOP button when building with onStop provided', () => {
+    render(<GoButton disabled={true} onClick={vi.fn()} onStop={vi.fn()} uiState="building" />);
+    expect(screen.getByText('STOP')).toBeInTheDocument();
+    expect(screen.queryByText('GO')).not.toBeInTheDocument();
+  });
+
+  it('STOP button has correct aria-label', () => {
+    render(<GoButton disabled={true} onClick={vi.fn()} onStop={vi.fn()} uiState="building" />);
+    expect(screen.getByLabelText('Stop build')).toBeInTheDocument();
+  });
+
+  it('clicking STOP calls onStop', () => {
+    const onStop = vi.fn();
+    render(<GoButton disabled={true} onClick={vi.fn()} onStop={onStop} uiState="building" />);
+    fireEvent.click(screen.getByText('STOP'));
+    expect(onStop).toHaveBeenCalled();
+  });
+
+  it('renders disabled GO when building without onStop', () => {
+    render(<GoButton disabled={true} onClick={vi.fn()} uiState="building" />);
+    const btn = screen.getByText('GO');
+    expect(btn).toBeDisabled();
+    expect(btn.className).toContain('go-btn-building');
+  });
 });

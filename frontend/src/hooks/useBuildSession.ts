@@ -369,6 +369,13 @@ export function useBuildSession() {
     setErrorNotification(null);
   }, []);
 
+  const stopBuild = useCallback(async () => {
+    if (!sessionId) return;
+    await authFetch(`/api/sessions/${sessionId}/stop`, { method: 'POST' });
+    setUiState('done');
+    setAgents(prev => prev.map(a => ({ ...a, status: 'done' as const })));
+  }, [sessionId]);
+
   const resetToDesign = useCallback(() => {
     setUiState('design');
     setSessionId(null);
@@ -397,7 +404,7 @@ export function useBuildSession() {
     teachingMoments, testResults, coveragePct, tokenUsage,
     serialLines, deployProgress, deployChecklist, deployUrl, gateRequest, questionRequest,
     nuggetDir, errorNotification, narratorMessages,
-    handleEvent, startBuild, clearGateRequest, clearQuestionRequest,
+    handleEvent, startBuild, stopBuild, clearGateRequest, clearQuestionRequest,
     clearErrorNotification, resetToDesign,
   };
 }
