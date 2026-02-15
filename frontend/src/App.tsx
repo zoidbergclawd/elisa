@@ -23,6 +23,7 @@ import ReadinessBadge from './components/shared/ReadinessBadge';
 import DirectoryPickerModal from './components/shared/DirectoryPickerModal';
 import BoardDetectedModal from './components/shared/BoardDetectedModal';
 import { portalTemplates } from './components/Portals/portalTemplates';
+import { playChime } from './lib/playChime';
 import { saveNuggetFile, loadNuggetFile, downloadBlob } from './lib/nuggetFile';
 import { setAuthToken, authFetch } from './lib/apiClient';
 import type { TeachingMoment } from './types';
@@ -53,7 +54,7 @@ export default function App() {
     teachingMoments, testResults, coveragePct, tokenUsage,
     serialLines, deployProgress, deployChecklist, deployUrl, gateRequest, questionRequest,
     nuggetDir, errorNotification, narratorMessages,
-    handleEvent, startBuild, clearGateRequest, clearQuestionRequest,
+    handleEvent, startBuild, stopBuild, clearGateRequest, clearQuestionRequest,
     clearErrorNotification, resetToDesign,
   } = useBuildSession();
   const { waitForOpen } = useWebSocket({ sessionId, onEvent: handleEvent });
@@ -165,6 +166,7 @@ export default function App() {
       return;
     }
 
+    playChime();
     setBoardDetectedModalOpen(true); // eslint-disable-line react-hooks/set-state-in-effect
     acknowledgeConnection();
   }, [justConnected, boardInfo, acknowledgeConnection]);
@@ -414,6 +416,7 @@ export default function App() {
           <GoButton
             disabled={uiState !== 'design' || !spec?.nugget.goal || health.status !== 'ready'}
             onClick={handleGo}
+            onStop={stopBuild}
             uiState={uiState}
           />
           <ReadinessBadge health={health} loading={healthLoading} />

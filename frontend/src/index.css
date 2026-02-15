@@ -172,6 +172,20 @@ body {
   display: none;
 }
 
+/* GO Button: Stop state (red/coral) */
+.go-btn.go-btn-stop {
+  background: linear-gradient(135deg, #DC2626 0%, #991B1B 100%);
+  color: #fff;
+}
+
+.go-btn.go-btn-stop::before {
+  background: linear-gradient(135deg, #DC2626, #991B1B);
+}
+
+.go-btn.go-btn-stop:hover {
+  box-shadow: 0 4px 24px rgba(220, 38, 38, 0.3), 0 2px 8px rgba(153, 27, 27, 0.15);
+}
+
 /* Breathe animation for mint/green GO button */
 @keyframes breathe-mint {
   0%, 100% { box-shadow: 0 2px 12px rgba(45, 159, 62, 0.20); }
