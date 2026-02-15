@@ -254,8 +254,9 @@ describe('ConnectionManager cleanup via SessionStore (#76)', () => {
       agents: [],
     } as any);
 
-    // Wait 2ms so that the session age > 1ms threshold
-    await new Promise((r) => setTimeout(r, 2));
+    // Wait long enough so that the session age exceeds the 1ms threshold
+    // (CI runners can have coarse timer resolution)
+    await new Promise((r) => setTimeout(r, 50));
     store.pruneStale(1);
 
     expect(cleanedIds).toContain('session-old');
