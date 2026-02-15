@@ -363,12 +363,35 @@ export function useBuildSession() {
     setErrorNotification(null);
   }, []);
 
+  const resetToDesign = useCallback(() => {
+    setUiState('design');
+    setSessionId(null);
+    setNuggetDir(null);
+    setEvents([]);
+    setTasks([]);
+    tasksRef.current = [];
+    setAgents([]);
+    setCommits([]);
+    setTeachingMoments([]);
+    setTestResults([]);
+    setCoveragePct(null);
+    setSerialLines([]);
+    setDeployProgress(null);
+    setDeployChecklist(null);
+    setDeployUrl(null);
+    setGateRequest(null);
+    setQuestionRequest(null);
+    setErrorNotification(null);
+    setNarratorMessages([]);
+    setTokenUsage({ input: 0, output: 0, total: 0, costUsd: 0, maxBudget: 500_000, perAgent: {} });
+  }, []);
+
   return {
     uiState, tasks, agents, commits, events, sessionId,
     teachingMoments, testResults, coveragePct, tokenUsage,
     serialLines, deployProgress, deployChecklist, deployUrl, gateRequest, questionRequest,
     nuggetDir, errorNotification, narratorMessages,
     handleEvent, startBuild, clearGateRequest, clearQuestionRequest,
-    clearErrorNotification,
+    clearErrorNotification, resetToDesign,
   };
 }

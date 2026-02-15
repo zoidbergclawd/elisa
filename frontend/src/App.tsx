@@ -52,7 +52,7 @@ export default function App() {
     serialLines, deployProgress, deployChecklist, deployUrl, gateRequest, questionRequest,
     nuggetDir, errorNotification, narratorMessages,
     handleEvent, startBuild, clearGateRequest, clearQuestionRequest,
-    clearErrorNotification,
+    clearErrorNotification, resetToDesign,
   } = useBuildSession();
   const { waitForOpen } = useWebSocket({ sessionId, onEvent: handleEvent });
   const { health, loading: healthLoading } = useHealthCheck(uiState === 'design');
@@ -613,6 +613,15 @@ export default function App() {
                 className="go-btn px-6 py-2.5 rounded-xl text-sm cursor-pointer"
               >
                 Build something new
+              </button>
+              <button
+                onClick={() => {
+                  resetToDesign();
+                  setActiveMainTab('workspace');
+                }}
+                className="text-sm text-atelier-text-secondary hover:text-atelier-text cursor-pointer"
+              >
+                Keep working on this nugget
               </button>
             </div>
           </div>

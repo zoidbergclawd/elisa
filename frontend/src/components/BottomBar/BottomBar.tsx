@@ -66,7 +66,7 @@ export default function BottomBar({
         {activeTab === 'Progress' && <ProgressPanel uiState={uiState} tasks={tasks} deployProgress={deployProgress} deployChecklist={deployChecklist} />}
         {activeTab === 'Tokens' && (
           <div className="p-4">
-            <MetricsPanel tokenUsage={tokenUsage} />
+            <MetricsPanel tokenUsage={tokenUsage} agents={agents} />
           </div>
         )}
       </div>
