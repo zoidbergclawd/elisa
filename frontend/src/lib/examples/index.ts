@@ -5,6 +5,7 @@ import { hardwareBlink } from './hardwareBlink';
 import { teamBuild } from './teamBuild';
 import { spaceDodge } from './spaceDodge';
 import { skillShowcase } from './skillShowcase';
+import { rulesShowcase } from './rulesShowcase';
 
 export interface ExampleNugget {
   id: string;
@@ -25,4 +26,5 @@ export const EXAMPLE_NUGGETS: ExampleNugget[] = [
   teamBuild,
   spaceDodge,
   skillShowcase,
+  rulesShowcase,
 ];

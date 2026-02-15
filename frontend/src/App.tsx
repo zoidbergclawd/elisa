@@ -619,7 +619,7 @@ export default function App() {
                   resetToDesign();
                   setActiveMainTab('workspace');
                 }}
-                className="text-sm text-atelier-text-secondary hover:text-atelier-text cursor-pointer"
+                className="px-6 py-2.5 rounded-xl text-sm cursor-pointer border border-atelier-text-muted/30 text-atelier-text-secondary hover:bg-atelier-surface/60 hover:text-atelier-text transition-colors"
               >
                 Keep working on this nugget
               </button>

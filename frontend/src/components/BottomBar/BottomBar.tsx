@@ -39,6 +39,13 @@ export default function BottomBar({
     }
   }, [uiState]);
 
+  // Auto-switch to Tests tab when first test result arrives
+  useEffect(() => {
+    if (testResults.length === 1) {
+      setActiveTab('Tests'); // eslint-disable-line react-hooks/set-state-in-effect
+    }
+  }, [testResults.length]);
+
   const tabs: Tab[] = ['Timeline', 'Tests', 'Board', 'Learn', 'Progress', 'Tokens'];
 
   return (
@@ -58,7 +65,7 @@ export default function BottomBar({
           </button>
         ))}
       </div>
-      <div className="h-32 overflow-hidden">
+      <div className="h-32 overflow-y-auto">
         {activeTab === 'Timeline' && <GitTimeline commits={commits} />}
         {activeTab === 'Tests' && <TestResults results={testResults} coveragePct={coveragePct} uiState={uiState} tasks={tasks} agents={agents} />}
         {activeTab === 'Board' && <BoardOutput serialLines={serialLines} boardInfo={boardInfo} />}
