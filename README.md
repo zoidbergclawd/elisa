@@ -54,6 +54,25 @@ Requires Node.js 20+ and an Anthropic API key (`ANTHROPIC_API_KEY` env var). See
 
 **Skills and Rules** -- Create reusable prompt snippets (skills) and trigger-based rules that shape agent behavior across builds.
 
+## Agentic Spec-Driven Development
+
+Elisa is an IDE for **agentic spec-driven development** -- a paradigm where the artifacts the software creator cares about are the **specs and the tests**, not the code. Users define *what* they want through visual blocks; AI agents figure out *how* to build it. The code is a generated artifact, like a compiled binary.
+
+Every block in the IDE maps to a real AI engineering primitive:
+
+| Elisa Primitive | Block Examples | AI Engineering Concept |
+|---|---|---|
+| **Goal** | `nugget_goal`, `nugget_template` | Top-level system prompt. The root instruction that drives the entire agent pipeline. |
+| **Requirement** | `feature`, `constraint`, `when_then`, `has_data` | Prompt constraints and acceptance criteria. Decomposed by the meta-planner into the task DAG. |
+| **Skill** | `use_skill` | Reusable prompt snippets injected into agent context. Multi-step flows with branching (ask user, run agent, invoke another skill). |
+| **Rule** | `use_rule` | Pre/post hooks on agent behavior. Trigger-based constraints that fire on events like `before_commit` or `on_test_fail`. |
+| **Portal** | `portal_tell`, `portal_when`, `portal_ask` | Tool use: MCP servers, CLI commands, hardware serial I/O. Portals are the agent's hands -- how it reaches the outside world. |
+| **Minion** | `agent_builder`, `agent_tester`, `agent_reviewer`, `agent_custom` | Specialized agent roles with distinct system prompts, tool access, and token budgets. Custom minions let users define new roles. |
+| **Flow** | `first_then`, `at_same_time`, `check_with_me` | DAG dependencies, parallel execution, and human-in-the-loop gates. Controls the orchestration topology. |
+| **Deploy** | `deploy_web`, `deploy_esp32`, `deploy_both` | Deployment targets. Web deploys to Cloud Run; hardware compiles and flashes MicroPython over USB. |
+
+The visual block workspace compiles to a **NuggetSpec** -- a Zod-validated JSON schema that is the single source of truth. The orchestrator consumes the spec, the meta-planner decomposes it into tasks, and agents execute against it. Users iterate on the spec and re-run; the code regenerates.
+
 ## Architecture
 
 ```
