@@ -30,6 +30,7 @@ App.tsx
   shared/MinionAvatar.tsx            Animated avatar for narrator/minion characters
   shared/ExamplePickerModal.tsx      Card grid to choose bundled example nuggets
   shared/DirectoryPickerModal.tsx   Text input fallback for non-Electron workspace directory selection
+  shared/BoardDetectedModal.tsx    Celebrates ESP32 connection, offers one-click Portal creation
   Skills/SkillsModal.tsx             CRUD editor for custom skills + template library
   Rules/RulesModal.tsx               CRUD editor for rules + template library
   Portals/PortalsModal.tsx           CRUD editor for portal connections

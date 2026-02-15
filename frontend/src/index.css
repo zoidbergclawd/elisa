@@ -191,6 +191,13 @@ body {
   background-clip: text;
 }
 
+.gradient-text-mint {
+  background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
 /* ── Scrollbar Styling ── */
 
 ::-webkit-scrollbar {
@@ -245,6 +252,21 @@ body {
 
 .animate-breathe {
   animation: breathe 3s ease-in-out infinite;
+}
+
+@keyframes pulse-glow-mint {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(45, 159, 62, 0.3), 0 0 24px rgba(45, 159, 62, 0.1);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(45, 159, 62, 0.5), 0 0 40px rgba(45, 159, 62, 0.2);
+    transform: scale(1.05);
+  }
+}
+
+.animate-pulse-glow-mint {
+  animation: pulse-glow-mint 2s ease-in-out infinite;
 }
 
 /* ── Blockly Light Theme Overrides ── */

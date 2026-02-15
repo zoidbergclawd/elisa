@@ -171,6 +171,162 @@ describe('useBoardDetect', () => {
     });
   });
 
+  it('justConnected is false initially', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      json: () => Promise.resolve({ detected: false }),
+    }));
+
+    const { result } = renderHook(() => useBoardDetect(true));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(result.current.justConnected).toBe(false);
+  });
+
+  it('justConnected becomes true when board transitions from undetected to detected', async () => {
+    let callCount = 0;
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        return Promise.resolve({
+          json: () => Promise.resolve({ detected: false }),
+        });
+      }
+      return Promise.resolve({
+        json: () => Promise.resolve({
+          detected: true,
+          port: 'COM3',
+          board_type: 'esp32',
+        }),
+      });
+    }));
+
+    const { result } = renderHook(() => useBoardDetect(true));
+
+    // First poll: no board
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.justConnected).toBe(false);
+
+    // Second poll: board detected (null -> non-null transition)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(result.current.justConnected).toBe(true);
+  });
+
+  it('justConnected does NOT fire on first poll if board is already connected (sentinel behavior)', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      json: () => Promise.resolve({
+        detected: true,
+        port: 'COM3',
+        board_type: 'esp32',
+      }),
+    }));
+
+    const { result } = renderHook(() => useBoardDetect(true));
+
+    // First poll returns board -- but prev was undefined (sentinel), not null
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(result.current.boardInfo).toEqual({ port: 'COM3', boardType: 'esp32' });
+    expect(result.current.justConnected).toBe(false);
+  });
+
+  it('acknowledgeConnection resets justConnected to false', async () => {
+    let callCount = 0;
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        return Promise.resolve({
+          json: () => Promise.resolve({ detected: false }),
+        });
+      }
+      return Promise.resolve({
+        json: () => Promise.resolve({
+          detected: true,
+          port: 'COM3',
+          board_type: 'esp32',
+        }),
+      });
+    }));
+
+    const { result } = renderHook(() => useBoardDetect(true));
+
+    // First poll: no board
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    // Second poll: board detected
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(result.current.justConnected).toBe(true);
+
+    // Acknowledge
+    act(() => {
+      result.current.acknowledgeConnection();
+    });
+    expect(result.current.justConnected).toBe(false);
+  });
+
+  it('justConnected does NOT fire when board disconnects (non-null -> null)', async () => {
+    let callCount = 0;
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(() => {
+      callCount++;
+      if (callCount <= 2) {
+        // Polls 1-2: no board, then board detected
+        if (callCount === 1) {
+          return Promise.resolve({
+            json: () => Promise.resolve({ detected: false }),
+          });
+        }
+        return Promise.resolve({
+          json: () => Promise.resolve({
+            detected: true,
+            port: 'COM3',
+            board_type: 'esp32',
+          }),
+        });
+      }
+      // Poll 3: board disconnected
+      return Promise.resolve({
+        json: () => Promise.resolve({ detected: false }),
+      });
+    }));
+
+    const { result } = renderHook(() => useBoardDetect(true));
+
+    // Poll 1: no board
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    // Poll 2: board connected
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(result.current.justConnected).toBe(true);
+
+    // Acknowledge
+    act(() => {
+      result.current.acknowledgeConnection();
+    });
+    expect(result.current.justConnected).toBe(false);
+
+    // Poll 3: board disconnected
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(result.current.justConnected).toBe(false);
+  });
+
   it('calls the correct endpoint', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       json: () => Promise.resolve({ detected: false }),

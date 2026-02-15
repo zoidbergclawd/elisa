@@ -21,6 +21,8 @@ import { useHealthCheck } from './hooks/useHealthCheck';
 import { useBoardDetect } from './hooks/useBoardDetect';
 import ReadinessBadge from './components/shared/ReadinessBadge';
 import DirectoryPickerModal from './components/shared/DirectoryPickerModal';
+import BoardDetectedModal from './components/shared/BoardDetectedModal';
+import { portalTemplates } from './components/Portals/portalTemplates';
 import { saveNuggetFile, loadNuggetFile, downloadBlob } from './lib/nuggetFile';
 import { setAuthToken, authFetch } from './lib/apiClient';
 import type { TeachingMoment } from './types';
@@ -56,7 +58,7 @@ export default function App() {
   } = useBuildSession();
   const { waitForOpen } = useWebSocket({ sessionId, onEvent: handleEvent });
   const { health, loading: healthLoading } = useHealthCheck(uiState === 'design');
-  const { boardInfo } = useBoardDetect(uiState === 'design');
+  const { boardInfo, justConnected, acknowledgeConnection } = useBoardDetect(uiState === 'design');
 
   // Fetch auth token on mount
   useEffect(() => {
@@ -83,6 +85,8 @@ export default function App() {
   const [rulesModalOpen, setRulesModalOpen] = useState(false);
   const [portalsModalOpen, setPortalsModalOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [boardDetectedModalOpen, setBoardDetectedModalOpen] = useState(false);
+  const boardDismissedPortsRef = useRef<Set<string>>(new Set());
 
   // Workspace directory path (user-chosen output location)
   const [workspacePath, setWorkspacePath] = useState<string | null>(
@@ -150,6 +154,29 @@ export default function App() {
       setActiveMainTab('mission'); // eslint-disable-line react-hooks/set-state-in-effect
     }
   }, [uiState]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Show board-detected modal when a board is newly plugged in
+  useEffect(() => {
+    if (!justConnected || !boardInfo) return;
+
+    // Don't re-show if dismissed for this port already
+    if (boardDismissedPortsRef.current.has(boardInfo.port)) {
+      acknowledgeConnection();
+      return;
+    }
+
+    // Don't show if a serial portal already exists for this port
+    const hasPortal = portals.some(
+      p => p.mechanism === 'serial' && p.serialConfig?.port === boardInfo.port
+    );
+    if (hasPortal) {
+      acknowledgeConnection();
+      return;
+    }
+
+    setBoardDetectedModalOpen(true); // eslint-disable-line react-hooks/set-state-in-effect
+    acknowledgeConnection();
+  }, [justConnected, boardInfo, portals, acknowledgeConnection]);
 
   // Resize Blockly when returning to workspace tab
   useEffect(() => {
@@ -345,6 +372,28 @@ export default function App() {
     setExamplePickerOpen(false);
   }, []);
 
+  const handleBoardCreatePortal = useCallback(() => {
+    if (!boardInfo) return;
+    const tmpl = portalTemplates.find(t => t.templateId === 'esp32');
+    if (!tmpl) return;
+
+    const newPortal: Portal = {
+      ...tmpl,
+      id: crypto.randomUUID(),
+      name: boardInfo.boardType,
+      status: 'ready' as const,
+      serialConfig: { ...tmpl.serialConfig, port: boardInfo.port, boardType: boardInfo.boardType },
+    };
+
+    setPortals(prev => [...prev, newPortal]);
+    setBoardDetectedModalOpen(false);
+  }, [boardInfo]);
+
+  const handleBoardDismiss = useCallback(() => {
+    if (boardInfo) boardDismissedPortsRef.current.add(boardInfo.port);
+    setBoardDetectedModalOpen(false);
+  }, [boardInfo]);
+
   return (
     <div className="flex flex-col h-screen atelier-bg noise-overlay text-atelier-text">
       {/* Header: Logo | MainTabBar | GO button | ReadinessBadge */}
@@ -494,6 +543,15 @@ export default function App() {
         <DirectoryPickerModal
           onSelect={handleDirPickerSelect}
           onCancel={handleDirPickerCancel}
+        />
+      )}
+
+      {/* Board detected modal */}
+      {boardDetectedModalOpen && boardInfo && (
+        <BoardDetectedModal
+          boardInfo={boardInfo}
+          onCreatePortal={handleBoardCreatePortal}
+          onDismiss={handleBoardDismiss}
         />
       )}
 
