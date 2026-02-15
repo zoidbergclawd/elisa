@@ -8,7 +8,7 @@ const boardInfo: BoardInfo = { port: 'COM3', boardType: 'esp32-s3' };
 describe('BoardDetectedModal', () => {
   it('renders board type and port', () => {
     render(
-      <BoardDetectedModal boardInfo={boardInfo} onCreatePortal={vi.fn()} onDismiss={vi.fn()} />
+      <BoardDetectedModal boardInfo={boardInfo} hasExistingPortal={false} onCreatePortal={vi.fn()} onDismiss={vi.fn()} />
     );
 
     expect(screen.getByText('esp32-s3')).toBeInTheDocument();
@@ -19,7 +19,7 @@ describe('BoardDetectedModal', () => {
   it('calls onCreatePortal when Create Portal is clicked', () => {
     const onCreatePortal = vi.fn();
     render(
-      <BoardDetectedModal boardInfo={boardInfo} onCreatePortal={onCreatePortal} onDismiss={vi.fn()} />
+      <BoardDetectedModal boardInfo={boardInfo} hasExistingPortal={false} onCreatePortal={onCreatePortal} onDismiss={vi.fn()} />
     );
 
     fireEvent.click(screen.getByText('Create Portal'));
@@ -29,7 +29,7 @@ describe('BoardDetectedModal', () => {
   it('calls onDismiss when Maybe later is clicked', () => {
     const onDismiss = vi.fn();
     render(
-      <BoardDetectedModal boardInfo={boardInfo} onCreatePortal={vi.fn()} onDismiss={onDismiss} />
+      <BoardDetectedModal boardInfo={boardInfo} hasExistingPortal={false} onCreatePortal={vi.fn()} onDismiss={onDismiss} />
     );
 
     fireEvent.click(screen.getByText('Maybe later'));
@@ -38,10 +38,27 @@ describe('BoardDetectedModal', () => {
 
   it('has correct dialog aria attributes', () => {
     render(
-      <BoardDetectedModal boardInfo={boardInfo} onCreatePortal={vi.fn()} onDismiss={vi.fn()} />
+      <BoardDetectedModal boardInfo={boardInfo} hasExistingPortal={false} onCreatePortal={vi.fn()} onDismiss={vi.fn()} />
     );
 
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveAttribute('aria-modal', 'true');
+  });
+
+  it('shows View Portals when portal already exists', () => {
+    render(
+      <BoardDetectedModal boardInfo={boardInfo} hasExistingPortal={true} onCreatePortal={vi.fn()} onDismiss={vi.fn()} />
+    );
+
+    expect(screen.getByText('View Portals')).toBeInTheDocument();
+    expect(screen.queryByText('Create Portal')).not.toBeInTheDocument();
+  });
+
+  it('shows reconnect message when portal already exists', () => {
+    render(
+      <BoardDetectedModal boardInfo={boardInfo} hasExistingPortal={true} onCreatePortal={vi.fn()} onDismiss={vi.fn()} />
+    );
+
+    expect(screen.getByText('Your board is back! A Portal is already set up for it.')).toBeInTheDocument();
   });
 });

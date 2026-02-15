@@ -2,11 +2,12 @@ import type { BoardInfo } from '../../hooks/useBoardDetect';
 
 interface Props {
   boardInfo: BoardInfo;
+  hasExistingPortal: boolean;
   onCreatePortal: () => void;
   onDismiss: () => void;
 }
 
-export default function BoardDetectedModal({ boardInfo, onCreatePortal, onDismiss }: Props) {
+export default function BoardDetectedModal({ boardInfo, hasExistingPortal, onCreatePortal, onDismiss }: Props) {
   return (
     <div
       className="fixed inset-0 modal-backdrop z-50 flex items-center justify-center"
@@ -53,7 +54,9 @@ export default function BoardDetectedModal({ boardInfo, onCreatePortal, onDismis
         </div>
 
         <p className="text-sm text-atelier-text-secondary mb-6">
-          Your board is ready! Create a Portal so your minions can talk to it.
+          {hasExistingPortal
+            ? 'Your board is back! A Portal is already set up for it.'
+            : 'Your board is ready! Create a Portal so your minions can talk to it.'}
         </p>
 
         {/* Actions */}
@@ -62,7 +65,7 @@ export default function BoardDetectedModal({ boardInfo, onCreatePortal, onDismis
             onClick={onCreatePortal}
             className="go-btn go-btn-ready px-6 py-2.5 rounded-xl text-sm cursor-pointer"
           >
-            Create Portal
+            {hasExistingPortal ? 'View Portals' : 'Create Portal'}
           </button>
           <button
             onClick={onDismiss}

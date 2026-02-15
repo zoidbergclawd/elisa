@@ -165,18 +165,9 @@ export default function App() {
       return;
     }
 
-    // Don't show if a serial portal already exists for this port
-    const hasPortal = portals.some(
-      p => p.mechanism === 'serial' && p.serialConfig?.port === boardInfo.port
-    );
-    if (hasPortal) {
-      acknowledgeConnection();
-      return;
-    }
-
     setBoardDetectedModalOpen(true); // eslint-disable-line react-hooks/set-state-in-effect
     acknowledgeConnection();
-  }, [justConnected, boardInfo, portals, acknowledgeConnection]);
+  }, [justConnected, boardInfo, acknowledgeConnection]);
 
   // Resize Blockly when returning to workspace tab
   useEffect(() => {
@@ -374,20 +365,29 @@ export default function App() {
 
   const handleBoardCreatePortal = useCallback(() => {
     if (!boardInfo) return;
-    const tmpl = portalTemplates.find(t => t.templateId === 'esp32');
-    if (!tmpl) return;
 
-    const newPortal: Portal = {
-      ...tmpl,
-      id: crypto.randomUUID(),
-      name: boardInfo.boardType,
-      status: 'ready' as const,
-      serialConfig: { ...tmpl.serialConfig, port: boardInfo.port, boardType: boardInfo.boardType },
-    };
+    // Only create a new portal if one doesn't already exist for this port
+    const hasPortal = portals.some(
+      p => p.mechanism === 'serial' && p.serialConfig?.port === boardInfo.port
+    );
+    if (!hasPortal) {
+      const tmpl = portalTemplates.find(t => t.templateId === 'esp32');
+      if (!tmpl) return;
 
-    setPortals(prev => [...prev, newPortal]);
+      const newPortal: Portal = {
+        ...tmpl,
+        id: crypto.randomUUID(),
+        name: boardInfo.boardType,
+        status: 'ready' as const,
+        serialConfig: { ...tmpl.serialConfig, port: boardInfo.port, boardType: boardInfo.boardType },
+      };
+
+      setPortals(prev => [...prev, newPortal]);
+    }
+
     setBoardDetectedModalOpen(false);
-  }, [boardInfo]);
+    setPortalsModalOpen(true);
+  }, [boardInfo, portals]);
 
   const handleBoardDismiss = useCallback(() => {
     if (boardInfo) boardDismissedPortsRef.current.add(boardInfo.port);
@@ -550,6 +550,7 @@ export default function App() {
       {boardDetectedModalOpen && boardInfo && (
         <BoardDetectedModal
           boardInfo={boardInfo}
+          hasExistingPortal={portals.some(p => p.mechanism === 'serial' && p.serialConfig?.port === boardInfo.port)}
           onCreatePortal={handleBoardCreatePortal}
           onDismiss={handleBoardDismiss}
         />
