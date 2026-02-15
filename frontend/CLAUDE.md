@@ -33,6 +33,7 @@ src/
     useWebSocket.ts          WebSocket connection with auto-reconnect (3s interval)
   lib/
     nuggetFile.ts            .elisa nugget file save/load utilities (JSZip-based)
+    playChime.ts             Web Audio API two-tone chime for board detection events
     skillTemplates.ts        Pre-built skill and rule templates for template library
     terminology.ts           Kid-friendly term mappings (technical -> friendly labels)
     examples/                Bundled example nuggets (ES modules, offline-ready)
@@ -52,7 +53,7 @@ Main tabs: `workspace` | `agents` | `tasks` (auto-switches to `agents` when buil
 
 ## Communication with Backend
 
-- **REST**: `POST /api/sessions`, `POST /api/sessions/:id/start` (accepts optional `workspace_path`), `POST /api/sessions/:id/gate`, `POST /api/sessions/:id/question`, `GET /api/sessions/:id/export`, `POST /api/workspace/save`, `POST /api/workspace/load`
+- **REST**: `POST /api/sessions`, `POST /api/sessions/:id/start` (accepts optional `workspace_path`), `POST /api/sessions/:id/stop` (cancel build), `POST /api/sessions/:id/gate`, `POST /api/sessions/:id/question`, `GET /api/sessions/:id/export`, `POST /api/workspace/save`, `POST /api/workspace/load`
 - **WebSocket**: `ws://localhost:8000/ws/session/:sessionId` - receives all streaming events
 - Vite proxies both `/api/*` and `/ws/*` to backend in dev mode
 

@@ -8,7 +8,7 @@ Tabbed layout: Header (Logo + MainTabBar + GO + Badge) | Main (Workspace/Agents/
 App.tsx
   shared/MainTabBar.tsx              Workspace/Agents/Tasks tab switcher in header
   shared/ErrorBoundary.tsx             Class component error boundary (wraps App in main.tsx)
-  shared/GoButton.tsx                Build trigger with ready/building/disabled states
+  shared/GoButton.tsx                Build trigger with ready/building/stop/disabled states
   shared/ReadinessBadge.tsx          Backend readiness indicator
   BlockCanvas/WorkspaceSidebar.tsx   Vertical icon toolbar (Folder/Open/Save/Skills/Portals/Examples/Help)
   BlockCanvas/BlockCanvas.tsx        Blockly editor wrapper. Read-only during build. Always mounted.
