@@ -2,6 +2,7 @@
   "name": "elisa",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "author": "Elisa",
   "description": "Elisa - AI-powered project builder for kids",
   "main": "electron/dist/main.js",
