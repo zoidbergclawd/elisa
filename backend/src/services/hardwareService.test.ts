@@ -40,6 +40,11 @@ vi.mock('node:child_process', () => ({
   execFile: vi.fn(),
 }));
 
+// Mock node:crypto for deterministic UUID in temp file names
+vi.mock('node:crypto', () => ({
+  randomUUID: vi.fn(() => '00000000-1111-2222-3333-444444444444'),
+}));
+
 // Mock fs for collectPyFiles and findMpremote
 vi.mock('node:fs', async (importOriginal) => {
   const orig = await importOriginal<typeof import('node:fs')>();
@@ -674,4 +679,157 @@ describe('HardwareService.startSerialMonitor', () => {
     // close is a no-op but should not throw
     expect(() => monitor.close()).not.toThrow();
   });
+});
+
+// ---------------------------------------------------------------------------
+// flash mutex
+// ---------------------------------------------------------------------------
+describe('HardwareService flash mutex', () => {
+  it('serializes concurrent flash calls', async () => {
+    const executionOrder: number[] = [];
+
+    let call1Resolve: () => void;
+    const call1Gate = new Promise<void>(r => { call1Resolve = r; });
+
+    vi.spyOn(service as any, '_flashImpl')
+      .mockImplementationOnce(async () => {
+        executionOrder.push(1);
+        await call1Gate;
+        executionOrder.push(2);
+        return { success: true, message: 'first' };
+      })
+      .mockImplementationOnce(async () => {
+        executionOrder.push(3);
+        return { success: true, message: 'second' };
+      });
+
+    const p1 = service.flash('/work1');
+    const p2 = service.flash('/work2');
+
+    await new Promise(r => setTimeout(r, 50));
+    expect(executionOrder).toEqual([1]);
+
+    call1Resolve!();
+
+    const [r1, r2] = await Promise.all([p1, p2]);
+    expect(r1.message).toBe('first');
+    expect(r2.message).toBe('second');
+    expect(executionOrder).toEqual([1, 2, 3]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// temp file names use UUID
+// ---------------------------------------------------------------------------
+describe('HardwareService temp file names use UUID', () => {
+  it('generates temp file paths with UUID instead of Date.now()', async () => {
+    const fsMock = mockFs as any;
+    fsMock.readdirSync.mockImplementation((dir: string) => {
+      if (dir === '/work') return ['main.py'];
+      return [];
+    });
+    fsMock.statSync.mockReturnValue({ isDirectory: () => false });
+    fsMock.readFileSync.mockReturnValue('print("hello")');
+    fsMock.existsSync.mockReturnValue(false);
+    fsMock.writeFileSync.mockImplementation(() => {});
+    fsMock.unlinkSync.mockImplementation(() => {});
+
+    mockExecFile.mockImplementation(
+      (_cmd: string, _args: string[], _opts: any, cb: any) => {
+        const callback = typeof _opts === 'function' ? _opts : cb;
+        if (typeof callback === 'function') {
+          const err = new Error('mock fail') as any;
+          err.stderr = 'mock error';
+          err.stdout = '';
+          callback(err);
+        }
+        return { kill: vi.fn() };
+      },
+    );
+
+    await service.flash('/work', 'COM3');
+
+    const writeFileCalls = (fsMock.writeFileSync as any).mock.calls;
+    const manifestCall = writeFileCalls.find(
+      (call: any[]) => typeof call[0] === 'string' && call[0].includes('.json'),
+    );
+
+    expect(manifestCall).toBeDefined();
+    expect(manifestCall[0]).toContain('elisa-flash-');
+    expect(manifestCall[0]).toContain('00000000-1111-2222-3333-444444444444');
+    expect(manifestCall[0]).not.toMatch(/elisa_flash_\d+/);
+    expect(manifestCall[0]).not.toMatch(/elisa_manifest_\d+/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// probeForRepl
+// ---------------------------------------------------------------------------
+describe('HardwareService.probeForRepl', () => {
+  // Helper: create a mock serial port with controllable open/data/close behavior
+  function createProbePort(opts?: { openError?: Error; replyData?: string; closeError?: Error }) {
+    const listeners: Record<string, ((...args: any[]) => void)[]> = {};
+    const mockClose = vi.fn((cb: (err?: Error | null) => void) => {
+      cb(opts?.closeError ?? null);
+    });
+
+    const instance: Record<string, any> = {
+      on: vi.fn((event: string, cb: (...args: any[]) => void) => {
+        listeners[event] = listeners[event] || [];
+        listeners[event].push(cb);
+
+        if (event === 'open' && !opts?.openError) {
+          setTimeout(() => cb(), 5);
+        }
+        if (event === 'error' && opts?.openError) {
+          setTimeout(() => cb(opts.openError), 5);
+        }
+        if (event === 'data' && opts?.replyData) {
+          setTimeout(() => cb(Buffer.from(opts.replyData!)), 20);
+        }
+      }),
+      write: vi.fn(),
+      close: mockClose,
+      pipe: vi.fn(),
+    };
+
+    return { instance, mockClose };
+  }
+
+  it('returns true when REPL prompt found', async () => {
+    const probe = createProbePort({ replyData: '>>>' });
+    serialPortInstance = probe.instance;
+    // Override __throw so constructor does not throw
+    delete serialPortInstance.__throw;
+
+    const result = await (service as any).probeForRepl('COM3');
+    expect(result).toBe(true);
+    expect(probe.mockClose).toHaveBeenCalledTimes(1);
+  }, 10_000);
+
+  it('returns false on open error', async () => {
+    const probe = createProbePort({ openError: new Error('open failed') });
+    serialPortInstance = probe.instance;
+    delete serialPortInstance.__throw;
+
+    const result = await (service as any).probeForRepl('COM3');
+    expect(result).toBe(false);
+    expect(probe.mockClose).toHaveBeenCalled();
+  }, 10_000);
+
+  it('handles close error gracefully without throwing', async () => {
+    const probe = createProbePort({
+      replyData: '>>>',
+      closeError: new Error('close failed'),
+    });
+    serialPortInstance = probe.instance;
+    delete serialPortInstance.__throw;
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const result = await (service as any).probeForRepl('COM3');
+    expect(typeof result).toBe('boolean');
+    expect(warnSpy).toHaveBeenCalledWith('Port close warning:', 'close failed');
+    warnSpy.mockRestore();
+  }, 10_000);
 });
