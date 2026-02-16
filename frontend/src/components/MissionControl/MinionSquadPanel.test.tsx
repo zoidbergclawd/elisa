@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import MinionSquadPanel from './MinionSquadPanel';
-import type { Agent, UIState } from '../../types';
+import type { Agent } from '../../types';
 
 vi.mock('../shared/MinionAvatar', () => ({
   default: vi.fn(({ name, role, status }: { name: string; role: string; status: string }) => (
