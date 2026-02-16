@@ -30,7 +30,7 @@ Board detection via USB VID:PID matching. Compiles MicroPython with py_compile. 
 Detects project type from file extensions in `tests/`. Runs `pytest` for `.py` files, `node` for `.js`/`.mjs` files, merges results if both exist. Parses PASS/FAIL and TAP output formats for JS; pytest verbose output for Python. Extracts coverage for Python only. 120s timeout per runner.
 
 ### skillRunner.ts (skill execution)
-Executes SkillPlans step-by-step with user interaction. Supports step types: `ask_user`, `branch`, `invoke_skill` (with cycle detection at 10-depth), `run_agent`, `set_context`, `output`. Template resolution via `{{key}}` placeholders. Promise-based blocking for user questions.
+Executes SkillPlans step-by-step with user interaction. 6 step types: `ask_user`, `branch`, `invoke_skill`, `run_agent`, `set_context`, `output`. Context variables use `{{key}}` syntax with parent-chain resolution. Cycle detection at depth 10 (call stack tracks skill IDs). `ask_user` blocks via Promise with 5-minute timeout. Composite skills are interpreted from Blockly workspace JSON on the backend (no Blockly dependency). Sandboxed execution in temp directory (`elisa-skill-<uuid>`). Agent prompts wrapped in `<user-data>` tags to prevent prompt injection.
 
 ### sessionStore.ts (session state)
 Consolidates all session state into a single `Map<string, SessionEntry>`. Optional JSON persistence via `SessionPersistence` for checkpoint/recovery. Methods: `create()`, `get()`, `getOrThrow()`, `has()`, `checkpoint()`, `recover()`, `scheduleCleanup()`, `pruneStale()`, `cancelAll()`.
@@ -40,6 +40,12 @@ Manages portal adapters per session (MCP, CLI, Serial). Command allowlist valida
 
 ### teachingEngine.ts (educational moments)
 Fast-path curriculum lookup maps events to concepts. Deduplicates per concept per session. Falls back to Claude Sonnet API for dynamic generation. Targets ages 8-14.
+
+### narratorService.ts (build narrator)
+Translates raw build events into kid-friendly commentary via Claude Haiku (`NARRATOR_MODEL` env var, default `claude-haiku-4-5-20241022`). Mood selection from 4 options: `excited`, `encouraging`, `concerned`, `celebrating`. Rate limiting: max 1 narrator message per task per 15 seconds. `agent_output` events are accumulated per task via `accumulateOutput()` and translated after a 10-second silence window (debounce). Translatable events: `task_started`, `task_completed`, `task_failed`, `agent_message`, `error`, `session_complete`. Fallback templates used on API timeout. Deduplicates consecutive identical messages.
+
+### permissionPolicy.ts (agent permissions)
+Auto-resolves agent permission requests (`file_write`, `file_edit`, `bash`, `command`) based on configurable policy rules. Three decision outcomes: `approved`, `denied`, `escalate`. Workspace-scoped writes are auto-approved when within the nugget directory. Read-only commands (`ls`, `cat`, `grep`, etc.) are always safe. Workspace-restricted commands (`mkdir`, `python`, `npm`, etc.) require cwd to be within the nugget dir. Network commands (`curl`, `wget`, etc.) denied by default. Package installs (`pip install`, `npm install`) escalate to user. Denial counter per task escalates to user after threshold (default 3).
 
 ## Interaction Pattern
 

@@ -13,6 +13,7 @@
     "dev:electron": "concurrently -n be,fe,el -c blue,green,magenta \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\" \"wait-on http://localhost:5173 && electron .\"",
     "build:frontend": "cd frontend && npx vite build",
     "build:backend": "node scripts/build-backend.mjs",
+    "test:electron": "vitest run --config electron/vitest.config.ts",
     "build:electron": "tsc -p electron/tsconfig.json",
     "build": "npm run build:frontend && npm run build:backend && npm run build:electron",
     "pack": "npm run build && electron-builder --dir",
@@ -62,6 +63,7 @@
     "electron-builder": "^26.0.12",
     "esbuild": "^0.25.4",
     "typescript": "~5.9",
+    "vitest": "^4.0.18",
     "wait-on": "^8.0.3"
   },
   "dependencies": {

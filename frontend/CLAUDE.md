@@ -19,9 +19,9 @@ src/
     BlockCanvas/             Blockly editor + block-to-NuggetSpec conversion + WorkspaceSidebar
     AgentTeam/               Full-width agent cards + comms feed panel (Agents tab)
     TaskMap/                 Full-width interactive task DAG panel (Tasks tab)
-    MissionControl/          Shared subcomponents: TaskDAG, CommsFeed, MetricsPanel
+    MissionControl/          MissionControlPanel (layout), MinionSquadPanel, NarratorFeed, TaskDAG, CommsFeed, MetricsPanel
     BottomBar/               Bottom tabs: timeline, tests, board, learn, progress, tokens
-    Skills/                  Skills editor modal + template library
+    Skills/                  Skills editor modal + template library + SkillFlowEditor (visual flow editor)
     Rules/                   Rules editor modal + template library
     Portals/                 Portals editor modal + registry
     shared/                  MainTabBar, GoButton, HumanGateModal, QuestionModal, TeachingToast, AgentAvatar, ReadinessBadge, ExamplePickerModal, DirectoryPickerModal
