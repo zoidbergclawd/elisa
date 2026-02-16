@@ -1,6 +1,6 @@
 # Block Reference
 
-Complete guide to Elisa's block palette. Blocks snap together on the canvas to produce a [ProjectSpec](api-reference.md#projectspec-schema) that drives the build.
+Complete guide to Elisa's block palette. Blocks snap together on the canvas to produce a [NuggetSpec](api-reference.md#nuggetspec-schema) that drives the build.
 
 Categories: [Goals](#goals) | [Requirements](#requirements) | [Style](#style) | [Skills](#skills) | [Rules](#rules) | [Skill Flow](#skill-flow) | [Portals](#portals) | [Minions](#minions) | [Flow](#flow) | [Deploy](#deploy)
 
@@ -10,10 +10,10 @@ Categories: [Goals](#goals) | [Requirements](#requirements) | [Style](#style) | 
 
 Define what you're building. Every project needs at least one goal block.
 
-| Block | Fields | ProjectSpec Output |
+| Block | Fields | NuggetSpec Output |
 |-------|--------|--------------------|
-| **Project Goal** | `GOAL_TEXT` (text input) | `project.goal`, `project.description` |
-| **Project Template** | `TEMPLATE_TYPE` (dropdown) | `project.type` |
+| **Nugget Goal** | `GOAL_TEXT` (text input) | `nugget.goal`, `nugget.description` |
+| **Nugget Template** | `TEMPLATE_TYPE` (dropdown) | `nugget.type` |
 
 **Template types**: `game`, `website`, `hardware`, `story`, `tool`
 
@@ -23,7 +23,7 @@ Define what you're building. Every project needs at least one goal block.
 
 Describe what the project should do.
 
-| Block | Fields | ProjectSpec Output |
+| Block | Fields | NuggetSpec Output |
 |-------|--------|--------------------|
 | **Feature** | `FEATURE_TEXT` (text) | `requirements[]` with `type: "feature"` |
 | **Constraint** | `CONSTRAINT_TEXT` (text) | `requirements[]` with `type: "constraint"` |
@@ -38,7 +38,7 @@ Describe what the project should do.
 
 Control the look and personality of the output.
 
-| Block | Fields | ProjectSpec Output |
+| Block | Fields | NuggetSpec Output |
 |-------|--------|--------------------|
 | **Look Like** | `STYLE_PRESET` (dropdown) | `style.visual` |
 | **Personality** | `PERSONALITY_TEXT` (text) | `style.personality` |
@@ -51,7 +51,7 @@ Control the look and personality of the output.
 
 Reusable prompt snippets that extend agent capabilities. Created in the Skills modal (wrench icon in sidebar).
 
-| Block | Fields | ProjectSpec Output |
+| Block | Fields | NuggetSpec Output |
 |-------|--------|--------------------|
 | **Use Skill** | `SKILL_ID` (dropdown, dynamically populated) | `skills[]` |
 
@@ -63,7 +63,7 @@ Each skill has a name, prompt, and category (`agent`, `feature`, or `style`). Si
 
 Guardrails that trigger automatically during builds. Created in the Rules modal (shield icon in sidebar).
 
-| Block | Fields | ProjectSpec Output |
+| Block | Fields | NuggetSpec Output |
 |-------|--------|--------------------|
 | **Apply Rule** | `RULE_ID` (dropdown, dynamically populated) | `rules[]` |
 
@@ -116,7 +116,7 @@ First match wins per block. All `If` blocks are evaluated independently (not mut
 
 Connect to external hardware and services. Portal dropdowns are dynamically populated from configured portals.
 
-| Block | Fields | ProjectSpec Output |
+| Block | Fields | NuggetSpec Output |
 |-------|--------|--------------------|
 | **Tell** | `PORTAL_ID` (dropdown), `CAPABILITY_ID` (dropdown, filtered to actions), plus dynamic `PARAM_*` fields | `portals[]` with `command: "tell"` |
 | **When** | `PORTAL_ID` (dropdown), `CAPABILITY_ID` (dropdown, filtered to events), `ACTION_BLOCKS` (statement slot), plus dynamic `PARAM_*` fields | `portals[]` with `command: "when"` |
@@ -130,7 +130,7 @@ Connect to external hardware and services. Portal dropdowns are dynamically popu
 
 Configure the AI minions that will build your project. If no minion blocks are placed, defaults are used.
 
-| Block | Fields | Role | ProjectSpec Output |
+| Block | Fields | Role | NuggetSpec Output |
 |-------|--------|------|--------------------|
 | **Builder Minion** | `AGENT_NAME`, `AGENT_PERSONA` (text) | `builder` | `agents[]` |
 | **Tester Minion** | `AGENT_NAME`, `AGENT_PERSONA` (text) | `tester` | `agents[]` |
@@ -145,7 +145,7 @@ The persona field shapes the minion's behavior. Example: a Builder named "SpeedB
 
 Control execution order. These are container blocks that hold other blocks inside them.
 
-| Block | Inputs | ProjectSpec Output |
+| Block | Inputs | NuggetSpec Output |
 |-------|--------|--------------------|
 | **First/Then** | `FIRST_BLOCKS`, `THEN_BLOCKS` (statement slots) | `workflow.flow_hints[]` with `type: "sequential"` |
 | **At Same Time** | `PARALLEL_BLOCKS` (statement slot) | `workflow.flow_hints[]` with `type: "parallel"` |
@@ -161,7 +161,7 @@ Control execution order. These are container blocks that hold other blocks insid
 
 Choose where the built project gets deployed.
 
-| Block | ProjectSpec Output |
+| Block | NuggetSpec Output |
 |-------|--------------------|
 | **Deploy Web** | `deployment.target: "web"` |
 | **Deploy ESP32** | `deployment.target: "esp32"` |
@@ -186,4 +186,4 @@ A simple game project might use:
 9. **Check With Me**: "Review the game before deploying"
 10. **Deploy Web**
 
-This produces a ProjectSpec with sequential flow, a human gate before deploy, two minions, and a web deployment target.
+This produces a NuggetSpec with sequential flow, a human gate before deploy, two minions, and a web deployment target.

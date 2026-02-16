@@ -136,6 +136,9 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/components/AgentTeam/AgentTeamPanel.tsx` | Full-width agent cards + comms feed |
 | `frontend/src/components/TaskMap/TaskMapPanel.tsx` | Full-width interactive task DAG |
 | `frontend/src/components/shared/MinionAvatar.tsx` | Animated avatar for narrator/minion characters |
+| `frontend/src/components/MissionControl/MissionControlPanel.tsx` | Main mission control layout with narrator feed + minion squad |
+| `frontend/src/components/MissionControl/MinionSquadPanel.tsx` | Minion cards with status badges and task assignments |
+| `frontend/src/components/MissionControl/NarratorFeed.tsx` | Scrolling narrator message feed with mood indicators |
 
 ### Hooks
 

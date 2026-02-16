@@ -14,6 +14,9 @@ App.tsx
   BlockCanvas/BlockCanvas.tsx        Blockly editor wrapper. Read-only during build. Always mounted.
   AgentTeam/AgentTeamPanel.tsx       Full-width agent cards + comms feed (Agents tab)
   TaskMap/TaskMapPanel.tsx           Full-width interactive task DAG (Tasks tab)
+  MissionControl/MissionControlPanel.tsx  Main mission control layout with narrator feed + minion squad
+  MissionControl/MinionSquadPanel.tsx     Minion cards with status badges and task assignments
+  MissionControl/NarratorFeed.tsx         Scrolling narrator message feed with mood indicators
   MissionControl/TaskDAG.tsx         @xyflow/react graph of task dependencies
   MissionControl/CommsFeed.tsx       Scrolling agent message log
   MissionControl/MetricsPanel.tsx    Token usage bars per agent, cost display, budget percentage
@@ -32,6 +35,7 @@ App.tsx
   shared/DirectoryPickerModal.tsx   Text input fallback for non-Electron workspace directory selection
   shared/BoardDetectedModal.tsx    Celebrates ESP32 connection, offers one-click Portal creation
   Skills/SkillsModal.tsx             CRUD editor for custom skills + template library
+  Skills/SkillFlowEditor.tsx         Visual flow editor for composite skill steps
   Rules/RulesModal.tsx               CRUD editor for rules + template library
   Portals/PortalsModal.tsx           CRUD editor for portal connections
 ```

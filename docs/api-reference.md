@@ -10,7 +10,7 @@ Base URL: `http://localhost:8000/api`
 |--------|------|--------------|----------|-------------|
 | POST | `/sessions` | -- | `{ session_id: string }` | Create a new build session |
 | GET | `/sessions/:id` | -- | `BuildSession` | Get full session state |
-| POST | `/sessions/:id/start` | `{ spec: ProjectSpec, workspace_path?: string, workspace_json?: object }` | `{ status: "started" }` | Start build with a ProjectSpec |
+| POST | `/sessions/:id/start` | `{ spec: NuggetSpec, workspace_path?: string, workspace_json?: object }` | `{ status: "started" }` | Start build with a NuggetSpec |
 | POST | `/sessions/:id/stop` | -- | `{ status: "stopped" }` | Cancel a running build |
 | GET | `/sessions/:id/tasks` | -- | `Task[]` | List all tasks in session |
 | GET | `/sessions/:id/git` | -- | `CommitInfo[]` | Get commit history |
@@ -45,7 +45,6 @@ Base URL: `http://localhost:8000/api`
 | Method | Path | Response | Description |
 |--------|------|----------|-------------|
 | GET | `/health` | `{ status: "ready"\|"degraded", apiKey: "valid"\|"invalid"\|"missing"\|"unchecked", apiKeyError?: string, agentSdk: "available"\|"not_found" }` | Health check |
-| GET | `/templates` | `[]` | Template list (not yet implemented) |
 
 ---
 
@@ -194,12 +193,12 @@ Serial portals are validated via board detection (USB VID:PID matching) before f
 
 ---
 
-## ProjectSpec Schema
+## NuggetSpec Schema
 
 The JSON structure produced by the block interpreter and sent to `POST /sessions/:id/start`.
 
 ```typescript
-interface ProjectSpec {
+interface NuggetSpec {
   project: {
     goal: string;           // What the user wants to build
     description: string;    // Expanded description

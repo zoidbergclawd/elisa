@@ -101,7 +101,7 @@ elisa/
     src/services/
       orchestrator   Build pipeline controller
       agentRunner    Claude Agent SDK runner
-      metaPlanner    ProjectSpec -> task DAG decomposition
+      metaPlanner    NuggetSpec -> task DAG decomposition
       gitService     Per-session git repo management
       testRunner     pytest execution and coverage parsing
       hardwareService ESP32 detect/compile/flash/serial
@@ -113,7 +113,7 @@ elisa/
 ## Documentation
 
 - [Getting Started](docs/getting-started.md) -- Prerequisites, install, first build
-- [API Reference](docs/api-reference.md) -- REST endpoints, WebSocket events, ProjectSpec schema
+- [API Reference](docs/api-reference.md) -- REST endpoints, WebSocket events, NuggetSpec schema
 - [Block Reference](docs/block-reference.md) -- Complete block palette guide
 - [Frontend README](frontend/README.md) -- Frontend architecture and dev guide
 - [Backend README](backend/README.md) -- Backend architecture and dev guide
