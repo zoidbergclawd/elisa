@@ -112,6 +112,7 @@ elisa/
 
 ## Documentation
 
+- [User Manual](docs/manual/README.md) -- Complete guide to using Elisa
 - [Getting Started](docs/getting-started.md) -- Prerequisites, install, first build
 - [API Reference](docs/api-reference.md) -- REST endpoints, WebSocket events, NuggetSpec schema
 - [Block Reference](docs/block-reference.md) -- Complete block palette guide

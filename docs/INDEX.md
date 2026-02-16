@@ -51,6 +51,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/README.md` | Dev | Commands, component structure, how to add blocks |
 | `frontend/src/components/CLAUDE.md` | Module | Component hierarchy, BlockCanvas subsystem, UI patterns |
 | `docs/INDEX.md` | Project | This file. Master index of structure, docs, key files |
+| `docs/manual/README.md` | User | Complete user manual: workspace, blocks, building, skills, rules, portals, hardware |
 | `docs/getting-started.md` | User | Install, quick start, first build, troubleshooting |
 | `docs/api-reference.md` | API | REST endpoints, WebSocket events, NuggetSpec schema |
 | `docs/block-reference.md` | User | Block categories with descriptions |

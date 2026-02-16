@@ -14,7 +14,7 @@
 ### Option 1: Electron app (recommended)
 
 ```bash
-git clone https://github.com/your-org/elisa.git
+git clone https://github.com/zoidbergclawd/elisa.git
 cd elisa
 npm install
 npm run dev

@@ -15,7 +15,7 @@
 
 ```bash
 # Clone the repo
-git clone https://github.com/your-org/elisa.git
+git clone https://github.com/zoidbergclawd/elisa.git
 cd elisa
 
 # Terminal 1: Backend
