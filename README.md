@@ -36,7 +36,7 @@ cd backend && npm install && npm run dev    # localhost:8000
 cd frontend && npm install && npm run dev   # localhost:5173
 ```
 
-Requires Node.js 20+ and an Anthropic API key (`ANTHROPIC_API_KEY` env var). See [Getting Started](docs/getting-started.md) for full setup.
+Requires Node.js 20+ and an Anthropic API key (`ANTHROPIC_API_KEY` env var). Tested on Windows and macOS. See [Getting Started](docs/getting-started.md) for full setup.
 
 ## Features
 

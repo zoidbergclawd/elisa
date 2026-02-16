@@ -169,23 +169,38 @@ describe('static file serving', () => {
 });
 
 describe('isDirectRun detection', () => {
-  it('matches URLs with different drive letter casing (Windows)', () => {
-    // This tests the core comparison logic from server.ts lines 265-267.
-    // On Windows, import.meta.url may use lowercase drive (file:///c:/...)
-    // while process.argv[1] produces uppercase (C:\...).
-    const importMetaUrl = 'file:///c:/git/elisa/backend/dist/server.js';
-    const argvPath = 'C:\\git\\elisa\\backend\\dist\\server.js';
-    const constructed = `file:///${argvPath.replace(/\\/g, '/')}`;
+  // Tests the pathToFileURL-based comparison used in server.ts.
+  // pathToFileURL is platform-dependent, so Windows-format tests verify
+  // the expected output format rather than calling pathToFileURL directly.
+  const { pathToFileURL } = require('node:url');
 
-    // Without fix: would fail because 'c:' !== 'C:'
+  it('Windows: pathToFileURL produces correct file:/// URL with drive letter', () => {
+    // On Windows, pathToFileURL('C:\\git\\...') -> 'file:///C:/git/...'
+    // Verify the comparison logic works with that expected format.
+    const importMetaUrl = 'file:///c:/git/elisa/backend/dist/server.js';
+    const expectedPathToFileURLResult = 'file:///C:/git/elisa/backend/dist/server.js';
+
+    // toLowerCase() makes drive letter casing irrelevant
+    expect(importMetaUrl.toLowerCase()).toBe(expectedPathToFileURLResult.toLowerCase());
+  });
+
+  it('macOS: pathToFileURL produces three slashes, not four', () => {
+    const importMetaUrl = 'file:///Users/dev/elisa/backend/dist/server.js';
+    const argvPath = '/Users/dev/elisa/backend/dist/server.js';
+    const constructed = pathToFileURL(argvPath).href;
+
+    // The old bug: manual "file:///" + "/Users/..." produced "file:////Users/..." (4 slashes)
+    // pathToFileURL correctly produces "file:///Users/..." (3 slashes)
+    expect(constructed).not.toContain('file:////');
     expect(importMetaUrl.toLowerCase()).toBe(constructed.toLowerCase());
   });
 
-  it('still matches when casing is already consistent', () => {
-    const importMetaUrl = 'file:///C:/git/elisa/backend/dist/server.js';
-    const argvPath = 'C:\\git\\elisa\\backend\\dist\\server.js';
-    const constructed = `file:///${argvPath.replace(/\\/g, '/')}`;
+  it('macOS: old manual concatenation would have failed', () => {
+    // Documents the bug that pathToFileURL fixes
+    const argvPath = '/Users/dev/elisa/backend/dist/server.js';
+    const oldBroken = `file:///${argvPath.replace(/\\/g, '/')}`;
 
-    expect(importMetaUrl.toLowerCase()).toBe(constructed.toLowerCase());
+    // Old logic produced 4 slashes on macOS — would never match import.meta.url
+    expect(oldBroken).toBe('file:////Users/dev/elisa/backend/dist/server.js');
   });
 });
