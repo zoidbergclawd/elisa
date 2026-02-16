@@ -45,12 +45,11 @@ export class MetaPlanner {
       system: systemPrompt,
       messages: [
         { role: 'user', content: userMsg },
-        { role: 'assistant', content: '{' },
       ],
       max_tokens: 4096,
     });
 
-    const text = '{' + this.extractText(response);
+    const text = this.extractText(response);
     let plan = this.parseJson(text);
 
     if (!plan) {
