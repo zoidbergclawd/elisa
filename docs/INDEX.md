@@ -55,8 +55,6 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `docs/api-reference.md` | API | REST endpoints, WebSocket events, NuggetSpec schema |
 | `docs/block-reference.md` | User | Block categories with descriptions |
 | `docs/elisa-prd.md` | Product | PRD: vision, features, target audience |
-| `docs/hackathon-tasks.md` | Dev | Task breakdown for hackathon contributors |
-| `docs/project-description-draft.md` | Product | Draft project description |
 
 ## Key Source Files
 
