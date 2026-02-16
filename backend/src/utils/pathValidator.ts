@@ -91,10 +91,26 @@ export function validateWorkspacePath(rawPath: string): PathValidationResult {
     return { valid: true, resolved };
   }
 
+  // Allow OS temp directory before checking blocked prefixes.
+  // On macOS, tmpdir (/var/folders/...) resolves under /private/var which
+  // would otherwise be caught by the /var blocked prefix.
+  let resolvedTmpdir: string;
+  try { resolvedTmpdir = fs.realpathSync(os.tmpdir()); } catch { resolvedTmpdir = os.tmpdir(); }
+  if (isUnder(resolved, resolvedTmpdir)) {
+    return { valid: true, resolved };
+  }
+
   // Block system directories
   const blocked = process.platform === 'win32' ? BLOCKED_PREFIXES_WIN : BLOCKED_PREFIXES_UNIX;
   for (const prefix of blocked) {
-    if (isUnder(resolved, prefix)) {
+    // Resolve symlinks in the prefix (e.g., /etc -> /private/etc on macOS)
+    let resolvedPrefix: string;
+    try {
+      resolvedPrefix = fs.realpathSync(prefix);
+    } catch {
+      resolvedPrefix = prefix;
+    }
+    if (isUnder(resolved, resolvedPrefix)) {
       return { valid: false, reason: 'Path points to a protected system directory' };
     }
   }
