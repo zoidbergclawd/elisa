@@ -57,10 +57,8 @@ function makeValidPlan(overrides: Partial<Record<string, any>> = {}) {
 /** Configure the mock to return valid JSON on first call. */
 function configureValidResponse(plan?: Record<string, any>) {
   const p = plan ?? makeValidPlan();
-  // Remove leading '{' because MetaPlanner prefills with '{'
   const json = JSON.stringify(p);
-  const text = json.slice(1);
-  mockCreate.mockResolvedValueOnce(makeTextResponse(text));
+  mockCreate.mockResolvedValueOnce(makeTextResponse(json));
 }
 
 // -- Setup --
@@ -98,6 +96,22 @@ describe('successful planning', () => {
     const userContent = callArgs.messages[0].content;
     expect(userContent).toContain('"agents"');
   });
+
+  it('does not use assistant prefill (required for Opus model compatibility)', async () => {
+    const planner = new MetaPlanner();
+    configureValidResponse();
+
+    await planner.plan({ nugget: { goal: 'test', type: 'software' } });
+
+    const callArgs = mockCreate.mock.calls[0][0];
+    const messages = callArgs.messages;
+    // All messages must be user role -- no assistant prefill
+    for (const msg of messages) {
+      expect(msg.role).toBe('user');
+    }
+    // Conversation must end with a user message
+    expect(messages[messages.length - 1].role).toBe('user');
+  });
 });
 
 // ============================================================
@@ -109,7 +123,7 @@ describe('JSON parse retry', () => {
     const planner = new MetaPlanner();
     const plan = makeValidPlan();
 
-    // First call returns invalid JSON (missing leading '{' since MetaPlanner prefills)
+    // First call returns invalid JSON
     mockCreate.mockResolvedValueOnce(makeTextResponse('not valid json at all'));
 
     // Retry call returns valid JSON
@@ -138,7 +152,6 @@ describe('JSON parse retry', () => {
     const plan = makeValidPlan();
     const json = JSON.stringify(plan);
 
-    // MetaPlanner prefills with '{', so text = '{' + response.
     // parseJson strips fences first, extracting the JSON inside.
     mockCreate.mockResolvedValueOnce(
       makeTextResponse('```json\n' + json + '\n```'),
@@ -157,7 +170,7 @@ describe('validate() edge cases', () => {
   it('throws on missing tasks key', async () => {
     const planner = new MetaPlanner();
     const badPlan = { agents: [{ name: 'Bot', role: 'builder', persona: '' }] };
-    const json = JSON.stringify(badPlan).slice(1);
+    const json = JSON.stringify(badPlan);
     mockCreate.mockResolvedValueOnce(makeTextResponse(json));
 
     await expect(planner.plan({ nugget: { goal: 'test', type: 'software' } }))
@@ -169,7 +182,7 @@ describe('validate() edge cases', () => {
     const badPlan = {
       tasks: [{ id: 't1', name: 'X', description: '', dependencies: [], acceptance_criteria: [] }],
     };
-    const json = JSON.stringify(badPlan).slice(1);
+    const json = JSON.stringify(badPlan);
     mockCreate.mockResolvedValueOnce(makeTextResponse(json));
 
     await expect(planner.plan({ nugget: { goal: 'test', type: 'software' } }))
@@ -179,7 +192,7 @@ describe('validate() edge cases', () => {
   it('throws on empty tasks array', async () => {
     const planner = new MetaPlanner();
     const badPlan = { tasks: [], agents: [{ name: 'Bot', role: 'builder', persona: '' }] };
-    const json = JSON.stringify(badPlan).slice(1);
+    const json = JSON.stringify(badPlan);
     mockCreate.mockResolvedValueOnce(makeTextResponse(json));
 
     await expect(planner.plan({ nugget: { goal: 'test', type: 'software' } }))
@@ -200,7 +213,7 @@ describe('validate() edge cases', () => {
         },
       ],
     });
-    const json = JSON.stringify(plan).slice(1);
+    const json = JSON.stringify(plan);
     mockCreate.mockResolvedValueOnce(makeTextResponse(json));
 
     await expect(planner.plan({ nugget: { goal: 'test', type: 'software' } }))
@@ -221,7 +234,7 @@ describe('validate() edge cases', () => {
         },
       ],
     });
-    const json = JSON.stringify(plan).slice(1);
+    const json = JSON.stringify(plan);
     mockCreate.mockResolvedValueOnce(makeTextResponse(json));
 
     await expect(planner.plan({ nugget: { goal: 'test', type: 'software' } }))
@@ -235,7 +248,7 @@ describe('validate() edge cases', () => {
         { name: 'Build', description: '', dependencies: [], agent_name: 'Builder Bot', acceptance_criteria: [] },
       ],
     });
-    const json = JSON.stringify(plan).slice(1);
+    const json = JSON.stringify(plan);
     mockCreate.mockResolvedValueOnce(makeTextResponse(json));
 
     await expect(planner.plan({ nugget: { goal: 'test', type: 'software' } }))
@@ -249,7 +262,7 @@ describe('validate() edge cases', () => {
         { id: 'task-1', name: 'Build', description: '', agent_name: 'Builder Bot', acceptance_criteria: [] },
       ],
     });
-    const json = JSON.stringify(plan).slice(1);
+    const json = JSON.stringify(plan);
     mockCreate.mockResolvedValueOnce(makeTextResponse(json));
 
     await expect(planner.plan({ nugget: { goal: 'test', type: 'software' } }))
