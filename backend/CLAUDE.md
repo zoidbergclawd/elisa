@@ -92,7 +92,10 @@ src/
 
 - **Session state**: In-memory Maps with optional JSON persistence for checkpoint/recovery. Auto-cleanup after 5-min grace period.
 - **NuggetSpec validation**: Zod schema validates at `/api/sessions/:id/start` (string caps, array limits, portal command allowlist).
-- **SDK query per task**: Each agent task calls `query()` from `@anthropic-ai/claude-agent-sdk` with `permissionMode: 'bypassPermissions'`, `maxTurns: 20`
+- **SDK query per task**: Each agent task calls `query()` from `@anthropic-ai/claude-agent-sdk` with `permissionMode: 'bypassPermissions'`. Default `maxTurns=25` (`MAX_TURNS_DEFAULT`). On retry, grants 10 additional turns per attempt (`MAX_TURNS_RETRY_INCREMENT`), so retries progress: 25 → 35 → 45.
+- **Stale metadata cleanup**: On each build, `setupWorkspace()` removes `.elisa/{comms,context,status}` from previous sessions before recreating them. Preserves `.elisa/logs/`, source files, and `.git/`.
+- **Structural digest injection**: Agent task prompts include function/class signatures extracted from workspace source files (via `ContextManager.buildStructuralDigest()`), allowing agents to orient without reading each file.
+- **Retry context**: Failed tasks are retried (up to 2 retries) with a "Retry Attempt" header prepended to the prompt, instructing agents to skip orientation and go straight to implementation.
 - **Streaming-parallel execution**: Up to 3 independent tasks run concurrently via Promise.race pool. New tasks schedule as soon as any completes. Git commits serialized via mutex.
 - **Token budget**: Default 500k token limit per session. Warning event at 80%. Graceful stop when exceeded. Cost tracking per agent.
 - **Context chain**: After each task, summary + structural digest written to `.elisa/context/nugget_context.md`.

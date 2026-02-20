@@ -47,6 +47,17 @@ describe('reviewerAgent SYSTEM_PROMPT', () => {
     expect(SYSTEM_PROMPT).toContain('kid_rule');
     expect(SYSTEM_PROMPT).toContain('user_input');
   });
+
+  it('contains Thinking Steps section', () => {
+    expect(SYSTEM_PROMPT).toContain('## Thinking Steps');
+    expect(SYSTEM_PROMPT).toContain('file manifest and structural digest');
+  });
+
+  it('contains Turn Efficiency section', () => {
+    expect(SYSTEM_PROMPT).toContain('## Turn Efficiency');
+    expect(SYSTEM_PROMPT).toContain('limited turn budget');
+    expect(SYSTEM_PROMPT).toContain('Begin reviewing code within your first');
+  });
 });
 
 describe('reviewerAgent formatTaskPrompt', () => {

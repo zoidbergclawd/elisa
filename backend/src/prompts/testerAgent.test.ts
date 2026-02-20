@@ -38,6 +38,17 @@ describe('testerAgent SYSTEM_PROMPT', () => {
   it('includes PASS/FAIL reporting format', () => {
     expect(SYSTEM_PROMPT).toContain('PASS or FAIL');
   });
+
+  it('contains Thinking Steps section', () => {
+    expect(SYSTEM_PROMPT).toContain('## Thinking Steps');
+    expect(SYSTEM_PROMPT).toContain('file manifest and structural digest');
+  });
+
+  it('contains Turn Efficiency section', () => {
+    expect(SYSTEM_PROMPT).toContain('## Turn Efficiency');
+    expect(SYSTEM_PROMPT).toContain('limited turn budget');
+    expect(SYSTEM_PROMPT).toContain('Begin writing tests within your first');
+  });
 });
 
 describe('testerAgent formatTaskPrompt', () => {

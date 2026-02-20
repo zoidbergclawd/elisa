@@ -15,7 +15,7 @@ Delegates to phase handlers in sequence: plan -> execute -> test -> deploy. Owns
 - **types.ts** -- Shared `PhaseContext` and `SendEvent` types
 
 ### agentRunner.ts (SDK agent runner)
-Calls `query()` from `@anthropic-ai/claude-agent-sdk` to run agents programmatically. Streams `assistant` messages and extracts `result` metadata (tokens, cost). 300s timeout, 2 retries on failure.
+Calls `query()` from `@anthropic-ai/claude-agent-sdk` to run agents programmatically. Streams `assistant` messages and extracts `result` metadata (tokens, cost). 300s timeout, default `maxTurns=25` (`MAX_TURNS_DEFAULT`), 2 retries with increasing turn budgets (25→35→45 via `MAX_TURNS_RETRY_INCREMENT`).
 
 ### metaPlanner.ts (task decomposition)
 Calls Claude API (opus model) with NuggetSpec + system prompt. Returns structured task DAG with dependencies, acceptance criteria, and role assignments. Validates DAG for cycles. Retry on JSON parse failure.
