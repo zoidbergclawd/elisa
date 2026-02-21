@@ -6,6 +6,7 @@ import CommsFeed from './CommsFeed';
 interface NarratorFeedProps {
   narratorMessages: NarratorMessage[];
   events: WSEvent[];
+  isPlanning?: boolean;
 }
 
 const MOOD_STYLES: Record<string, string> = {
@@ -23,7 +24,7 @@ function timeAgo(timestamp: number): string {
   return `${minutes}m ago`;
 }
 
-export default function NarratorFeed({ narratorMessages, events }: NarratorFeedProps) {
+export default function NarratorFeed({ narratorMessages, events, isPlanning = false }: NarratorFeedProps) {
   const [mode, setMode] = useState<'story' | 'raw'>('story');
   const [detailsOpen, setDetailsOpen] = useState(false);
   const feedRef = useRef<HTMLDivElement>(null);
@@ -60,9 +61,16 @@ export default function NarratorFeed({ narratorMessages, events }: NarratorFeedP
           {/* Story messages */}
           <div ref={feedRef} className="flex-1 overflow-y-auto p-3 space-y-2">
             {narratorMessages.length === 0 ? (
-              <p className="text-sm text-atelier-text-muted text-center py-4">
-                Elisa will narrate your build adventure here...
-              </p>
+              <div className="text-sm text-atelier-text-muted text-center py-4">
+                {isPlanning ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <MinionAvatar name="Elisa" role="narrator" status="working" size="sm" />
+                    <p>Elisa is reading your design and hatching a plan...</p>
+                  </div>
+                ) : (
+                  <p>Elisa will narrate your build adventure here...</p>
+                )}
+              </div>
             ) : (
               narratorMessages.map((msg, i) => (
                 <div

@@ -53,7 +53,7 @@ export default function App() {
     uiState, tasks, agents, commits, events, sessionId,
     teachingMoments, testResults, coveragePct, tokenUsage,
     serialLines, deployProgress, deployChecklist, deployUrl, gateRequest, questionRequest,
-    nuggetDir, errorNotification, narratorMessages,
+    nuggetDir, errorNotification, narratorMessages, isPlanning,
     handleEvent, startBuild, stopBuild, clearGateRequest, clearQuestionRequest,
     clearErrorNotification, resetToDesign,
   } = useBuildSession();
@@ -471,6 +471,7 @@ export default function App() {
               narratorMessages={narratorMessages}
               spec={spec}
               uiState={uiState}
+              isPlanning={isPlanning}
             />
           </div>
         )}

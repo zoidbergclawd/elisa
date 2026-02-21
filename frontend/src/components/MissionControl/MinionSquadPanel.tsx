@@ -5,9 +5,10 @@ import { TERMS, displayRole } from '../../lib/terminology';
 interface MinionSquadPanelProps {
   agents: Agent[];
   uiState: UIState;
+  isPlanning?: boolean;
 }
 
-export default function MinionSquadPanel({ agents, uiState }: MinionSquadPanelProps) {
+export default function MinionSquadPanel({ agents, uiState, isPlanning = false }: MinionSquadPanelProps) {
   // Derive Elisa's status from build state
   const elisaStatus = uiState === 'building' || uiState === 'review'
     ? 'working'
@@ -43,7 +44,9 @@ export default function MinionSquadPanel({ agents, uiState }: MinionSquadPanelPr
         ))}
 
         {agents.length === 0 && (
-          <p className="text-xs text-atelier-text-muted">Minions will appear when you press GO</p>
+          <p className="text-xs text-atelier-text-muted">
+            {isPlanning ? 'Assembling the squad...' : 'Minions will appear when you press GO'}
+          </p>
         )}
       </div>
     </div>

@@ -53,6 +53,7 @@ export function useBuildSession() {
   const [narratorMessages, setNarratorMessages] = useState<NarratorMessage[]>([]);
   const [deployChecklist, setDeployChecklist] = useState<Array<{ name: string; prompt: string }> | null>(null);
   const [deployUrl, setDeployUrl] = useState<string | null>(null);
+  const [isPlanning, setIsPlanning] = useState(false);
   const tasksRef = useRef<Task[]>([]);
 
   const handleEvent = useCallback((event: WSEvent) => {
@@ -62,7 +63,11 @@ export function useBuildSession() {
     });
 
     switch (event.type) {
+      case 'planning_started':
+        setIsPlanning(true);
+        break;
       case 'plan_ready': {
+        setIsPlanning(false);
         const planTasks: Task[] = event.tasks;
         // Inject a synthetic deploy node for hardware targets
         const lastTaskId = planTasks.length > 0 ? planTasks[planTasks.length - 1].id : undefined;
@@ -312,6 +317,7 @@ export function useBuildSession() {
     setDeployProgress(null);
     setDeployChecklist(null);
     setDeployUrl(null);
+    setIsPlanning(false);
     setGateRequest(null);
     setQuestionRequest(null);
     setNuggetDir(null);
@@ -392,6 +398,7 @@ export function useBuildSession() {
     setDeployProgress(null);
     setDeployChecklist(null);
     setDeployUrl(null);
+    setIsPlanning(false);
     setGateRequest(null);
     setQuestionRequest(null);
     setErrorNotification(null);
@@ -403,7 +410,7 @@ export function useBuildSession() {
     uiState, tasks, agents, commits, events, sessionId,
     teachingMoments, testResults, coveragePct, tokenUsage,
     serialLines, deployProgress, deployChecklist, deployUrl, gateRequest, questionRequest,
-    nuggetDir, errorNotification, narratorMessages,
+    nuggetDir, errorNotification, narratorMessages, isPlanning,
     handleEvent, startBuild, stopBuild, clearGateRequest, clearQuestionRequest,
     clearErrorNotification, resetToDesign,
   };
