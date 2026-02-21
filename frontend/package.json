@@ -41,5 +41,8 @@
     "typescript-eslint": "^8.48.0",
     "vite": "^7.3.1",
     "vitest": "^4.0.18"
+  },
+  "overrides": {
+    "minimatch": ">=10.2.1"
   }
 }
