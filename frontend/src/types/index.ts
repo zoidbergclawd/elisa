@@ -20,6 +20,7 @@ export interface Agent {
   role: 'builder' | 'tester' | 'reviewer' | 'custom';
   persona: string;
   status: 'idle' | 'working' | 'done' | 'error' | 'waiting';
+  model?: string;
 }
 
 export interface BuildSession {
@@ -64,7 +65,7 @@ export interface TokenUsage {
   total: number;
   costUsd: number;
   maxBudget: number;
-  perAgent: Record<string, { input: number; output: number }>;
+  perAgent: Record<string, { input: number; output: number; model?: string }>;
 }
 
 export interface QuestionPayload {
@@ -86,7 +87,7 @@ export type WSEvent =
   | { type: 'session_started'; session_id: string }
   | { type: 'planning_started' }
   | { type: 'plan_ready'; tasks: Task[]; agents: Agent[]; explanation: string; deployment_target?: string }
-  | { type: 'task_started'; task_id: string; agent_name: string }
+  | { type: 'task_started'; task_id: string; agent_name: string; model_used?: string }
   | { type: 'task_completed'; task_id: string; summary: string }
   | { type: 'task_failed'; task_id: string; error: string; retry_count: number }
   | { type: 'agent_output'; task_id: string; agent_name: string; content: string }
@@ -99,7 +100,7 @@ export type WSEvent =
   | { type: 'commit_created'; sha: string; message: string; agent_name: string; task_id: string; timestamp: string; files_changed: string[] }
   | { type: 'test_result'; test_name: string; passed: boolean; details: string }
   | { type: 'coverage_update'; percentage: number; details?: CoverageReport }
-  | { type: 'token_usage'; agent_name: string; input_tokens: number; output_tokens: number; cost_usd: number }
+  | { type: 'token_usage'; agent_name: string; input_tokens: number; output_tokens: number; cost_usd: number; model_used?: string }
   | { type: 'budget_warning'; total_tokens: number; max_budget: number; cost_usd: number }
   | { type: 'serial_data'; line: string; timestamp: string }
   | { type: 'human_gate'; task_id: string; question: string; context: string }

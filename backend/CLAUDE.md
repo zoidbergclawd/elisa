@@ -40,6 +40,7 @@ src/
     teachingEngine.ts    Generates contextual learning moments (curriculum + API fallback)
     narratorService.ts   Generates narrator messages for build events (Claude Haiku)
     permissionPolicy.ts  Auto-resolves agent permission requests based on policy rules
+    modelRouter.ts       Rule-based model routing: maps agent roles to model tiers with overrides
   prompts/
     metaPlanner.ts       System prompt for task decomposition
     builderAgent.ts      Builder role prompt template
@@ -105,6 +106,7 @@ src/
 - **Graceful shutdown**: SIGTERM/SIGINT handlers cancel orchestrators, close WS server, 10s force-exit. `SessionStore.onCleanup` invokes `ConnectionManager.cleanup()` for WS teardown.
 - **Graceful degradation**: Missing external tools (git, pytest, mpremote) produce warnings, not crashes.
 - **Timeouts**: Agent=300s, Tests=120s, Flash=60s. Task retry limit=2.
+- **Model routing**: `ModelRouter` maps agent roles to model tiers (high/medium/low). Supports complexity promotion, retry promotion, budget demotion, and user overrides via NuggetSpec `model_routing` field. `CLAUDE_MODEL` env var overrides all routing.
 
 ## Server Modes
 
@@ -119,4 +121,5 @@ src/
 - `CORS_ORIGIN`: Override CORS origin in dev mode (default `http://localhost:5173`)
 - `CLAUDE_MODEL`: Override model for agents and teaching engine (default `claude-opus-4-6`)
 - `ANTHROPIC_API_KEY`: Required for Claude API/SDK access
-- Claude models: configurable via `CLAUDE_MODEL` env var (default claude-opus-4-6)
+- `ELISA_MODELS`: Comma-separated list of available Claude models (default: full catalog). Used by `ModelRouter.fromEnv()`.
+- Claude models: configurable via `CLAUDE_MODEL` env var (global override, default claude-opus-4-6). Per-role routing via `ModelRouter`.
