@@ -101,7 +101,8 @@ export class DeployPhase {
     await ctx.send({ type: 'deploy_progress', step: `Starting local server on port ${port}...`, progress: 80 });
 
     let serverProcess: ChildProcess | null = null;
-    const url = `http://localhost:${port}`;
+    let finalUrl: string | null = null;
+    const fallbackUrl = `http://localhost:${port}`;
     const isWin = process.platform === 'win32';
 
     try {
@@ -113,29 +114,41 @@ export class DeployPhase {
         env: safeEnv(),
       });
 
-      // Wait for server to start or fail
-      const started = await new Promise<boolean>((resolve) => {
+      // Wait for server to start and parse actual URL from output.
+      // Serve v14 may silently switch ports if the requested port is taken.
+      const result = await new Promise<{ started: boolean; url: string | null }>((resolve) => {
         let resolved = false;
+        const urlPattern = /Accepting connections at (http:\/\/localhost:\d+)/;
+
+        const checkOutput = (data: Buffer) => {
+          const match = data.toString().match(urlPattern);
+          if (match && !resolved) {
+            resolved = true;
+            resolve({ started: true, url: match[1] });
+          }
+        };
+        serverProcess!.stdout?.on('data', checkOutput);
+        serverProcess!.stderr?.on('data', checkOutput);
+
         serverProcess!.on('error', () => {
-          if (!resolved) { resolved = true; resolve(false); }
+          if (!resolved) { resolved = true; resolve({ started: false, url: null }); }
         });
         serverProcess!.on('close', () => {
-          if (!resolved) { resolved = true; resolve(false); }
+          if (!resolved) { resolved = true; resolve({ started: false, url: null }); }
         });
         setTimeout(() => {
-          if (!resolved) { resolved = true; resolve(true); }
-        }, 2000);
+          if (!resolved) { resolved = true; resolve({ started: true, url: null }); }
+        }, 5000);
       });
 
-      if (!started) {
+      if (!result.started) {
         serverProcess = null;
       }
+      finalUrl = result.url ?? (serverProcess ? fallbackUrl : null);
     } catch (err: any) {
       console.warn('Web preview server failed to start:', err.message);
       serverProcess = null;
     }
-
-    const finalUrl = serverProcess ? url : null;
     await ctx.send({ type: 'deploy_complete', target: 'web', ...(finalUrl ? { url: finalUrl } : {}) });
     return { process: serverProcess, url: finalUrl };
   }

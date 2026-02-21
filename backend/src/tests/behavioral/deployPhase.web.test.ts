@@ -20,8 +20,10 @@ vi.mock('node:child_process', async (importOriginal) => {
       proc.stderr = new EventEmitter();
       proc.pid = 99999;
       proc.kill = vi.fn();
-      // Do NOT emit 'close' or 'error' so deployWeb's 2s timeout
-      // resolves with started=true
+      // Simulate serve printing its listen URL on stderr (serve v14 uses stderr for info)
+      setTimeout(() => {
+        proc.stderr.emit('data', Buffer.from(' INFO  Accepting connections at http://localhost:4567\n'));
+      }, 50);
       return proc;
     }),
   };
@@ -226,6 +228,21 @@ describe('DeployPhase - deployWeb', () => {
     expect(opts.cwd).toBe(srcDir);
     // Must not use removed --no-clipboard flag
     expect(args).not.toContain('--no-clipboard');
+
+    if (result.process) result.process.kill();
+  });
+
+  it('uses URL from serve stdout instead of assumed port', async () => {
+    const { ctx, events } = makeCtx({ spec: { deployment: { target: 'web' } } });
+    ctx.nuggetDir = tmpDir;
+
+    const result = await phase.deployWeb(ctx);
+
+    // The mock emits "Accepting connections at http://localhost:4567"
+    // Deploy should parse this and use port 4567, not the findFreePort result
+    const complete = events.find(e => e.type === 'deploy_complete');
+    expect(complete.url).toBe('http://localhost:4567');
+    expect(result.url).toBe('http://localhost:4567');
 
     if (result.process) result.process.kill();
   });
