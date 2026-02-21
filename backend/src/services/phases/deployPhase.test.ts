@@ -98,10 +98,10 @@ describe('shouldDeployWeb', () => {
     expect(phase.shouldDeployWeb(ctx)).toBe(false);
   });
 
-  it('defaults to "preview" when no target specified and returns false', () => {
+  it('defaults to "preview" when no target specified and returns true', () => {
     const phase = new DeployPhase(makeMockHardwareService(), makeMockPortalService(), makeMockTeachingEngine());
     const ctx = makeCtx({ session: { id: 't', state: 'executing', spec: {} } as any });
-    expect(phase.shouldDeployWeb(ctx)).toBe(false);
+    expect(phase.shouldDeployWeb(ctx)).toBe(true);
   });
 });
 

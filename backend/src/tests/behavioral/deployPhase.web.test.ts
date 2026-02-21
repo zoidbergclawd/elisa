@@ -95,9 +95,9 @@ describe('DeployPhase - shouldDeployWeb', () => {
     expect(phase.shouldDeployWeb(ctx)).toBe(true);
   });
 
-  it('returns false when target is "preview"', () => {
+  it('returns true when target is "preview"', () => {
     const { ctx } = makeCtx({ spec: { deployment: { target: 'preview' } } });
-    expect(phase.shouldDeployWeb(ctx)).toBe(false);
+    expect(phase.shouldDeployWeb(ctx)).toBe(true);
   });
 
   it('returns false when target is "esp32"', () => {
@@ -105,9 +105,9 @@ describe('DeployPhase - shouldDeployWeb', () => {
     expect(phase.shouldDeployWeb(ctx)).toBe(false);
   });
 
-  it('returns false when deployment is not specified (defaults to preview)', () => {
+  it('returns true when deployment is not specified (defaults to preview)', () => {
     const { ctx } = makeCtx({ spec: {} });
-    expect(phase.shouldDeployWeb(ctx)).toBe(false);
+    expect(phase.shouldDeployWeb(ctx)).toBe(true);
   });
 });
 

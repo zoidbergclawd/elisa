@@ -43,7 +43,7 @@ export class DeployPhase {
   shouldDeployWeb(ctx: PhaseContext): boolean {
     const spec = ctx.session.spec ?? {};
     const target = spec.deployment?.target ?? 'preview';
-    return target === 'web' || target === 'both';
+    return target === 'web' || target === 'both' || target === 'preview';
   }
 
   async deployWeb(ctx: PhaseContext): Promise<{ process: ChildProcess | null; url: string | null }> {
