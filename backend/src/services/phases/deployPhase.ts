@@ -105,8 +105,8 @@ export class DeployPhase {
     const isWin = process.platform === 'win32';
 
     try {
-      serverProcess = spawn('npx', ['serve', serveDir, '-l', String(port), '--no-clipboard'], {
-        cwd: ctx.nuggetDir,
+      serverProcess = spawn('npx', ['serve', '-p', String(port)], {
+        cwd: serveDir,
         stdio: 'pipe',
         detached: false,
         shell: isWin,

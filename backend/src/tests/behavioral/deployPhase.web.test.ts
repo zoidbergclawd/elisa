@@ -195,6 +195,41 @@ describe('DeployPhase - deployWeb', () => {
     if (result.process) result.process.kill();
   });
 
+  it('spawns serve with cwd and -p flag, not positional dir arg (serve v14 compat)', async () => {
+    const { spawn } = await import('node:child_process');
+    // Clear mock calls from prior tests so we only see this test's spawn
+    (spawn as any).mockClear();
+    const { ctx } = makeCtx({ spec: { deployment: { target: 'web' } } });
+    ctx.nuggetDir = tmpDir;
+    // Create index.html in src/ subdir so serveDir resolves to src/
+    const srcDir = path.join(tmpDir, 'src');
+    fs.mkdirSync(srcDir, { recursive: true });
+    fs.writeFileSync(path.join(srcDir, 'index.html'), '<html></html>');
+
+    const result = await phase.deployWeb(ctx);
+
+    // Find the spawn call for 'npx serve'
+    const calls = (spawn as any).mock.calls as any[][];
+    const serveCall = calls.find(
+      (c: any[]) => c[0] === 'npx' && c[1]?.includes('serve'),
+    );
+    expect(serveCall).toBeDefined();
+
+    const [, args, opts] = serveCall!;
+    // Must use -p flag for port, NOT -l with raw number
+    expect(args).toContain('-p');
+    expect(args).not.toContain('-l');
+    // Must NOT pass directory as positional arg (broken in serve v14)
+    expect(args).not.toContain(srcDir);
+    expect(args).not.toContain(tmpDir);
+    // Must use cwd to set serve directory
+    expect(opts.cwd).toBe(srcDir);
+    // Must not use removed --no-clipboard flag
+    expect(args).not.toContain('--no-clipboard');
+
+    if (result.process) result.process.kill();
+  });
+
   it('does not auto-open browser after starting server', async () => {
     const { execFile } = await import('node:child_process');
     const { ctx } = makeCtx({ spec: { deployment: { target: 'web' } } });
