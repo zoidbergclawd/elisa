@@ -30,7 +30,7 @@ export class MetaPlanner {
     this.client = getAnthropicClient();
   }
 
-  async plan(spec: Record<string, any>): Promise<Record<string, any>> {
+  async plan(spec: Record<string, any>, model?: string): Promise<Record<string, any>> {
     if (!spec.agents) {
       spec = { ...spec, agents: DEFAULT_AGENTS };
     }
@@ -39,9 +39,9 @@ export class MetaPlanner {
     const userMsg = metaPlannerUser(specJson);
     const systemPrompt = buildMetaPlannerSystem(spec);
 
-    const model = process.env.CLAUDE_MODEL || DEFAULT_MODEL;
+    const resolvedModel = model ?? process.env.CLAUDE_MODEL ?? DEFAULT_MODEL;
     const response = await this.client.messages.create({
-      model,
+      model: resolvedModel,
       system: systemPrompt,
       messages: [
         { role: 'user', content: userMsg },
@@ -53,7 +53,7 @@ export class MetaPlanner {
     let plan = this.parseJson(text);
 
     if (!plan) {
-      plan = await this.retryParse(systemPrompt, userMsg, text);
+      plan = await this.retryParse(systemPrompt, userMsg, text, resolvedModel);
     }
 
     this.validate(plan);
@@ -64,10 +64,10 @@ export class MetaPlanner {
     systemPrompt: string,
     originalUserMsg: string,
     badResponse: string,
+    model?: string,
   ): Promise<Record<string, any>> {
-    const model = process.env.CLAUDE_MODEL || DEFAULT_MODEL;
     const response = await this.client.messages.create({
-      model,
+      model: model ?? process.env.CLAUDE_MODEL ?? DEFAULT_MODEL,
       system: systemPrompt,
       messages: [
         { role: 'user', content: originalUserMsg },

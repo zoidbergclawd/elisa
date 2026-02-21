@@ -198,6 +198,11 @@ export class NarratorService {
     this.fallbackIndex = 0;
   }
 
+  /** Update the model used for narration (called after router resolves). */
+  setModel(model: string): void {
+    this.model = model;
+  }
+
   getHistory(): string[] {
     return [...this.history];
   }

@@ -96,7 +96,9 @@ export function useBuildSession() {
           return next;
         });
         setAgents(prev => prev.map(a =>
-          a.name === event.agent_name ? { ...a, status: 'working' as const } : a
+          a.name === event.agent_name
+            ? { ...a, status: 'working' as const, model: event.model_used ?? a.model }
+            : a
         ));
         break;
       case 'task_completed': {
@@ -223,6 +225,7 @@ export function useBuildSession() {
               [event.agent_name]: {
                 input: agentPrev.input + event.input_tokens,
                 output: agentPrev.output + event.output_tokens,
+                model: event.model_used ?? agentPrev.model,
               },
             },
           };

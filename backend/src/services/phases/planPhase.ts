@@ -6,6 +6,7 @@ import type { PhaseContext, SendEvent } from './types.js';
 import { maybeTeach } from './types.js';
 import { MetaPlanner } from '../metaPlanner.js';
 import { TeachingEngine } from '../teachingEngine.js';
+import type { ModelRouter } from '../modelRouter.js';
 import { TaskDAG } from '../../utils/dag.js';
 
 export interface PlanResult {
@@ -26,14 +27,15 @@ export class PlanPhase {
     this.teachingEngine = teachingEngine;
   }
 
-  async execute(ctx: PhaseContext, spec: Record<string, any>): Promise<PlanResult> {
+  async execute(ctx: PhaseContext, spec: Record<string, any>, modelRouter?: ModelRouter): Promise<PlanResult> {
     ctx.session.state = 'planning';
     ctx.logger?.phase('planning');
     await ctx.send({ type: 'planning_started' });
 
     const nuggetType = (ctx.session.spec ?? {}).nugget?.type ?? 'software';
 
-    const plan = await this.metaPlanner.plan(spec);
+    const metaModel = modelRouter?.resolve({ role: 'metaplanner' }).model;
+    const plan = await this.metaPlanner.plan(spec, metaModel);
 
     const tasks = plan.tasks;
     const agents = plan.agents;

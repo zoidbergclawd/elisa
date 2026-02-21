@@ -61,7 +61,7 @@ describe('PlanPhase', () => {
 
     const result = await phase.execute(ctx, spec);
 
-    expect(metaPlanner.plan).toHaveBeenCalledWith(spec);
+    expect(metaPlanner.plan).toHaveBeenCalledWith(spec, undefined);
     expect(result.dag).toBeInstanceOf(TaskDAG);
     expect(result.tasks).toHaveLength(2);
     expect(result.agents).toHaveLength(1);

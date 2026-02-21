@@ -121,4 +121,8 @@ export const NuggetSpecSchema = z.object({
     allow_network: z.boolean().optional(),
     escalation_threshold: z.number().int().min(1).max(10).optional(),
   }).strict().optional(),
+  model_routing: z.object({
+    budget_mode: z.boolean().optional(),
+    role_overrides: z.record(z.string().max(50), z.string().max(100)).optional(),
+  }).strict().optional(),
 }).strict();

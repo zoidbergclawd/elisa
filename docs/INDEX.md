@@ -84,6 +84,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/services/portalService.ts` | MCP + CLI portal adapters with command allowlist |
 | `backend/src/services/narratorService.ts` | Generates narrator messages for build events (Claude Haiku) |
 | `backend/src/services/permissionPolicy.ts` | Auto-resolves agent permission requests based on policy rules |
+| `backend/src/services/modelRouter.ts` | Rule-based model routing: role -> tier mapping with overrides |
 
 ### Phases
 

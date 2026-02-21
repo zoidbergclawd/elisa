@@ -14,6 +14,8 @@ import { TeachingEngine } from '../teachingEngine.js';
 import { PortalService } from '../portalService.js';
 import { NarratorService } from '../narratorService.js';
 import { PermissionPolicy } from '../permissionPolicy.js';
+import type { ModelRouter } from '../modelRouter.js';
+import { computeComplexity } from '../modelRouter.js';
 import { ContextManager } from '../../utils/contextManager.js';
 import { TokenTracker, DEFAULT_RESERVED_PER_TASK } from '../../utils/tokenTracker.js';
 import { TaskDAG } from '../../utils/dag.js';
@@ -69,6 +71,7 @@ export interface ExecuteDeps {
   gateResolver: { current: ((value: Record<string, any>) => void) | null };
   narratorService?: NarratorService;
   permissionPolicy?: PermissionPolicy;
+  modelRouter?: ModelRouter;
 }
 
 export class ExecutePhase {
@@ -79,6 +82,31 @@ export class ExecutePhase {
 
   constructor(deps: ExecuteDeps) {
     this.deps = deps;
+  }
+
+  /**
+   * Resolve the model for a task based on role, complexity, budget, and retry count.
+   * Falls back gracefully: env override -> router -> DEFAULT_MODEL.
+   */
+  private resolveModel(
+    role: string,
+    task: Record<string, any>,
+    ctx: PhaseContext,
+    retryCount: number,
+  ): string {
+    if (process.env.CLAUDE_MODEL) return process.env.CLAUDE_MODEL;
+    if (!this.deps.modelRouter) return DEFAULT_MODEL;
+
+    const spec = ctx.session.spec ?? {};
+    const complexity = computeComplexity(task, spec);
+    const tracker = this.deps.tokenTracker;
+    return this.deps.modelRouter.resolve({
+      role,
+      taskComplexity: complexity,
+      budgetRemaining: tracker.maxBudget - tracker.total,
+      budgetTotal: tracker.maxBudget,
+      retryCount,
+    }).model;
   }
 
   async execute(ctx: PhaseContext): Promise<ExecuteResult> {
@@ -228,7 +256,8 @@ export class ExecutePhase {
     task.status = 'in_progress';
     if (agent.status !== undefined) agent.status = 'working';
 
-    await ctx.send({ type: 'task_started', task_id: taskId, agent_name: agentName });
+    const taskModel = this.resolveModel(agentRole, task, ctx, 0);
+    await ctx.send({ type: 'task_started', task_id: taskId, agent_name: agentName, model_used: taskModel });
 
     if (this.deps.narratorService) {
       const nuggetGoal = (ctx.session.spec ?? {}).nugget?.goal ?? '';
@@ -372,10 +401,13 @@ export class ExecutePhase {
       return false;
     }
 
+    let currentModel = taskModel;
     while (!success && retryCount <= maxRetries) {
       const mcpServers = this.deps.portalService.getMcpServers();
       let prompt = userPrompt;
       if (retryCount > 0) {
+        // Re-resolve model on retry (retry promotion may upgrade tier)
+        currentModel = this.resolveModel(agentRole, task, ctx, retryCount);
         const retryContext = [
           `## Retry Attempt ${retryCount}`,
           'A previous attempt at this task did not complete successfully.',
@@ -397,7 +429,7 @@ export class ExecutePhase {
         onOutput: this.makeOutputHandler(ctx, agentName),
         onQuestion: this.makeQuestionHandler(ctx, taskId),
         workingDir: ctx.nuggetDir,
-        model: process.env.CLAUDE_MODEL || DEFAULT_MODEL,
+        model: currentModel,
         maxTurns,
         allowedTools: [
           'Read', 'Write', 'Edit', 'MultiEdit',
@@ -440,6 +472,7 @@ export class ExecutePhase {
         input_tokens: result.inputTokens,
         output_tokens: result.outputTokens,
         cost_usd: result.costUsd ?? 0,
+        model_used: currentModel,
       });
       if (this.deps.tokenTracker.checkWarning()) {
         await ctx.send({

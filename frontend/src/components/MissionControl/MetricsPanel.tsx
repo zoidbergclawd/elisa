@@ -13,6 +13,15 @@ function formatCost(usd: number): string {
   return `$${usd.toFixed(4)}`;
 }
 
+/** Shorten model IDs to human-friendly labels. */
+function formatModelName(modelId: string | undefined): string | null {
+  if (!modelId) return null;
+  if (modelId.startsWith('claude-opus')) return 'Opus';
+  if (modelId.startsWith('claude-sonnet')) return 'Sonnet';
+  if (modelId.startsWith('claude-haiku')) return 'Haiku';
+  return modelId;
+}
+
 const ROLE_COLORS: Record<string, string> = {
   builder: 'bg-accent-sky',
   tester: 'bg-emerald-400',
@@ -93,9 +102,15 @@ export default function MetricsPanel({ tokenUsage, agents = [] }: Props) {
         <ul className="text-xs space-y-1">
           {agentNames.map(name => {
             const agent = tokenUsage.perAgent[name];
+            const modelLabel = formatModelName(agent.model);
             return (
               <li key={name} className="flex justify-between px-2.5 py-1.5 bg-atelier-surface/50 rounded-lg border border-border-subtle">
-                <span className="font-medium text-atelier-text-secondary">{name}</span>
+                <span className="flex items-center gap-1.5">
+                  <span className="font-medium text-atelier-text-secondary">{name}</span>
+                  {modelLabel && (
+                    <span className="text-[10px] text-atelier-text-muted/60 font-mono">{modelLabel}</span>
+                  )}
+                </span>
                 <span className="text-atelier-text-muted font-mono">
                   {formatNumber(agent.input + agent.output)}
                 </span>

@@ -63,6 +63,7 @@ vi.mock('../../services/teachingEngine.js', () => {
   const TeachingEngine = vi.fn();
   TeachingEngine.prototype.getMoment = vi.fn().mockResolvedValue(null);
   TeachingEngine.prototype.getShownConcepts = vi.fn().mockReturnValue([]);
+  TeachingEngine.prototype.setModel = vi.fn();
   return { TeachingEngine };
 });
 

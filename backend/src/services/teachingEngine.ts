@@ -32,6 +32,12 @@ export class TeachingEngine {
   private shownConcepts = new Set<string>();
   private commitCount = 0;
   private client: Anthropic | null = null;
+  private model = 'claude-haiku-4-20250414';
+
+  /** Update the model used for teaching moments (called after router resolves). */
+  setModel(model: string): void {
+    this.model = model;
+  }
 
   async getMoment(
     eventType: string,
@@ -93,7 +99,7 @@ export class TeachingEngine {
 
     // Use a cheap model for small teaching JSON -- no need for Opus here
     const response = await this.client.messages.create({
-      model: 'claude-haiku-4-20250414',
+      model: this.model,
       max_tokens: 300,
       system: TEACHING_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: prompt }],
