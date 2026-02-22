@@ -1,15 +1,7 @@
 import type { Agent, UIState } from '../../types';
 import MinionAvatar from '../shared/MinionAvatar';
 import { TERMS, displayRole } from '../../lib/terminology';
-
-/** Shorten model IDs to human-friendly labels. */
-function formatModelName(modelId: string | undefined): string | null {
-  if (!modelId) return null;
-  if (modelId.startsWith('claude-opus')) return 'Opus';
-  if (modelId.startsWith('claude-sonnet')) return 'Sonnet';
-  if (modelId.startsWith('claude-haiku')) return 'Haiku';
-  return modelId;
-}
+import { formatModelName, modelPillClasses } from '../../lib/modelBadge';
 
 interface MinionSquadPanelProps {
   agents: Agent[];
@@ -36,6 +28,7 @@ export default function MinionSquadPanel({ agents, uiState, isPlanning = false }
           <MinionAvatar name="Elisa" role="narrator" status={elisaStatus} size="lg" />
           <span className="text-xs font-medium text-atelier-text">Elisa</span>
           <span className="text-[10px] text-atelier-text-muted">{displayRole('narrator')}</span>
+          <span className={modelPillClasses('Haiku')}>Haiku</span>
         </div>
 
         {/* Worker minions */}
@@ -52,7 +45,7 @@ export default function MinionSquadPanel({ agents, uiState, isPlanning = false }
               <span className="text-xs font-medium text-atelier-text truncate max-w-[80px]">{agent.name}</span>
               <span className="text-[10px] text-atelier-text-muted">{displayRole(agent.role)}</span>
               {modelLabel && (
-                <span className="text-[9px] text-atelier-text-muted/60 font-mono">{modelLabel}</span>
+                <span className={modelPillClasses(modelLabel)}>{modelLabel}</span>
               )}
             </div>
           );

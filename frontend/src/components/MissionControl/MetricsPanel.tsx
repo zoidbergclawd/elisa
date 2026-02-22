@@ -1,4 +1,5 @@
 import type { TokenUsage, Agent } from '../../types';
+import { formatModelName, modelPillClasses } from '../../lib/modelBadge';
 
 interface Props {
   tokenUsage: TokenUsage;
@@ -11,15 +12,6 @@ function formatNumber(n: number): string {
 
 function formatCost(usd: number): string {
   return `$${usd.toFixed(4)}`;
-}
-
-/** Shorten model IDs to human-friendly labels. */
-function formatModelName(modelId: string | undefined): string | null {
-  if (!modelId) return null;
-  if (modelId.startsWith('claude-opus')) return 'Opus';
-  if (modelId.startsWith('claude-sonnet')) return 'Sonnet';
-  if (modelId.startsWith('claude-haiku')) return 'Haiku';
-  return modelId;
 }
 
 const ROLE_COLORS: Record<string, string> = {
@@ -35,7 +27,28 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 export default function MetricsPanel({ tokenUsage, agents = [] }: Props) {
+  // Plan phase: no tokens yet but agents are known -- show agent list with models
   if (tokenUsage.total === 0) {
+    if (agents.length > 0) {
+      return (
+        <div className="space-y-2">
+          <p className="text-sm text-atelier-text-muted">No token data yet</p>
+          <ul className="text-xs space-y-1">
+            {agents.map(a => {
+              const modelLabel = formatModelName(a.model);
+              return (
+                <li key={a.name} className="flex items-center gap-1.5 px-2.5 py-1.5 bg-atelier-surface/50 rounded-lg border border-border-subtle">
+                  <span className="font-medium text-atelier-text-secondary">{a.name}</span>
+                  {modelLabel && (
+                    <span className={modelPillClasses(modelLabel)}>{modelLabel}</span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      );
+    }
     return <p className="text-sm text-atelier-text-muted">No token data yet</p>;
   }
 
@@ -108,7 +121,7 @@ export default function MetricsPanel({ tokenUsage, agents = [] }: Props) {
                 <span className="flex items-center gap-1.5">
                   <span className="font-medium text-atelier-text-secondary">{name}</span>
                   {modelLabel && (
-                    <span className="text-[10px] text-atelier-text-muted/60 font-mono">{modelLabel}</span>
+                    <span className={modelPillClasses(modelLabel)}>{modelLabel}</span>
                   )}
                 </span>
                 <span className="text-atelier-text-muted font-mono">
