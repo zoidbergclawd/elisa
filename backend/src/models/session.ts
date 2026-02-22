@@ -30,6 +30,7 @@ export interface Agent {
   role: AgentRole;
   persona: string;
   status: AgentStatus;
+  model?: string;
   allowed_paths?: string[];
   restricted_paths?: string[];
 }

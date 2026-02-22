@@ -9,8 +9,7 @@
   "scripts": {
     "predev": "node scripts/kill-port.mjs 8000 && node scripts/kill-port.mjs 5173",
     "dev": "concurrently -n be,fe -c blue,green \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
-    "predev:electron": "node scripts/kill-port.mjs 8000 && node scripts/kill-port.mjs 5173 && npm run build:electron",
-    "dev:electron": "concurrently -n be,fe,el -c blue,green,magenta \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\" \"wait-on http://localhost:5173 && electron .\"",
+    "dev:electron": "node scripts/dev-launch.mjs",
     "build:frontend": "cd frontend && npx vite build",
     "build:backend": "node scripts/build-backend.mjs",
     "test:electron": "vitest run --config electron/vitest.config.ts",

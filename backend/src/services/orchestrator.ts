@@ -19,6 +19,7 @@ import { TeachingEngine } from './teachingEngine.js';
 import { TestRunner } from './testRunner.js';
 import { NarratorService } from './narratorService.js';
 import { PermissionPolicy } from './permissionPolicy.js';
+import { ModelRouter } from './modelRouter.js';
 import { ContextManager } from '../utils/contextManager.js';
 import { SessionLogger } from '../utils/sessionLogger.js';
 import { TokenTracker } from '../utils/tokenTracker.js';
@@ -93,11 +94,24 @@ export class Orchestrator {
 
   async run(spec: Record<string, any>): Promise<void> {
     try {
+      // Create model router from env + spec config
+      const routingConfig = (spec as any).model_routing ?? {};
+      const modelRouter = new ModelRouter(ModelRouter.fromEnv(), routingConfig);
+
+      // Apply router-resolved models to services instantiated before spec was available
+      this.narratorService.setModel(modelRouter.resolve({ role: 'narrator' }).model);
+      this.teachingEngine.setModel(modelRouter.resolve({ role: 'teaching' }).model);
+
       const ctx = this.makeContext();
 
       // Plan
-      const planResult = await this.planPhase.execute(ctx, spec);
+      const planResult = await this.planPhase.execute(ctx, spec, modelRouter);
       this.nuggetType = planResult.nuggetType;
+
+      // Annotate agents with their routed models
+      for (const agent of planResult.agents) {
+        agent.model = modelRouter.resolve({ role: agent.role ?? 'builder' }).model;
+      }
 
       // Initialize portals if needed
       const updatedCtx = this.makeContext();
@@ -128,6 +142,7 @@ export class Orchestrator {
         gateResolver: this.gateResolver,
         narratorService: this.narratorService,
         permissionPolicy: this.permissionPolicy,
+        modelRouter,
       });
 
       // Initialize logger before execute so plan and execute phases get logging

@@ -1,6 +1,7 @@
 import type { Agent, UIState } from '../../types';
 import MinionAvatar from '../shared/MinionAvatar';
 import { TERMS, displayRole } from '../../lib/terminology';
+import { formatModelName, modelPillClasses } from '../../lib/modelBadge';
 
 interface MinionSquadPanelProps {
   agents: Agent[];
@@ -27,21 +28,28 @@ export default function MinionSquadPanel({ agents, uiState, isPlanning = false }
           <MinionAvatar name="Elisa" role="narrator" status={elisaStatus} size="lg" />
           <span className="text-xs font-medium text-atelier-text">Elisa</span>
           <span className="text-[10px] text-atelier-text-muted">{displayRole('narrator')}</span>
+          <span className={modelPillClasses('Haiku')}>Haiku</span>
         </div>
 
         {/* Worker minions */}
-        {agents.map((agent) => (
-          <div key={agent.name} className="flex flex-col items-center gap-1">
-            <MinionAvatar
-              name={agent.name}
-              role={agent.role}
-              status={agent.status}
-              size="md"
-            />
-            <span className="text-xs font-medium text-atelier-text truncate max-w-[80px]">{agent.name}</span>
-            <span className="text-[10px] text-atelier-text-muted">{displayRole(agent.role)}</span>
-          </div>
-        ))}
+        {agents.map((agent) => {
+          const modelLabel = formatModelName(agent.model);
+          return (
+            <div key={agent.name} className="flex flex-col items-center gap-1">
+              <MinionAvatar
+                name={agent.name}
+                role={agent.role}
+                status={agent.status}
+                size="md"
+              />
+              <span className="text-xs font-medium text-atelier-text truncate max-w-[80px]">{agent.name}</span>
+              <span className="text-[10px] text-atelier-text-muted">{displayRole(agent.role)}</span>
+              {modelLabel && (
+                <span className={modelPillClasses(modelLabel)}>{modelLabel}</span>
+              )}
+            </div>
+          );
+        })}
 
         {agents.length === 0 && (
           <p className="text-xs text-atelier-text-muted">

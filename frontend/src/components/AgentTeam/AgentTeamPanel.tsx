@@ -2,6 +2,7 @@ import type { Agent, WSEvent } from '../../types';
 import type { NuggetSpec } from '../BlockCanvas/blockInterpreter';
 import AgentAvatar from '../shared/AgentAvatar';
 import CommsFeed from '../MissionControl/CommsFeed';
+import { formatModelName, modelPillClasses } from '../../lib/modelBadge';
 
 interface AgentTeamPanelProps {
   spec: NuggetSpec | null;
@@ -24,23 +25,31 @@ export default function AgentTeamPanel({ spec, agents, events }: AgentTeamPanelP
         <h3 className="text-xs font-semibold text-atelier-text-muted uppercase tracking-wider mb-3">Agent Team</h3>
         {displayAgents.length > 0 ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {displayAgents.map((a, i) => (
-              <div
-                key={i}
-                className="flex items-center gap-3 px-4 py-3 bg-atelier-surface/60 rounded-xl border border-border-subtle"
-              >
-                <AgentAvatar
-                  name={a.name}
-                  role={a.role as Agent['role']}
-                  status={a.status as Agent['status']}
-                  size="md"
-                />
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-atelier-text truncate">{a.name}</p>
-                  <p className="text-xs text-atelier-text-muted">{a.role}</p>
+            {displayAgents.map((a, i) => {
+              const modelLabel = formatModelName(a.model);
+              return (
+                <div
+                  key={i}
+                  className="flex items-center gap-3 px-4 py-3 bg-atelier-surface/60 rounded-xl border border-border-subtle"
+                >
+                  <AgentAvatar
+                    name={a.name}
+                    role={a.role as Agent['role']}
+                    status={a.status as Agent['status']}
+                    size="md"
+                  />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-atelier-text truncate">{a.name}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-xs text-atelier-text-muted">{a.role}</p>
+                      {modelLabel && (
+                        <span className={modelPillClasses(modelLabel)}>{modelLabel}</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <p className="text-sm text-atelier-text-muted">No agents added yet</p>

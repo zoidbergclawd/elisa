@@ -3,6 +3,15 @@
 /** Default Claude model used by agents and meta-planner. */
 export const DEFAULT_MODEL = 'claude-opus-4-6';
 
+/** Default high-tier model (most capable). */
+export const DEFAULT_MODEL_HIGH = 'claude-opus-4-6';
+
+/** Default medium-tier model (balanced cost/capability). */
+export const DEFAULT_MODEL_MEDIUM = 'claude-sonnet-4-6';
+
+/** Default low-tier model (fast/cheap). */
+export const DEFAULT_MODEL_LOW = 'claude-haiku-4-5-20241022';
+
 /** Agent execution timeout in seconds. */
 export const AGENT_TIMEOUT_SECONDS = 300;
 

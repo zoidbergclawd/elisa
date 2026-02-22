@@ -175,8 +175,9 @@ function createMainWindow(): void {
   });
 
   const isDev = !app.isPackaged;
+  const frontendPort = process.env.ELISA_FRONTEND_PORT || '5173';
   const url = isDev
-    ? 'http://localhost:5173'
+    ? `http://localhost:${frontendPort}`
     : `http://localhost:${serverPort}`;
 
   mainWindow.loadURL(url);
@@ -269,6 +270,13 @@ ipcMain.handle('pick-directory', async () => {
 });
 
 // -- App Lifecycle --
+
+// Multi-instance support: use a separate userData dir per instance
+// to avoid GPU cache conflicts between concurrent Electron windows.
+const instanceId = process.env.ELISA_INSTANCE_ID;
+if (instanceId) {
+  app.setPath('userData', path.join(app.getPath('userData'), `instance-${instanceId}`));
+}
 
 app.whenReady().then(async () => {
   await initStore();

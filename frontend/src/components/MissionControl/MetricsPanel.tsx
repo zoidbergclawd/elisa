@@ -1,4 +1,5 @@
 import type { TokenUsage, Agent } from '../../types';
+import { formatModelName, modelPillClasses } from '../../lib/modelBadge';
 
 interface Props {
   tokenUsage: TokenUsage;
@@ -26,7 +27,28 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 export default function MetricsPanel({ tokenUsage, agents = [] }: Props) {
+  // Plan phase: no tokens yet but agents are known -- show agent list with models
   if (tokenUsage.total === 0) {
+    if (agents.length > 0) {
+      return (
+        <div className="space-y-2">
+          <p className="text-sm text-atelier-text-muted">No token data yet</p>
+          <ul className="text-xs space-y-1">
+            {agents.map(a => {
+              const modelLabel = formatModelName(a.model);
+              return (
+                <li key={a.name} className="flex items-center gap-1.5 px-2.5 py-1.5 bg-atelier-surface/50 rounded-lg border border-border-subtle">
+                  <span className="font-medium text-atelier-text-secondary">{a.name}</span>
+                  {modelLabel && (
+                    <span className={modelPillClasses(modelLabel)}>{modelLabel}</span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      );
+    }
     return <p className="text-sm text-atelier-text-muted">No token data yet</p>;
   }
 
@@ -93,9 +115,15 @@ export default function MetricsPanel({ tokenUsage, agents = [] }: Props) {
         <ul className="text-xs space-y-1">
           {agentNames.map(name => {
             const agent = tokenUsage.perAgent[name];
+            const modelLabel = formatModelName(agent.model);
             return (
               <li key={name} className="flex justify-between px-2.5 py-1.5 bg-atelier-surface/50 rounded-lg border border-border-subtle">
-                <span className="font-medium text-atelier-text-secondary">{name}</span>
+                <span className="flex items-center gap-1.5">
+                  <span className="font-medium text-atelier-text-secondary">{name}</span>
+                  {modelLabel && (
+                    <span className={modelPillClasses(modelLabel)}>{modelLabel}</span>
+                  )}
+                </span>
                 <span className="text-atelier-text-muted font-mono">
                   {formatNumber(agent.input + agent.output)}
                 </span>

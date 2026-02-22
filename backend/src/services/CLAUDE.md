@@ -44,6 +44,9 @@ Fast-path curriculum lookup maps events to concepts. Deduplicates per concept pe
 ### narratorService.ts (build narrator)
 Translates raw build events into kid-friendly commentary via Claude Haiku (`NARRATOR_MODEL` env var, default `claude-haiku-4-5-20241022`). Mood selection from 4 options: `excited`, `encouraging`, `concerned`, `celebrating`. Rate limiting: max 1 narrator message per task per 15 seconds. `agent_output` events are accumulated per task via `accumulateOutput()` and translated after a 10-second silence window (debounce). Translatable events: `task_started`, `task_completed`, `task_failed`, `agent_message`, `error`, `session_complete`. Fallback templates used on API timeout. Deduplicates consecutive identical messages.
 
+### modelRouter.ts (model routing)
+Rule-based routing of agent roles to Claude model tiers (high=Opus, medium=Sonnet, low=Haiku). Supports complexity-based promotion, retry promotion, budget-aware demotion, budget mode, user role overrides via NuggetSpec `model_routing`, and `CLAUDE_MODEL` env override. `resolveFallback()` demotes one tier for rate-limit retries. `fromEnv()` parses `ELISA_MODELS` env var. `computeComplexity()` scores tasks 0-1 based on description length, dependencies, criteria, portals, hardware target.
+
 ### permissionPolicy.ts (agent permissions)
 Auto-resolves agent permission requests (`file_write`, `file_edit`, `bash`, `command`) based on configurable policy rules. Three decision outcomes: `approved`, `denied`, `escalate`. Workspace-scoped writes are auto-approved when within the nugget directory. Read-only commands (`ls`, `cat`, `grep`, etc.) are always safe. Workspace-restricted commands (`mkdir`, `python`, `npm`, etc.) require cwd to be within the nugget dir. Network commands (`curl`, `wget`, etc.) denied by default. Package installs (`pip install`, `npm install`) escalate to user. Denial counter per task escalates to user after threshold (default 3).
 
