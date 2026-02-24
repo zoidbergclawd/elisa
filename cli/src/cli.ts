@@ -28,7 +28,7 @@ export function createProgram(): Command {
   program
     .command('status <sessionId>')
     .description('Check build progress')
-    .action(async () => {
+    .action(async (sessionId: string) => {
       console.error('Not yet implemented');
       process.exit(1);
     });
@@ -36,7 +36,7 @@ export function createProgram(): Command {
   program
     .command('stop <sessionId>')
     .description('Cancel a running build')
-    .action(async () => {
+    .action(async (sessionId: string) => {
       console.error('Not yet implemented');
       process.exit(1);
     });
