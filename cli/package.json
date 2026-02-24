@@ -1,0 +1,24 @@
+{
+  "name": "@elisa/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "elisa": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "commander": "^13.0.0",
+    "ws": "^8.18.2"
+  },
+  "devDependencies": {
+    "typescript": "~5.9",
+    "vitest": "^4.0.18",
+    "@types/ws": "^8.18.1",
+    "@types/node": "^22.15.0"
+  }
+}
