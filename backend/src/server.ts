@@ -14,11 +14,14 @@ import { createSessionRouter } from './routes/sessions.js';
 import { createHardwareRouter } from './routes/hardware.js';
 import { createSkillRouter } from './routes/skills.js';
 import { createWorkspaceRouter } from './routes/workspace.js';
+import { DeviceRegistry } from './services/deviceRegistry.js';
+import { createDeviceRouter } from './routes/devices.js';
 
 // -- State --
 
 const store = new SessionStore();
 const hardwareService = new HardwareService();
+const deviceRegistry = new DeviceRegistry(path.resolve(import.meta.dirname, '../../devices'));
 
 // -- Health --
 
@@ -192,6 +195,7 @@ function createApp(staticDir?: string, authToken?: string) {
   app.use('/api/skills', createSkillRouter({ store, sendEvent }));
   app.use('/api/hardware', createHardwareRouter({ store, hardwareService }));
   app.use('/api/workspace', createWorkspaceRouter());
+  app.use('/api/devices', createDeviceRouter({ registry: deviceRegistry }));
 
   // Templates
   app.get('/api/templates', (_req, res) => {
