@@ -142,3 +142,12 @@ class ElisaBoard:
         except Exception:
             print(f"[Sensor] Reading {sensor_type} (stub mode)")
             return None
+
+
+# IoT sensor network classes
+try:
+    from sensors import DHT22Sensor, ReedSwitch, PIRSensor
+    from oled import OLEDDisplay
+    from nodes import SensorNode, GatewayNode
+except ImportError:
+    pass  # These modules are optional
