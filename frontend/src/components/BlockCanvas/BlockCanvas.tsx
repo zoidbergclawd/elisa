@@ -1,7 +1,8 @@
 import { useRef, useEffect, useCallback, useImperativeHandle, forwardRef } from 'react';
 import * as Blockly from 'blockly';
 import { registerBlocks } from './blockDefinitions';
-import { toolbox } from './toolbox';
+import { getToolboxWithOpenClaw, setOpenClawEnabled } from './openclawRegistry';
+import { registerOpenClawBlocks } from './openclawBlocks';
 import { updateSkillOptions, updateRuleOptions } from '../Skills/skillsRegistry';
 import { updatePortalOptions } from '../Portals/portalRegistry';
 import type { Skill, Rule } from '../Skills/types';
@@ -21,10 +22,11 @@ interface BlockCanvasProps {
   rules?: Rule[];
   portals?: Portal[];
   initialWorkspace?: Record<string, unknown> | null;
+  openclawEnabled?: boolean;
 }
 
 const BlockCanvas = forwardRef<BlockCanvasHandle, BlockCanvasProps>(
-  function BlockCanvas({ onWorkspaceChange, readOnly = false, skills = [], rules = [], portals = [], initialWorkspace }, ref) {
+  function BlockCanvas({ onWorkspaceChange, readOnly = false, skills = [], rules = [], portals = [], initialWorkspace, openclawEnabled = false }, ref) {
     const containerRef = useRef<HTMLDivElement>(null);
     const workspaceRef = useRef<Blockly.WorkspaceSvg | null>(null);
     const initialWorkspaceRef = useRef(initialWorkspace);
@@ -57,7 +59,7 @@ const BlockCanvas = forwardRef<BlockCanvasHandle, BlockCanvasProps>(
       if (!containerRef.current || workspaceRef.current) return;
 
       const workspace = Blockly.inject(containerRef.current, {
-        toolbox,
+        toolbox: getToolboxWithOpenClaw(),
         grid: {
           spacing: 20,
           length: 3,
@@ -95,6 +97,20 @@ const BlockCanvas = forwardRef<BlockCanvasHandle, BlockCanvasProps>(
         workspaceRef.current = null;
       };
     }, [handleChange]);
+
+    // Update toolbox when OpenClaw is toggled
+    useEffect(() => {
+      setOpenClawEnabled(openclawEnabled);
+      const ws = workspaceRef.current;
+      if (!ws || !ws.updateToolbox) return;
+      if (openclawEnabled) {
+        registerOpenClawBlocks().then(() => {
+          workspaceRef.current?.updateToolbox?.(getToolboxWithOpenClaw());
+        });
+      } else {
+        ws.updateToolbox(getToolboxWithOpenClaw());
+      }
+    }, [openclawEnabled]);
 
     useEffect(() => {
       updateSkillOptions(skills);

@@ -9,6 +9,8 @@ interface WorkspaceSidebarProps {
   onFolder?: () => void;
   saveDisabled: boolean;
   workspacePath?: string | null;
+  openclawEnabled?: boolean;
+  onToggleOpenclaw?: () => void;
 }
 
 const sidebarItems: Array<{ key: string; label: string; prop: keyof Pick<WorkspaceSidebarProps, 'onOpen' | 'onSave' | 'onSkills' | 'onRules' | 'onPortals' | 'onExamples' | 'onHelp' | 'onFolder'> }> = [
@@ -24,6 +26,7 @@ const sidebarItems: Array<{ key: string; label: string; prop: keyof Pick<Workspa
 
 export default function WorkspaceSidebar({
   onOpen, onSave, onSkills, onRules, onPortals, onExamples, onHelp, onFolder, saveDisabled, workspacePath,
+  openclawEnabled = false, onToggleOpenclaw,
 }: WorkspaceSidebarProps) {
   const handlers: Record<string, (() => void) | undefined> = {
     onOpen, onSave, onSkills, onRules, onPortals, onExamples, onHelp, onFolder,
@@ -60,6 +63,22 @@ export default function WorkspaceSidebar({
           </button>
         );
       })}
+      {onToggleOpenclaw && (
+        <>
+          <div className="border-t border-border-subtle my-1" />
+          <button
+            onClick={onToggleOpenclaw}
+            title={openclawEnabled ? 'Disable OpenClaw blocks' : 'Enable OpenClaw blocks'}
+            className={`px-2.5 py-2 text-xs rounded-lg font-medium transition-colors text-center whitespace-nowrap ${
+              openclawEnabled
+                ? 'bg-orange-500/15 text-orange-400 hover:bg-orange-500/25'
+                : 'text-atelier-text-muted hover:bg-atelier-elevated hover:text-atelier-text-secondary'
+            }`}
+          >
+            OpenClaw
+          </button>
+        </>
+      )}
     </div>
   );
 }

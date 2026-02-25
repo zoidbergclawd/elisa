@@ -86,6 +86,7 @@ export default function App() {
   const [rulesModalOpen, setRulesModalOpen] = useState(false);
   const [portalsModalOpen, setPortalsModalOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [openclawEnabled, setOpenclawEnabled] = useState(false);
   const [boardDetectedModalOpen, setBoardDetectedModalOpen] = useState(false);
   const boardDismissedPortsRef = useRef<Set<string>>(new Set());
 
@@ -447,6 +448,8 @@ export default function App() {
             onFolder={handleOpenFolder}
             saveDisabled={!workspaceJson}
             workspacePath={workspacePath}
+            openclawEnabled={openclawEnabled}
+            onToggleOpenclaw={() => setOpenclawEnabled(prev => !prev)}
           />
           <div className="flex-1 relative">
             <BlockCanvas
@@ -457,6 +460,7 @@ export default function App() {
               rules={rules}
               portals={portals}
               initialWorkspace={initialWorkspace}
+              openclawEnabled={openclawEnabled}
             />
           </div>
         </div>

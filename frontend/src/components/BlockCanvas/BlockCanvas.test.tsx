@@ -26,6 +26,15 @@ vi.mock('./toolbox', () => ({
   toolbox: { kind: 'categoryToolbox', contents: [] },
 }));
 
+vi.mock('./openclawRegistry', () => ({
+  getToolboxWithOpenClaw: vi.fn(() => ({ kind: 'categoryToolbox', contents: [] })),
+  setOpenClawEnabled: vi.fn(),
+}));
+
+vi.mock('./openclawBlocks', () => ({
+  registerOpenClawBlocks: vi.fn(() => Promise.resolve()),
+}));
+
 vi.mock('../Skills/skillsRegistry', () => ({
   updateSkillOptions: vi.fn(),
   updateRuleOptions: vi.fn(),
