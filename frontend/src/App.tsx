@@ -554,7 +554,6 @@ export default function App() {
           portals={portals}
           onPortalsChange={setPortals}
           onClose={() => setPortalsModalOpen(false)}
-          boardInfo={boardInfo}
         />
       )}
 

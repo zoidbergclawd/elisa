@@ -1,4 +1,4 @@
-export type PortalMechanism = 'mcp' | 'cli' | 'serial' | 'auto';
+export type PortalMechanism = 'mcp' | 'cli' | 'auto';
 export type PortalStatus = 'unconfigured' | 'ready' | 'error';
 
 export interface PortalCapability {
@@ -26,6 +26,5 @@ export interface Portal {
   capabilities: PortalCapability[];
   mcpConfig?: { command: string; args?: string[]; env?: Record<string, string> };
   cliConfig?: { command: string; installHint?: string };
-  serialConfig?: { port?: string; baudRate?: number; boardType?: string };
   templateId?: string;
 }

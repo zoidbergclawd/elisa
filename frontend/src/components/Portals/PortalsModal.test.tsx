@@ -9,15 +9,15 @@ beforeEach(() => {
 
 const samplePortal: Portal = {
   id: 'portal-1',
-  name: 'Test Board',
-  description: 'A test ESP32 board for unit testing',
-  mechanism: 'serial',
+  name: 'Test Tool',
+  description: 'A test CLI tool for unit testing',
+  mechanism: 'cli',
   status: 'unconfigured',
   capabilities: [
     { id: 'c1', name: 'LED', kind: 'action', description: 'Control LED' },
     { id: 'c2', name: 'Temp', kind: 'query', description: 'Read temp' },
   ],
-  serialConfig: { baudRate: 115200 },
+  cliConfig: { command: 'python3' },
 };
 
 const mcpPortal: Portal = {
@@ -44,12 +44,12 @@ describe('PortalsModal', () => {
 
   it('lists existing portals', () => {
     render(<PortalsModal portals={[samplePortal]} onPortalsChange={vi.fn()} onClose={vi.fn()} />);
-    expect(screen.getByText('Test Board')).toBeDefined();
+    expect(screen.getByText('Test Tool')).toBeDefined();
   });
 
   it('shows mechanism label for each portal', () => {
     render(<PortalsModal portals={[samplePortal]} onPortalsChange={vi.fn()} onClose={vi.fn()} />);
-    expect(screen.getByText('Serial / USB')).toBeDefined();
+    expect(screen.getByText('CLI Tool')).toBeDefined();
   });
 
   // -- Close ----------------------------------------------------------------
@@ -71,7 +71,7 @@ describe('PortalsModal', () => {
   it('opens editor when Edit clicked', () => {
     render(<PortalsModal portals={[samplePortal]} onPortalsChange={vi.fn()} onClose={vi.fn()} />);
     fireEvent.click(screen.getByText('Edit'));
-    expect(screen.getByDisplayValue('Test Board')).toBeDefined();
+    expect(screen.getByDisplayValue('Test Tool')).toBeDefined();
   });
 
   // -- Delete ---------------------------------------------------------------
@@ -101,21 +101,21 @@ describe('PortalsModal', () => {
     const onChange = vi.fn();
     render(<PortalsModal portals={[samplePortal]} onPortalsChange={onChange} onClose={vi.fn()} />);
     fireEvent.click(screen.getByText('Edit'));
-    const nameInput = screen.getByDisplayValue('Test Board');
-    fireEvent.change(nameInput, { target: { value: 'Updated Board' } });
+    const nameInput = screen.getByDisplayValue('Test Tool');
+    fireEvent.change(nameInput, { target: { value: 'Updated Tool' } });
     fireEvent.click(screen.getByText('Done'));
     expect(onChange).toHaveBeenCalled();
     const saved = onChange.mock.calls[0][0];
-    expect(saved[0].name).toBe('Updated Board');
+    expect(saved[0].name).toBe('Updated Tool');
   });
 
   // -- Templates ------------------------------------------------------------
   it('shows templates view', () => {
     render(<PortalsModal portals={[]} onPortalsChange={vi.fn()} onClose={vi.fn()} />);
     fireEvent.click(screen.getByText('From Template'));
-    expect(screen.getByText('ESP32 Board')).toBeDefined();
-    expect(screen.getByText('LoRa Radio')).toBeDefined();
     expect(screen.getByText('File System')).toBeDefined();
+    expect(screen.getByText('GitHub')).toBeDefined();
+    expect(screen.getByText('Brave Search')).toBeDefined();
   });
 
   it('navigates back from templates', () => {
@@ -128,20 +128,11 @@ describe('PortalsModal', () => {
   it('selects a template and opens editor', () => {
     render(<PortalsModal portals={[]} onPortalsChange={vi.fn()} onClose={vi.fn()} />);
     fireEvent.click(screen.getByText('From Template'));
-    fireEvent.click(screen.getByText('ESP32 Board'));
-    expect(screen.getByDisplayValue('ESP32 Board')).toBeDefined();
+    fireEvent.click(screen.getByText('File System'));
+    expect(screen.getByDisplayValue('File System')).toBeDefined();
   });
 
   // -- Mechanism-specific config fields --------------------------------------
-  it('shows serial config fields when mechanism is serial', () => {
-    render(<PortalsModal portals={[]} onPortalsChange={vi.fn()} onClose={vi.fn()} />);
-    fireEvent.click(screen.getByText('+ New Portal'));
-    const mechanismSelect = screen.getByDisplayValue('Auto-detect');
-    fireEvent.change(mechanismSelect, { target: { value: 'serial' } });
-    expect(screen.getByText('Serial Port')).toBeDefined();
-    expect(screen.getByText('Baud Rate')).toBeDefined();
-  });
-
   it('shows MCP config fields when mechanism is mcp', () => {
     render(<PortalsModal portals={[]} onPortalsChange={vi.fn()} onClose={vi.fn()} />);
     fireEvent.click(screen.getByText('+ New Portal'));

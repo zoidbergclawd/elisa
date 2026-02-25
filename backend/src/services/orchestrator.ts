@@ -34,7 +34,6 @@ export class Orchestrator {
   private nuggetType = 'software';
   private testResults: Record<string, any> = {};
   private commits: CommitInfo[] = [];
-  private serialHandle: { close: () => void } | null = null;
   private webServerProcess: ChildProcess | null = null;
   private userWorkspace: boolean;
 
@@ -71,7 +70,7 @@ export class Orchestrator {
     this.nuggetDir = workspacePath || path.join(os.tmpdir(), `elisa-nugget-${session.id}`);
     this.userWorkspace = !!workspacePath;
     this.hardwareService = hardwareService ?? new HardwareService();
-    this.portalService = new PortalService(this.hardwareService);
+    this.portalService = new PortalService();
     this.deviceRegistry = new DeviceRegistry(path.resolve(import.meta.dirname, '../../devices'));
 
     this.planPhase = new PlanPhase(new MetaPlanner(), this.teachingEngine);
@@ -151,15 +150,8 @@ export class Orchestrator {
       if (this.deployPhase.shouldDeployWeb(deployCtx)) {
         const { process: webProc } = await this.deployPhase.deployWeb(deployCtx);
         this.webServerProcess = webProc;
-      }
-      if (this.deployPhase.shouldDeployIoT(deployCtx)) {
-        await this.deployPhase.deployIoT(deployCtx, this.gateResolver);
       } else if (this.deployPhase.shouldDeployPortals(deployCtx)) {
-        const { serialHandle } = await this.deployPhase.deployPortals(deployCtx);
-        this.serialHandle = serialHandle;
-      } else if (this.deployPhase.shouldDeployHardware(deployCtx)) {
-        const { serialHandle } = await this.deployPhase.deployHardware(deployCtx);
-        this.serialHandle = serialHandle;
+        await this.deployPhase.deployPortals(deployCtx);
       }
 
       // Complete
@@ -188,12 +180,6 @@ export class Orchestrator {
     tasks: Record<string, any>[],
     agents: Record<string, any>[],
   ): Promise<void> {
-    // Close serial monitor immediately so the COM port is free for the next session
-    if (this.serialHandle) {
-      try { this.serialHandle.close(); } catch { /* ignore */ }
-      this.serialHandle = null;
-    }
-
     this.session.state = 'done';
     this.logger?.phase('done');
     for (const agent of agents) agent.status = 'done';
@@ -231,11 +217,6 @@ export class Orchestrator {
     if (this.webServerProcess) {
       try { this.webServerProcess.kill(); } catch { /* ignore */ }
       this.webServerProcess = null;
-    }
-    // Close serial monitor so the COM port is released for the next flash
-    if (this.serialHandle) {
-      try { this.serialHandle.close(); } catch { /* ignore */ }
-      this.serialHandle = null;
     }
     // Skip directory cleanup for user-chosen workspaces
     if (this.userWorkspace) return;

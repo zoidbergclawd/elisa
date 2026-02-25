@@ -42,7 +42,6 @@ function makeMockHardwareService() {
 function makeMockPortalService() {
   return {
     initializePortals: vi.fn().mockResolvedValue(undefined),
-    hasSerialPortals: vi.fn().mockReturnValue(false),
     getCliPortals: vi.fn().mockReturnValue([]),
     getMcpServers: vi.fn().mockReturnValue([]),
     teardownAll: vi.fn().mockResolvedValue(undefined),

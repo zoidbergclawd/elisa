@@ -1,11 +1,10 @@
 /** End-to-end validation of the IoT NuggetSpec pipeline.
  *
  * Verifies that a NuggetSpec produced by the block interpreter
- * passes through all four stages:
+ * passes through key stages:
  *   1. Blockly blocks -> NuggetSpec JSON (via interpretWorkspace)
  *   2. NuggetSpec passes Zod validation
  *   3. Builder prompt includes IoT hardware context
- *   4. Deploy phase recognizes target: 'iot' and routes to deployIoT()
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -151,48 +150,6 @@ describe('IoT NuggetSpec end-to-end pipeline', () => {
     expect(prompt).not.toContain('DHT22Sensor');
     expect(prompt).not.toContain('SensorNode');
     expect(prompt).not.toContain('GPIO 13');
-  });
-
-  // --- Stage 4: Deploy phase routing ---
-  it('deploy phase recognizes iot target and routes to deployIoT()', async () => {
-    const { DeployPhase } = await import('../../services/phases/deployPhase.js');
-    const deploy = new DeployPhase({
-      compile: vi.fn(),
-      flash: vi.fn(),
-      flashFiles: vi.fn().mockResolvedValue({ success: true }),
-      detect: vi.fn(),
-      startMonitor: vi.fn(),
-      stopMonitor: vi.fn(),
-    } as any);
-
-    // Build a minimal PhaseContext
-    const events: any[] = [];
-    const ctx = {
-      session: {
-        id: 'test-session',
-        spec: iotSpec,
-        workspace: '/tmp/test-iot',
-        agents: [],
-      },
-      send: vi.fn((e: any) => { events.push(e); }),
-      signal: new AbortController().signal,
-    } as any;
-
-    expect(deploy.shouldDeployIoT(ctx)).toBe(true);
-
-    // Verify non-IoT specs are rejected
-    const webCtx = {
-      ...ctx,
-      session: { ...ctx.session, spec: { deployment: { target: 'web' } } },
-    };
-    expect(deploy.shouldDeployIoT(webCtx)).toBe(false);
-
-    // Verify preview (default) is rejected
-    const defaultCtx = {
-      ...ctx,
-      session: { ...ctx.session, spec: {} },
-    };
-    expect(deploy.shouldDeployIoT(defaultCtx)).toBe(false);
   });
 
   // --- Cross-stage: full pipeline coherence ---
