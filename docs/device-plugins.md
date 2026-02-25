@@ -165,3 +165,142 @@ Heltec WiFi LoRa V3 (Sensor Node)
 - Black wires go to GND
 - Data/signal wires go to the correct GPIO pins
 - The 10K pull-up resistor connects DHT22 DATA to 3.3V
+
+---
+
+### Building in Elisa
+
+Open Elisa and start from a fresh canvas. You will drag blocks from the toolbox on the left onto the canvas.
+
+#### Step 1: Set the goal
+
+Drag a **Goal** block onto the canvas and type something like:
+
+> IoT sensor network that monitors temperature, humidity, door status, and motion
+
+#### Step 2: Add the Sensor Node
+
+Open the **Devices** category in the toolbox. Drag a **Sensor Node** block onto the canvas.
+
+- Check the sensors you want: **DHT22**, **Reed Switch**, **PIR**
+- Check **OLED display** if you want sensor readings shown on the board's screen
+- Set the **LoRa channel** (any number from 0-255, just remember it -- the Gateway must match)
+- Set the **broadcast interval** in seconds (default is 10 -- every 10 seconds the sensors are read and data is sent)
+
+#### Step 3: Add the Gateway Node
+
+Drag a **Gateway Node** block onto the canvas.
+
+- Set the **LoRa channel** to the same number you picked for the Sensor Node
+- Type your **WiFi network name** (SSID)
+- Type your **WiFi password**
+
+The Gateway will connect to your WiFi network and forward sensor data to the cloud.
+
+#### Step 4: Add the Cloud Dashboard
+
+Drag a **Cloud Dashboard** block onto the canvas.
+
+- Type your **GCP project ID** (see [Cloud Run Setup](#cloud-run-setup) below if you have not set this up yet)
+
+#### Step 5: Deploy
+
+Drag a **Deploy ESP32** block (or **Deploy Both** if you also want a local web preview).
+
+#### Step 6: Build!
+
+Press the green **GO** button. Choose a folder where Elisa should save the generated project files. The minions will:
+
+1. Plan the tasks (writing sensor code, gateway code, dashboard code)
+2. Write MicroPython code for both boards
+3. Generate the cloud dashboard
+4. Deploy everything
+
+---
+
+### Cloud Run Setup
+
+The cloud dashboard runs on Google Cloud Run. You need a Google Cloud account and a project set up before you build.
+
+#### Prerequisites
+
+| Requirement | How to get it |
+|-------------|---------------|
+| Google account | Any Google/Gmail account works |
+| Google Cloud project | Create one at [console.cloud.google.com](https://console.cloud.google.com) |
+| `gcloud` CLI | Install from [cloud.google.com/sdk/docs/install](https://cloud.google.com/sdk/docs/install) |
+
+#### Setup steps
+
+**1. Install the gcloud CLI**
+
+Download and install it for your operating system from the link above. After installing, restart your terminal.
+
+**2. Log in**
+
+```bash
+gcloud auth login
+```
+
+This opens a browser window. Sign in with your Google account.
+
+**3. Create a project (if you have not already)**
+
+```bash
+gcloud projects create my-iot-dashboard --name="My IoT Dashboard"
+gcloud config set project my-iot-dashboard
+```
+
+Replace `my-iot-dashboard` with whatever name you like (lowercase letters, numbers, and hyphens only).
+
+**4. Enable Cloud Run**
+
+```bash
+gcloud services enable run.googleapis.com
+```
+
+**5. Enable billing**
+
+Cloud Run has a generous free tier, but Google requires a billing account. Go to [console.cloud.google.com/billing](https://console.cloud.google.com/billing) and set one up. You should not be charged unless you get a lot of traffic.
+
+That is it! Use the project ID you created (like `my-iot-dashboard`) in the Cloud Dashboard block in Elisa.
+
+---
+
+### Flashing Your Devices
+
+After the build finishes, Elisa deploys everything. Here is what happens:
+
+#### 1. Cloud dashboard deploys first
+
+Elisa builds and deploys your dashboard to Google Cloud Run automatically. You will see progress in the Mission Control view. This takes about 1-2 minutes. When it finishes, you get a URL where your dashboard lives.
+
+#### 2. Flash the Sensor Node
+
+A **Flash Wizard** dialog appears:
+
+> "Plug in your **Sensor Node** and click Ready"
+
+1. Plug in the Heltec board that has the sensors wired to it using a USB-C cable.
+2. Wait a moment for your computer to recognize it.
+3. Click **Ready**.
+4. Elisa detects the board, compiles the MicroPython code, and flashes it. A progress bar shows the status.
+5. When it says "Flash complete!", unplug the Sensor Node.
+
+#### 3. Flash the Gateway Node
+
+The Flash Wizard moves to the next step:
+
+> "Plug in your **Gateway Node** and click Ready"
+
+1. Plug in the second Heltec board (the one with no sensors attached).
+2. Click **Ready**.
+3. Elisa flashes the gateway code.
+4. When it says "Flash complete!", you are done flashing.
+
+#### 4. Power up and test
+
+1. Plug both boards into USB power (or a battery pack).
+2. The Sensor Node's OLED screen should light up and show sensor readings.
+3. The Gateway Node connects to WiFi and starts forwarding data.
+4. Open your cloud dashboard URL in a browser -- you should see live data within a few seconds.
