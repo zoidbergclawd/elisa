@@ -41,6 +41,19 @@ export function createProgram(): Command {
       process.exit(1);
     });
 
+  program
+    .command('skill <description>')
+    .description('Generate, validate, and deploy an OpenClaw skill')
+    .option('--deploy <path>', 'Deploy skills to directory (default: ~/.openclaw/skills/)')
+    .option('--stream', 'Stream events to stdout as NDJSON')
+    .option('--json', 'Output final result as JSON')
+    .option('--timeout <seconds>', 'Max generation time in seconds', '300')
+    .option('--model <model>', 'Override agent model')
+    .action(async (description, options) => {
+      const { runSkill } = await import('./commands/skill.js');
+      await runSkill(description, options);
+    });
+
   return program;
 }
 
