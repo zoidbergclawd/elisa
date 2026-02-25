@@ -43,9 +43,10 @@ App.tsx
 
 ## BlockCanvas Subsystem
 
-- `blockDefinitions.ts`: 20+ custom block types across 10 categories (Goal, Requirements, Style, Agents, Flow, Deploy, Skills, Portals, IoT Devices, Hardware)
-- `blockInterpreter.ts`: Walks Blockly workspace JSON, extracts fields, builds NuggetSpec.
-- `toolbox.ts`: Defines Blockly sidebar categories and their block contents.
+- `blockDefinitions.ts`: Custom block types across 8 categories (Goal, Requirements, Style, Agents, Flow, Deploy, Skills, Portals)
+- `blockInterpreter.ts`: Walks Blockly workspace JSON, extracts fields, builds NuggetSpec. Device plugin blocks handled generically.
+- `toolbox.ts`: Defines Blockly sidebar categories. Device plugin blocks dynamically added via `buildDeviceCategories()`.
+- Device blocks: Loaded from `GET /api/devices` at startup and registered via `deviceBlocks.ts`.
 
 ## Key Patterns
 

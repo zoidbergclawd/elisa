@@ -30,7 +30,8 @@ src/
       planPhase.ts       MetaPlanner invocation, DAG setup
       executePhase.ts    Task execution loop (parallel, git mutex, context chain)
       testPhase.ts       Test runner invocation, result reporting
-      deployPhase.ts     Hardware flash, portal deployment
+      deployPhase.ts     Device flash, portal deployment, web preview
+      deployOrder.ts     Device deploy ordering (provides/requires DAG)
     agentRunner.ts       Runs agents via SDK query() API, streams output
     metaPlanner.ts       Calls Claude API to decompose NuggetSpec into task DAG
     gitService.ts        Git init, commit per task, diff tracking
@@ -40,7 +41,7 @@ src/
     teachingEngine.ts    Generates contextual learning moments (curriculum + API fallback)
     narratorService.ts   Generates narrator messages for build events (Claude Haiku)
     permissionPolicy.ts  Auto-resolves agent permission requests based on policy rules
-    cloudDeployService.ts Scaffolds and deploys IoT cloud dashboard to Google Cloud Run
+    deviceRegistry.ts    Loads device plugin manifests, provides block defs + agent context
   prompts/
     metaPlanner.ts       System prompt for task decomposition
     builderAgent.ts      Builder role prompt template
@@ -52,6 +53,7 @@ src/
     dag.ts               Task DAG with Kahn's topological sort, cycle detection
     contextManager.ts    Builds file manifests, nugget context, structural digests, state snapshots
     specValidator.ts     Zod schema for NuggetSpec validation (string caps, array limits)
+    deviceManifestSchema.ts  Zod schema for device.json manifest validation
     sessionLogger.ts     Per-session structured logging to .elisa/logs/
     sessionPersistence.ts Atomic JSON persistence for session checkpoint/recovery
     tokenTracker.ts      Tracks input/output tokens, cost per agent, budget limits
@@ -83,6 +85,7 @@ src/
 | POST | /api/workspace/load | Load design files from workspace directory |
 | POST | /api/skills/run | Start standalone skill execution |
 | POST | /api/skills/:id/answer | Answer skill question |
+| GET | /api/devices | List device plugin manifests |
 | GET | /api/hardware/detect | Detect ESP32 (fast VID:PID only) |
 | POST | /api/hardware/flash/:id | Flash to board |
 
@@ -107,15 +110,16 @@ src/
 - **Graceful degradation**: Missing external tools (git, pytest, mpremote) produce warnings, not crashes.
 - **Timeouts**: Agent=300s, Tests=120s, Flash=60s. Task retry limit=2.
 
-## IoT Deploy Flow
+## Device Plugin Deploy Flow
 
-Multi-device IoT builds use the flash wizard and cloud deploy service:
-1. Deploy phase detects IoT build (NuggetSpec contains `iot_sensors` / `iot_network`)
-2. Emits `flash_prompt` for each device (sensor nodes, then gateway) -- frontend shows FlashWizardModal
-3. User connects each device; `flash_progress` streams per-file flash status
-4. `flash_complete` confirms each device is done
-5. `CloudDeployService` scaffolds a Cloud Run dashboard from `hardware/templates/cloud_dashboard/` and outputs deploy instructions
-6. `documentation_ready` signals that an IoT guide has been generated in the workspace
+Multi-device builds use the device plugin system:
+1. Deploy phase checks `shouldDeployDevices()` (spec has `devices` array)
+2. `resolveDeployOrder()` sorts devices by provides/requires DAG
+3. Emits `flash_prompt` for each device -- frontend shows FlashWizardModal
+4. User connects each device; `flash_progress` streams per-file flash status
+5. `flash_complete` confirms each device is done
+6. Files flashed from plugin manifest's `deploy.flash.files` + `deploy.flash.lib`
+7. Shared libraries from `devices/_shared/` included via `deploy.flash.shared_lib`
 
 ## Server Modes
 

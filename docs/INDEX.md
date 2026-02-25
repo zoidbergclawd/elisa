@@ -31,16 +31,12 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/hooks/` | React hooks (session state, health, WebSocket, board detect, skills) |
 | `frontend/src/lib/` | Utility functions (nugget files, skill templates, terminology) |
 | `frontend/src/types/` | TypeScript definitions |
-| `hardware/` | MicroPython ESP32 templates + shared lib |
-| `hardware/lib/` | Shared MicroPython library (`elisa_hardware.py`) |
-| `hardware/lib/sensors.py` | DHT22, ReedSwitch, PIRSensor classes |
-| `hardware/lib/oled.py` | OLEDDisplay class |
-| `hardware/lib/nodes.py` | SensorNode, GatewayNode orchestration |
-| `hardware/lib/ssd1306.py` | SSD1306 OLED driver (community) |
-| `hardware/templates/` | ESP32 project templates (blink, LoRa) |
-| `hardware/templates/sensor_node.py` | Sensor node template |
-| `hardware/templates/gateway_node.py` | Gateway node template |
-| `hardware/templates/cloud_dashboard/` | Cloud Run dashboard template |
+| `devices/` | Device plugins (manifest-driven, `device.json` per plugin) |
+| `devices/_shared/` | Shared MicroPython library (`elisa_hardware.py`) |
+| `devices/heltec-sensor-node/` | Heltec ESP32 sensor node plugin (DHT22, reed, PIR, OLED) |
+| `devices/heltec-gateway/` | Heltec ESP32 gateway plugin (LoRa aggregation) |
+| `devices/heltec-blink/` | Simple LED blink plugin |
+| `devices/cloud-dashboard/` | Cloud Run dashboard scaffold plugin |
 | `scripts/` | Build tooling (esbuild backend bundler, port killer, subdirectory installer) |
 | `docs/` | Product + technical documentation |
 | `support/` | ESP32 firmware binaries |
@@ -64,7 +60,6 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `docs/block-reference.md` | User | Block categories with descriptions |
 | `docs/elisa-prd.md` | Product | PRD: vision, features, target audience |
 | `docs/iot-guide.md` | User | IoT sensor network user guide |
-| `hardware/README.md` | Dev | Hardware library API reference |
 
 ## Key Source Files
 
@@ -93,7 +88,8 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/services/portalService.ts` | MCP + CLI portal adapters with command allowlist |
 | `backend/src/services/narratorService.ts` | Generates narrator messages for build events (Claude Haiku) |
 | `backend/src/services/permissionPolicy.ts` | Auto-resolves agent permission requests based on policy rules |
-| `backend/src/services/cloudDeployService.ts` | Cloud Run deployment service for IoT dashboards |
+| `backend/src/services/deviceRegistry.ts` | Loads device plugin manifests, provides block defs + agent context |
+| `backend/src/utils/deviceManifestSchema.ts` | Zod schema for device.json manifest validation |
 
 ### Phases
 
@@ -102,7 +98,8 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/services/phases/planPhase.ts` | MetaPlanner invocation, DAG setup, early teaching moments |
 | `backend/src/services/phases/executePhase.ts` | Streaming-parallel task execution (3 concurrent, Promise.race) |
 | `backend/src/services/phases/testPhase.ts` | Test runner invocation and result reporting |
-| `backend/src/services/phases/deployPhase.ts` | Web preview, hardware flash, portal deploy, serial monitor |
+| `backend/src/services/phases/deployPhase.ts` | Web preview, device flash, portal deploy |
+| `backend/src/services/phases/deployOrder.ts` | Device deploy ordering via provides/requires DAG |
 | `backend/src/services/phases/types.ts` | Shared PhaseContext and SendEvent types |
 
 ### Utils
@@ -169,6 +166,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/lib/nuggetFile.ts` | .elisa nugget file save/load (JSZip-based) |
 | `frontend/src/lib/skillTemplates.ts` | Pre-built skill and rule templates |
 | `frontend/src/lib/terminology.ts` | Kid-friendly term mappings (technical -> friendly labels) |
+| `frontend/src/lib/deviceBlocks.ts` | Dynamic Blockly block registration from device plugin manifests |
 
 ### Electron
 
@@ -190,13 +188,12 @@ Blockly workspace
   -> (optional) "Keep working" -> design phase -> re-build with existing workspace + git history
 ```
 
-### IoT Sensor Network Pipeline
+### Device Plugin Pipeline
 
 ```
-Blockly workspace (IoT Devices + Hardware blocks)
-  -> blockInterpreter -> NuggetSpec JSON (with iot_sensors, iot_network, cloud_deploy)
-  -> orchestrator -> agents generate MicroPython from hardware/templates/
-  -> deployPhase: FlashWizardModal prompts user per device (flash_prompt -> flash_progress -> flash_complete)
-  -> cloudDeployService scaffolds Cloud Run dashboard from hardware/templates/cloud_dashboard/
-  -> documentation_ready event signals IoT guide generation
+Blockly workspace (dynamic device blocks from plugin manifests)
+  -> blockInterpreter -> NuggetSpec JSON (with devices array)
+  -> orchestrator -> agents receive plugin context via DeviceRegistry.getAgentContext()
+  -> deployPhase: resolveDeployOrder() -> FlashWizardModal per device
+  -> flash files + shared libs from plugin manifest
 ```

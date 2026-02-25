@@ -36,6 +36,7 @@ src/
     playChime.ts             Web Audio API two-tone chime for board detection events
     skillTemplates.ts        Pre-built skill and rule templates for template library
     terminology.ts           Kid-friendly term mappings (technical -> friendly labels)
+    deviceBlocks.ts          Dynamic Blockly block registration from device plugin manifests
     examples/                Bundled example nuggets (ES modules, offline-ready)
   types/
     index.ts                 All TypeScript interfaces (NuggetSpec, Task, Agent, WSEvent, etc.)
