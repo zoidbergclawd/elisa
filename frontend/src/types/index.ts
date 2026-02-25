@@ -112,6 +112,12 @@ export interface DocumentationConfig {
   focus: 'how_it_works' | 'setup' | 'parts' | 'all';
 }
 
+export interface DeviceInstance {
+  pluginId: string;
+  instanceId: string;
+  fields: Record<string, unknown>;
+}
+
 export type WSEvent =
   | { type: 'session_started'; session_id: string }
   | { type: 'planning_started' }
