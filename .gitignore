@@ -35,3 +35,6 @@ electron/dist/
 backend/dist/
 build/icon.ico
 build/icon.icns
+
+# Worktrees
+.worktrees/
