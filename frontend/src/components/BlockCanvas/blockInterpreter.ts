@@ -1,6 +1,7 @@
 import type { Skill, Rule } from '../Skills/types';
 import type { Portal } from '../Portals/types';
 import type { BehavioralTest } from '../../types';
+import type { DeviceManifest } from '../../lib/deviceBlocks';
 
 export interface NuggetSpec {
   nugget: {
@@ -65,6 +66,11 @@ export interface NuggetSpec {
     mcpConfig?: Record<string, unknown>;
     cliConfig?: Record<string, unknown>;
     serialConfig?: Record<string, unknown>;
+  }>;
+  devices?: Array<{
+    pluginId: string;
+    instanceId: string;
+    fields: Record<string, unknown>;
   }>;
 }
 
@@ -131,6 +137,7 @@ export function interpretWorkspace(
   skills?: Skill[],
   rules?: Rule[],
   portals?: Portal[],
+  deviceManifests?: DeviceManifest[],
 ): NuggetSpec {
   const ws = json as unknown as WorkspaceJson;
   const topBlocks = ws.blocks?.blocks ?? [];
@@ -453,6 +460,24 @@ export function interpretWorkspace(
         hasWeb = true;
         hasEsp32 = true;
         break;
+      default: {
+        // Generic device plugin handler
+        if (deviceManifests?.length) {
+          const manifest = deviceManifests.find(m => m.blocks.some(b => b.type === block.type));
+          if (manifest) {
+            if (!spec.devices) spec.devices = [];
+            const blockDef = manifest.blocks.find(b => b.type === block.type)!;
+            const fields: Record<string, unknown> = {};
+            for (const arg of blockDef.args) {
+              if ('name' in arg && arg.name) {
+                fields[arg.name as string] = block.fields?.[arg.name as string];
+              }
+            }
+            spec.devices.push({ pluginId: manifest.id, instanceId: block.id ?? block.type, fields });
+          }
+        }
+        break;
+      }
     }
   }
 

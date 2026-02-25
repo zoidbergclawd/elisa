@@ -160,9 +160,9 @@ export default function App() {
   // Re-interpret workspace when skills/rules/portals change (without Blockly interaction)
   useEffect(() => {
     if (workspaceJson) {
-      setSpec(interpretWorkspace(workspaceJson, skills, rules, portals)); // eslint-disable-line react-hooks/set-state-in-effect
+      setSpec(interpretWorkspace(workspaceJson, skills, rules, portals, deviceManifests)); // eslint-disable-line react-hooks/set-state-in-effect
     }
-  }, [skills, rules, portals]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [skills, rules, portals, deviceManifests]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-switch to agents tab when build starts
   useEffect(() => {
@@ -198,14 +198,14 @@ export default function App() {
   }, [activeMainTab]);
 
   const handleWorkspaceChange = useCallback((json: Record<string, unknown>) => {
-    setSpec(interpretWorkspace(json, skills, rules, portals));
+    setSpec(interpretWorkspace(json, skills, rules, portals, deviceManifests));
     setWorkspaceJson(json);
     try {
       localStorage.setItem(LS_WORKSPACE, JSON.stringify(json));
     } catch {
       // localStorage full or unavailable -- ignore
     }
-  }, [skills, rules, portals]);
+  }, [skills, rules, portals, deviceManifests]);
 
   const pickDirectory = async (): Promise<string | null> => {
     // Try Electron native dialog first
