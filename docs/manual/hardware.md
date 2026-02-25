@@ -1,6 +1,6 @@
 # Hardware
 
-Elisa can compile MicroPython code and flash it to ESP32 boards over USB.
+Elisa uses device plugins to support hardware boards. Each plugin adds blocks to your toolbox, generates code, and handles flashing.
 
 ## What you need
 
@@ -30,19 +30,17 @@ When a new board is plugged in:
 
 1. A chime plays.
 2. A "Board Connected!" modal appears showing the board type and port.
-3. You can click **Create Portal** to automatically set up a Serial portal for the board.
+3. Elisa lists device plugins that match the detected board. Select a plugin to load its blocks into your toolbox.
 4. Or click **Maybe later** to dismiss (the same board will not trigger the modal again until you restart).
-
-If a portal already exists for that port, the modal offers "View Portals" instead.
 
 ## Using hardware in your design
 
 To build a hardware project:
 
 1. Add a **Goal** block describing what you want the board to do.
-2. Optionally add a **Template** block set to "Hardware Nugget".
-3. Add a **Deploy ESP32** block (or **Deploy Both** for web + hardware).
-4. Optionally create a Serial portal for your board (for Tell/When/Ask blocks).
+2. Open the **Devices** category in the toolbox and drag a device block onto the workspace.
+3. Configure the block fields (e.g. pin numbers, sensor type, network settings).
+4. Add a **Deploy ESP32** block (or **Deploy Both** for web + hardware).
 5. Press **GO**.
 
 ## What happens during a hardware build
@@ -76,3 +74,7 @@ The Board tab in the bottom bar shows real-time serial output from a connected b
 **Serial monitor shows nothing**
 - Press the RST button on the board to restart the program.
 - Make sure your MicroPython code has `print()` statements.
+
+---
+
+For a complete walkthrough including wiring, sensors, and IoT networks, see the [Device Plugins guide](../device-plugins.md).
