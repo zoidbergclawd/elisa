@@ -1,4 +1,4 @@
-import Blockly from 'blockly';
+import * as Blockly from 'blockly';
 
 export interface DeviceManifest {
   id: string;
@@ -26,7 +26,8 @@ export function registerDeviceBlocks(manifests: DeviceManifest[]): void {
       if (Blockly.Blocks[blockDef.type]) continue; // don't re-register
       Blockly.Blocks[blockDef.type] = {
         init(this: Blockly.Block) {
-          this.jsonInit({ ...blockDef, colour: manifest.colour });
+          const { message, args, ...rest } = blockDef;
+          this.jsonInit({ ...rest, message0: message, args0: args, colour: manifest.colour });
         },
       };
     }

@@ -59,27 +59,32 @@ export default function App() {
   } = useBuildSession();
   const { waitForOpen } = useWebSocket({ sessionId, onEvent: handleEvent });
   const { health, loading: healthLoading } = useHealthCheck(uiState === 'design');
-  const { boardInfo, justConnected, acknowledgeConnection } = useBoardDetect(uiState === 'design');
 
   // Fetch auth token on mount
+  const [authReady, setAuthReady] = useState(false);
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const api = (window as unknown as Record<string, any>).elisaAPI;
     if (api?.getAuthToken) {
       api.getAuthToken().then((token: string | null) => {
         if (token) setAuthToken(token);
+        setAuthReady(true);
       });
     } else {
       // Dev mode without Electron: use dev default
       setAuthToken('dev-token');
+      setAuthReady(true);
     }
   }, []);
+
+  const { boardInfo, justConnected, acknowledgeConnection } = useBoardDetect(uiState === 'design' && authReady);
 
   // Device manifests from backend plugin registry
   const [deviceManifests, setDeviceManifests] = useState<DeviceManifest[]>([]);
 
-  // Fetch device manifests on mount
+  // Fetch device manifests after auth token is ready
   useEffect(() => {
+    if (!authReady) return;
     authFetch('/api/devices')
       .then(r => r.ok ? r.json() : [])
       .then((data: DeviceManifest[]) => {
@@ -87,7 +92,7 @@ export default function App() {
         setDeviceManifests(data);
       })
       .catch(() => { /* device plugins unavailable -- not critical */ });
-  }, []);
+  }, [authReady]);
 
   // Main tab state
   const [activeMainTab, setActiveMainTab] = useState<MainTab>('workspace');
