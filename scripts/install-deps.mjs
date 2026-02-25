@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-for (const dir of ['backend', 'frontend']) {
+for (const dir of ['backend', 'frontend', 'cli']) {
   const cwd = resolve(root, dir);
   console.log(`Installing dependencies in ${dir}/...`);
   execSync('npm install', { cwd, stdio: 'inherit' });

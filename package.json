@@ -13,6 +13,8 @@
     "dev:electron": "concurrently -n be,fe,el -c blue,green,magenta \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\" \"wait-on http://localhost:5173 && electron .\"",
     "build:frontend": "cd frontend && npx vite build",
     "build:backend": "node scripts/build-backend.mjs",
+    "build:cli": "cd cli && npm run build",
+    "test:cli": "cd cli && npx vitest run",
     "test:electron": "vitest run --config electron/vitest.config.ts",
     "build:electron": "tsc -p electron/tsconfig.json",
     "build": "npm run build:frontend && npm run build:backend && npm run build:electron",
