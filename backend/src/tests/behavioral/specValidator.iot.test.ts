@@ -90,3 +90,39 @@ describe('NuggetSpecSchema IoT hardware config', () => {
     expect(result.success).toBe(false);
   });
 });
+
+describe('NuggetSpecSchema device plugin instances', () => {
+  it('accepts spec with devices array', () => {
+    const spec = {
+      nugget: { goal: 'test', description: 'test' },
+      devices: [
+        { pluginId: 'heltec-sensor-node', instanceId: 'block_1', fields: { SENSOR_DHT22: true } },
+      ],
+    };
+    expect(NuggetSpecSchema.safeParse(spec).success).toBe(true);
+  });
+
+  it('accepts spec with both devices and portals', () => {
+    const spec = {
+      nugget: { goal: 'test', description: 'test' },
+      devices: [{ pluginId: 'x', instanceId: 'b1', fields: {} }],
+      portals: [],
+    };
+    expect(NuggetSpecSchema.safeParse(spec).success).toBe(true);
+  });
+
+  it('accepts spec with empty devices array', () => {
+    const spec = {
+      nugget: { goal: 'test', description: 'test' },
+      devices: [],
+    };
+    expect(NuggetSpecSchema.safeParse(spec).success).toBe(true);
+  });
+
+  it('accepts spec without devices field', () => {
+    const spec = {
+      nugget: { goal: 'test', description: 'test' },
+    };
+    expect(NuggetSpecSchema.safeParse(spec).success).toBe(true);
+  });
+});

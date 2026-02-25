@@ -115,6 +115,14 @@ const DocumentationConfigSchema = z.object({
   focus: z.enum(['how_it_works', 'setup', 'parts', 'all']),
 });
 
+// --- Device plugin instance schema ---
+
+export const DeviceInstanceSchema = z.object({
+  pluginId: z.string().max(60),
+  instanceId: z.string().max(100),
+  fields: z.record(z.string(), z.unknown()),
+});
+
 export const NuggetSpecSchema = z.object({
   nugget: z.object({
     goal: z.string().max(2000).optional(),
@@ -146,6 +154,7 @@ export const NuggetSpecSchema = z.object({
   skills: z.array(SkillSchema).max(50).optional(),
   rules: z.array(RuleSchema).max(50).optional(),
   portals: z.array(PortalSchema).max(20).optional(),
+  devices: z.array(DeviceInstanceSchema).max(20).optional(),
   hardware: HardwareConfigSchema.optional(),
   documentation: DocumentationConfigSchema.optional(),
   permissions: z.object({
