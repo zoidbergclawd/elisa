@@ -2,7 +2,7 @@
 
 Complete guide to Elisa's block palette. Blocks snap together on the canvas to produce a [NuggetSpec](api-reference.md#nuggetspec-schema) that drives the build.
 
-Categories: [Goals](#goals) | [Requirements](#requirements) | [Style](#style) | [Skills](#skills) | [Rules](#rules) | [Skill Flow](#skill-flow) | [Portals](#portals) | [Minions](#minions) | [Flow](#flow) | [Deploy](#deploy)
+Categories: [Goals](#goals) | [Requirements](#requirements) | [Style](#style) | [Skills](#skills) | [Rules](#rules) | [Skill Flow](#skill-flow) | [Portals](#portals) | [Minions](#minions) | [Flow](#flow) | [Deploy](#deploy) | [Devices](#devices)
 
 ---
 
@@ -168,6 +168,23 @@ Choose where the built project gets deployed.
 | **Deploy Both** | `deployment.target: "both"` |
 
 If no deploy block is placed, defaults to `"preview"`.
+
+---
+
+## Devices
+
+Device blocks are loaded dynamically from plugins in the `devices/` folder. The blocks shown here are the ones shipped with Elisa. Additional plugins add more blocks automatically.
+
+| Block | Plugin | Fields |
+|-------|--------|--------|
+| **Heltec Blink** | heltec-blink | Speed: Normal / Fast / Slow |
+| **Sensor Node** | heltec-sensor-node | DHT22 (checkbox), Reed Switch (checkbox), PIR (checkbox), OLED (checkbox), LoRa Channel (number), Interval in seconds (number) |
+| **Gateway Node** | heltec-gateway | LoRa Channel (number), WiFi SSID (text), WiFi Password (text) |
+| **Cloud Dashboard** | cloud-dashboard | GCP Project ID (text) |
+
+Device blocks produce `devices` entries in the NuggetSpec, which are processed by the corresponding plugin during the deploy phase.
+
+For details on each plugin, see the [Device Plugins guide](device-plugins.md). To create your own plugins, see [Creating Device Plugins](creating-device-plugins.md).
 
 ---
 
