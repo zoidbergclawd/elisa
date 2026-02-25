@@ -22,6 +22,7 @@ import { PermissionPolicy } from './permissionPolicy.js';
 import { ContextManager } from '../utils/contextManager.js';
 import { SessionLogger } from '../utils/sessionLogger.js';
 import { TokenTracker } from '../utils/tokenTracker.js';
+import { DeviceRegistry } from './deviceRegistry.js';
 
 type SendEvent = (event: Record<string, any>) => Promise<void>;
 
@@ -57,6 +58,7 @@ export class Orchestrator {
   private portalService: PortalService;
   private narratorService = new NarratorService();
   private permissionPolicy: PermissionPolicy | null = null;
+  private deviceRegistry: DeviceRegistry;
 
   // Phase handlers
   private planPhase: PlanPhase;
@@ -70,6 +72,7 @@ export class Orchestrator {
     this.userWorkspace = !!workspacePath;
     this.hardwareService = hardwareService ?? new HardwareService();
     this.portalService = new PortalService(this.hardwareService);
+    this.deviceRegistry = new DeviceRegistry(path.resolve(import.meta.dirname, '../../devices'));
 
     this.planPhase = new PlanPhase(new MetaPlanner(), this.teachingEngine);
     this.testPhase = new TestPhase(this.testRunner, this.teachingEngine);
@@ -77,6 +80,7 @@ export class Orchestrator {
       this.hardwareService,
       this.portalService,
       this.teachingEngine,
+      this.deviceRegistry,
     );
   }
 
@@ -141,6 +145,9 @@ export class Orchestrator {
 
       // Deploy
       const deployCtx = this.makeContext();
+      if (this.deployPhase.shouldDeployDevices(deployCtx)) {
+        await this.deployPhase.deployDevices(deployCtx, this.gateResolver);
+      }
       if (this.deployPhase.shouldDeployWeb(deployCtx)) {
         const { process: webProc } = await this.deployPhase.deployWeb(deployCtx);
         this.webServerProcess = webProc;
