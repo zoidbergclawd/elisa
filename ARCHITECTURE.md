@@ -23,6 +23,9 @@ frontend/ (React 19 + Vite)         backend/ (Express 5 + TypeScript)
 | BottomBar             |           |  -> GitService (simple-git)|
 | (Git, Tests, Board,   |           |  -> HardwareService       |
 |  Teaching)            |           |  -> TeachingEngine         |
+|                       |           |  -> CloudDeployService     |
+| FlashWizardModal      |           |     (Cloud Run scaffold)   |
+| (multi-device flash)  |           |                           |
 +-----------------------+           +---------------------------+
                                               |
                                     runs agents via SDK query() API
@@ -69,6 +72,16 @@ Root `package.json` manages Electron and build tooling. Frontend and backend rem
 ```
 
 Human gates can pause execution at any point, requiring user approval via REST endpoint.
+
+### IoT Sensor Network Data Flow
+
+```
+ESP32 Sensor Node → LoRa TX → ESP32 Gateway Node → WiFi → Cloud Run Dashboard (SSE) → Browser
+                                                   ↑
+                                     Elisa Deploy Phase (flash wizard)
+```
+
+The IoT pipeline extends the hardware path. Elisa generates MicroPython for multi-device sensor networks (sensor nodes + gateway), scaffolds a Cloud Run dashboard, and flashes each device via the FlashWizardModal. The gateway aggregates LoRa packets and pushes readings to the cloud dashboard over WiFi.
 
 ## Communication Protocol
 
@@ -137,6 +150,15 @@ ESP32 support via serialport library:
 2. Compile MicroPython via `py_compile`
 3. Flash via `mpremote`
 4. Serial monitor at 115200 baud, streamed to frontend via WebSocket
+
+### IoT Sensor Network Deploy
+
+Multi-device IoT builds extend the hardware path with a flash wizard and cloud deployment:
+1. Orchestrator generates sensor node + gateway MicroPython from templates in `hardware/templates/`
+2. `FlashWizardModal` prompts the user to connect each device sequentially (`flash_prompt` event)
+3. Each device is flashed with progress updates (`flash_progress` event) and completion confirmation (`flash_complete` event)
+4. `CloudDeployService` scaffolds a Cloud Run dashboard from `hardware/templates/cloud_dashboard/`
+5. IoT guide documentation is generated and signaled via `documentation_ready` event
 
 ## Module-Level Documentation
 

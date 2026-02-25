@@ -33,7 +33,14 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/types/` | TypeScript definitions |
 | `hardware/` | MicroPython ESP32 templates + shared lib |
 | `hardware/lib/` | Shared MicroPython library (`elisa_hardware.py`) |
+| `hardware/lib/sensors.py` | DHT22, ReedSwitch, PIRSensor classes |
+| `hardware/lib/oled.py` | OLEDDisplay class |
+| `hardware/lib/nodes.py` | SensorNode, GatewayNode orchestration |
+| `hardware/lib/ssd1306.py` | SSD1306 OLED driver (community) |
 | `hardware/templates/` | ESP32 project templates (blink, LoRa) |
+| `hardware/templates/sensor_node.py` | Sensor node template |
+| `hardware/templates/gateway_node.py` | Gateway node template |
+| `hardware/templates/cloud_dashboard/` | Cloud Run dashboard template |
 | `scripts/` | Build tooling (esbuild backend bundler, port killer, subdirectory installer) |
 | `docs/` | Product + technical documentation |
 | `support/` | ESP32 firmware binaries |
@@ -56,6 +63,8 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `docs/api-reference.md` | API | REST endpoints, WebSocket events, NuggetSpec schema |
 | `docs/block-reference.md` | User | Block categories with descriptions |
 | `docs/elisa-prd.md` | Product | PRD: vision, features, target audience |
+| `docs/iot-guide.md` | User | IoT sensor network user guide |
+| `hardware/README.md` | Dev | Hardware library API reference |
 
 ## Key Source Files
 
@@ -84,6 +93,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/services/portalService.ts` | MCP + CLI portal adapters with command allowlist |
 | `backend/src/services/narratorService.ts` | Generates narrator messages for build events (Claude Haiku) |
 | `backend/src/services/permissionPolicy.ts` | Auto-resolves agent permission requests based on policy rules |
+| `backend/src/services/cloudDeployService.ts` | Cloud Run deployment service for IoT dashboards |
 
 ### Phases
 
@@ -137,6 +147,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/components/AgentTeam/AgentTeamPanel.tsx` | Full-width agent cards + comms feed |
 | `frontend/src/components/TaskMap/TaskMapPanel.tsx` | Full-width interactive task DAG |
 | `frontend/src/components/shared/MinionAvatar.tsx` | Animated avatar for narrator/minion characters |
+| `frontend/src/components/shared/FlashWizardModal.tsx` | Multi-device flash wizard modal for IoT deploy |
 | `frontend/src/components/MissionControl/MissionControlPanel.tsx` | Main mission control layout with narrator feed + minion squad |
 | `frontend/src/components/MissionControl/MinionSquadPanel.tsx` | Minion cards with status badges and task assignments |
 | `frontend/src/components/MissionControl/NarratorFeed.tsx` | Scrolling narrator message feed with mood indicators |
@@ -177,4 +188,15 @@ Blockly workspace
   -> agent output streamed via SDK -> WebSocket events
   -> useBuildSession -> React UI state updates
   -> (optional) "Keep working" -> design phase -> re-build with existing workspace + git history
+```
+
+### IoT Sensor Network Pipeline
+
+```
+Blockly workspace (IoT Devices + Hardware blocks)
+  -> blockInterpreter -> NuggetSpec JSON (with iot_sensors, iot_network, cloud_deploy)
+  -> orchestrator -> agents generate MicroPython from hardware/templates/
+  -> deployPhase: FlashWizardModal prompts user per device (flash_prompt -> flash_progress -> flash_complete)
+  -> cloudDeployService scaffolds Cloud Run dashboard from hardware/templates/cloud_dashboard/
+  -> documentation_ready event signals IoT guide generation
 ```

@@ -40,6 +40,7 @@ src/
     teachingEngine.ts    Generates contextual learning moments (curriculum + API fallback)
     narratorService.ts   Generates narrator messages for build events (Claude Haiku)
     permissionPolicy.ts  Auto-resolves agent permission requests based on policy rules
+    cloudDeployService.ts Scaffolds and deploys IoT cloud dashboard to Google Cloud Run
   prompts/
     metaPlanner.ts       System prompt for task decomposition
     builderAgent.ts      Builder role prompt template
@@ -86,7 +87,7 @@ src/
 | POST | /api/hardware/flash/:id | Flash to board |
 
 ### WebSocket Events (server -> client)
-`planning_started`, `plan_ready`, `task_started`, `task_completed`, `task_failed`, `agent_output`, `commit_created`, `token_usage`, `budget_warning`, `test_result`, `coverage_update`, `deploy_started`, `deploy_progress`, `deploy_checklist`, `deploy_complete` (includes `url?` for web deploys), `serial_data`, `human_gate`, `user_question`, `skill_*`, `teaching_moment`, `narrator_message`, `permission_auto_resolved`, `minion_state_change`, `workspace_created`, `error`, `session_complete`
+`planning_started`, `plan_ready`, `task_started`, `task_completed`, `task_failed`, `agent_output`, `commit_created`, `token_usage`, `budget_warning`, `test_result`, `coverage_update`, `deploy_started`, `deploy_progress`, `deploy_checklist`, `deploy_complete` (includes `url?` for web deploys), `serial_data`, `human_gate`, `user_question`, `skill_*`, `teaching_moment`, `narrator_message`, `permission_auto_resolved`, `minion_state_change`, `workspace_created`, `flash_prompt`, `flash_progress`, `flash_complete`, `documentation_ready`, `error`, `session_complete`
 
 ## Key Patterns
 
@@ -105,6 +106,16 @@ src/
 - **Graceful shutdown**: SIGTERM/SIGINT handlers cancel orchestrators, close WS server, 10s force-exit. `SessionStore.onCleanup` invokes `ConnectionManager.cleanup()` for WS teardown.
 - **Graceful degradation**: Missing external tools (git, pytest, mpremote) produce warnings, not crashes.
 - **Timeouts**: Agent=300s, Tests=120s, Flash=60s. Task retry limit=2.
+
+## IoT Deploy Flow
+
+Multi-device IoT builds use the flash wizard and cloud deploy service:
+1. Deploy phase detects IoT build (NuggetSpec contains `iot_sensors` / `iot_network`)
+2. Emits `flash_prompt` for each device (sensor nodes, then gateway) -- frontend shows FlashWizardModal
+3. User connects each device; `flash_progress` streams per-file flash status
+4. `flash_complete` confirms each device is done
+5. `CloudDeployService` scaffolds a Cloud Run dashboard from `hardware/templates/cloud_dashboard/` and outputs deploy instructions
+6. `documentation_ready` signals that an IoT guide has been generated in the workspace
 
 ## Server Modes
 
