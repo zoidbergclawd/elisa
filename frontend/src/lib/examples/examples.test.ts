@@ -42,7 +42,7 @@ describe('bundled example nuggets', () => {
     });
   }
 
-  // Regression tests for migrated hardwareBlink (now uses portal blocks)
+  // Regression tests for hardwareBlink (uses heltec_blink device block)
 
   it('hardwareBlink example sets deployment target to esp32', () => {
     const hw = EXAMPLE_NUGGETS.find((e) => e.id === 'hardware-blink')!;
@@ -50,14 +50,10 @@ describe('bundled example nuggets', () => {
     expect(spec.deployment.target).toBe('esp32');
   });
 
-  it('hardwareBlink example uses portal_tell for LED control', () => {
+  it('hardwareBlink example has no portals (uses device block instead)', () => {
     const hw = EXAMPLE_NUGGETS.find((e) => e.id === 'hardware-blink')!;
     const spec = interpretWorkspace(hw.workspace, hw.skills, hw.rules, hw.portals);
-    expect(spec.portals).toHaveLength(1);
-    expect(spec.portals![0].name).toBe('ESP32 Board');
-    expect(spec.portals![0].interactions).toContainEqual(
-      expect.objectContaining({ type: 'tell', capabilityId: 'led-blink' }),
-    );
+    expect(spec.portals).toBeUndefined();
   });
 
   it('teamBuild example includes tester and reviewer agents', () => {

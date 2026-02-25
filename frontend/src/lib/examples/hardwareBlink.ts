@@ -26,8 +26,8 @@ export const hardwareBlink: ExampleNugget = {
                   fields: { FEATURE_TEXT: 'blink the onboard LED on and off every second' },
                   next: {
                     block: {
-                      type: 'portal_tell',
-                      fields: { PORTAL_ID: 'esp32-board', CAPABILITY_ID: 'led-blink' },
+                      type: 'heltec_blink',
+                      fields: { SPEED: 'normal' },
                       next: {
                         block: {
                           type: 'use_skill',
@@ -62,19 +62,5 @@ export const hardwareBlink: ExampleNugget = {
   rules: [
     { id: 'rule-compile-check', name: 'Must compile cleanly', prompt: 'Before deploying, make sure the MicroPython code compiles without any errors or warnings.', trigger: 'before_deploy' },
   ],
-  portals: [
-    {
-      id: 'esp32-board',
-      name: 'ESP32 Board',
-      description: 'An ESP32 microcontroller board with onboard LED',
-      mechanism: 'serial',
-      status: 'unconfigured',
-      capabilities: [
-        { id: 'led-blink', name: 'Blink LED', kind: 'action', description: 'Blink the onboard LED' },
-        { id: 'led-on', name: 'LED on', kind: 'action', description: 'Turn the onboard LED on' },
-        { id: 'led-off', name: 'LED off', kind: 'action', description: 'Turn the onboard LED off' },
-      ],
-      serialConfig: { baudRate: 115200, boardType: 'esp32' },
-    },
-  ],
+  portals: [],
 };
