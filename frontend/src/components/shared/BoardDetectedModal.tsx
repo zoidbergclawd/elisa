@@ -1,13 +1,13 @@
 import type { BoardInfo } from '../../hooks/useBoardDetect';
+import type { DeviceManifest } from '../../lib/deviceBlocks';
 
 interface Props {
   boardInfo: BoardInfo;
-  hasExistingPortal: boolean;
-  onCreatePortal: () => void;
+  matchingPlugins: DeviceManifest[];
   onDismiss: () => void;
 }
 
-export default function BoardDetectedModal({ boardInfo, hasExistingPortal, onCreatePortal, onDismiss }: Props) {
+export default function BoardDetectedModal({ boardInfo, matchingPlugins, onDismiss }: Props) {
   return (
     <div
       className="fixed inset-0 modal-backdrop z-50 flex items-center justify-center"
@@ -53,25 +53,32 @@ export default function BoardDetectedModal({ boardInfo, hasExistingPortal, onCre
           </span>
         </div>
 
-        <p className="text-sm text-atelier-text-secondary mb-6">
-          {hasExistingPortal
-            ? 'Your board is back! A Portal is already set up for it.'
-            : 'Your board is ready! Create a Portal so your minions can talk to it.'}
+        <p className="text-sm text-atelier-text-secondary mb-4">
+          {matchingPlugins.length > 0
+            ? 'Device plugins are available for this board. Drag a device block onto the workspace to use it.'
+            : 'Your board is connected but no matching device plugins were found.'}
         </p>
+
+        {matchingPlugins.length > 0 && (
+          <div className="flex flex-wrap justify-center gap-2 mb-4">
+            {matchingPlugins.map(plugin => (
+              <span
+                key={plugin.id}
+                className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-700"
+              >
+                {plugin.name}
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* Actions */}
         <div className="flex flex-col items-center gap-2">
           <button
-            onClick={onCreatePortal}
+            onClick={onDismiss}
             className="go-btn go-btn-ready px-6 py-2.5 rounded-xl text-sm cursor-pointer"
           >
-            {hasExistingPortal ? 'View Portals' : 'Create Portal'}
-          </button>
-          <button
-            onClick={onDismiss}
-            className="px-6 py-2.5 rounded-xl text-sm cursor-pointer border border-atelier-text-muted/30 text-atelier-text-secondary hover:bg-atelier-surface/60 hover:text-atelier-text transition-colors"
-          >
-            Maybe later
+            Got it
           </button>
         </div>
       </div>

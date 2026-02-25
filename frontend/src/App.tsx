@@ -22,7 +22,6 @@ import { useBoardDetect } from './hooks/useBoardDetect';
 import ReadinessBadge from './components/shared/ReadinessBadge';
 import DirectoryPickerModal from './components/shared/DirectoryPickerModal';
 import BoardDetectedModal from './components/shared/BoardDetectedModal';
-import { portalTemplates } from './components/Portals/portalTemplates';
 import { playChime } from './lib/playChime';
 import { saveNuggetFile, loadNuggetFile, downloadBlob } from './lib/nuggetFile';
 import { setAuthToken, authFetch } from './lib/apiClient';
@@ -380,32 +379,6 @@ export default function App() {
     setExamplePickerOpen(false);
   }, []);
 
-  const handleBoardCreatePortal = useCallback(() => {
-    if (!boardInfo) return;
-
-    // Only create a new portal if one doesn't already exist for this port
-    const hasPortal = portals.some(
-      p => p.mechanism === 'serial' && p.serialConfig?.port === boardInfo.port
-    );
-    if (!hasPortal) {
-      const tmpl = portalTemplates.find(t => t.templateId === 'esp32');
-      if (!tmpl) return;
-
-      const newPortal: Portal = {
-        ...tmpl,
-        id: crypto.randomUUID(),
-        name: boardInfo.boardType,
-        status: 'ready' as const,
-        serialConfig: { ...tmpl.serialConfig, port: boardInfo.port, boardType: boardInfo.boardType },
-      };
-
-      setPortals(prev => [...prev, newPortal]);
-    }
-
-    setBoardDetectedModalOpen(false);
-    setPortalsModalOpen(true);
-  }, [boardInfo, portals]);
-
   const handleBoardDismiss = useCallback(() => {
     if (boardInfo) boardDismissedPortsRef.current.add(boardInfo.port);
     setBoardDetectedModalOpen(false);
@@ -569,8 +542,9 @@ export default function App() {
       {boardDetectedModalOpen && boardInfo && (
         <BoardDetectedModal
           boardInfo={boardInfo}
-          hasExistingPortal={portals.some(p => p.mechanism === 'serial' && p.serialConfig?.port === boardInfo.port)}
-          onCreatePortal={handleBoardCreatePortal}
+          matchingPlugins={deviceManifests.filter(m =>
+            m.board && m.board.type.toLowerCase().includes(boardInfo.boardType.toLowerCase())
+          )}
           onDismiss={handleBoardDismiss}
         />
       )}
