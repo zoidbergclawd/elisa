@@ -82,6 +82,36 @@ export interface NarratorMessage {
   timestamp: number;
 }
 
+// IoT Hardware types
+export interface LoRaConfig {
+  channel: number;
+  frequency?: number;
+}
+
+export interface HardwareDevice {
+  role: 'sensor_node' | 'gateway_node';
+  board: 'heltec_lora_v3';
+  sensors?: ('dht22' | 'reed_switch' | 'pir')[];
+  display?: 'oled_ssd1306';
+  lora: LoRaConfig;
+}
+
+export interface CloudConfig {
+  platform: 'cloud_run';
+  project?: string;
+  region?: string;
+}
+
+export interface HardwareConfig {
+  devices: HardwareDevice[];
+  cloud?: CloudConfig;
+}
+
+export interface DocumentationConfig {
+  generate: boolean;
+  focus: 'how_it_works' | 'setup' | 'parts' | 'all';
+}
+
 export type WSEvent =
   | { type: 'session_started'; session_id: string }
   | { type: 'planning_started' }
@@ -116,4 +146,8 @@ export type WSEvent =
   | { type: 'narrator_message'; from: string; text: string; mood: 'excited' | 'encouraging' | 'concerned' | 'celebrating'; related_task_id?: string }
   | { type: 'permission_auto_resolved'; task_id: string; permission_type: string; decision: 'approved' | 'denied'; reason: string }
   | { type: 'minion_state_change'; agent_name: string; old_status: string; new_status: string }
-  | { type: 'session_complete'; summary: string };
+  | { type: 'session_complete'; summary: string }
+  | { type: 'flash_prompt'; device_role: string; message: string }
+  | { type: 'flash_progress'; device_role: string; step: string; progress: number }
+  | { type: 'flash_complete'; device_role: string; success: boolean; message?: string }
+  | { type: 'documentation_ready'; file_path: string };
