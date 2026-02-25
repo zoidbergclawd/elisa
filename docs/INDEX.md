@@ -31,7 +31,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/hooks/` | React hooks (session state, health, WebSocket, board detect, skills) |
 | `frontend/src/lib/` | Utility functions (nugget files, skill templates, terminology) |
 | `frontend/src/types/` | TypeScript definitions |
-| `cli/` | Headless CLI interface (`elisa build`, `status`, `stop`) |
+| `cli/` | Headless CLI interface (`elisa build`, `elisa skill`, `status`, `stop`) |
 | `cli/src/` | CLI source: entry point, server, session client, formatters |
 | `cli/src/commands/` | CLI command implementations (build) |
 | `hardware/` | MicroPython ESP32 templates + shared lib |
@@ -114,6 +114,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/utils/safeEnv.ts` | Sanitized process.env copy (strips ANTHROPIC_API_KEY) |
 | `backend/src/utils/findFreePort.ts` | Scans for available TCP port from a starting port |
 | `backend/src/utils/anthropicClient.ts` | Singleton factory for the Anthropic SDK client |
+| `backend/src/utils/openclawSkillValidator.ts` | OpenClaw SKILL.md frontmatter Zod validator |
 
 ### Prompts
 
@@ -125,6 +126,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/prompts/reviewerAgent.ts` | Reviewer role prompt template |
 | `backend/src/prompts/narratorAgent.ts` | Narrator role prompt for build event narration |
 | `backend/src/prompts/teaching.ts` | Teaching moment curriculum and templates |
+| `backend/src/prompts/skillForgeAgent.ts` | Skill Forge agent prompt template for SKILL.md generation |
 
 ### Components
 
@@ -137,6 +139,9 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/components/BlockCanvas/toolbox.ts` | Blockly sidebar categories |
 | `frontend/src/components/BlockCanvas/skillFlowBlocks.ts` | Skill flow block definitions |
 | `frontend/src/components/BlockCanvas/skillInterpreter.ts` | Skill flow workspace -> SkillPlan conversion |
+| `frontend/src/components/BlockCanvas/openclawBlocks.ts` | OpenClaw block definitions (24 blocks, 6 categories) |
+| `frontend/src/components/BlockCanvas/openclawInterpreter.ts` | OpenClaw block -> config patch compiler |
+| `frontend/src/components/BlockCanvas/openclawRegistry.ts` | Conditional OpenClaw module registration |
 | `frontend/src/components/AgentTeam/AgentTeamPanel.tsx` | Full-width agent cards + comms feed |
 | `frontend/src/components/TaskMap/TaskMapPanel.tsx` | Full-width interactive task DAG |
 | `frontend/src/components/shared/MinionAvatar.tsx` | Animated avatar for narrator/minion characters |
@@ -166,12 +171,13 @@ Block-based visual programming IDE where kids build software by snapping togethe
 
 | File | Role |
 |------|------|
-| `cli/src/cli.ts` | Commander-based entry point (build, status, stop commands) |
+| `cli/src/cli.ts` | Commander-based entry point (build, skill, status, stop commands) |
 | `cli/src/server.ts` | Headless backend startup via dynamic import of backend `startServer()` |
 | `cli/src/session.ts` | SessionClient: REST wrapper for session create/start/stop/status |
 | `cli/src/wsListener.ts` | WebSocket event listener with session completion detection |
 | `cli/src/eventStream.ts` | NDJSON formatter, human-readable formatter, summary collector |
 | `cli/src/commands/build.ts` | Full build pipeline: parse input, server, session, events, output |
+| `cli/src/commands/skill.ts` | Skill Forge pipeline: SKILL.md generation and deployment |
 
 ### Electron
 

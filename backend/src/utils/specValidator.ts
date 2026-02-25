@@ -79,6 +79,129 @@ const AgentSchema = z.object({
   restricted_paths: z.array(z.string().max(200)).max(50).optional(),
 }).strict();
 
+// --- OpenClaw config sub-schemas (Phase 3) ---
+
+const OcAgentModelSchema = z.object({
+  primary: z.string().max(200).optional(),
+  fallbacks: z.array(z.string().max(200)).max(10).optional(),
+}).strict().optional();
+
+const OcAgentToolsSchema = z.object({
+  profile: z.string().max(50).optional(),
+  allow: z.array(z.string().max(200)).max(50).optional(),
+  deny: z.array(z.string().max(200)).max(50).optional(),
+  exec: z.object({
+    security: z.string().max(50).optional(),
+    safeBins: z.array(z.string().max(500)).max(50).optional(),
+  }).strict().optional(),
+  fs: z.object({
+    workspaceOnly: z.boolean().optional(),
+  }).strict().optional(),
+  elevated: z.object({
+    enabled: z.boolean().optional(),
+    allowFrom: z.array(z.string().max(200)).max(50).optional(),
+  }).strict().optional(),
+}).strict().optional();
+
+const OcAgentSandboxSchema = z.object({
+  mode: z.string().max(50).optional(),
+  scope: z.string().max(50).optional(),
+  workspaceAccess: z.string().max(10).optional(),
+}).strict().optional();
+
+const OcAgentSchema = z.object({
+  id: z.string().max(200).optional(),
+  workspace: z.string().max(500).optional(),
+  personality: z.string().max(5000).optional(),
+  model: OcAgentModelSchema,
+  tools: OcAgentToolsSchema,
+  sandbox: OcAgentSandboxSchema,
+}).strict();
+
+const OcChannelGroupSchema = z.object({
+  requireMention: z.boolean().optional(),
+  mentionPatterns: z.array(z.string().max(200)).max(50).optional(),
+}).strict();
+
+const OcChannelSchema = z.object({
+  enabled: z.boolean().optional(),
+  botToken: z.string().max(500).optional(),
+  dmPolicy: z.string().max(50).optional(),
+  allowFrom: z.array(z.string().max(200)).max(100).optional(),
+  groups: z.record(z.string().max(200), OcChannelGroupSchema).optional(),
+}).strict();
+
+const OcBindingSchema = z.object({
+  agentId: z.string().max(200),
+  match: z.object({
+    channel: z.string().max(50).optional(),
+    peer: z.string().max(200).optional(),
+    guild: z.string().max(200).optional(),
+    accountId: z.string().max(200).optional(),
+  }).strict(),
+}).strict();
+
+const OcSecuritySchema = z.object({
+  gateway: z.object({
+    bind: z.string().max(50).optional(),
+    auth: z.object({ mode: z.string().max(50).optional(), token: z.string().max(500).optional() }).strict().optional(),
+  }).strict().optional(),
+  session: z.object({
+    dmScope: z.string().max(50).optional(),
+  }).strict().optional(),
+  browser: z.object({
+    ssrfPolicy: z.object({
+      dangerouslyAllowPrivateNetwork: z.boolean().optional(),
+      hostnameAllowlist: z.array(z.string().max(200)).max(100).optional(),
+    }).strict().optional(),
+  }).strict().optional(),
+}).strict().optional();
+
+const OcCronJobSchema = z.object({
+  schedule: z.string().max(100),
+  skill: z.string().max(200),
+  agentId: z.string().max(200),
+  sessionKey: z.string().max(200).optional(),
+}).strict();
+
+const OcCronSchema = z.object({
+  enabled: z.boolean().optional(),
+  jobs: z.array(OcCronJobSchema).max(50).optional(),
+}).strict().optional();
+
+const OcHookMappingSchema = z.object({
+  match: z.object({ path: z.string().max(200) }).strict(),
+  action: z.string().max(50),
+  agentId: z.string().max(200),
+  deliver: z.boolean().optional(),
+}).strict();
+
+const OcHooksSchema = z.object({
+  enabled: z.boolean().optional(),
+  token: z.string().max(500).optional(),
+  path: z.string().max(200).optional(),
+  mappings: z.array(OcHookMappingSchema).max(50).optional(),
+}).strict().optional();
+
+const OcSkillSchema = z.object({
+  name: z.string().max(200),
+  description: z.string().max(2000),
+  userInvocable: z.boolean().optional(),
+  disableModelInvocation: z.boolean().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  body: z.string().max(10000).optional(),
+}).strict();
+
+const OpenClawConfigSchema = z.object({
+  agents: z.array(OcAgentSchema).max(20).optional(),
+  channels: z.record(z.string().max(50), OcChannelSchema).optional(),
+  bindings: z.array(OcBindingSchema).max(50).optional(),
+  security: OcSecuritySchema,
+  cron: OcCronSchema,
+  hooks: OcHooksSchema,
+  skills: z.array(OcSkillSchema).max(50).optional(),
+}).strict().optional();
+
 export const NuggetSpecSchema = z.object({
   nugget: z.object({
     goal: z.string().max(2000).optional(),
@@ -109,6 +232,7 @@ export const NuggetSpecSchema = z.object({
   skills: z.array(SkillSchema).max(50).optional(),
   rules: z.array(RuleSchema).max(50).optional(),
   portals: z.array(PortalSchema).max(20).optional(),
+  openclawConfig: OpenClawConfigSchema,
   permissions: z.object({
     auto_approve_workspace_writes: z.boolean().optional(),
     auto_approve_safe_commands: z.boolean().optional(),
