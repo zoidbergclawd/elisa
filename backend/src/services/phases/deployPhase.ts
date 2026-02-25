@@ -153,6 +153,125 @@ export class DeployPhase {
     return { process: serverProcess, url: finalUrl };
   }
 
+  shouldDeployIoT(ctx: PhaseContext): boolean {
+    const spec = ctx.session.spec ?? {};
+    const target = spec.deployment?.target ?? 'preview';
+    return target === 'iot';
+  }
+
+  /**
+   * Orchestrate IoT multi-device deploy: optional cloud dashboard first,
+   * then guided flash sequence for each device with user prompts.
+   *
+   * @param ctx Phase context
+   * @param gateResolver Shared gate resolver from orchestrator for blocking on user input
+   */
+  async deployIoT(
+    ctx: PhaseContext,
+    gateResolver: { current: ((value: Record<string, any>) => void) | null },
+  ): Promise<void> {
+    const spec = ctx.session.spec ?? {};
+    const hardware = spec.hardware;
+    if (!hardware?.devices?.length) return;
+
+    // Import CloudDeployService lazily
+    const { CloudDeployService } = await import('../cloudDeployService.js');
+    const cloudService = new CloudDeployService();
+
+    let cloudUrl = '';
+    let apiKey = '';
+
+    // 1. Deploy cloud dashboard if configured
+    if (hardware.cloud) {
+      const project = hardware.cloud.project ?? 'elisa-iot';
+      const region = hardware.cloud.region ?? 'us-central1';
+
+      await ctx.send({ type: 'deploy_started', target: 'cloud_dashboard' });
+      try {
+        const result = await cloudService.deploy(ctx.session.workDir ?? ctx.nuggetDir, project, region);
+        cloudUrl = result.url;
+        apiKey = result.apiKey;
+        await ctx.send({ type: 'deploy_complete', target: 'cloud_dashboard', url: cloudUrl });
+      } catch (err: any) {
+        await ctx.send({ type: 'deploy_progress', step: 'Cloud deploy failed: ' + err.message, progress: 0 });
+        // Continue without cloud -- devices can still work locally
+      }
+    }
+
+    // 2. Flash each device in order
+    const devices = hardware.devices;
+    for (let i = 0; i < devices.length; i++) {
+      const device = devices[i];
+      const friendlyName = device.role === 'sensor_node' ? 'Sensor Node' : 'Gateway Node';
+
+      // Set up gate promise BEFORE sending prompt so the resolver is
+      // available when the frontend (or test mock) handles the event.
+      const gatePromise = new Promise<void>((resolve) => {
+        gateResolver.current = () => { resolve(); };
+      });
+
+      // Prompt user to plug in device
+      await ctx.send({
+        type: 'flash_prompt' as any,
+        device_role: device.role,
+        message: `Plug in your ${friendlyName} and click Ready`,
+      });
+
+      // Wait for gate response (user clicks "Ready" in the UI)
+      await gatePromise;
+
+      // Flash progress
+      await ctx.send({
+        type: 'flash_progress' as any,
+        device_role: device.role,
+        step: 'Compiling and flashing...',
+        progress: 50,
+      });
+
+      // Determine which files to flash
+      const filesToFlash = device.role === 'sensor_node'
+        ? ['sensor_main.py', 'elisa_hardware.py', 'sensors.py', 'oled.py', 'nodes.py', 'ssd1306.py']
+        : ['gateway_main.py', 'elisa_hardware.py', 'nodes.py'];
+
+      // If gateway, inject cloud URL into code
+      if (device.role === 'gateway_node' && cloudUrl) {
+        const gatewayPath = path.join(ctx.nuggetDir, 'gateway_main.py');
+        if (fs.existsSync(gatewayPath)) {
+          let code = fs.readFileSync(gatewayPath, 'utf-8');
+          code = code.replace('__CLOUD_URL__', cloudUrl);
+          code = code.replace('__API_KEY__', apiKey);
+          fs.writeFileSync(gatewayPath, code);
+        }
+      }
+
+      try {
+        const flashResult = await this.hardwareService.flashFiles(ctx.nuggetDir, filesToFlash);
+        if (flashResult.success) {
+          await ctx.send({
+            type: 'flash_complete' as any,
+            device_role: device.role,
+            success: true,
+            message: `${friendlyName} flashed successfully`,
+          });
+        } else {
+          await ctx.send({
+            type: 'flash_complete' as any,
+            device_role: device.role,
+            success: false,
+            message: flashResult.message ?? 'Flash failed',
+          });
+        }
+      } catch (err: any) {
+        await ctx.send({
+          type: 'flash_complete' as any,
+          device_role: device.role,
+          success: false,
+          message: err.message,
+        });
+      }
+    }
+  }
+
   shouldDeployHardware(ctx: PhaseContext): boolean {
     const spec = ctx.session.spec ?? {};
     const target = spec.deployment?.target ?? 'preview';

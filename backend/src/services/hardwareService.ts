@@ -595,6 +595,25 @@ print('FLASH_OK')
     }
   }
 
+  /**
+   * Flash specific files to a MicroPython board via mpremote cp.
+   * Unlike flash() which copies all .py files and runs main.py,
+   * this method copies only the specified files (used for IoT multi-device deploys).
+   */
+  async flashFiles(workDir: string, files: string[]): Promise<{ success: boolean; message?: string }> {
+    const mpremote = findMpremote();
+    for (const file of files) {
+      const filePath = path.join(workDir, file);
+      if (!fs.existsSync(filePath)) continue;
+      try {
+        await execFileAsync(mpremote, ['cp', filePath, `:${file}`], { timeout: 30000 });
+      } catch (err: any) {
+        return { success: false, message: `Failed to flash ${file}: ${err.message}` };
+      }
+    }
+    return { success: true };
+  }
+
   async startSerialMonitor(
     port: string,
     callback: (line: string) => Promise<void>,

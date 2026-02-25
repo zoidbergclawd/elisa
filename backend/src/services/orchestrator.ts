@@ -145,7 +145,9 @@ export class Orchestrator {
         const { process: webProc } = await this.deployPhase.deployWeb(deployCtx);
         this.webServerProcess = webProc;
       }
-      if (this.deployPhase.shouldDeployPortals(deployCtx)) {
+      if (this.deployPhase.shouldDeployIoT(deployCtx)) {
+        await this.deployPhase.deployIoT(deployCtx, this.gateResolver);
+      } else if (this.deployPhase.shouldDeployPortals(deployCtx)) {
         const { serialHandle } = await this.deployPhase.deployPortals(deployCtx);
         this.serialHandle = serialHandle;
       } else if (this.deployPhase.shouldDeployHardware(deployCtx)) {
