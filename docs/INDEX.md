@@ -59,7 +59,8 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `docs/api-reference.md` | API | REST endpoints, WebSocket events, NuggetSpec schema |
 | `docs/block-reference.md` | User | Block categories with descriptions |
 | `docs/elisa-prd.md` | Product | PRD: vision, features, target audience |
-| `docs/iot-guide.md` | User | IoT sensor network user guide |
+| `docs/device-plugins.md` | User | Device plugins guide: using shipped hardware plugins |
+| `docs/creating-device-plugins.md` | Dev | Developer guide for creating new device plugins |
 
 ## Key Source Files
 
