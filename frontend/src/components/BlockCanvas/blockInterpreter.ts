@@ -24,6 +24,22 @@ export interface NuggetSpec {
   hardware?: {
     target: string;
     components: Array<{ type: string; [key: string]: unknown }>;
+    devices: Array<{
+      role: 'sensor_node' | 'gateway_node';
+      board: 'heltec_lora_v3';
+      sensors?: string[];
+      display?: string;
+      lora: { channel: number };
+    }>;
+    cloud?: {
+      platform: 'cloud_run';
+      project?: string;
+      region?: string;
+    };
+  };
+  documentation?: {
+    generate: boolean;
+    focus: 'how_it_works' | 'setup' | 'parts' | 'all';
   };
   deployment: {
     target: string;
@@ -248,7 +264,7 @@ export function interpretWorkspace(
       }
       case 'timer_every': {
         const interval = (block.fields?.INTERVAL as number) ?? 5;
-        if (!spec.hardware) spec.hardware = { target: 'esp32', components: [] };
+        if (!spec.hardware) spec.hardware = { target: 'esp32', components: [], devices: [] };
         spec.hardware.components.push({ type: 'timer', interval });
         hasEsp32 = true;
         break;
@@ -340,6 +356,92 @@ export function interpretWorkspace(
         }
         break;
       }
+      case 'iot_sensor_node': {
+        if (!spec.hardware) spec.hardware = { target: '', components: [], devices: [] } as any;
+        if (!spec.hardware.devices) spec.hardware.devices = [];
+        const sensors: string[] = [];
+        if (block.fields?.SENSOR_DHT22) sensors.push('dht22');
+        if (block.fields?.SENSOR_REED) sensors.push('reed_switch');
+        if (block.fields?.SENSOR_PIR) sensors.push('pir');
+        const device: any = {
+          role: 'sensor_node',
+          board: 'heltec_lora_v3',
+          sensors,
+          lora: { channel: Number(block.fields?.LORA_CHANNEL ?? 1) },
+        };
+        if (block.fields?.HAS_OLED) device.display = 'oled_ssd1306';
+        spec.hardware.devices.push(device);
+        if (!spec.deployment) spec.deployment = { target: 'iot', auto_flash: false };
+        spec.deployment.target = 'iot';
+        break;
+      }
+      case 'iot_gateway_node': {
+        if (!spec.hardware) spec.hardware = { target: '', components: [], devices: [] } as any;
+        if (!spec.hardware.devices) spec.hardware.devices = [];
+        spec.hardware.devices.push({
+          role: 'gateway_node',
+          board: 'heltec_lora_v3',
+          lora: { channel: Number(block.fields?.LORA_CHANNEL ?? 1) },
+        });
+        if (!spec.deployment) spec.deployment = { target: 'iot', auto_flash: false };
+        spec.deployment.target = 'iot';
+        break;
+      }
+      case 'iot_cloud_dashboard': {
+        if (!spec.hardware) spec.hardware = { target: '', components: [], devices: [] } as any;
+        spec.hardware.cloud = {
+          platform: 'cloud_run',
+          project: String(block.fields?.GCP_PROJECT ?? ''),
+        };
+        break;
+      }
+      case 'write_guide': {
+        (spec as any).documentation = {
+          generate: true,
+          focus: String(block.fields?.GUIDE_FOCUS ?? 'all'),
+        };
+        break;
+      }
+      case 'hw_read_dht22':
+        if (!spec.requirements) spec.requirements = [];
+        spec.requirements.push({ type: 'functional', description: 'Read temperature and humidity (DHT22 sensor)' });
+        break;
+      case 'hw_read_reed':
+        if (!spec.requirements) spec.requirements = [];
+        spec.requirements.push({ type: 'functional', description: 'Check door/window open state (reed switch)' });
+        break;
+      case 'hw_read_pir':
+        if (!spec.requirements) spec.requirements = [];
+        spec.requirements.push({ type: 'functional', description: 'Detect motion (PIR sensor)' });
+        break;
+      case 'hw_oled_text':
+        if (!spec.requirements) spec.requirements = [];
+        spec.requirements.push({ type: 'functional', description: `Show "${block.fields?.TEXT ?? ''}" on OLED display` });
+        break;
+      case 'hw_oled_readings':
+        if (!spec.requirements) spec.requirements = [];
+        spec.requirements.push({ type: 'functional', description: 'Display sensor readings on OLED' });
+        break;
+      case 'hw_oled_clear':
+        if (!spec.requirements) spec.requirements = [];
+        spec.requirements.push({ type: 'functional', description: 'Clear the OLED display' });
+        break;
+      case 'hw_lora_send':
+        if (!spec.requirements) spec.requirements = [];
+        spec.requirements.push({ type: 'functional', description: `Send data over LoRa channel ${block.fields?.CHANNEL ?? 1}` });
+        break;
+      case 'hw_lora_receive':
+        if (!spec.requirements) spec.requirements = [];
+        spec.requirements.push({ type: 'functional', description: `Receive LoRa data on channel ${block.fields?.CHANNEL ?? 1}` });
+        break;
+      case 'hw_wifi_connect':
+        if (!spec.requirements) spec.requirements = [];
+        spec.requirements.push({ type: 'functional', description: `Connect to WiFi "${block.fields?.SSID ?? ''}"` });
+        break;
+      case 'hw_http_post':
+        if (!spec.requirements) spec.requirements = [];
+        spec.requirements.push({ type: 'functional', description: `POST data to ${block.fields?.URL ?? ''}` });
+        break;
       case 'deploy_web':
         hasWeb = true;
         break;
