@@ -26,6 +26,7 @@ import { portalTemplates } from './components/Portals/portalTemplates';
 import { playChime } from './lib/playChime';
 import { saveNuggetFile, loadNuggetFile, downloadBlob } from './lib/nuggetFile';
 import { setAuthToken, authFetch } from './lib/apiClient';
+import { registerDeviceBlocks, type DeviceManifest } from './lib/deviceBlocks';
 import type { TeachingMoment } from './types';
 import elisaLogo from '../assets/elisa.svg';
 import type { Skill, Rule } from './components/Skills/types';
@@ -73,6 +74,20 @@ export default function App() {
       // Dev mode without Electron: use dev default
       setAuthToken('dev-token');
     }
+  }, []);
+
+  // Device manifests from backend plugin registry
+  const [deviceManifests, setDeviceManifests] = useState<DeviceManifest[]>([]);
+
+  // Fetch device manifests on mount
+  useEffect(() => {
+    authFetch('/api/devices')
+      .then(r => r.ok ? r.json() : [])
+      .then((data: DeviceManifest[]) => {
+        registerDeviceBlocks(data);
+        setDeviceManifests(data);
+      })
+      .catch(() => { /* device plugins unavailable -- not critical */ });
   }, []);
 
   // Main tab state
@@ -457,6 +472,7 @@ export default function App() {
               rules={rules}
               portals={portals}
               initialWorkspace={initialWorkspace}
+              deviceManifests={deviceManifests}
             />
           </div>
         </div>

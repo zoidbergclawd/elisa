@@ -90,7 +90,11 @@ vi.mock('./lib/nuggetFile', () => ({
 
 vi.mock('./lib/apiClient', () => ({
   setAuthToken: vi.fn(),
-  authFetch: vi.fn(),
+  authFetch: vi.fn(() => Promise.resolve({ ok: false })),
+}));
+
+vi.mock('./lib/deviceBlocks', () => ({
+  registerDeviceBlocks: vi.fn(),
 }));
 
 vi.mock('./lib/playChime', () => ({
