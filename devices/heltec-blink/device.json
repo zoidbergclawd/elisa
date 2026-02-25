@@ -1,0 +1,48 @@
+{
+  "id": "heltec-blink",
+  "name": "Heltec Blink",
+  "version": "1.0.0",
+  "description": "Simple ESP32 LED blink project using the ElisaBoard class",
+  "icon": "lightbulb",
+  "colour": 45,
+
+  "board": {
+    "type": "esp32",
+    "variant": "heltec_lora_v3",
+    "connection": "serial",
+    "detection": {
+      "usb_vid": "0x303A",
+      "usb_pid": "0x1001"
+    }
+  },
+
+  "capabilities": [
+    { "id": "led", "name": "Onboard LED", "kind": "actuator", "params": [{ "name": "pin", "type": "number", "default": 35 }] }
+  ],
+
+  "blocks": [
+    {
+      "type": "heltec_blink",
+      "message": "Heltec Blink %1 Speed %2",
+      "args": [
+        { "type": "input_dummy" },
+        { "type": "field_dropdown", "name": "SPEED", "options": [["Normal", "normal"], ["Fast", "fast"], ["Slow", "slow"]] }
+      ],
+      "previousStatement": true,
+      "nextStatement": true,
+      "tooltip": "Blink the onboard LED on a Heltec ESP32 board"
+    }
+  ],
+
+  "deploy": {
+    "method": "flash",
+    "provides": [],
+    "requires": [],
+    "flash": {
+      "files": ["main.py"],
+      "lib": [],
+      "shared_lib": ["elisa_hardware.py"],
+      "prompt_message": "Plug in your Heltec board and click Ready"
+    }
+  }
+}
