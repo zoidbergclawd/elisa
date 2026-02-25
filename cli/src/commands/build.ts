@@ -24,7 +24,11 @@ export function parseBuildInput(
 ): Record<string, unknown> {
   if (specPath) {
     const raw = fs.readFileSync(specPath, 'utf-8');
-    return JSON.parse(raw) as Record<string, unknown>;
+    try {
+      return JSON.parse(raw) as Record<string, unknown>;
+    } catch (e) {
+      throw new Error(`Failed to parse spec file "${specPath}": ${(e as Error).message}`);
+    }
   }
 
   if (description) {
@@ -71,35 +75,41 @@ export async function runBuild(
     const wsUrl = `ws://127.0.0.1:${port}/ws/session/${sessionId}?token=${authToken}`;
 
     // 7. Set up timeout
-    const timeoutMs = (parseInt(options.timeout ?? '600', 10)) * 1000;
+    const timeoutSec = parseInt(options.timeout ?? '600', 10);
+    if (Number.isNaN(timeoutSec) || timeoutSec <= 0) {
+      throw new Error(`Invalid --timeout value: "${options.timeout}". Must be a positive integer (seconds).`);
+    }
+    const timeoutMs = timeoutSec * 1000;
     const timeoutHandle = setTimeout(async () => {
       process.stderr.write('Build timed out. Stopping...\n');
       await client.stop(sessionId).catch(() => {});
     }, timeoutMs);
 
-    // 8. Listen for events
-    await listenForEvents(wsUrl, (event) => {
-      summary.push(event);
+    try {
+      // 8. Listen for events
+      await listenForEvents(wsUrl, (event) => {
+        summary.push(event);
 
-      if (options.stream) {
-        process.stdout.write(formatNdjsonLine(event));
-      } else if (!options.json) {
-        const msg = formatHumanReadable(event);
-        if (msg) process.stderr.write(msg + '\n');
+        if (options.stream) {
+          process.stdout.write(formatNdjsonLine(event));
+        } else if (!options.json) {
+          const msg = formatHumanReadable(event);
+          if (msg) process.stderr.write(msg + '\n');
+        }
+      });
+
+      // 9. Output JSON summary if requested
+      if (options.json) {
+        process.stdout.write(JSON.stringify(summary.getSummary(), null, 2) + '\n');
       }
-    });
 
-    clearTimeout(timeoutHandle);
-
-    // 9. Output JSON summary if requested
-    if (options.json) {
-      process.stdout.write(JSON.stringify(summary.getSummary(), null, 2) + '\n');
-    }
-
-    // 10. Exit with appropriate code
-    const result = summary.getSummary();
-    if (result.tasksFailed > 0 || result.testsFailed > 0) {
-      process.exitCode = 1;
+      // 10. Exit with appropriate code
+      const result = summary.getSummary();
+      if (result.tasksFailed > 0 || result.testsFailed > 0) {
+        process.exitCode = 1;
+      }
+    } finally {
+      clearTimeout(timeoutHandle);
     }
   } finally {
     await stopServer(server);
