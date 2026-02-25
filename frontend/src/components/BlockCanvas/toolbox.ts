@@ -8,6 +8,7 @@ export const toolbox = {
       contents: [
         { kind: 'block', type: 'nugget_goal' },
         { kind: 'block', type: 'nugget_template' },
+        { kind: 'block', type: 'write_guide' },
       ],
     },
     {
@@ -85,6 +86,33 @@ export const toolbox = {
         { kind: 'block', type: 'keep_improving' },
         { kind: 'block', type: 'check_with_me' },
         { kind: 'block', type: 'timer_every' },
+      ],
+    },
+    {
+      kind: 'category',
+      name: 'IoT Devices',
+      colour: '45',
+      contents: [
+        { kind: 'block', type: 'iot_sensor_node' },
+        { kind: 'block', type: 'iot_gateway_node' },
+        { kind: 'block', type: 'iot_cloud_dashboard' },
+      ],
+    },
+    {
+      kind: 'category',
+      name: 'Hardware',
+      colour: '45',
+      contents: [
+        { kind: 'block', type: 'hw_read_dht22' },
+        { kind: 'block', type: 'hw_read_reed' },
+        { kind: 'block', type: 'hw_read_pir' },
+        { kind: 'block', type: 'hw_oled_text' },
+        { kind: 'block', type: 'hw_oled_readings' },
+        { kind: 'block', type: 'hw_oled_clear' },
+        { kind: 'block', type: 'hw_lora_send' },
+        { kind: 'block', type: 'hw_lora_receive' },
+        { kind: 'block', type: 'hw_wifi_connect' },
+        { kind: 'block', type: 'hw_http_post' },
       ],
     },
     {
