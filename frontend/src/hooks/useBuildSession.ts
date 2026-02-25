@@ -54,6 +54,14 @@ export function useBuildSession() {
   const [deployChecklist, setDeployChecklist] = useState<Array<{ name: string; prompt: string }> | null>(null);
   const [deployUrl, setDeployUrl] = useState<string | null>(null);
   const [isPlanning, setIsPlanning] = useState(false);
+  const [flashWizardState, setFlashWizardState] = useState<{
+    visible: boolean;
+    deviceRole: string;
+    message: string;
+    isFlashing: boolean;
+    progress: number;
+  } | null>(null);
+  const [documentationPath, setDocumentationPath] = useState<string | null>(null);
   const tasksRef = useRef<Task[]>([]);
 
   const handleEvent = useCallback((event: WSEvent) => {
@@ -267,6 +275,33 @@ export function useBuildSession() {
           a.name === event.agent_name ? { ...a, status: event.new_status as Agent['status'] } : a
         ));
         break;
+      case 'flash_prompt':
+        setFlashWizardState({
+          visible: true,
+          deviceRole: event.device_role,
+          message: event.message,
+          isFlashing: false,
+          progress: 0,
+        });
+        break;
+      case 'flash_progress':
+        setFlashWizardState(prev => prev ? ({
+          ...prev,
+          isFlashing: true,
+          progress: event.progress,
+        }) : prev);
+        break;
+      case 'flash_complete':
+        setFlashWizardState(prev => prev ? ({
+          ...prev,
+          isFlashing: false,
+          progress: 100,
+          visible: false,
+        }) : prev);
+        break;
+      case 'documentation_ready':
+        setDocumentationPath(event.file_path);
+        break;
       case 'workspace_created':
         setNuggetDir(event.nugget_dir);
         break;
@@ -323,6 +358,8 @@ export function useBuildSession() {
     setNuggetDir(null);
     setErrorNotification(null);
     setNarratorMessages([]);
+    setFlashWizardState(null);
+    setDocumentationPath(null);
 
     const res = await authFetch('/api/sessions', { method: 'POST' });
     if (!res.ok) {
@@ -403,6 +440,8 @@ export function useBuildSession() {
     setQuestionRequest(null);
     setErrorNotification(null);
     setNarratorMessages([]);
+    setFlashWizardState(null);
+    setDocumentationPath(null);
     setTokenUsage({ input: 0, output: 0, total: 0, costUsd: 0, maxBudget: 500_000, perAgent: {} });
   }, []);
 
@@ -411,6 +450,7 @@ export function useBuildSession() {
     teachingMoments, testResults, coveragePct, tokenUsage,
     serialLines, deployProgress, deployChecklist, deployUrl, gateRequest, questionRequest,
     nuggetDir, errorNotification, narratorMessages, isPlanning,
+    flashWizardState, documentationPath,
     handleEvent, startBuild, stopBuild, clearGateRequest, clearQuestionRequest,
     clearErrorNotification, resetToDesign,
   };
