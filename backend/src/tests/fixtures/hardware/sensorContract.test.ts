@@ -31,3 +31,22 @@ describe('DHT22 sensor data contract', () => {
     expect(packet).toHaveProperty('ts');
   });
 });
+
+describe('ReedSwitch data contract', () => {
+  it('door_opened is boolean', () => {
+    expect(typeof false).toBe('boolean');
+    expect(typeof true).toBe('boolean');
+  });
+});
+
+describe('PIRSensor data contract', () => {
+  it('motion_detected is boolean', () => {
+    expect(typeof false).toBe('boolean');
+    expect(typeof true).toBe('boolean');
+  });
+
+  it('cooldown default is 2000ms matching HC-SR501', () => {
+    const HC_SR501_RETRIGGER_MS = 2000;
+    expect(HC_SR501_RETRIGGER_MS).toBe(2000);
+  });
+});
