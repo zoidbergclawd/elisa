@@ -32,7 +32,18 @@ cli/ (Commander + TypeScript)
 +-----------------------+
 | elisa build "desc"    |  Starts backend headless (in-process)
 | elisa build --spec f  |  Creates session, streams events
+| elisa skill "desc"    |  Generates OpenClaw SKILL.md files
 | elisa status / stop   |  NDJSON or human-readable output
++-----------------------+
+
+OpenClaw Module (optional, conditional)
++-----------------------+
+| Block definitions     |  6 categories, 24 oc_* block types
+| Block interpreter     |  Blocks -> OpenClawConfig patches
+| Conditional registry  |  Feature gate, toolbox injection
+| SKILL.md validator    |  Zod schema for frontmatter validation
+| Skill Forge prompt    |  Agent prompt for SKILL.md generation
+| elisa skill CLI cmd   |  Headless skill generation + deploy
 +-----------------------+
 ```
 
@@ -128,6 +139,7 @@ idle -> planning -> executing -> testing -> reviewing -> deploying -> done
 - **Bearer token auth**: Server generates a random auth token on startup. All `/api/*` routes (except `/api/health`) require `Authorization: Bearer <token>`. WebSocket upgrades require `?token=<token>` query param. In Electron, token is shared to renderer via IPC.
 - **Content safety**: All agent prompts include a Content Safety section enforcing age-appropriate output (ages 8-14). User-controlled placeholder values are sanitized before prompt interpolation.
 - **Abort propagation**: Orchestrator's AbortController signal is forwarded to each agent's SDK `query()` call. On cancel or error, agents are aborted immediately.
+- **Optional OpenClaw module**: OpenClaw blocks, commands, and adapters load conditionally. Non-OpenClaw users see no OpenClaw UI or functionality. Activated via settings or `openclaw` on PATH.
 - **API key management**: In dev, read from `ANTHROPIC_API_KEY` env var. In Electron, encrypted via OS keychain (`safeStorage`) and stored locally. Child processes (test runners, flash scripts, builds) receive sanitized env without the API key.
 
 ## Storage
@@ -154,11 +166,12 @@ The CLI (`cli/`) provides a headless interface to Elisa's build pipeline, enabli
 elisa build "Build a REST API"         # Human-readable progress on stderr
 elisa build --spec nugget.json --json  # JSON summary on stdout
 elisa build "..." --stream             # NDJSON event stream on stdout
+elisa skill "summarize GitHub PRs"     # Generate OpenClaw SKILL.md
 elisa status <sessionId>               # Check build progress
 elisa stop <sessionId>                 # Cancel a running build
 ```
 
-Key files: `cli/src/cli.ts` (entry point), `cli/src/server.ts` (headless startup), `cli/src/session.ts` (REST client), `cli/src/wsListener.ts` (WebSocket listener), `cli/src/eventStream.ts` (formatters), `cli/src/commands/build.ts` (build pipeline).
+Key files: `cli/src/cli.ts` (entry point), `cli/src/server.ts` (headless startup), `cli/src/session.ts` (REST client), `cli/src/wsListener.ts` (WebSocket listener), `cli/src/eventStream.ts` (formatters), `cli/src/commands/build.ts` (build pipeline), `cli/src/commands/skill.ts` (Skill Forge pipeline).
 
 ## Module-Level Documentation
 

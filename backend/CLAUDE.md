@@ -47,6 +47,7 @@ src/
     reviewerAgent.ts     Reviewer role prompt template
     teaching.ts          Teaching moment curriculum and templates
     narratorAgent.ts     Narrator role prompt for build event narration
+    skillForgeAgent.ts   Skill Forge prompt template for SKILL.md generation
   utils/
     dag.ts               Task DAG with Kahn's topological sort, cycle detection
     contextManager.ts    Builds file manifests, nugget context, structural digests, state snapshots
@@ -60,6 +61,7 @@ src/
     safeEnv.ts           Sanitized process.env copy (strips ANTHROPIC_API_KEY)
     findFreePort.ts      Scans for available TCP port from a starting port
     anthropicClient.ts   Singleton factory for the Anthropic SDK client
+    openclawSkillValidator.ts  Zod schema validator for OpenClaw SKILL.md frontmatter
 ```
 
 ## API Surface
@@ -91,7 +93,8 @@ src/
 ## Key Patterns
 
 - **Session state**: In-memory Maps with optional JSON persistence for checkpoint/recovery. Auto-cleanup after 5-min grace period.
-- **NuggetSpec validation**: Zod schema validates at `/api/sessions/:id/start` (string caps, array limits, portal command allowlist).
+- **NuggetSpec validation**: Zod schema validates at `/api/sessions/:id/start` (string caps, array limits, portal command allowlist). Includes optional `openclawConfig` field for OpenClaw block output.
+- **Portal command allowlist**: `ALLOWED_COMMANDS` in `portalService.ts` includes `openclaw` and `clawhub` for OpenClaw gateway and skill publishing.
 - **SDK query per task**: Each agent task calls `query()` from `@anthropic-ai/claude-agent-sdk` with `permissionMode: 'bypassPermissions'`, `maxTurns: 20`
 - **Streaming-parallel execution**: Up to 3 independent tasks run concurrently via Promise.race pool. New tasks schedule as soon as any completes. Git commits serialized via mutex.
 - **Token budget**: Default 500k token limit per session. Warning event at 80%. Graceful stop when exceeded. Cost tracking per agent.

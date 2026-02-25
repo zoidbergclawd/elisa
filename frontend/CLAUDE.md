@@ -16,7 +16,7 @@ src/
   App.tsx                    Root component. Owns all session state. Tabbed main layout.
   main.tsx                   Entry point. React 19 createRoot.
   components/
-    BlockCanvas/             Blockly editor + block-to-NuggetSpec conversion + WorkspaceSidebar
+    BlockCanvas/             Blockly editor + block-to-NuggetSpec conversion + WorkspaceSidebar + OpenClaw blocks
     AgentTeam/               Full-width agent cards + comms feed panel (Agents tab)
     TaskMap/                 Full-width interactive task DAG panel (Tasks tab)
     MissionControl/          MissionControlPanel (layout), MinionSquadPanel, NarratorFeed, TaskDAG, CommsFeed, MetricsPanel

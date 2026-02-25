@@ -45,6 +45,9 @@ App.tsx
 - `blockDefinitions.ts`: 20+ custom block types across 8 categories (Goal, Requirements, Style, Agents, Flow, Deploy, Skills, Portals)
 - `blockInterpreter.ts`: Walks Blockly workspace JSON, extracts fields, builds NuggetSpec.
 - `toolbox.ts`: Defines Blockly sidebar categories and their block contents.
+- `openclawBlocks.ts`: 24 OpenClaw block types across 6 categories (Agents, Channels, Security, Automations, Skills, Deploy). All use `oc_` prefix and hue 20.
+- `openclawInterpreter.ts`: Walks workspace JSON for `oc_*` blocks, compiles into OpenClawConfig patches.
+- `openclawRegistry.ts`: Feature gate for conditional OpenClaw block registration and toolbox injection. Non-OpenClaw users see no OC blocks.
 
 ## Key Patterns
 

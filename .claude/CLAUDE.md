@@ -66,6 +66,7 @@ The CLI provides a headless interface to the build pipeline for automation and e
 ```
 npm run build:cli                         # compile CLI to cli/dist/
 node cli/dist/cli.js build "description"  # run a headless build
+node cli/dist/cli.js skill "description"  # generate an OpenClaw SKILL.md
 npm run test:cli                          # run CLI tests
 ```
 
