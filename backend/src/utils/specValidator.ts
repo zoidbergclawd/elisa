@@ -84,6 +84,37 @@ const AgentSchema = z.object({
   restricted_paths: z.array(z.string().max(200)).max(50).optional(),
 }).strict();
 
+// --- IoT Hardware schemas ---
+
+const LoRaConfigSchema = z.object({
+  channel: z.number().int().min(0).max(255),
+  frequency: z.number().optional(),
+});
+
+const HardwareDeviceSchema = z.object({
+  role: z.enum(['sensor_node', 'gateway_node']),
+  board: z.enum(['heltec_lora_v3']),
+  sensors: z.array(z.enum(['dht22', 'reed_switch', 'pir'])).optional(),
+  display: z.enum(['oled_ssd1306']).optional(),
+  lora: LoRaConfigSchema,
+});
+
+const CloudConfigSchema = z.object({
+  platform: z.enum(['cloud_run']),
+  project: z.string().max(100).optional(),
+  region: z.string().max(50).optional(),
+});
+
+const HardwareConfigSchema = z.object({
+  devices: z.array(HardwareDeviceSchema).min(1).max(10),
+  cloud: CloudConfigSchema.optional(),
+});
+
+const DocumentationConfigSchema = z.object({
+  generate: z.boolean(),
+  focus: z.enum(['how_it_works', 'setup', 'parts', 'all']),
+});
+
 export const NuggetSpecSchema = z.object({
   nugget: z.object({
     goal: z.string().max(2000).optional(),
@@ -115,6 +146,8 @@ export const NuggetSpecSchema = z.object({
   skills: z.array(SkillSchema).max(50).optional(),
   rules: z.array(RuleSchema).max(50).optional(),
   portals: z.array(PortalSchema).max(20).optional(),
+  hardware: HardwareConfigSchema.optional(),
+  documentation: DocumentationConfigSchema.optional(),
   permissions: z.object({
     auto_approve_workspace_writes: z.boolean().optional(),
     auto_approve_safe_commands: z.boolean().optional(),
