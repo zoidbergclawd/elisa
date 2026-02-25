@@ -48,3 +48,120 @@ The AI minions will write MicroPython code to blink the LED, then the Flash Wiza
 4. Watch the progress bar. When it says "Flash complete!", your board's LED should start blinking!
 
 You just built and deployed your first hardware project.
+
+---
+
+## Building a Sensor Network
+
+Your finished project will have two devices talking to each other wirelessly, plus a cloud dashboard:
+
+```
+  Sensor Node                Gateway Node              Cloud Dashboard
++----------------+         +----------------+       +------------------+
+| DHT22 (temp)   |  LoRa   | Receives data  | WiFi  | Live gauges      |
+| Reed (door)    |-------->| over LoRa      |------>| Temperature      |
+| PIR (motion)   | 915 MHz | Sends to cloud | HTTP  | Humidity         |
+| OLED display   |         | over WiFi      |       | Door / Motion    |
++----------------+         +----------------+       +------------------+
+```
+
+### What You Need
+
+#### Boards
+
+You need two Heltec WiFi LoRa V3 boards. One becomes the Sensor Node and the other becomes the Gateway Node. These boards have WiFi, LoRa radio, and a tiny OLED screen built in -- no extra radio modules needed.
+
+| Item | Quantity | Notes |
+|------|----------|-------|
+| Heltec WiFi LoRa V3 | 2 | One for Sensor Node, one for Gateway Node |
+| USB-C cable | 2 | For flashing code to each board. Make sure they carry data, not just power. |
+
+#### Sensors (for the Sensor Node)
+
+| Sensor | What it measures | Notes |
+|--------|-----------------|-------|
+| DHT22 / AM2302 | Temperature and humidity | The blue one with a grid on the front. Comes on a small breakout board with 3 pins. |
+| Magnetic reed switch | Door or window open/close | Two-piece magnet sensor. One piece goes on the door frame, one on the door. |
+| HC-SR501 PIR sensor | Motion | The dome-shaped sensor. Detects people and animals moving nearby. |
+
+#### Other parts
+
+| Item | Quantity | Notes |
+|------|----------|-------|
+| 10K ohm resistor | 1 | Pull-up resistor for the DHT22 data pin |
+| Jumper wires | ~10 | Male-to-female recommended (plug into breadboard and sensor pins) |
+| Breadboard | 1 | Optional but makes wiring much easier |
+
+---
+
+### Wiring Guide
+
+Only the **Sensor Node** board needs wiring. The Gateway Node has no sensors -- just plug it in with USB and you are done.
+
+The OLED screen is built into the Heltec board. No wiring needed for that.
+
+#### Pin Map
+
+| Sensor | Board Pin | Wire Color (suggested) |
+|--------|-----------|----------------------|
+| DHT22 data | GPIO 13 | Yellow |
+| DHT22 power (VCC) | 3.3V | Red |
+| DHT22 ground (GND) | GND | Black |
+| Reed switch (one leg) | GPIO 12 | Green |
+| Reed switch (other leg) | GND | Black |
+| PIR output | GPIO 14 | Orange |
+| PIR power (VCC) | 3.3V | Red |
+| PIR ground (GND) | GND | Black |
+
+#### Wiring Diagram
+
+```
+Heltec WiFi LoRa V3 (Sensor Node)
++---------------------------------------+
+|                                       |
+|  [OLED Screen - built in]             |
+|                                       |
+|  3.3V ----+------+------+            |
+|           |      |      |            |
+|          [R]    VCC    VCC           |
+|          10K     |      |            |
+|           |    DHT22   PIR           |
+|  GPIO 13--+--DATA  OUT------ GPIO 14 |
+|              GND    GND              |
+|               |      |               |
+|  GND --------+------+------+        |
+|                             |        |
+|  GPIO 12 ----[REED]--------+        |
+|              (switch)                 |
+|                                       |
++---------------------------------------+
+```
+
+#### Step-by-step wiring
+
+**DHT22 (temperature and humidity)**
+
+1. Connect the DHT22 VCC pin to 3.3V on the board.
+2. Connect the DHT22 GND pin to GND on the board.
+3. Connect the DHT22 DATA pin to GPIO 13 on the board.
+4. Place the 10K resistor between the DATA pin and 3.3V. This is the "pull-up resistor" -- it keeps the signal clean. Without it, the sensor gives bad readings.
+
+**Reed switch (door/window sensor)**
+
+1. Connect one leg of the reed switch to GPIO 12.
+2. Connect the other leg to GND.
+3. No extra resistor needed -- the board uses an internal pull-up.
+
+**PIR motion sensor (HC-SR501)**
+
+1. Connect the PIR VCC pin to 3.3V on the board.
+2. Connect the PIR GND pin to GND on the board.
+3. Connect the PIR OUT pin to GPIO 14 on the board.
+4. Tip: The PIR sensor has two small orange knobs on the back. The left one sets sensitivity (turn clockwise for more sensitive). The right one sets how long it stays triggered (turn counter-clockwise for shorter, about 2-3 seconds is good).
+
+**Double-check before powering on:**
+
+- Red wires go to 3.3V (NOT 5V -- the sensors work at 3.3V and so does the board)
+- Black wires go to GND
+- Data/signal wires go to the correct GPIO pins
+- The 10K pull-up resistor connects DHT22 DATA to 3.3V
