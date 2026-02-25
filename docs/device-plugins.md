@@ -304,3 +304,58 @@ The Flash Wizard moves to the next step:
 2. The Sensor Node's OLED screen should light up and show sensor readings.
 3. The Gateway Node connects to WiFi and starts forwarding data.
 4. Open your cloud dashboard URL in a browser -- you should see live data within a few seconds.
+
+---
+
+## Troubleshooting
+
+### Sensor not reading / shows wrong values
+
+| Problem | What to check |
+|---------|--------------|
+| DHT22 always reads 0 or NaN | Is the 10K pull-up resistor connected between DATA and 3.3V? Without it, the sensor cannot communicate. |
+| DHT22 reads but values are wrong | Make sure you connected to 3.3V, not 5V. Check that the data wire is on GPIO 13. |
+| Reed switch does not detect door | Bring the magnet piece close to the switch piece (within 1 cm). Check that wires are on GPIO 12 and GND. |
+| PIR always says "motion detected" | The PIR sensor needs about 30-60 seconds to warm up after powering on. Wait a minute and try again. Also turn down the sensitivity knob on the back. |
+| PIR never detects anything | Check that the VCC wire is on 3.3V and the OUT wire is on GPIO 14. Make sure nothing is blocking the dome. |
+
+### LoRa not connecting
+
+| Problem | What to check |
+|---------|--------------|
+| No data reaching the Gateway | Make sure both boards are set to the **same LoRa channel**. Check in your Elisa blocks. |
+| Weak or intermittent signal | Make sure the antenna is attached to both boards (the small wire on the side). LoRa can reach hundreds of meters with a clear line of sight, but walls reduce range. Move the boards closer together to test. |
+| "LoRa init failed" on screen | The LoRa chip did not start. Try pressing the RST (reset) button on the board. If it keeps failing, check that the antenna connector is not loose. |
+
+### WiFi not connecting
+
+| Problem | What to check |
+|---------|--------------|
+| Gateway cannot connect to WiFi | Double-check the SSID and password in your Gateway Node block. WiFi names are case-sensitive. |
+| Connects then disconnects | The board might be too far from the router. Move it closer. The board reconnects automatically -- check the OLED or serial monitor for status. |
+| Wrong network | Make sure you typed the 2.4 GHz network name, not the 5 GHz one. The ESP32 only supports 2.4 GHz WiFi. |
+
+### Dashboard not updating
+
+| Problem | What to check |
+|---------|--------------|
+| Dashboard loads but shows no data | Check that the Gateway Node is connected to WiFi and the LoRa radio is receiving data. The OLED on the Gateway shows status. |
+| "Connection error" on dashboard | The Cloud Run service might have gone to sleep (it scales to zero when idle). Refresh the page -- it wakes up in a few seconds. |
+| API key error in logs | The API key is generated during the build and shared between the Gateway and the cloud service. If you reflashed one device without the other, they might have mismatched keys. Rebuild the whole project in Elisa. |
+| Need to check Cloud Run logs | Run: `gcloud run logs read --project=YOUR_PROJECT_ID` |
+
+### Board not detected by Elisa
+
+| Problem | What to check |
+|---------|--------------|
+| Nothing happens when plugged in | Try a different USB cable. Some cables are charge-only and do not carry data. If the cable works for charging your phone but nothing else, it is probably charge-only. |
+| Board shows in Device Manager but Elisa does not see it | You may need the CP210x USB driver. Download it from [silabs.com/developers/usb-to-uart-bridge-vcp-drivers](https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers). Restart Elisa after installing. |
+| Wrong COM port / permission error | On Windows, check Device Manager > Ports. On Mac/Linux, check `ls /dev/tty*`. Make sure no other program (Arduino IDE, serial monitor) has the port open. |
+| Flash fails or times out | Press the RST button on the board and try again. If it keeps failing, hold the BOOT button while pressing RST to enter bootloader mode, then try flashing again. |
+
+### General tips
+
+- **When in doubt, reset.** Press the RST button on the board to restart the program.
+- **Check the Board tab.** In Elisa, the Board tab in the bottom bar shows serial output from connected boards. Look there for error messages.
+- **One board at a time.** When flashing, only have one board plugged in. If both are connected, Elisa might flash the wrong one.
+- **Power matters.** If your sensors act erratically, try a powered USB hub or a separate power supply. Some laptop USB ports do not provide enough current for the board plus sensors.
