@@ -34,6 +34,7 @@ App.tsx
   shared/ExamplePickerModal.tsx      Card grid to choose bundled example nuggets
   shared/DirectoryPickerModal.tsx   Text input fallback for non-Electron workspace directory selection
   shared/BoardDetectedModal.tsx    Celebrates ESP32 connection, offers one-click Portal creation
+  shared/FlashWizardModal.tsx     Multi-device flash wizard with progress bar for IoT deploy
   Skills/SkillsModal.tsx             CRUD editor for custom skills + template library
   Skills/SkillFlowEditor.tsx         Visual flow editor for composite skill steps
   Rules/RulesModal.tsx               CRUD editor for rules + template library
