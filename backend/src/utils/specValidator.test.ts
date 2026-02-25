@@ -119,22 +119,6 @@ describe('NuggetSpecSchema portal config validation', () => {
     expect(result.success).toBe(false);
   });
 
-  it('accepts valid serialConfig', () => {
-    const result = NuggetSpecSchema.safeParse({
-      portals: [
-        {
-          ...basePortal,
-          mechanism: 'serial',
-          serialConfig: {
-            port: 'COM3',
-            baudRate: 115200,
-          },
-        },
-      ],
-    });
-    expect(result.success).toBe(true);
-  });
-
   it('rejects portal with unrecognized config fields', () => {
     const result = NuggetSpecSchema.safeParse({
       portals: [

@@ -220,17 +220,7 @@ function createApp(staticDir?: string, authToken?: string) {
 
   // Portal test: test a portal connection
   app.post('/api/portals/:id/test', async (req, res) => {
-    const { mechanism, serialConfig } = req.body;
-    if (mechanism === 'serial') {
-      const board = await hardwareService.detectBoard();
-      if (board) {
-        res.json({ success: true, message: `Board detected: ${board.boardType} on ${board.port}` });
-      } else {
-        res.json({ success: false, message: 'No board detected. Connect via USB and try again.' });
-      }
-    } else {
-      res.json({ success: true, message: 'Connection test not yet implemented for this mechanism.' });
-    }
+    res.json({ success: true, message: 'Connection test not yet implemented for this mechanism.' });
   });
 
   // -- Static file serving (production: Electron serves frontend) --
