@@ -137,6 +137,7 @@ export function formatTaskPrompt(params: {
   spec: Record<string, any>;
   predecessors: string[];
   style?: Record<string, any> | null;
+  deviceRegistry?: { getAgentContext(id: string): string };
 }): string {
   const { agentName, role, persona, task, spec, predecessors, style } = params;
   const parts: string[] = [
@@ -287,6 +288,17 @@ Key constraints:
   const iotContext = buildIotContext(spec);
   if (iotContext) {
     parts.push(iotContext);
+  }
+
+  // Device plugin context injection
+  if (params.deviceRegistry && spec.devices?.length) {
+    const seen = new Set<string>();
+    for (const device of spec.devices) {
+      if (seen.has(device.pluginId)) continue;
+      seen.add(device.pluginId);
+      const ctx = params.deviceRegistry.getAgentContext(device.pluginId);
+      if (ctx) parts.push(`\n## Device: ${device.pluginId}\n${ctx}`);
+    }
   }
 
   return parts.join('\n');
