@@ -82,36 +82,6 @@ export interface NarratorMessage {
   timestamp: number;
 }
 
-// IoT Hardware types
-export interface LoRaConfig {
-  channel: number;
-  frequency?: number;
-}
-
-export interface HardwareDevice {
-  role: 'sensor_node' | 'gateway_node';
-  board: 'heltec_lora_v3';
-  sensors?: ('dht22' | 'reed_switch' | 'pir')[];
-  display?: 'oled_ssd1306';
-  lora: LoRaConfig;
-}
-
-export interface CloudConfig {
-  platform: 'cloud_run';
-  project?: string;
-  region?: string;
-}
-
-export interface HardwareConfig {
-  devices: HardwareDevice[];
-  cloud?: CloudConfig;
-}
-
-export interface DocumentationConfig {
-  generate: boolean;
-  focus: 'how_it_works' | 'setup' | 'parts' | 'all';
-}
-
 export interface DeviceInstance {
   pluginId: string;
   instanceId: string;

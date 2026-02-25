@@ -22,26 +22,6 @@ export interface NuggetSpec {
     role: string;
     persona: string;
   }>;
-  hardware?: {
-    target: string;
-    components: Array<{ type: string; [key: string]: unknown }>;
-    devices: Array<{
-      role: 'sensor_node' | 'gateway_node';
-      board: 'heltec_lora_v3';
-      sensors?: string[];
-      display?: string;
-      lora: { channel: number };
-    }>;
-    cloud?: {
-      platform: 'cloud_run';
-      project?: string;
-      region?: string;
-    };
-  };
-  documentation?: {
-    generate: boolean;
-    focus: 'how_it_works' | 'setup' | 'parts' | 'all';
-  };
   deployment: {
     target: string;
     auto_flash: boolean;
@@ -65,7 +45,6 @@ export interface NuggetSpec {
     interactions: Array<{ type: 'tell' | 'when' | 'ask'; capabilityId: string; params?: Record<string, string | number | boolean> }>;
     mcpConfig?: Record<string, unknown>;
     cliConfig?: Record<string, unknown>;
-    serialConfig?: Record<string, unknown>;
   }>;
   devices?: Array<{
     pluginId: string;
@@ -271,9 +250,7 @@ export function interpretWorkspace(
       }
       case 'timer_every': {
         const interval = (block.fields?.INTERVAL as number) ?? 5;
-        if (!spec.hardware) spec.hardware = { target: 'esp32', components: [], devices: [] };
-        spec.hardware.components.push({ type: 'timer', interval });
-        hasEsp32 = true;
+        spec.requirements.push({ type: 'timer', description: `Repeat every ${interval} seconds` });
         break;
       }
       case 'use_skill': {
@@ -326,7 +303,6 @@ export function interpretWorkspace(
                 interactions: [],
                 ...(portal.mcpConfig ? { mcpConfig: portal.mcpConfig as Record<string, unknown> } : {}),
                 ...(portal.cliConfig ? { cliConfig: portal.cliConfig as Record<string, unknown> } : {}),
-                ...(portal.serialConfig ? { serialConfig: portal.serialConfig as Record<string, unknown> } : {}),
               };
               spec.portals.push(portalEntry);
             }
