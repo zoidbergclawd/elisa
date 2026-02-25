@@ -414,3 +414,387 @@ Here is the full `heltec-blink` manifest -- the simplest working plugin:
 For a more complex example with multiple capabilities, checkboxes, number fields, library files, and spec mapping, see `devices/heltec-sensor-node/device.json`.
 
 For a cloud deploy example with platform params, see `devices/cloud-dashboard/device.json`.
+
+---
+
+## Agent Context (`prompts/agent-context.md`)
+
+The agent context file is a markdown document that gets injected into the builder agent's system prompt when a build includes a device from your plugin. It gives the AI detailed knowledge of your hardware so it can generate correct MicroPython code.
+
+### How injection works
+
+When the NuggetSpec includes a device with your `pluginId`, the orchestrator calls `deviceRegistry.getAgentContext(pluginId)`. This reads `prompts/agent-context.md` from your plugin directory and appends it to the builder agent's task prompt under a `## Device: <pluginId>` header. The content is cached after the first read. If no `agent-context.md` file exists, the agent receives no device-specific context (this is not an error, but the agent will lack hardware knowledge).
+
+The injection happens in `backend/src/prompts/builderAgent.ts` inside `formatTaskPrompt()`:
+
+```typescript
+if (params.deviceRegistry && spec.devices?.length) {
+  const seen = new Set<string>();
+  for (const device of spec.devices) {
+    if (seen.has(device.pluginId)) continue;
+    seen.add(device.pluginId);
+    const ctx = params.deviceRegistry.getAgentContext(device.pluginId);
+    if (ctx) parts.push(`\n## Device: ${device.pluginId}\n${ctx}`);
+  }
+}
+```
+
+Each unique `pluginId` in the spec's `devices` array gets its context injected once, even if the same plugin appears multiple times.
+
+### What to include
+
+Your agent context should contain everything the AI needs to write correct code for your hardware:
+
+- **Hardware API reference** -- class names, constructors, methods, return types
+- **Pin mappings** -- exact GPIO numbers for your board variant
+- **Driver constraints** -- memory limits, timing requirements, protocol quirks
+- **Example code snippets** -- minimal working MicroPython examples
+- **Import instructions** -- which modules are pre-loaded vs. built-in
+- **Pitfalls** -- common MicroPython mistakes to avoid (e.g., `urequests` not `requests`)
+
+### Tips
+
+- Be specific about pin numbers. The agent has no way to look up a datasheet.
+- Mention driver limitations (e.g., "memory is limited to ~100KB free heap").
+- Include a minimal working MicroPython example so the agent has a concrete starting point.
+- List which library files are pre-loaded on the device so the agent knows what to import.
+- Add a "Code Generation Rules" section telling the agent what to generate and what NOT to generate (e.g., "DO NOT generate the library files -- only generate main scripts").
+- Keep the context focused. The entire file is injected into the prompt, so avoid unnecessary prose.
+
+### Example
+
+Here is the complete agent context from `heltec-blink`, which is a good template for simple plugins:
+
+```markdown
+# Heltec Blink -- Agent Context
+
+You are building a simple MicroPython LED blink project for the Heltec WiFi LoRa V3 (ESP32-S3).
+
+## ElisaBoard Class (from elisa_hardware.py)
+
+\```python
+from elisa_hardware import ElisaBoard
+
+board = ElisaBoard()
+
+# LED control
+board.led_on()
+board.led_off()
+board.led_blink(times=3, speed="normal")  # speed: "slow", "normal", "fast"
+
+# Button (GPIO 0)
+board.on_button_press(lambda: print("pressed!"))
+\```
+
+## Key Constraints
+
+- Write MicroPython code (not CPython, not JavaScript)
+- The LED is on GPIO 35
+- Use `from machine import Pin` for GPIO
+- Keep the main loop alive with `while True:` and `time.sleep()`
+- DO NOT attempt to deploy or flash -- a separate deploy phase handles that
+- NEVER use emoji or unicode characters beyond ASCII
+```
+
+For a more complex example with sensor classes, display APIs, and pin mapping tables, see `devices/heltec-sensor-node/prompts/agent-context.md`.
+
+---
+
+## Templates and Libraries
+
+Device plugins can include starter code and MicroPython libraries that are flashed alongside user-generated code.
+
+### `templates/` -- Starter code
+
+The `templates/` directory contains entry-point scripts that the agent can reference or copy when generating code. These are the files listed in `deploy.flash.files` and are the main scripts flashed to the device. For example, `heltec-blink` has `templates/main.py` and `heltec-sensor-node` has `templates/sensor_main.py`.
+
+### `lib/` -- Plugin-specific libraries
+
+The `lib/` directory contains MicroPython modules specific to your plugin. These are flashed to the device alongside the main scripts. They are referenced via `deploy.flash.lib` in your manifest. For example, `heltec-sensor-node` ships with `sensors.py`, `oled.py`, `nodes.py`, and `ssd1306.py` in its `lib/` directory.
+
+The agent context should tell the AI that these libraries are pre-loaded, so the agent imports from them rather than trying to re-implement them.
+
+### `_shared/` -- Shared libraries for all plugins
+
+The `devices/_shared/` directory contains MicroPython libraries available to all plugins. The primary example is `elisa_hardware.py`, which provides the `ElisaBoard` base class with LED control, button handling, LoRa messaging, and sensor reading.
+
+To include a shared library in your plugin's flash payload, add it to `deploy.flash.shared_lib`:
+
+```json
+"flash": {
+  "files": ["main.py"],
+  "lib": [],
+  "shared_lib": ["elisa_hardware.py"]
+}
+```
+
+When the flash pipeline runs, it resolves `shared_lib` entries from `devices/_shared/`. In code, `DeviceRegistry.getFlashFiles()` maps them:
+
+```typescript
+const shared = flash.shared_lib.map(f => path.join(this.devicesRoot, '_shared', f));
+```
+
+This means `"elisa_hardware.py"` resolves to `devices/_shared/elisa_hardware.py` regardless of which plugin references it.
+
+---
+
+## Deploy Configuration
+
+The `deploy` object in your manifest controls how the device's code is deployed. Beyond the flash/cloud method fields (covered in the Manifest Reference above), the `provides` and `requires` fields create a dependency DAG that determines deploy ordering across multiple devices.
+
+### How the deploy DAG works
+
+When a build involves multiple devices, `resolveDeployOrder()` (in `backend/src/services/phases/deployOrder.ts`) topologically sorts them so that providers deploy before consumers:
+
+1. **`provides`** lists capability keys this plugin offers to other devices (e.g., `["cloud_url", "api_key"]`).
+2. **`requires`** lists capability keys this plugin needs from other devices (e.g., `["cloud_url", "api_key"]`).
+3. The algorithm builds a map from each provided key to its provider plugin, then constructs a dependency graph where each plugin that `requires` a key depends on the plugin that `provides` it.
+4. Kahn's topological sort produces a deploy order where providers come first. If a circular dependency is detected, it throws an error.
+
+### Concrete example from the shipped plugins
+
+The IoT sensor network project uses three plugins with the following deploy dependencies:
+
+| Plugin | `provides` | `requires` | Deploy order |
+|--------|-----------|-----------|--------------|
+| `cloud-dashboard` | `["cloud_url", "api_key"]` | `[]` | 1st (no dependencies) |
+| `heltec-gateway` | `[]` | `["cloud_url", "api_key"]` | 2nd (needs cloud URL and API key) |
+| `heltec-sensor-node` | `[]` | `[]` | 3rd (no dependencies, but sorted after others) |
+
+The cloud dashboard deploys first because the gateway requires the `cloud_url` and `api_key` that the dashboard provides. The sensor node has no dependency relationships, so its position is determined by input order after dependency constraints are satisfied.
+
+### Flash method fields
+
+For physical devices (`method: "flash"`):
+
+| Field | Purpose |
+|-------|---------|
+| `flash.files` | Entry-point scripts to flash, resolved from `templates/` in the plugin directory. At least 1 required. |
+| `flash.lib` | Plugin-specific library files to flash, resolved from `lib/` in the plugin directory. |
+| `flash.shared_lib` | Shared library files to flash, resolved from `devices/_shared/`. |
+| `flash.prompt_message` | Message shown to the user in the flash wizard UI (e.g., "Plug in your Sensor Node and click Ready"). |
+
+### Cloud method fields
+
+For cloud-deployed services (`method: "cloud"`):
+
+| Field | Purpose |
+|-------|---------|
+| `cloud.platform` | Cloud platform identifier (e.g., `"cloud_run"`). |
+| `cloud.scaffold_dir` | Directory containing scaffold files (Dockerfile, app code, etc.) relative to the plugin directory. |
+| `cloud.params` | User-configurable parameters extracted from Blockly block fields at deploy time. Each param maps a `name` (used by the deploy pipeline) to a `field` (Blockly field name), with an optional `default`. |
+
+---
+
+## Walkthrough: Creating a Plugin from Scratch
+
+This walkthrough creates a hypothetical "neopixel-strip" plugin for a WS2812 LED strip connected to an ESP32. Follow these steps to understand the end-to-end process.
+
+### Step 1: Create the directory structure
+
+```
+devices/
+  neopixel-strip/
+    device.json
+    prompts/
+      agent-context.md
+    templates/
+      main.py
+```
+
+### Step 2: Write the manifest (`device.json`)
+
+Create `devices/neopixel-strip/device.json` with a minimal manifest:
+
+```json
+{
+  "id": "neopixel-strip",
+  "name": "NeoPixel LED Strip",
+  "version": "1.0.0",
+  "description": "WS2812 NeoPixel LED strip controlled by an ESP32",
+  "icon": "lightbulb",
+  "colour": 290,
+
+  "board": {
+    "type": "esp32",
+    "variant": "esp32_devkit",
+    "connection": "serial"
+  },
+
+  "capabilities": [
+    {
+      "id": "neopixel",
+      "name": "WS2812 NeoPixel Strip",
+      "kind": "actuator",
+      "params": [
+        { "name": "pin", "type": "number", "default": 5 },
+        { "name": "num_leds", "type": "number", "default": 30, "min": 1, "max": 300 }
+      ]
+    }
+  ],
+
+  "blocks": [
+    {
+      "type": "neopixel_strip",
+      "message": "NeoPixel Strip %1 Data Pin %2 Number of LEDs %3",
+      "args": [
+        { "type": "input_dummy" },
+        { "type": "field_number", "name": "DATA_PIN", "value": 5, "min": 0, "max": 39 },
+        { "type": "field_number", "name": "NUM_LEDS", "value": 30, "min": 1, "max": 300 }
+      ],
+      "previousStatement": true,
+      "nextStatement": true,
+      "tooltip": "Control a WS2812 NeoPixel LED strip"
+    }
+  ],
+
+  "deploy": {
+    "method": "flash",
+    "provides": [],
+    "requires": [],
+    "flash": {
+      "files": ["main.py"],
+      "lib": [],
+      "shared_lib": ["elisa_hardware.py"],
+      "prompt_message": "Plug in your ESP32 with the NeoPixel strip and click Ready"
+    }
+  }
+}
+```
+
+Key decisions:
+- **One block** (`neopixel_strip`) with two configurable fields: data pin and LED count.
+- **One capability** (`neopixel`) of kind `actuator`.
+- **Flash deploy** with no `provides` or `requires` (standalone device).
+- **`shared_lib`** includes `elisa_hardware.py` for the `ElisaBoard` base class.
+
+### Step 3: Write the agent context (`prompts/agent-context.md`)
+
+Create `devices/neopixel-strip/prompts/agent-context.md`:
+
+```markdown
+# NeoPixel Strip -- Agent Context
+
+You are building MicroPython code for a WS2812 NeoPixel LED strip connected to an ESP32.
+
+## NeoPixel API (built-in MicroPython module)
+
+\```python
+from machine import Pin
+from neopixel import NeoPixel
+
+np = NeoPixel(Pin(5), 30)   # pin, num_leds
+np[0] = (255, 0, 0)         # set pixel 0 to red (R, G, B)
+np.fill((0, 0, 0))          # turn all pixels off
+np.write()                   # push changes to strip
+\```
+
+## Pin Mapping
+
+| Function | Pin | Notes |
+|----------|-----|-------|
+| NeoPixel Data | GPIO 5 | Configurable via block field |
+| LED | GPIO 2 | Onboard LED (ESP32 DevKit) |
+
+## Key Constraints
+
+- Use `from neopixel import NeoPixel` -- this is a built-in MicroPython module
+- Always call `np.write()` after changing pixel values
+- RGB values are 0-255 per channel
+- Keep animations in a `while True:` loop with `time.sleep_ms()` delays
+- DO NOT attempt to deploy or flash -- a separate deploy phase handles that
+- NEVER use emoji or unicode characters beyond ASCII
+```
+
+### Step 4: Write the starter template (`templates/main.py`)
+
+Create `devices/neopixel-strip/templates/main.py`:
+
+```python
+# NeoPixel Strip - Main Entry Point
+from machine import Pin
+from neopixel import NeoPixel
+import time
+
+DATA_PIN = 5
+NUM_LEDS = 30
+
+np = NeoPixel(Pin(DATA_PIN), NUM_LEDS)
+
+def clear():
+    np.fill((0, 0, 0))
+    np.write()
+
+def rainbow_cycle(wait_ms=20):
+    for j in range(256):
+        for i in range(NUM_LEDS):
+            rc_index = (i * 256 // NUM_LEDS + j) & 255
+            np[i] = wheel(rc_index)
+        np.write()
+        time.sleep_ms(wait_ms)
+
+def wheel(pos):
+    if pos < 85:
+        return (255 - pos * 3, pos * 3, 0)
+    elif pos < 170:
+        pos -= 85
+        return (0, 255 - pos * 3, pos * 3)
+    else:
+        pos -= 170
+        return (pos * 3, 0, 255 - pos * 3)
+
+clear()
+while True:
+    rainbow_cycle()
+```
+
+### Step 5: Restart and verify
+
+Restart Elisa -- the new "NeoPixel LED Strip" block appears in the Devices category of the Blockly toolbox automatically. No code changes are needed to register the plugin; the `DeviceRegistry` scans the `devices/` directory at startup and picks up any valid `device.json` files.
+
+---
+
+## Validation and Testing
+
+### How manifests are validated
+
+Every `device.json` file is validated against the `DeviceManifestSchema` Zod schema (defined in `backend/src/utils/deviceManifestSchema.ts`) when the `DeviceRegistry` loads plugins at startup. The validation runs via `DeviceManifestSchema.safeParse()`:
+
+```typescript
+const result = DeviceManifestSchema.safeParse(raw);
+if (!result.success) {
+  console.warn(`[DeviceRegistry] Skipping ${entry.name}/ — ${firstError.path.join('.')}: ${firstError.message}`);
+  continue;
+}
+```
+
+Invalid manifests are skipped with a warning in the console. They do not crash the application. This means you can iterate on a manifest and just restart the server to see if it passes validation.
+
+### Running the plugin validation test
+
+The project includes a behavioral test that validates all shipped plugins. To run it:
+
+```bash
+cd backend && npx vitest run src/tests/behavioral/devicePlugins.test.ts
+```
+
+This test checks every plugin in the `devices/` directory for:
+- Valid `device.json` that passes the Zod schema
+- Manifest `id` matches the directory name
+- All declared `lib` files exist on disk
+- All declared `shared_lib` files exist in `devices/_shared/`
+- All declared template `files` exist in `templates/`
+
+### Common validation errors
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `id: Invalid` | The `id` field contains uppercase letters, spaces, or starts with a number. | Use lowercase alphanumeric characters and hyphens only. Must start with a letter. Pattern: `^[a-z][a-z0-9-]*$` |
+| `blocks: Array must contain at least 1 element(s)` | The `blocks` array is empty. | Every plugin must define at least 1 Blockly block. |
+| `blocks.0.type: Invalid` | The block `type` contains uppercase letters, hyphens, or spaces. | Block types use underscores, not hyphens. Pattern: `^[a-z][a-z0-9_]*$` |
+| `deploy: Invalid union` | The `deploy` object does not match either the flash or cloud schema. | Ensure `method` is either `"flash"` or `"cloud"`, and include the corresponding `flash` or `cloud` sub-object. |
+| `deploy.flash.files: Array must contain at least 1 element(s)` | Flash deploy is missing the `files` array or it is empty. | List at least one entry-point script in `flash.files`. |
+| `deploy.flash.prompt_message: Required` | Flash deploy is missing the `prompt_message` field. | Add a `prompt_message` string (shown in the flash wizard UI). |
+| `version: Invalid` | The `version` field is not in semver format. | Use `"major.minor.patch"` format, e.g., `"1.0.0"`. |
+| `colour: Expected number` | The `colour` field is missing or not a number. | Provide an integer hue value between 0 and 360. |
+| `cloud.provides: Array must contain at least 1 element(s)` | Cloud deploy has an empty `provides` array. | Cloud plugins must provide at least one capability key. |
