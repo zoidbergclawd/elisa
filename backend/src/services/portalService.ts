@@ -47,6 +47,8 @@ export const ALLOWED_COMMANDS: ReadonlySet<string> = new Set([
   'bunx',
   'gcloud',
   'firebase',
+  'openclaw',
+  'clawhub',
 ]);
 
 /** Shell metacharacters that must not appear in args. */
