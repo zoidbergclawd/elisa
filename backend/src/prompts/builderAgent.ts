@@ -189,10 +189,18 @@ export function formatTaskPrompt(params: {
   if (params.deviceRegistry && spec.devices?.length) {
     const seen = new Set<string>();
     for (const device of spec.devices) {
-      if (seen.has(device.pluginId)) continue;
-      seen.add(device.pluginId);
-      const ctx = params.deviceRegistry.getAgentContext(device.pluginId);
-      if (ctx) parts.push(`\n## Device: ${device.pluginId}\n${ctx}`);
+      if (!seen.has(device.pluginId)) {
+        seen.add(device.pluginId);
+        const ctx = params.deviceRegistry.getAgentContext(device.pluginId);
+        if (ctx) parts.push(`\n## Device: ${device.pluginId}\n${ctx}`);
+      }
+      // Inject per-instance fields so the agent knows user's pin/config selections
+      if (device.fields && Object.keys(device.fields).length > 0) {
+        const fieldLines = Object.entries(device.fields)
+          .map(([k, v]) => `${k}: ${v}`)
+          .join('\n');
+        parts.push(`\n## Device Instance: ${device.pluginId}\n${fieldLines}`);
+      }
     }
   }
 

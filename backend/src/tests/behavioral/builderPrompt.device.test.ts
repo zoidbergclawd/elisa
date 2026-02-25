@@ -12,7 +12,12 @@ describe('Builder prompt device plugin context', () => {
 
     const spec = {
       nugget: { goal: 'IoT', description: 'test' },
-      devices: [{ pluginId: 'heltec-sensor-node', instanceId: 'b1', fields: {} }],
+      devices: [{ pluginId: 'heltec-sensor-node', instanceId: 'b1', fields: {
+        SENSOR_DHT22: true,
+        PIN_DHT22: 26,
+        SENSOR_REED: true,
+        PIN_REED: 33,
+      } }],
     };
 
     const prompt = formatTaskPrompt({
@@ -27,6 +32,9 @@ describe('Builder prompt device plugin context', () => {
     });
 
     expect(prompt).toContain('DHT22Sensor');
+    expect(prompt).toContain('Device Instance: heltec-sensor-node');
+    expect(prompt).toContain('PIN_DHT22: 26');
+    expect(prompt).toContain('PIN_REED: 33');
     expect(mockRegistry.getAgentContext).toHaveBeenCalledWith('heltec-sensor-node');
   });
 

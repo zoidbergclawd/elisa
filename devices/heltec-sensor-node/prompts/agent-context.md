@@ -24,15 +24,17 @@ You are building MicroPython code for an ESP32 sensor node (Heltec WiFi LoRa V3)
 
 ## Pin Mapping (Heltec WiFi LoRa V3)
 
-| Function | Pin | Notes |
-|----------|-----|-------|
-| OLED SDA | GPIO 17 | Heltec onboard I2C |
-| OLED SCL | GPIO 18 | Heltec onboard I2C |
-| OLED RST | GPIO 21 | Heltec OLED reset |
-| DHT22 | GPIO 13 | Configurable |
-| Reed switch | GPIO 12 | Configurable |
-| PIR | GPIO 14 | Configurable |
+| Function | Default Pin | Notes |
+|----------|-------------|-------|
+| OLED SDA | GPIO 17 | Heltec onboard I2C (fixed) |
+| OLED SCL | GPIO 18 | Heltec onboard I2C (fixed) |
+| OLED RST | GPIO 21 | Heltec OLED reset (fixed) |
+| DHT22 | GPIO 13 | User-configurable via PIN_DHT22 field |
+| Reed switch | GPIO 12 | User-configurable via PIN_REED field |
+| PIR | GPIO 14 | User-configurable via PIN_PIR field |
 | LED | GPIO 35 | Existing |
+
+**IMPORTANT:** The user may have changed pin assignments. Read the actual pin numbers from the `Device Instance` section of this prompt (PIN_DHT22, PIN_REED, PIN_PIR). Only fall back to the defaults above if no Device Instance section is present.
 
 ## MicroPython Pitfalls
 
@@ -47,6 +49,7 @@ You are building MicroPython code for an ESP32 sensor node (Heltec WiFi LoRa V3)
 ## Code Generation Rules
 
 - Generate `sensor_main.py` as the entry point
-- Import from `elisa_hardware`, `sensors`, `oled`, `nodes` — these libraries are pre-loaded on the device
-- DO NOT attempt to deploy or flash — a separate deploy phase handles that
-- DO NOT generate the library files (sensors.py, oled.py, etc.) — only generate main scripts
+- Import from `elisa_hardware`, `sensors`, `oled`, `nodes` -- these libraries are pre-loaded on the device
+- Use the pin numbers from the `Device Instance` fields (PIN_DHT22, PIN_REED, PIN_PIR) when constructing sensor objects. Do NOT hardcode default pin numbers.
+- DO NOT attempt to deploy or flash -- a separate deploy phase handles that
+- DO NOT generate the library files (sensors.py, oled.py, etc.) -- only generate main scripts

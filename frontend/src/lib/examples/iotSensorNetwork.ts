@@ -37,8 +37,11 @@ export const iotSensorNetwork: ExampleNugget = {
                               type: 'heltec_sensor_node',
                               fields: {
                                 SENSOR_DHT22: true,
+                                PIN_DHT22: 13,
                                 SENSOR_REED: true,
+                                PIN_REED: 12,
                                 SENSOR_PIR: true,
+                                PIN_PIR: 14,
                                 HAS_OLED: true,
                                 LORA_CHANNEL: 1,
                                 INTERVAL: 10,

@@ -27,12 +27,15 @@
   "blocks": [
     {
       "type": "heltec_sensor_node",
-      "message": "Sensor Node %1 DHT22 %2 Reed Switch %3 PIR %4 OLED %5 LoRa Channel %6 Interval (s) %7",
+      "message": "Sensor Node %1 DHT22 %2 Pin %3 Reed Switch %4 Pin %5 PIR %6 Pin %7 OLED %8 LoRa Channel %9 Interval (s) %10",
       "args": [
         { "type": "input_dummy" },
         { "type": "field_checkbox", "name": "SENSOR_DHT22", "checked": true },
+        { "type": "field_number", "name": "PIN_DHT22", "value": 13, "min": 0, "max": 48 },
         { "type": "field_checkbox", "name": "SENSOR_REED", "checked": true },
+        { "type": "field_number", "name": "PIN_REED", "value": 12, "min": 0, "max": 48 },
         { "type": "field_checkbox", "name": "SENSOR_PIR", "checked": true },
+        { "type": "field_number", "name": "PIN_PIR", "value": 14, "min": 0, "max": 48 },
         { "type": "field_checkbox", "name": "HAS_OLED", "checked": true },
         { "type": "field_number", "name": "LORA_CHANNEL", "value": 1, "min": 0, "max": 255 },
         { "type": "field_number", "name": "INTERVAL", "value": 10, "min": 1, "max": 3600 }
@@ -64,6 +67,11 @@
         "SENSOR_PIR": "pir"
       },
       "display": { "HAS_OLED": "oled_ssd1306" },
+      "pins": {
+        "PIN_DHT22": "dht22_pin",
+        "PIN_REED": "reed_pin",
+        "PIN_PIR": "pir_pin"
+      },
       "lora.channel": "LORA_CHANNEL"
     }
   }
