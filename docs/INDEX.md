@@ -31,6 +31,9 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/hooks/` | React hooks (session state, health, WebSocket, board detect, skills) |
 | `frontend/src/lib/` | Utility functions (nugget files, skill templates, terminology) |
 | `frontend/src/types/` | TypeScript definitions |
+| `cli/` | Headless CLI interface (`elisa build`, `status`, `stop`) |
+| `cli/src/` | CLI source: entry point, server, session client, formatters |
+| `cli/src/commands/` | CLI command implementations (build) |
 | `hardware/` | MicroPython ESP32 templates + shared lib |
 | `hardware/lib/` | Shared MicroPython library (`elisa_hardware.py`) |
 | `hardware/templates/` | ESP32 project templates (blink, LoRa) |
@@ -158,6 +161,17 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/lib/nuggetFile.ts` | .elisa nugget file save/load (JSZip-based) |
 | `frontend/src/lib/skillTemplates.ts` | Pre-built skill and rule templates |
 | `frontend/src/lib/terminology.ts` | Kid-friendly term mappings (technical -> friendly labels) |
+
+### CLI
+
+| File | Role |
+|------|------|
+| `cli/src/cli.ts` | Commander-based entry point (build, status, stop commands) |
+| `cli/src/server.ts` | Headless backend startup via dynamic import of backend `startServer()` |
+| `cli/src/session.ts` | SessionClient: REST wrapper for session create/start/stop/status |
+| `cli/src/wsListener.ts` | WebSocket event listener with session completion detection |
+| `cli/src/eventStream.ts` | NDJSON formatter, human-readable formatter, summary collector |
+| `cli/src/commands/build.ts` | Full build pipeline: parse input, server, session, events, output |
 
 ### Electron
 

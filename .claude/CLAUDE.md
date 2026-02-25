@@ -34,8 +34,9 @@ Do NOT update docs for internal implementation changes that don't affect the str
 - **Frontend**: React 19, Vite 7, TypeScript 5.9, Tailwind CSS 4, Blockly 12
 - **Backend**: Express 5, TypeScript 5.9, ws 8, Zod 4 (validation), Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`)
 - **Hardware**: MicroPython on ESP32 via serialport + mpremote
-- **Build**: esbuild (backend bundling), tsc (Electron), Vite (frontend)
-- **Testing**: Vitest + Testing Library (frontend), Vitest (backend)
+- **CLI**: Commander 13, TypeScript 5.9, ws 8 (headless build interface)
+- **Build**: esbuild (backend bundling), tsc (Electron, CLI), Vite (frontend)
+- **Testing**: Vitest + Testing Library (frontend), Vitest (backend, CLI)
 
 ## Environment Variables
 
@@ -50,13 +51,23 @@ Do NOT update docs for internal implementation changes that don't affect the str
 When asked to install, set up, or launch this app, run these two commands from the repo root:
 
 ```
-npm install              # installs root + backend + frontend deps automatically
+npm install              # installs root + backend + frontend + cli deps automatically
 npm run dev:electron     # launches backend, frontend, and Electron window
 ```
 
 **Do NOT use `npm run dev`** -- that starts backend + frontend in a browser only, without the Electron desktop window. This is an Electron app; always use `dev:electron`.
 
 `ANTHROPIC_API_KEY` must be set in the environment before launching. If it is missing, the backend will fail to start.
+
+### CLI (headless builds)
+
+The CLI provides a headless interface to the build pipeline for automation and external tool integration:
+
+```
+npm run build:cli                         # compile CLI to cli/dist/
+node cli/dist/cli.js build "description"  # run a headless build
+npm run test:cli                          # run CLI tests
+```
 
 ### Browser-only (rare)
 

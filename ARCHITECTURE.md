@@ -27,6 +27,13 @@ frontend/ (React 19 + Vite)         backend/ (Express 5 + TypeScript)
                                               |
                                     runs agents via SDK query() API
                                     per task (async streaming)
+
+cli/ (Commander + TypeScript)
++-----------------------+
+| elisa build "desc"    |  Starts backend headless (in-process)
+| elisa build --spec f  |  Creates session, streams events
+| elisa status / stop   |  NDJSON or human-readable output
++-----------------------+
 ```
 
 In production, Express serves everything: `/api/*` (REST), `/ws/*` (WebSocket), and `/*` (built frontend static files). CORS is unnecessary (same-origin). In dev mode, the frontend runs on Vite (port 5173) with proxy to backend (port 8000), and CORS is enabled.
@@ -39,12 +46,13 @@ elisa/
   electron/          Electron main process, preload, settings dialog
   frontend/          React SPA - visual block editor + real-time dashboard
   backend/           Express server - orchestration, agents, hardware
+  cli/               Headless CLI interface (elisa build, status, stop)
   scripts/           Build tooling (esbuild backend bundler)
   hardware/          ESP32 templates and shared MicroPython library
   docs/              Product requirements (elisa-prd.md)
 ```
 
-Root `package.json` manages Electron and build tooling. Frontend and backend remain independent Node.js projects with their own `package.json`.
+Root `package.json` manages Electron and build tooling. Frontend, backend, and CLI remain independent Node.js projects with their own `package.json`.
 
 ## Data Flow: Build Session Lifecycle
 
@@ -137,6 +145,20 @@ ESP32 support via serialport library:
 2. Compile MicroPython via `py_compile`
 3. Flash via `mpremote`
 4. Serial monitor at 115200 baud, streamed to frontend via WebSocket
+
+## CLI Module
+
+The CLI (`cli/`) provides a headless interface to Elisa's build pipeline, enabling automation and integration with external tools (e.g., OpenClaw bots). It starts the backend server in-process, creates a session, and streams events to stdout.
+
+```
+elisa build "Build a REST API"         # Human-readable progress on stderr
+elisa build --spec nugget.json --json  # JSON summary on stdout
+elisa build "..." --stream             # NDJSON event stream on stdout
+elisa status <sessionId>               # Check build progress
+elisa stop <sessionId>                 # Cancel a running build
+```
+
+Key files: `cli/src/cli.ts` (entry point), `cli/src/server.ts` (headless startup), `cli/src/session.ts` (REST client), `cli/src/wsListener.ts` (WebSocket listener), `cli/src/eventStream.ts` (formatters), `cli/src/commands/build.ts` (build pipeline).
 
 ## Module-Level Documentation
 
