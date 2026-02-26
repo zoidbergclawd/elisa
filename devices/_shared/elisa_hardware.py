@@ -71,7 +71,8 @@ class ElisaBoard:
                 self._lora = SX1262(spi_bus=1, clk=9, mosi=10, miso=11,
                                     cs=8, irq=14, rst=12, gpio=13)
                 self._lora.begin(freq=915.0, bw=125.0, sf=7, cr=5,
-                                 syncWord=0x12, power=14)
+                                 syncWord=0x12, power=14,
+                                 tcxoVoltage=1.7)
             self._lora.send(bytes(f"[ch{channel}]{msg}", "utf-8"))
         except ImportError:
             print(f"[LoRa TX ch{channel}] {msg}")
@@ -91,10 +92,13 @@ class ElisaBoard:
                 self._lora = SX1262(spi_bus=1, clk=9, mosi=10, miso=11,
                                     cs=8, irq=14, rst=12, gpio=13)
                 self._lora.begin(freq=915.0, bw=125.0, sf=7, cr=5,
-                                 syncWord=0x12, power=14)
-            self._lora.setBlockingCallback(False, lambda: callback(
-                self._lora.recv().decode("utf-8"), channel
-            ))
+                                 syncWord=0x12, power=14,
+                                 tcxoVoltage=1.7)
+            def _rx_handler(events):
+                data, state = self._lora.recv()
+                if data:
+                    callback(data.decode("utf-8"), channel)
+            self._lora.setBlockingCallback(False, _rx_handler)
         except ImportError:
             print(f"[LoRa RX ch{channel}] Listening (stub mode)")
 

@@ -4,16 +4,16 @@ import { exec } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
 const execAsync = promisify(exec);
 
-/** Directory containing the cloud_dashboard template files. */
-const TEMPLATE_DIR = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  '..', '..', '..', 'hardware', 'templates', 'cloud_dashboard',
-);
+/** GCP APIs required for Cloud Run source deploys. */
+const REQUIRED_APIS = [
+  'run.googleapis.com',
+  'cloudbuild.googleapis.com',
+  'artifactregistry.googleapis.com',
+];
 
 export class CloudDeployService {
   /**
@@ -25,14 +25,30 @@ export class CloudDeployService {
   }
 
   /**
-   * Copy cloud dashboard template files into `nuggetDir/iot-dashboard/`
-   * and inject the given API key into the Dockerfile as an environment variable.
-   *
-   * @param nuggetDir  The nugget workspace directory
-   * @param apiKey     The API key to inject
+   * Enable the GCP APIs required for Cloud Run source deploys.
+   * Idempotent -- already-enabled APIs are silently skipped.
    */
-  async scaffoldDashboard(nuggetDir: string, apiKey: string): Promise<string> {
-    const dashboardDir = path.join(nuggetDir, 'iot-dashboard');
+  async enableRequiredApis(project: string): Promise<void> {
+    const cmd = [
+      'gcloud', 'services', 'enable',
+      ...REQUIRED_APIS,
+      '--project', project,
+      '--quiet',
+    ].join(' ');
+
+    await execAsync(cmd, { timeout: 120_000 });
+  }
+
+  /**
+   * Copy scaffold template files into `workDir/iot-dashboard/` and inject
+   * the given API key into the Dockerfile as an environment variable.
+   *
+   * @param scaffoldDir  Source directory containing scaffold templates (server.js, Dockerfile, etc.)
+   * @param workDir      Workspace directory where `iot-dashboard/` will be created
+   * @param apiKey       The API key to inject
+   */
+  async scaffoldDashboard(scaffoldDir: string, workDir: string, apiKey: string): Promise<string> {
+    const dashboardDir = path.join(workDir, 'iot-dashboard');
 
     // Create dashboard directory structure
     fs.mkdirSync(path.join(dashboardDir, 'public'), { recursive: true });
@@ -40,7 +56,7 @@ export class CloudDeployService {
     // Copy template files
     const templateFiles = ['server.js', 'package.json', 'Dockerfile'];
     for (const file of templateFiles) {
-      const src = path.join(TEMPLATE_DIR, file);
+      const src = path.join(scaffoldDir, file);
       const dest = path.join(dashboardDir, file);
       if (fs.existsSync(src)) {
         fs.copyFileSync(src, dest);
@@ -48,7 +64,7 @@ export class CloudDeployService {
     }
 
     // Copy public/ directory contents
-    const publicSrc = path.join(TEMPLATE_DIR, 'public');
+    const publicSrc = path.join(scaffoldDir, 'public');
     if (fs.existsSync(publicSrc)) {
       fs.cpSync(publicSrc, path.join(dashboardDir, 'public'), { recursive: true });
     }
@@ -83,6 +99,7 @@ export class CloudDeployService {
       '--project', project,
       '--region', region,
       '--allow-unauthenticated',
+      '--quiet',
     ].join(' ');
   }
 
@@ -90,28 +107,36 @@ export class CloudDeployService {
    * Execute the full deploy pipeline: generate API key, scaffold dashboard,
    * and deploy to Cloud Run via gcloud CLI.
    *
-   * @param nuggetDir  The nugget workspace directory
-   * @param project    GCP project ID
-   * @param region     GCP region (e.g. 'us-central1')
+   * @param scaffoldDir  Source directory containing scaffold templates
+   * @param workDir      Workspace directory to stage files in
+   * @param project      GCP project ID
+   * @param region       GCP region (e.g. 'us-central1')
    * @returns Object with the service URL and generated API key
    */
   async deploy(
-    nuggetDir: string,
+    scaffoldDir: string,
+    workDir: string,
     project: string,
     region: string,
   ): Promise<{ url: string; apiKey: string }> {
     const apiKey = this.generateApiKey();
-    const dashboardDir = await this.scaffoldDashboard(nuggetDir, apiKey);
+    const dashboardDir = await this.scaffoldDashboard(scaffoldDir, workDir, apiKey);
+
+    // Enable required GCP APIs (idempotent -- skips already-enabled ones)
+    await this.enableRequiredApis(project);
 
     // Use exec (shell) instead of execFile -- gcloud is a .cmd wrapper on Windows
     // and execFile cannot spawn .cmd files reliably across all Windows versions.
+    // --quiet suppresses interactive prompts (API enablement, service creation confirmation).
+    // Parentheses in format arg must be quoted to avoid shell interpretation.
     const cmd = [
       'gcloud', 'run', 'deploy', 'elisa-iot-dashboard',
       '--source', `"${dashboardDir}"`,
       '--project', project,
       '--region', region,
       '--allow-unauthenticated',
-      '--format', 'value(status.url)',
+      '--quiet',
+      '--format', '"value(status.url)"',
     ].join(' ');
 
     const { stdout } = await execAsync(cmd, {

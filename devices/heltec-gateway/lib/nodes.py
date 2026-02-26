@@ -142,14 +142,16 @@ class GatewayNode:
 
     Handles WiFi reconnection with exponential backoff.
     Queues failed HTTP posts for retry (up to 100 entries).
+    Optionally displays status on OLED.
 
     Args:
         lora_channel: LoRa channel to listen on (default 1)
         wifi_ssid: WiFi network name
         wifi_pass: WiFi password
-        cloud_url: Full URL for HTTP POST (e.g., https://foo.run.app/data)
+        cloud_url: Base URL of cloud dashboard (e.g., https://foo.run.app)
         api_key: API key for cloud endpoint authentication
         board: ElisaBoard instance (for LoRa access)
+        display: OLEDDisplay instance or None
     """
 
     MAX_QUEUE = 100
@@ -157,17 +159,23 @@ class GatewayNode:
     HTTP_RETRIES = 2
 
     def __init__(self, lora_channel=1, wifi_ssid="", wifi_pass="",
-                 cloud_url="", api_key="", board=None):
+                 cloud_url="", api_key="", board=None, display=None):
         self._channel = lora_channel
         self._wifi_ssid = wifi_ssid
         self._wifi_pass = wifi_pass
-        self._cloud_url = cloud_url
+        # Ensure cloud_url always points to the /data endpoint
+        base = cloud_url.rstrip("/")
+        self._cloud_url = base + "/data" if base and not base.endswith("/data") else base
         self._api_key = api_key
         self._board = board
+        self._display = display
         self._post_queue = []
         self._wdt = None
         self._wifi_connected = False
         self._backoff_ms = 1000
+        self._rx_count = 0
+        self._tx_count = 0
+        self._last_node_id = ""
 
     def _init_watchdog(self):
         """Enable hardware watchdog (60s timeout)."""
@@ -184,6 +192,25 @@ class GatewayNode:
                 self._wdt.feed()
             except Exception:
                 pass
+
+    def _update_display(self, status_line=None):
+        """Update OLED with gateway status."""
+        if not self._display:
+            return
+        try:
+            self._display.clear()
+            self._display.text("Elisa IoT", 0, 0)
+            self._display.text("--- Gateway ---", 0, 12)
+            wifi_str = "WiFi: OK" if self._wifi_connected else "WiFi: --"
+            self._display.text(wifi_str, 0, 26)
+            self._display.text(f"RX:{self._rx_count} TX:{self._tx_count}", 0, 38)
+            if self._last_node_id:
+                self._display.text(f"Last: {self._last_node_id}", 0, 50)
+            elif status_line:
+                self._display.text(status_line, 0, 50)
+            self._display.show()
+        except Exception as e:
+            print(f"[Gateway] Display error: {e}")
 
     def _connect_wifi(self):
         """Connect to WiFi with exponential backoff on failure."""
@@ -206,11 +233,13 @@ class GatewayNode:
                     print(f"[Gateway] WiFi connected: {ip}")
                     self._wifi_connected = True
                     self._backoff_ms = 1000
+                    self._update_display()
                     return True
                 time.sleep_ms(500)
 
             print(f"[Gateway] WiFi failed, backoff {self._backoff_ms}ms")
             self._wifi_connected = False
+            self._update_display("WiFi failed")
             time.sleep_ms(self._backoff_ms)
             self._backoff_ms = min(self._backoff_ms * 2, 30000)
             return False
@@ -251,6 +280,8 @@ class GatewayNode:
                 status = resp.status_code
                 resp.close()
                 if 200 <= status < 300:
+                    self._tx_count += 1
+                    self._update_display()
                     return True
                 print(f"[Gateway] POST returned {status} (attempt {attempt + 1})")
             except Exception as e:
@@ -308,23 +339,48 @@ class GatewayNode:
             print(f"[Gateway] Parse error: {e}")
             return None
 
+    def _flatten_reading(self, data):
+        """Flatten nested sensor reading into dashboard-friendly format.
+
+        Sensor node sends:  {dht22: {temperature, humidity}, reed: {door_opened}, pir: {motion_detected}}
+        Dashboard expects:  {temperature, humidity, door, motion, nodeId}
+        """
+        flat = {}
+        flat["nodeId"] = data.get("nodeId", "sensor-node")
+        if "dht22" in data:
+            d = data["dht22"]
+            if "temperature" in d:
+                flat["temperature"] = d["temperature"]
+            if "humidity" in d:
+                flat["humidity"] = d["humidity"]
+        if "reed" in data:
+            flat["door"] = "OPEN" if data["reed"].get("door_opened") else "CLOSED"
+        if "pir" in data:
+            flat["motion"] = "DETECTED" if data["pir"].get("motion_detected") else "CLEAR"
+        return flat
+
     def _on_lora_message(self, msg, channel):
         """Handle incoming LoRa message."""
         data = self._parse_lora_packet(msg)
         if data is None:
             return
 
+        self._rx_count += 1
+        self._last_node_id = str(data.get("nodeId", "sensor"))[:12]
         print(f"[Gateway] Received: {json.dumps(data)}")
+        self._update_display()
+
+        flat = self._flatten_reading(data)
 
         if self._wifi_connected:
-            if not self._http_post(data):
-                self._queue_post(data)
+            if not self._http_post(flat):
+                self._queue_post(flat)
             else:
                 # Try to flush queued posts on success
                 if self._post_queue:
                     self._flush_queue()
         else:
-            self._queue_post(data)
+            self._queue_post(flat)
 
     def start(self):
         """Start the gateway receive loop.
@@ -334,6 +390,7 @@ class GatewayNode:
         """
         self._init_watchdog()
         print(f"[Gateway] Starting (ch={self._channel})")
+        self._update_display("Starting...")
 
         # Initial WiFi connection
         self._connect_wifi()

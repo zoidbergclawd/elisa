@@ -15,9 +15,9 @@ from sensors import DHT22Sensor, ReedSwitch, PIRSensor
 from oled import OLEDDisplay
 from nodes import SensorNode
 
-# Configuration
-LORA_CHANNEL = 1
-BROADCAST_INTERVAL = 10  # seconds
+# Configuration (injected by deploy phase template replacement)
+LORA_CHANNEL = __LORA_CHANNEL__
+BROADCAST_INTERVAL = __INTERVAL__  # seconds
 
 # Initialize hardware
 board = ElisaBoard()

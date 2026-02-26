@@ -46,7 +46,7 @@ export default function FlashWizardModal({
           <div className="mb-4">
             <div className="w-full bg-atelier-surface rounded-full h-3">
               <div
-                className="bg-accent-blue h-3 rounded-full transition-all duration-300"
+                className="bg-accent-sky h-3 rounded-full transition-all duration-300"
                 style={{ width: `${Math.min(progress, 100)}%` }}
               />
             </div>

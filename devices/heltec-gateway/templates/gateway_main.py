@@ -1,26 +1,32 @@
 """Elisa IoT Gateway Node -- receives LoRa data, publishes to cloud dashboard.
 
 Comms: LoRa RX @ 915 MHz, WiFi -> HTTP POST to Cloud Run
-Config: WiFi credentials and cloud URL injected by Elisa deploy phase.
-
-Usage:
-  python gateway_node.py         # Normal operation
-  python gateway_node.py --test  # WiFi connectivity self-test
+Config: WiFi credentials from device block fields (injected as __PLACEHOLDER__),
+        cloud URL and API key from config.py (written at deploy time).
 """
 
 import sys
 from elisa_hardware import ElisaBoard
 from nodes import GatewayNode
+from oled import OLEDDisplay
 
-# Configuration (injected by Elisa deploy phase)
-LORA_CHANNEL = 1
+# WiFi credentials (injected by deploy phase template replacement)
+LORA_CHANNEL = __LORA_CHANNEL__
 WIFI_SSID = "__WIFI_SSID__"
 WIFI_PASS = "__WIFI_PASS__"
-CLOUD_URL = "__CLOUD_URL__"
-API_KEY = "__API_KEY__"
 
-# Initialize
+# Cloud URL and API key come from config.py, written by the deploy phase
+# with values from the cloud dashboard deploy step.
+try:
+    from config import CLOUD_URL, API_KEY
+except ImportError:
+    CLOUD_URL = ""
+    API_KEY = ""
+    print("[gateway_main] WARNING: config.py not found -- cloud POST disabled")
+
+# Initialize hardware
 board = ElisaBoard()
+display = OLEDDisplay()
 
 # Self-test mode
 if "--test" in sys.argv:
@@ -52,5 +58,6 @@ gateway = GatewayNode(
     cloud_url=CLOUD_URL,
     api_key=API_KEY,
     board=board,
+    display=display,
 )
 gateway.start()

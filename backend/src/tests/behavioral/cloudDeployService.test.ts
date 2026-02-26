@@ -57,21 +57,21 @@ describe('CloudDeployService', () => {
     expect(key).toMatch(/^[0-9a-f]{32}$/);
   });
 
-  it('scaffolds dashboard project in nugget directory', async () => {
-    await service.scaffoldDashboard('/tmp/nugget', 'test-api-key');
+  it('scaffolds dashboard project in work directory', async () => {
+    await service.scaffoldDashboard('/tmp/scaffold', '/tmp/nugget', 'test-api-key');
     expect(fs.mkdirSync).toHaveBeenCalled();
   });
 
   it('scaffolds dashboard with public subdirectory', async () => {
-    await service.scaffoldDashboard('/tmp/nugget', 'test-api-key');
+    await service.scaffoldDashboard('/tmp/scaffold', '/tmp/nugget', 'test-api-key');
     const mkdirCalls = vi.mocked(fs.mkdirSync).mock.calls;
     const createdPaths = mkdirCalls.map(c => c[0] as string);
     // Should create the public/ subdirectory
     expect(createdPaths.some(p => p.includes('public'))).toBe(true);
   });
 
-  it('copies template files during scaffold', async () => {
-    await service.scaffoldDashboard('/tmp/nugget', 'test-api-key');
+  it('copies template files from scaffold dir during scaffold', async () => {
+    await service.scaffoldDashboard('/tmp/scaffold', '/tmp/nugget', 'test-api-key');
     expect(fs.copyFileSync).toHaveBeenCalled();
   });
 
@@ -79,7 +79,7 @@ describe('CloudDeployService', () => {
     vi.mocked(fs.readFileSync).mockReturnValue(
       'FROM node:20-alpine\nWORKDIR /app\nCMD ["node", "server.js"]\n',
     );
-    await service.scaffoldDashboard('/tmp/nugget', 'test-api-key');
+    await service.scaffoldDashboard('/tmp/scaffold', '/tmp/nugget', 'test-api-key');
 
     const writeFileCalls = vi.mocked(fs.writeFileSync).mock.calls;
     const dockerfileWrite = writeFileCalls.find(
