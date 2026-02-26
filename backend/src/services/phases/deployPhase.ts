@@ -97,7 +97,8 @@ export class DeployPhase {
           const { CloudDeployService } = await import('../cloudDeployService.js');
           const cloudService = new CloudDeployService();
           const scaffoldDir = this.deviceRegistry!.getScaffoldDir(device.pluginId);
-          const project = device.fields?.GCP_PROJECT ?? 'elisa-iot';
+          // GCP project IDs are always lowercase; users often enter the display name
+          const project = String(device.fields?.GCP_PROJECT ?? 'elisa-iot').toLowerCase();
           const region = device.fields?.GCP_REGION ?? 'us-central1';
 
           log('  cloud deploy params', { scaffoldDir, project, region });
