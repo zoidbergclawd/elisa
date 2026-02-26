@@ -114,6 +114,7 @@ export class CloudDeployService {
 
     const { stdout } = await execFileAsync('gcloud', args, {
       timeout: 300_000, // 5 minute timeout for cloud deploy
+      shell: true, // Required on Windows where gcloud is a .cmd wrapper
     });
 
     const url = stdout.trim();
