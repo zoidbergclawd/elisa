@@ -642,6 +642,44 @@ print('FLASH_OK')
   }
 
   /**
+   * Wipe all user files from the connected MicroPython board's filesystem.
+   * Preserves boot.py (required by MicroPython).
+   */
+  async wipeBoard(): Promise<{ success: boolean; removed: string[] }> {
+    const mpremote = findMpremote();
+    console.log('[wipeBoard] listing files on board...');
+    try {
+      const { stdout } = await execFileAsync(
+        mpremote,
+        ['exec', "import os; print('\\n'.join(os.listdir('/')))"],
+        { timeout: 15000 },
+      );
+      const files = stdout.trim().split('\n').map(f => f.trim()).filter(Boolean);
+      console.log(`[wipeBoard] found ${files.length} files: ${files.join(', ')}`);
+
+      const preserve = new Set(['boot.py']);
+      const toRemove = files.filter(f => !preserve.has(f));
+      const removed: string[] = [];
+
+      for (const file of toRemove) {
+        try {
+          await execFileAsync(mpremote, ['rm', `:${file}`], { timeout: 10000 });
+          removed.push(file);
+          console.log(`[wipeBoard] removed ${file}`);
+        } catch (err: any) {
+          console.log(`[wipeBoard] failed to remove ${file}: ${err.message}`);
+        }
+      }
+
+      console.log(`[wipeBoard] removed ${removed.length}/${toRemove.length} files`);
+      return { success: true, removed };
+    } catch (err: any) {
+      console.error(`[wipeBoard] failed to list files: ${err.message}`);
+      return { success: false, removed: [] };
+    }
+  }
+
+  /**
    * Soft-reset the connected MicroPython board so it reboots and runs main.py.
    */
   async resetBoard(): Promise<void> {
