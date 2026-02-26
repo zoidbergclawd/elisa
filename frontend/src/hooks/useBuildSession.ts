@@ -366,7 +366,7 @@ export function useBuildSession() {
       case 'error': {
         // Replace technical auth/key errors with kid-friendly messages
         let errorMsg = event.message;
-        if (/auth|api.key|401|invalid.*key|invalid.*x-api-key/i.test(errorMsg)) {
+        if (/auth|api.key|401|invalid.*key|invalid.*x-api-key/i.test(errorMsg) && !/deploy|gcloud|cloud.run/i.test(errorMsg)) {
           errorMsg = 'Elisa can\'t connect to her AI brain. Ask your parent to check the API key!';
         }
         setErrorNotification({

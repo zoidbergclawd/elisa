@@ -193,6 +193,34 @@ export class DeployPhase {
           progress: 20,
         });
 
+        // Fallback: if agent didn't generate entry point files, copy templates from plugin dir
+        const pluginDir = this.deviceRegistry!.getPluginDir(device.pluginId);
+        if (pluginDir) {
+          for (const entryFileName of flashConfig.files) {
+            const workspaceFile = path.join(ctx.nuggetDir, entryFileName);
+            if (!fs.existsSync(workspaceFile)) {
+              const templateFile = path.join(pluginDir, 'templates', entryFileName);
+              if (fs.existsSync(templateFile)) {
+                let content = fs.readFileSync(templateFile, 'utf-8');
+                // Replace __PLACEHOLDER__ patterns with device fields + injections
+                const replacements: Record<string, string> = { ...injections };
+                if (device.fields) {
+                  for (const [k, v] of Object.entries(device.fields)) {
+                    replacements[k] = String(v);
+                  }
+                }
+                for (const [key, value] of Object.entries(replacements)) {
+                  content = content.replace(new RegExp(`__${key.toUpperCase()}__`, 'g'), value);
+                }
+                fs.writeFileSync(workspaceFile, content, 'utf-8');
+                log(`  copied template fallback: ${templateFile} -> ${workspaceFile}`);
+              } else {
+                log(`  WARNING: no template fallback found at ${templateFile}`);
+              }
+            }
+          }
+        }
+
         // Write injected config values (e.g., cloud_url, api_key) as config.py
         if (Object.keys(injections).length > 0) {
           const configLines = Object.entries(injections)
