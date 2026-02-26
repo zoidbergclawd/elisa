@@ -1,7 +1,7 @@
 """Elisa IoT Sensor Node -- reads sensors, displays on OLED, sends over LoRa.
 
 Sensors: DHT22 (temp/humidity), Reed Switch (door), PIR (motion)
-Display: SSD1306 OLED (Heltec V3 onboard)
+Display: SSD1306 OLED (Heltec V3/V4 onboard)
 Comms: LoRa SX1262 @ 915 MHz
 
 Usage:

@@ -1,14 +1,15 @@
-"""OLED display abstraction for Heltec WiFi LoRa V3 (SSD1306 128x64).
+"""OLED display abstraction for Heltec WiFi LoRa V3/V4 (SSD1306 128x64).
 
-Heltec V3 has an onboard SSD1306 OLED connected via I2C:
-  SDA = GPIO 17
-  SCL = GPIO 18
-  RST = GPIO 21 (must be toggled on init)
+Heltec V3/V4 has an onboard SSD1306 OLED connected via I2C:
+  Vext = GPIO 36 (must be LOW to power OLED)
+  SDA  = GPIO 17
+  SCL  = GPIO 18
+  RST  = GPIO 21 (must be toggled on init)
 
 All drawing operations are buffered. Call show() to flush to display.
 """
 
-# Heltec V3 OLED pin defaults
+# Heltec V3/V4 OLED pin defaults
 OLED_SDA = 17
 OLED_SCL = 18
 OLED_RST = 21
@@ -20,7 +21,7 @@ OLED_I2C_ADDR = 0x3C
 class OLEDDisplay:
     """SSD1306 OLED display wrapper with convenience methods.
 
-    Initializes with Heltec V3 defaults. Toggles RST pin for reliable startup.
+    Initializes with Heltec V3/V4 defaults. Enables Vext power, toggles RST pin.
     Falls back to print() in stub mode if hardware unavailable.
 
     Args:
@@ -42,7 +43,13 @@ class OLEDDisplay:
             import ssd1306
             import time
 
-            # Reset OLED (required for Heltec V3)
+            # Enable Vext power (GPIO 36 LOW) -- Heltec V3/V4 gates OLED
+            # power through this pin; without it, I2C bus times out
+            vext = Pin(36, Pin.OUT)
+            vext.value(0)
+            time.sleep_ms(100)
+
+            # Reset OLED (required for Heltec V3/V4)
             rst_pin = Pin(rst, Pin.OUT)
             rst_pin.value(0)
             time.sleep_ms(50)

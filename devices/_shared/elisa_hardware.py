@@ -1,15 +1,16 @@
-"""Elisa hardware abstraction library for MicroPython on Heltec WiFi LoRa 32 V3."""
+"""Elisa hardware abstraction library for MicroPython on Heltec WiFi LoRa 32 V3/V4."""
 
 from machine import Pin, PWM
 import time
 
 
 class ElisaBoard:
-    """Hardware abstraction for the Heltec WiFi LoRa 32 V3 board."""
+    """Hardware abstraction for the Heltec WiFi LoRa 32 V3/V4 board."""
 
-    # Pin assignments for Heltec WiFi LoRa 32 V3
+    # Pin assignments for Heltec WiFi LoRa 32 V3/V4
     LED_PIN = 35
     BUTTON_PIN = 0
+    VEXT_PIN = 36  # Controls power to OLED and peripherals (LOW = on)
 
     SPEED_MAP = {
         "slow": 1000,

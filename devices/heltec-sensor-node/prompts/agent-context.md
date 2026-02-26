@@ -1,6 +1,6 @@
 # Heltec Sensor Node — Agent Context
 
-You are building MicroPython code for an ESP32 sensor node (Heltec WiFi LoRa V3). Use the Elisa hardware library classes below.
+You are building MicroPython code for an ESP32 sensor node (Heltec WiFi LoRa V3/V4). Use the Elisa hardware library classes below.
 
 ## Sensor Classes (from sensors.py)
 
@@ -22,13 +22,14 @@ You are building MicroPython code for an ESP32 sensor node (Heltec WiFi LoRa V3)
 |-------|------------|---------|
 | SensorNode(sensors, lora_channel, display, board) | List of sensors, channel, optional display, board | .start(interval_sec=10) — runs acquisition loop forever |
 
-## Pin Mapping (Heltec WiFi LoRa V3)
+## Pin Mapping (Heltec WiFi LoRa V3/V4)
 
 | Function | Default Pin | Notes |
 |----------|-------------|-------|
+| Vext power | GPIO 36 | Must be LOW to power OLED and peripherals (fixed, handled by oled.py) |
 | OLED SDA | GPIO 17 | Heltec onboard I2C (fixed) |
 | OLED SCL | GPIO 18 | Heltec onboard I2C (fixed) |
-| OLED RST | GPIO 21 | Heltec OLED reset (fixed) |
+| OLED RST | GPIO 21 | OLED reset, toggled during init (fixed) |
 | DHT22 | GPIO 13 | User-configurable via PIN_DHT22 field |
 | Reed switch | GPIO 12 | User-configurable via PIN_REED field |
 | PIR | GPIO 14 | User-configurable via PIN_PIR field |

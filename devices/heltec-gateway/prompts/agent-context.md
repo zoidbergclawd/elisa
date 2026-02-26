@@ -1,6 +1,6 @@
 # Heltec Gateway — Agent Context
 
-You are building MicroPython code for an ESP32 gateway node (Heltec WiFi LoRa V3). The gateway receives LoRa packets from sensor nodes and relays data to a cloud endpoint via WiFi/HTTP.
+You are building MicroPython code for an ESP32 gateway node (Heltec WiFi LoRa V3/V4). The gateway receives LoRa packets from sensor nodes and relays data to a cloud endpoint via WiFi/HTTP.
 
 ## GatewayNode Class (from nodes.py)
 
