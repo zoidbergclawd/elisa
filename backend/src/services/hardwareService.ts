@@ -601,30 +601,59 @@ print('FLASH_OK')
    * this method copies only the specified files (used for IoT multi-device deploys).
    */
   async flashFiles(workDir: string, files: string[]): Promise<{ success: boolean; message?: string }> {
+    console.log(`[flashFiles] called with workDir=${workDir}, files=[${files.join(', ')}]`);
     if (files.length === 0) return { success: true };
     const mpremote = findMpremote();
+    console.log(`[flashFiles] using mpremote: ${mpremote}`);
     const missing: string[] = [];
     let flashed = 0;
     for (const file of files) {
       const filePath = path.join(workDir, file);
-      if (!fs.existsSync(filePath)) {
+      const exists = fs.existsSync(filePath);
+      console.log(`[flashFiles] file: ${file} -> ${filePath} (exists: ${exists})`);
+      if (!exists) {
         missing.push(file);
         continue;
       }
       try {
-        await execFileAsync(mpremote, ['cp', filePath, `:${file}`], { timeout: 30000 });
+        console.log(`[flashFiles] running: mpremote cp ${filePath} :${file}`);
+        const { stdout, stderr } = await execFileAsync(mpremote, ['cp', filePath, `:${file}`], { timeout: 30000 });
+        if (stdout) console.log(`[flashFiles] stdout for ${file}: ${stdout.trim()}`);
+        if (stderr) console.log(`[flashFiles] stderr for ${file}: ${stderr.trim()}`);
         flashed++;
+        console.log(`[flashFiles] ${file} flashed OK (${flashed}/${files.length})`);
       } catch (err: any) {
+        console.error(`[flashFiles] FAILED to flash ${file}:`, err.message);
         return { success: false, message: `Failed to flash ${file}: ${err.message}` };
       }
     }
     if (flashed === 0) {
-      return { success: false, message: `No files found to flash (missing: ${missing.join(', ')})` };
+      const msg = `No files found to flash (missing: ${missing.join(', ')})`;
+      console.log(`[flashFiles] ${msg}`);
+      return { success: false, message: msg };
     }
     if (missing.length > 0) {
-      return { success: true, message: `Flashed ${flashed} file(s); skipped missing: ${missing.join(', ')}` };
+      const msg = `Flashed ${flashed} file(s); skipped missing: ${missing.join(', ')}`;
+      console.log(`[flashFiles] ${msg}`);
+      return { success: true, message: msg };
     }
+    console.log(`[flashFiles] all ${flashed} files flashed successfully`);
     return { success: true };
+  }
+
+  /**
+   * Soft-reset the connected MicroPython board so it reboots and runs main.py.
+   */
+  async resetBoard(): Promise<void> {
+    const mpremote = findMpremote();
+    console.log('[resetBoard] executing mpremote reset');
+    try {
+      await execFileAsync(mpremote, ['reset'], { timeout: 10000 });
+      console.log('[resetBoard] reset command sent');
+    } catch (err: any) {
+      // Non-fatal: board may disconnect during reset causing an error
+      console.log(`[resetBoard] reset returned (may be expected): ${err.message}`);
+    }
   }
 
   async startSerialMonitor(

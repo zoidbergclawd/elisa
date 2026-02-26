@@ -143,15 +143,24 @@ export class Orchestrator {
       await this.testPhase.execute(this.makeContext());
 
       // Deploy
+      console.log('[orchestrator] entering deploy phase');
+      console.log('[orchestrator] session.spec.devices:', JSON.stringify(this.session.spec?.devices ?? null));
+      console.log('[orchestrator] session.spec.deployment:', JSON.stringify(this.session.spec?.deployment ?? null));
       const deployCtx = this.makeContext();
       if (this.deployPhase.shouldDeployDevices(deployCtx)) {
+        console.log('[orchestrator] deploying devices...');
         await this.deployPhase.deployDevices(deployCtx, this.gateResolver);
+        console.log('[orchestrator] device deploy finished');
       }
       if (this.deployPhase.shouldDeployWeb(deployCtx)) {
+        console.log('[orchestrator] deploying web...');
         const { process: webProc } = await this.deployPhase.deployWeb(deployCtx);
         this.webServerProcess = webProc;
+        console.log('[orchestrator] web deploy finished, process:', webProc ? 'running' : 'null');
       } else if (this.deployPhase.shouldDeployPortals(deployCtx)) {
+        console.log('[orchestrator] deploying portals...');
         await this.deployPhase.deployPortals(deployCtx);
+        console.log('[orchestrator] portal deploy finished');
       }
 
       // Complete

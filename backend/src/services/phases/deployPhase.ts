@@ -14,6 +14,15 @@ import { TeachingEngine } from '../teachingEngine.js';
 import type { DeviceRegistry } from '../deviceRegistry.js';
 import { resolveDeployOrder } from './deployOrder.js';
 
+function log(msg: string, data?: Record<string, unknown>): void {
+  const ts = new Date().toISOString();
+  if (data) {
+    console.log(`[deploy ${ts}] ${msg}`, JSON.stringify(data));
+  } else {
+    console.log(`[deploy ${ts}] ${msg}`);
+  }
+}
+
 export class DeployPhase {
   private hardwareService: HardwareService;
   private portalService: PortalService;
@@ -35,7 +44,9 @@ export class DeployPhase {
   shouldDeployDevices(ctx: PhaseContext): boolean {
     const spec = ctx.session.spec ?? {};
     const devices = spec.devices;
-    return Array.isArray(devices) && devices.length > 0;
+    const result = Array.isArray(devices) && devices.length > 0;
+    log('shouldDeployDevices', { result, deviceCount: Array.isArray(devices) ? devices.length : 0 });
+    return result;
   }
 
   async deployDevices(
@@ -44,28 +55,44 @@ export class DeployPhase {
   ): Promise<void> {
     const spec = ctx.session.spec ?? {};
     const devices = spec.devices ?? [];
-    if (!devices.length || !this.deviceRegistry) return;
+    if (!devices.length || !this.deviceRegistry) {
+      log('deployDevices: skipping', { deviceCount: devices.length, hasRegistry: !!this.deviceRegistry });
+      return;
+    }
 
     ctx.session.state = 'deploying';
     await ctx.send({ type: 'deploy_started', target: 'devices' });
+    log('deployDevices: starting', { deviceCount: devices.length });
 
     // Build manifest lookup
     const manifests = new Map<string, any>();
     for (const device of devices) {
       const manifest = this.deviceRegistry.getDevice(device.pluginId);
-      if (manifest) manifests.set(device.pluginId, manifest);
+      if (manifest) {
+        manifests.set(device.pluginId, manifest);
+        log(`  manifest loaded: ${device.pluginId}`, { method: manifest.deploy?.method, name: manifest.name });
+      } else {
+        log(`  WARNING: no manifest for ${device.pluginId}`);
+      }
     }
 
     // Resolve deploy order using provides/requires DAG
     const order = resolveDeployOrder(devices, manifests as any);
+    log('deployDevices: resolved order', { order: order.map(d => d.pluginId) });
     const outputs: Record<string, string> = {};
 
     for (const device of order) {
       const manifest = manifests.get(device.pluginId);
-      if (!manifest) continue;
+      if (!manifest) {
+        log(`  skipping ${device.pluginId}: no manifest`);
+        continue;
+      }
+
+      log(`--- deploying ${device.pluginId} (method: ${manifest.deploy.method}) ---`);
 
       if (manifest.deploy.method === 'cloud') {
         // Cloud deploy
+        log('  cloud deploy starting', { pluginId: device.pluginId, provides: manifest.deploy.provides });
         try {
           const { CloudDeployService } = await import('../cloudDeployService.js');
           const cloudService = new CloudDeployService();
@@ -73,12 +100,14 @@ export class DeployPhase {
           const project = device.fields?.GCP_PROJECT ?? 'elisa-iot';
           const region = device.fields?.GCP_REGION ?? 'us-central1';
 
+          log('  cloud deploy params', { scaffoldDir, project, region });
           await ctx.send({ type: 'deploy_started', target: device.pluginId });
           const result = await cloudService.deploy(
             scaffoldDir ?? ctx.nuggetDir,
             String(project),
             String(region),
           );
+          log('  cloud deploy SUCCESS', { url: result.url });
           // Map result keys to provides keys (result uses url/apiKey, provides use cloud_url/api_key)
           const resultMap: Record<string, string> = {};
           if (result.url) { resultMap['cloud_url'] = result.url; resultMap['DASHBOARD_URL'] = result.url; }
@@ -86,8 +115,10 @@ export class DeployPhase {
           for (const key of manifest.deploy.provides) {
             if (resultMap[key]) outputs[key] = resultMap[key];
           }
+          log('  outputs after cloud deploy', outputs);
           await ctx.send({ type: 'deploy_complete', target: device.pluginId, url: result.url });
         } catch (err: any) {
+          log('  cloud deploy FAILED', { error: err.message });
           await ctx.send({
             type: 'error',
             message: `Cloud deploy failed for ${manifest.name}: ${err.message}`,
@@ -98,6 +129,13 @@ export class DeployPhase {
       } else if (manifest.deploy.method === 'flash') {
         // Flash deploy with user prompt
         const flashConfig = manifest.deploy.flash;
+        log('  flash deploy starting', {
+          pluginId: device.pluginId,
+          flashFiles: flashConfig.files,
+          lib: flashConfig.lib,
+          sharedLib: flashConfig.shared_lib,
+          requires: manifest.deploy.requires,
+        });
 
         // Set up gate promise BEFORE sending prompt
         const gatePromise = new Promise<void>((resolve) => {
@@ -109,8 +147,10 @@ export class DeployPhase {
           device_role: device.pluginId,
           message: flashConfig.prompt_message,
         });
+        log('  waiting for user to click Ready...');
 
         await gatePromise;
+        log('  user clicked Ready, proceeding with flash');
 
         await ctx.send({
           type: 'flash_progress',
@@ -124,27 +164,52 @@ export class DeployPhase {
         for (const key of manifest.deploy.requires) {
           if (outputs[key]) injections[key] = outputs[key];
         }
+        log('  injections for this device', { requires: manifest.deploy.requires, injections, availableOutputs: outputs });
 
         // Copy lib and shared files from plugin directory into workspace
         const flashFileInfo = this.deviceRegistry!.getFlashFiles(device.pluginId);
+        log('  flash file info from registry', {
+          lib: flashFileInfo.lib,
+          shared: flashFileInfo.shared,
+        });
+
         for (const libFile of flashFileInfo.lib) {
           const dest = path.join(ctx.nuggetDir, path.basename(libFile));
-          if (fs.existsSync(libFile)) fs.copyFileSync(libFile, dest);
+          const exists = fs.existsSync(libFile);
+          log(`  copy lib: ${libFile} -> ${dest} (source exists: ${exists})`);
+          if (exists) fs.copyFileSync(libFile, dest);
         }
         for (const sharedFile of flashFileInfo.shared) {
           const dest = path.join(ctx.nuggetDir, path.basename(sharedFile));
-          if (fs.existsSync(sharedFile)) fs.copyFileSync(sharedFile, dest);
+          const exists = fs.existsSync(sharedFile);
+          log(`  copy shared: ${sharedFile} -> ${dest} (source exists: ${exists})`);
+          if (exists) fs.copyFileSync(sharedFile, dest);
         }
+
+        await ctx.send({
+          type: 'flash_progress',
+          device_role: device.pluginId,
+          step: 'Copying library files...',
+          progress: 20,
+        });
 
         // Write injected config values (e.g., cloud_url, api_key) as config.py
         if (Object.keys(injections).length > 0) {
           const configLines = Object.entries(injections)
             .map(([k, v]) => `${k.toUpperCase()} = "${v}"`);
-          fs.writeFileSync(
-            path.join(ctx.nuggetDir, 'config.py'),
-            configLines.join('\n') + '\n',
-            'utf-8',
-          );
+          const configContent = configLines.join('\n') + '\n';
+          const configPath = path.join(ctx.nuggetDir, 'config.py');
+          fs.writeFileSync(configPath, configContent, 'utf-8');
+          log(`  wrote config.py: ${configContent.trim()}`);
+        }
+
+        // Create main.py wrapper so MicroPython auto-runs the entry point on boot
+        const entryFile = flashConfig.files[0];
+        if (entryFile && entryFile !== 'main.py') {
+          const moduleName = entryFile.replace(/\.py$/, '');
+          const mainPyContent = `# Auto-generated by Elisa to boot ${entryFile}\nimport ${moduleName}\n`;
+          fs.writeFileSync(path.join(ctx.nuggetDir, 'main.py'), mainPyContent, 'utf-8');
+          log(`  wrote main.py wrapper: import ${moduleName}`);
         }
 
         // Build list of files to flash
@@ -153,20 +218,53 @@ export class DeployPhase {
           ...flashFileInfo.lib.map((f: string) => path.basename(f)),
           ...flashFileInfo.shared.map((f: string) => path.basename(f)),
         ];
+        // Include main.py wrapper if we wrote one
+        if (entryFile && entryFile !== 'main.py') {
+          filesToFlash.push('main.py');
+        }
         // Include config.py if we wrote one
         if (Object.keys(injections).length > 0) {
           filesToFlash.push('config.py');
         }
 
+        // Check which files actually exist in workspace
+        const fileStatus: Record<string, boolean> = {};
+        for (const f of filesToFlash) {
+          fileStatus[f] = fs.existsSync(path.join(ctx.nuggetDir, f));
+        }
+        log('  files to flash', { filesToFlash, fileStatus, nuggetDir: ctx.nuggetDir });
+
         await ctx.send({
           type: 'flash_progress',
           device_role: device.pluginId,
-          step: `Flashing ${filesToFlash.length} files...`,
-          progress: 30,
+          step: `Flashing ${filesToFlash.length} files to board...`,
+          progress: 40,
         });
 
         try {
+          log('  calling hardwareService.flashFiles...');
           const flashResult = await this.hardwareService.flashFiles(ctx.nuggetDir, filesToFlash);
+          log('  flashFiles result', { success: flashResult.success, message: flashResult.message });
+
+          await ctx.send({
+            type: 'flash_progress',
+            device_role: device.pluginId,
+            step: flashResult.success ? 'Flash complete!' : (flashResult.message ?? 'Flash failed'),
+            progress: 100,
+          });
+
+          // Soft-reset board after successful flash so code runs (OLED shows output, etc.)
+          if (flashResult.success) {
+            log('  soft-resetting board to boot into main.py');
+            await ctx.send({
+              type: 'flash_progress',
+              device_role: device.pluginId,
+              step: 'Resetting board...',
+              progress: 90,
+            });
+            await this.hardwareService.resetBoard();
+          }
+
           await ctx.send({
             type: 'flash_complete',
             device_role: device.pluginId,
@@ -176,6 +274,13 @@ export class DeployPhase {
               : (flashResult.message ?? 'Flash failed'),
           });
         } catch (err: any) {
+          log('  flashFiles THREW', { error: err.message, stack: err.stack });
+          await ctx.send({
+            type: 'flash_progress',
+            device_role: device.pluginId,
+            step: `Error: ${err.message}`,
+            progress: 100,
+          });
           await ctx.send({
             type: 'flash_complete',
             device_role: device.pluginId,
@@ -185,6 +290,8 @@ export class DeployPhase {
         }
       }
     }
+
+    log('deployDevices: finished all devices', { outputKeys: Object.keys(outputs) });
   }
 
   private async sendDeployChecklist(ctx: PhaseContext): Promise<void> {
@@ -203,11 +310,14 @@ export class DeployPhase {
   shouldDeployWeb(ctx: PhaseContext): boolean {
     const spec = ctx.session.spec ?? {};
     const target = spec.deployment?.target ?? 'preview';
-    return target === 'web' || target === 'both' || target === 'preview';
+    const result = target === 'web' || target === 'both' || target === 'preview';
+    log('shouldDeployWeb', { target, result });
+    return result;
   }
 
   async deployWeb(ctx: PhaseContext): Promise<{ process: ChildProcess | null; url: string | null }> {
     ctx.session.state = 'deploying';
+    log('deployWeb: starting');
     await ctx.send({ type: 'deploy_started', target: 'web' });
 
     await this.sendDeployChecklist(ctx);
@@ -220,6 +330,7 @@ export class DeployPhase {
       try {
         const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
         if (pkg.scripts?.build) {
+          log('deployWeb: running npm build');
           await ctx.send({ type: 'deploy_progress', step: 'Running build...', progress: 30 });
           await new Promise<void>((resolve, reject) => {
             const isWin = process.platform === 'win32';
@@ -240,6 +351,7 @@ export class DeployPhase {
           });
         }
       } catch (err: any) {
+        log('deployWeb: build warning', { error: err.message });
         await ctx.send({ type: 'deploy_progress', step: `Build warning: ${err.message}`, progress: 30 });
       }
     }
@@ -254,6 +366,7 @@ export class DeployPhase {
         break;
       }
     }
+    log('deployWeb: serve dir', { serveDir });
 
     await ctx.send({ type: 'deploy_progress', step: 'Finding free port...', progress: 60 });
     const port = await findFreePort(3000);
@@ -309,6 +422,7 @@ export class DeployPhase {
       console.warn('Web preview server failed to start:', err.message);
       serverProcess = null;
     }
+    log('deployWeb: finished', { url: finalUrl });
     await ctx.send({ type: 'deploy_complete', target: 'web', ...(finalUrl ? { url: finalUrl } : {}) });
     return { process: serverProcess, url: finalUrl };
   }
