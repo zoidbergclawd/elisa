@@ -14,6 +14,7 @@ import { TeachingEngine } from '../teachingEngine.js';
 import { PortalService } from '../portalService.js';
 import { NarratorService } from '../narratorService.js';
 import { PermissionPolicy } from '../permissionPolicy.js';
+import type { DeviceRegistry } from '../deviceRegistry.js';
 import { ContextManager } from '../../utils/contextManager.js';
 import { TokenTracker, DEFAULT_RESERVED_PER_TASK } from '../../utils/tokenTracker.js';
 import { TaskDAG } from '../../utils/dag.js';
@@ -29,6 +30,7 @@ interface PromptModule {
     spec: Record<string, any>;
     predecessors: string[];
     style?: Record<string, any> | null;
+    deviceRegistry?: { getAgentContext(id: string): string };
   }) => string;
 }
 
@@ -69,6 +71,7 @@ export interface ExecuteDeps {
   gateResolver: { current: ((value: Record<string, any>) => void) | null };
   narratorService?: NarratorService;
   permissionPolicy?: PermissionPolicy;
+  deviceRegistry?: DeviceRegistry;
 }
 
 export class ExecutePhase {
@@ -299,6 +302,7 @@ export class ExecutePhase {
       spec: ctx.session.spec ?? {},
       predecessors: predecessorSummaries,
       style: ctx.session.spec?.style ?? null,
+      deviceRegistry: this.deps.deviceRegistry,
     });
 
     // Inject agent-category skills and always-on rules into user prompt

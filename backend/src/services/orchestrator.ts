@@ -131,6 +131,7 @@ export class Orchestrator {
         gateResolver: this.gateResolver,
         narratorService: this.narratorService,
         permissionPolicy: this.permissionPolicy,
+        deviceRegistry: this.deviceRegistry,
       });
 
       // Initialize logger before execute so plan and execute phases get logging
