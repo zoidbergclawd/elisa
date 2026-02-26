@@ -69,7 +69,7 @@ export class DeployPhase {
         try {
           const { CloudDeployService } = await import('../cloudDeployService.js');
           const cloudService = new CloudDeployService();
-          const scaffoldDir = this.deviceRegistry.getScaffoldDir(device.pluginId);
+          const scaffoldDir = this.deviceRegistry!.getScaffoldDir(device.pluginId);
           const project = device.fields?.GCP_PROJECT ?? 'elisa-iot';
           const region = device.fields?.GCP_REGION ?? 'us-central1';
 
@@ -79,16 +79,21 @@ export class DeployPhase {
             String(project),
             String(region),
           );
+          // Map result keys to provides keys (result uses url/apiKey, provides use cloud_url/api_key)
+          const resultMap: Record<string, string> = {};
+          if (result.url) { resultMap['cloud_url'] = result.url; resultMap['DASHBOARD_URL'] = result.url; }
+          if (result.apiKey) { resultMap['api_key'] = result.apiKey; resultMap['API_KEY'] = result.apiKey; }
           for (const key of manifest.deploy.provides) {
-            outputs[key] = (result as any)[key] ?? '';
+            if (resultMap[key]) outputs[key] = resultMap[key];
           }
           await ctx.send({ type: 'deploy_complete', target: device.pluginId, url: result.url });
         } catch (err: any) {
           await ctx.send({
-            type: 'deploy_progress',
-            step: `Cloud deploy failed for ${device.pluginId}: ${err.message}`,
-            progress: 0,
+            type: 'error',
+            message: `Cloud deploy failed for ${manifest.name}: ${err.message}`,
+            recoverable: true,
           });
+          await ctx.send({ type: 'deploy_complete', target: device.pluginId });
         }
       } else if (manifest.deploy.method === 'flash') {
         // Flash deploy with user prompt
@@ -110,23 +115,55 @@ export class DeployPhase {
         await ctx.send({
           type: 'flash_progress',
           device_role: device.pluginId,
-          step: 'Flashing...',
-          progress: 50,
+          step: 'Preparing files...',
+          progress: 10,
         });
 
-        // Inject required values into files if needed
+        // Collect required values from upstream device outputs
         const injections: Record<string, string> = {};
         for (const key of manifest.deploy.requires) {
           if (outputs[key]) injections[key] = outputs[key];
         }
 
-        // Resolve flash files from plugin
-        const flashFiles = this.deviceRegistry.getFlashFiles(device.pluginId);
+        // Copy lib and shared files from plugin directory into workspace
+        const flashFileInfo = this.deviceRegistry!.getFlashFiles(device.pluginId);
+        for (const libFile of flashFileInfo.lib) {
+          const dest = path.join(ctx.nuggetDir, path.basename(libFile));
+          if (fs.existsSync(libFile)) fs.copyFileSync(libFile, dest);
+        }
+        for (const sharedFile of flashFileInfo.shared) {
+          const dest = path.join(ctx.nuggetDir, path.basename(sharedFile));
+          if (fs.existsSync(sharedFile)) fs.copyFileSync(sharedFile, dest);
+        }
+
+        // Write injected config values (e.g., cloud_url, api_key) as config.py
+        if (Object.keys(injections).length > 0) {
+          const configLines = Object.entries(injections)
+            .map(([k, v]) => `${k.toUpperCase()} = "${v}"`);
+          fs.writeFileSync(
+            path.join(ctx.nuggetDir, 'config.py'),
+            configLines.join('\n') + '\n',
+            'utf-8',
+          );
+        }
+
+        // Build list of files to flash
         const filesToFlash = [
           ...flashConfig.files,
-          ...flashFiles.lib.map((f: string) => path.basename(f)),
-          ...flashFiles.shared.map((f: string) => path.basename(f)),
+          ...flashFileInfo.lib.map((f: string) => path.basename(f)),
+          ...flashFileInfo.shared.map((f: string) => path.basename(f)),
         ];
+        // Include config.py if we wrote one
+        if (Object.keys(injections).length > 0) {
+          filesToFlash.push('config.py');
+        }
+
+        await ctx.send({
+          type: 'flash_progress',
+          device_role: device.pluginId,
+          step: `Flashing ${filesToFlash.length} files...`,
+          progress: 30,
+        });
 
         try {
           const flashResult = await this.hardwareService.flashFiles(ctx.nuggetDir, filesToFlash);

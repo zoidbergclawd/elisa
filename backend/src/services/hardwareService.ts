@@ -601,15 +601,28 @@ print('FLASH_OK')
    * this method copies only the specified files (used for IoT multi-device deploys).
    */
   async flashFiles(workDir: string, files: string[]): Promise<{ success: boolean; message?: string }> {
+    if (files.length === 0) return { success: true };
     const mpremote = findMpremote();
+    const missing: string[] = [];
+    let flashed = 0;
     for (const file of files) {
       const filePath = path.join(workDir, file);
-      if (!fs.existsSync(filePath)) continue;
+      if (!fs.existsSync(filePath)) {
+        missing.push(file);
+        continue;
+      }
       try {
         await execFileAsync(mpremote, ['cp', filePath, `:${file}`], { timeout: 30000 });
+        flashed++;
       } catch (err: any) {
         return { success: false, message: `Failed to flash ${file}: ${err.message}` };
       }
+    }
+    if (flashed === 0) {
+      return { success: false, message: `No files found to flash (missing: ${missing.join(', ')})` };
+    }
+    if (missing.length > 0) {
+      return { success: true, message: `Flashed ${flashed} file(s); skipped missing: ${missing.join(', ')}` };
     }
     return { success: true };
   }
