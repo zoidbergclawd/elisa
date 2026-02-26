@@ -111,7 +111,7 @@ describe('HardwareService.detectBoardFast', () => {
       { path: 'COM3', vendorId: '10c4', productId: 'ea60' },
     ]);
     const board = await service.detectBoardFast();
-    expect(board).toEqual({ port: 'COM3', boardType: 'Heltec WiFi LoRa 32 V3 (CP210x)' });
+    expect(board).toEqual({ port: 'COM3', boardType: 'Heltec WiFi LoRa 32 V3 (CP210x)', vendorId: '10C4', productId: 'EA60' });
   });
 
   it('detects ESP32-S3 Native USB (303A:1001)', async () => {
@@ -119,7 +119,7 @@ describe('HardwareService.detectBoardFast', () => {
       { path: '/dev/ttyACM0', vendorId: '303a', productId: '1001' },
     ]);
     const board = await service.detectBoardFast();
-    expect(board).toEqual({ port: '/dev/ttyACM0', boardType: 'ESP32-S3 Native USB' });
+    expect(board).toEqual({ port: '/dev/ttyACM0', boardType: 'ESP32-S3 Native USB', vendorId: '303A', productId: '1001' });
   });
 
   it('detects ESP32-S3 Native USB alternate PID (303A:4001)', async () => {
@@ -127,7 +127,7 @@ describe('HardwareService.detectBoardFast', () => {
       { path: 'COM7', vendorId: '303a', productId: '4001' },
     ]);
     const board = await service.detectBoardFast();
-    expect(board).toEqual({ port: 'COM7', boardType: 'ESP32-S3 Native USB' });
+    expect(board).toEqual({ port: 'COM7', boardType: 'ESP32-S3 Native USB', vendorId: '303A', productId: '4001' });
   });
 
   it('detects unknown Espressif VID as ESP32 Native USB', async () => {
@@ -135,7 +135,7 @@ describe('HardwareService.detectBoardFast', () => {
       { path: 'COM5', vendorId: '303A', productId: 'FFFF' },
     ]);
     const board = await service.detectBoardFast();
-    expect(board).toEqual({ port: 'COM5', boardType: 'ESP32 Native USB' });
+    expect(board).toEqual({ port: 'COM5', boardType: 'ESP32 Native USB', vendorId: '303A', productId: 'FFFF' });
   });
 
   it('detects ESP32 CH9102 board (1A86:55D4)', async () => {
@@ -143,7 +143,7 @@ describe('HardwareService.detectBoardFast', () => {
       { path: '/dev/ttyUSB0', vendorId: '1a86', productId: '55d4' },
     ]);
     const board = await service.detectBoardFast();
-    expect(board).toEqual({ port: '/dev/ttyUSB0', boardType: 'ESP32 (CH9102)' });
+    expect(board).toEqual({ port: '/dev/ttyUSB0', boardType: 'ESP32 (CH9102)', vendorId: '1A86', productId: '55D4' });
   });
 
   it('returns null when no ports are listed', async () => {
@@ -167,7 +167,7 @@ describe('HardwareService.detectBoardFast', () => {
       { path: 'COM3', vendorId: '10c4', productId: 'ea60' },
     ]);
     const board = await service.detectBoardFast();
-    expect(board).toEqual({ port: 'COM3', boardType: 'Heltec WiFi LoRa 32 V3 (CP210x)' });
+    expect(board).toEqual({ port: 'COM3', boardType: 'Heltec WiFi LoRa 32 V3 (CP210x)', vendorId: '10C4', productId: 'EA60' });
   });
 
   it('returns first matching board when multiple are connected', async () => {
@@ -176,7 +176,7 @@ describe('HardwareService.detectBoardFast', () => {
       { path: 'COM5', vendorId: '303a', productId: '1001' },
     ]);
     const board = await service.detectBoardFast();
-    expect(board).toEqual({ port: 'COM3', boardType: 'Heltec WiFi LoRa 32 V3 (CP210x)' });
+    expect(board).toEqual({ port: 'COM3', boardType: 'Heltec WiFi LoRa 32 V3 (CP210x)', vendorId: '10C4', productId: 'EA60' });
   });
 
   it('handles case-insensitive VID:PID matching', async () => {
@@ -185,7 +185,7 @@ describe('HardwareService.detectBoardFast', () => {
       { path: 'COM3', vendorId: '10C4', productId: 'EA60' },
     ]);
     const board = await service.detectBoardFast();
-    expect(board).toEqual({ port: 'COM3', boardType: 'Heltec WiFi LoRa 32 V3 (CP210x)' });
+    expect(board).toEqual({ port: 'COM3', boardType: 'Heltec WiFi LoRa 32 V3 (CP210x)', vendorId: '10C4', productId: 'EA60' });
   });
 
   it('returns null and logs error when SerialPort.list() throws', async () => {
@@ -209,7 +209,7 @@ describe('HardwareService.detectBoard', () => {
       { path: 'COM3', vendorId: '10c4', productId: 'ea60' },
     ]);
     const board = await service.detectBoard();
-    expect(board).toEqual({ port: 'COM3', boardType: 'Heltec WiFi LoRa 32 V3 (CP210x)' });
+    expect(board).toEqual({ port: 'COM3', boardType: 'Heltec WiFi LoRa 32 V3 (CP210x)', vendorId: '10C4', productId: 'EA60' });
   });
 
   it('returns null when no ports have vendorId (skips REPL probe)', async () => {

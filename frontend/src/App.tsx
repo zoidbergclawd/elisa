@@ -547,9 +547,19 @@ export default function App() {
       {boardDetectedModalOpen && boardInfo && (
         <BoardDetectedModal
           boardInfo={boardInfo}
-          matchingPlugins={deviceManifests.filter(m =>
-            m.board && m.board.type.toLowerCase().includes(boardInfo.boardType.toLowerCase())
-          )}
+          matchingPlugins={deviceManifests.filter(m => {
+            if (!m.board) return false;
+            // Match by USB VID when both sides have detection info.
+            // PIDs vary across firmware versions and board manufacturers under the
+            // same VID, so matching on VID alone is sufficient for board family.
+            const det = m.board.detection;
+            if (det?.usb_vid && boardInfo.vendorId) {
+              const manifestVid = det.usb_vid.replace(/^0x/i, '').toUpperCase();
+              return manifestVid === boardInfo.vendorId.toUpperCase();
+            }
+            // Fallback: check if detected board type contains the plugin board type
+            return boardInfo.boardType.toLowerCase().includes(m.board.type.toLowerCase());
+          })}
           onDismiss={handleBoardDismiss}
         />
       )}

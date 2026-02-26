@@ -74,6 +74,8 @@ export interface FlashResult {
 export interface BoardInfo {
   port: string;
   boardType: string;
+  vendorId?: string;
+  productId?: string;
 }
 
 export interface QuestionPayload {

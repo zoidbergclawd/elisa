@@ -501,10 +501,10 @@ print('FLASH_OK')
           const key = `${vid}:${pid}`;
           const boardType = KNOWN_BOARDS.get(key);
           if (boardType) {
-            return { port: portInfo.path, boardType };
+            return { port: portInfo.path, boardType, vendorId: vid, productId: pid };
           }
           if (vid === ESPRESSIF_VID) {
-            return { port: portInfo.path, boardType: 'ESP32 Native USB' };
+            return { port: portInfo.path, boardType: 'ESP32 Native USB', vendorId: vid, productId: pid };
           }
         }
       }

@@ -4,6 +4,8 @@ import { authFetch } from '../lib/apiClient';
 export interface BoardInfo {
   port: string;
   boardType: string;
+  vendorId?: string;
+  productId?: string;
 }
 
 const POLL_INTERVAL = 5_000;
@@ -21,7 +23,12 @@ export function useBoardDetect(enabled: boolean) {
       const res = await authFetch('/api/hardware/detect');
       const data = await res.json();
       if (data.detected) {
-        setBoardInfo({ port: data.port, boardType: data.board_type });
+        setBoardInfo({
+          port: data.port,
+          boardType: data.board_type,
+          vendorId: data.vendor_id,
+          productId: data.product_id,
+        });
       } else {
         setBoardInfo(null);
       }
