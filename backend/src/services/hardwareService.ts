@@ -600,7 +600,11 @@ print('FLASH_OK')
    * Unlike flash() which copies all .py files and runs main.py,
    * this method copies only the specified files (used for IoT multi-device deploys).
    */
-  async flashFiles(workDir: string, files: string[]): Promise<{ success: boolean; message?: string }> {
+  async flashFiles(
+    workDir: string,
+    files: string[],
+    onProgress?: (flashed: number, total: number, fileName: string) => void,
+  ): Promise<{ success: boolean; message?: string }> {
     console.log(`[flashFiles] called with workDir=${workDir}, files=[${files.join(', ')}]`);
     if (files.length === 0) return { success: true };
     const mpremote = findMpremote();
@@ -622,6 +626,7 @@ print('FLASH_OK')
         if (stderr) console.log(`[flashFiles] stderr for ${file}: ${stderr.trim()}`);
         flashed++;
         console.log(`[flashFiles] ${file} flashed OK (${flashed}/${files.length})`);
+        onProgress?.(flashed, files.length, file);
       } catch (err: any) {
         console.error(`[flashFiles] FAILED to flash ${file}:`, err.message);
         return { success: false, message: `Failed to flash ${file}: ${err.message}` };

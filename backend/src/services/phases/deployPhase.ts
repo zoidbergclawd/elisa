@@ -294,7 +294,21 @@ export class DeployPhase {
 
         try {
           log('  calling hardwareService.flashFiles...');
-          const flashResult = await this.hardwareService.flashFiles(ctx.nuggetDir, filesToFlash);
+          const totalFiles = filesToFlash.length;
+          const flashResult = await this.hardwareService.flashFiles(
+            ctx.nuggetDir,
+            filesToFlash,
+            (flashed, total, fileName) => {
+              // Progress from 40% to 90% proportional to files flashed
+              const pct = Math.round(40 + (flashed / total) * 50);
+              ctx.send({
+                type: 'flash_progress',
+                device_role: device.pluginId,
+                step: `Flashed ${fileName} (${flashed}/${total})`,
+                progress: pct,
+              });
+            },
+          );
           log('  flashFiles result', { success: flashResult.success, message: flashResult.message });
 
           await ctx.send({

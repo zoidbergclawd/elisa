@@ -1,13 +1,13 @@
 /** Scaffolds and deploys IoT cloud dashboards to Google Cloud Run. */
 
-import { execFile } from 'node:child_process';
+import { exec } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
-const execFileAsync = promisify(execFile);
+const execAsync = promisify(exec);
 
 /** Directory containing the cloud_dashboard template files. */
 const TEMPLATE_DIR = path.resolve(
@@ -103,18 +103,18 @@ export class CloudDeployService {
     const apiKey = this.generateApiKey();
     const dashboardDir = await this.scaffoldDashboard(nuggetDir, apiKey);
 
-    const args = [
-      'run', 'deploy', 'elisa-iot-dashboard',
-      '--source', dashboardDir,
+    // Use exec (shell) instead of execFile -- gcloud is a .cmd wrapper on Windows
+    // and execFile cannot spawn .cmd files reliably across all Windows versions.
+    const cmd = [
+      'gcloud', 'run', 'deploy', 'elisa-iot-dashboard',
+      '--source', `"${dashboardDir}"`,
       '--project', project,
       '--region', region,
       '--allow-unauthenticated',
       '--format', 'value(status.url)',
-    ];
+    ].join(' ');
 
-    // On Windows, gcloud is a .cmd wrapper -- execFile needs the .cmd extension
-    const gcloudBin = process.platform === 'win32' ? 'gcloud.cmd' : 'gcloud';
-    const { stdout } = await execFileAsync(gcloudBin, args, {
+    const { stdout } = await execAsync(cmd, {
       timeout: 300_000, // 5 minute timeout for cloud deploy
     });
 

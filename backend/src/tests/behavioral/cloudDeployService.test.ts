@@ -5,6 +5,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Mock child_process -- vi.mock factories are hoisted, so use vi.fn() inline
 vi.mock('node:child_process', () => ({
   execFile: vi.fn(),
+  exec: vi.fn(),
 }));
 
 // Mock fs -- all functions as inline vi.fn() to avoid hoisting issues
