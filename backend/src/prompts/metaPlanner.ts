@@ -114,6 +114,37 @@ If the nugget spec includes hardware components or deployment target "esp32" or 
 - Test tasks should verify code compiles cleanly (py_compile).
 - Agents must write ASCII-only Python code. No emoji or unicode characters -- MicroPython has limited encoding support.`;
 
+const DEVICE_PLUGIN_SECTION = `\
+
+## Device Plugin Rules (Multi-Device Builds)
+
+The spec includes a \`devices\` array with one or more device plugin entries. Each device represents an independent hardware board or cloud service with its own codebase.
+
+### Task Graph Structure
+
+- Create **parallel per-device tracks**. Each device gets its own independent track:
+  1. Scaffold: Create the device's file structure (e.g. \`sensor_main.py\`, \`gateway_main.py\`, or cloud app scaffolding)
+  2. Implement: Write the device's application code
+  3. Verify: Compile/verify the device's code (see below)
+- Tracks run in parallel -- devices are independent during the build phase.
+- After all device tracks complete, add a single **Integration Review** task that depends on every device's final verify task.
+
+### Verification Rules
+
+- **Flash devices** (ESP32, microcontroller boards): Verify with py_compile. Write ASCII-only MicroPython code. Use the \`elisa_hardware\` library (ElisaBoard class) for hardware interactions.
+- **Cloud devices** (web services, dashboards): Verify with code review for correctness and completeness.
+
+### Deployment Rules
+
+- Do NOT generate Flash, Deploy, or Upload tasks. All deployment is handled automatically by a separate deploy phase after agent tasks complete.
+- Agents must NEVER attempt to flash, upload, or deploy code to hardware or cloud services.
+
+### Hardware Coding Rules
+
+- Hardware files go in src/ (e.g. src/sensor_main.py, src/gateway_main.py). The elisa_hardware.py library is pre-installed.
+- Write ASCII-only Python code for MicroPython targets. No emoji or unicode characters.
+- Use the \`elisa_hardware\` library (ElisaBoard class) for all hardware interactions.`;
+
 const PORTAL_SECTION = `\
 
 ## Portals
@@ -175,7 +206,37 @@ Output:
   "estimated_time_minutes": 3,
   "critical_path": ["task-1", "task-2", "task-3"]
 }
+</example>
+
+<example title="Multi-Device IoT Network">
+Input: { "nugget": { "goal": "IoT sensor network", "type": "general" }, "requirements": [{ "type": "feature", "description": "Sensor node reads DHT22 and sends via LoRa" }, { "type": "feature", "description": "Gateway relays LoRa data to cloud" }, { "type": "feature", "description": "Dashboard displays real-time data" }], "devices": [{ "pluginId": "heltec-sensor-node", "instanceId": "sensor1", "fields": {} }, { "pluginId": "heltec-gateway", "instanceId": "gw1", "fields": {} }, { "pluginId": "cloud-dashboard", "instanceId": "dash1", "fields": {} }], "deployment": { "target": "both" } }
+Output:
+{
+  "tasks": [
+    { "id": "task-1", "name": "Scaffold sensor node", "description": "Create sensor_main.py and supporting modules for the Heltec sensor node", "acceptance_criteria": ["sensor_main.py exists", "Uses ElisaBoard class"], "dependencies": [], "agent_name": "Sensor Builder", "complexity": "simple" },
+    { "id": "task-2", "name": "Implement sensor logic", "description": "Read DHT22 data, format LoRa packets, transmit on schedule", "acceptance_criteria": ["Reads DHT22", "Transmits via LoRa"], "dependencies": ["task-1"], "agent_name": "Sensor Builder", "complexity": "medium" },
+    { "id": "task-3", "name": "Verify sensor code", "description": "Run py_compile on all sensor MicroPython files", "acceptance_criteria": ["No compile errors"], "dependencies": ["task-2"], "agent_name": "Test Bot", "complexity": "simple" },
+    { "id": "task-4", "name": "Scaffold gateway", "description": "Create gateway_main.py for the Heltec gateway node", "acceptance_criteria": ["gateway_main.py exists"], "dependencies": [], "agent_name": "Gateway Builder", "complexity": "simple" },
+    { "id": "task-5", "name": "Implement gateway relay", "description": "Receive LoRa packets, connect WiFi, POST to cloud endpoint", "acceptance_criteria": ["Receives LoRa data", "POSTs to cloud"], "dependencies": ["task-4"], "agent_name": "Gateway Builder", "complexity": "medium" },
+    { "id": "task-6", "name": "Verify gateway code", "description": "Run py_compile on all gateway MicroPython files", "acceptance_criteria": ["No compile errors"], "dependencies": ["task-5"], "agent_name": "Test Bot", "complexity": "simple" },
+    { "id": "task-7", "name": "Scaffold cloud dashboard", "description": "Create web app structure with ingest endpoint and SSE stream", "acceptance_criteria": ["App scaffold exists", "Ingest endpoint defined"], "dependencies": [], "agent_name": "Cloud Builder", "complexity": "simple" },
+    { "id": "task-8", "name": "Implement dashboard", "description": "Build real-time dashboard with data ingest and SSE streaming", "acceptance_criteria": ["Dashboard renders data", "SSE stream works"], "dependencies": ["task-7"], "agent_name": "Cloud Builder", "complexity": "medium" },
+    { "id": "task-9", "name": "Review dashboard code", "description": "Review cloud dashboard for correctness and completeness", "acceptance_criteria": ["Review verdict provided"], "dependencies": ["task-8"], "agent_name": "Review Bot", "complexity": "simple" },
+    { "id": "task-10", "name": "Integration review", "description": "Review all devices together: verify LoRa channels match, cloud endpoints align, data formats are consistent", "acceptance_criteria": ["All device interfaces are compatible"], "dependencies": ["task-3", "task-6", "task-9"], "agent_name": "Review Bot", "complexity": "medium" }
+  ],
+  "agents": [
+    { "name": "Sensor Builder", "role": "builder", "persona": "A curious scientist", "allowed_paths": ["src/"], "restricted_paths": [".elisa/"] },
+    { "name": "Gateway Builder", "role": "builder", "persona": "A network engineer", "allowed_paths": ["src/"], "restricted_paths": [".elisa/"] },
+    { "name": "Cloud Builder", "role": "builder", "persona": "A cloud wizard", "allowed_paths": ["src/", "public/"], "restricted_paths": [".elisa/"] },
+    { "name": "Test Bot", "role": "tester", "persona": "A careful detective", "allowed_paths": ["src/", "tests/"], "restricted_paths": [".elisa/"] },
+    { "name": "Review Bot", "role": "reviewer", "persona": "A helpful teacher", "allowed_paths": ["src/", "tests/"], "restricted_paths": [".elisa/"] }
+  ],
+  "plan_explanation": "Your minion squad splits into three teams! Sensor Builder writes code for the sensor node, Gateway Builder handles the relay, and Cloud Builder creates the dashboard. They all work at the same time! Test Bot checks the hardware code compiles, Review Bot checks the cloud code, then everyone's work gets an integration review before deployment.",
+  "estimated_time_minutes": 8,
+  "critical_path": ["task-1", "task-2", "task-3", "task-10"]
+}
 </example>`;
+
 
 const META_PLANNER_FOOTER = `\
 
@@ -194,12 +255,15 @@ export function buildMetaPlannerSystem(spec: Record<string, any>): string {
   const nuggetType = spec.nugget?.type ?? 'software';
   const deployTarget = spec.deployment?.target ?? 'preview';
   const hasPortals = Array.isArray(spec.portals) && spec.portals.length > 0;
+  const hasDevices = Array.isArray(spec.devices) && spec.devices.length > 0;
   const isHardware = nuggetType === 'hardware' ||
     deployTarget === 'esp32' ||
     deployTarget === 'both';
 
   let prompt = META_PLANNER_BASE;
-  if (isHardware) prompt += HARDWARE_SECTION;
+  // Device plugin section supersedes hardware section (it includes the relevant hardware rules)
+  if (hasDevices) prompt += DEVICE_PLUGIN_SECTION;
+  else if (isHardware) prompt += HARDWARE_SECTION;
   if (hasPortals) prompt += PORTAL_SECTION;
   prompt += EXAMPLES_SECTION;
   prompt += META_PLANNER_FOOTER;

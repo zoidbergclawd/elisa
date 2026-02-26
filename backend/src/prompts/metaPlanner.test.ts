@@ -116,6 +116,64 @@ describe('buildMetaPlannerSystem', () => {
     });
   });
 
+  describe('device plugin section inclusion', () => {
+    it('includes device plugin section when devices array is non-empty', () => {
+      const result = buildMetaPlannerSystem({
+        nugget: { goal: 'IoT network', type: 'general' },
+        devices: [{ pluginId: 'sensor-node', instanceId: 's1', fields: {} }],
+      });
+      expect(result).toContain('## Device Plugin Rules');
+      expect(result).toContain('parallel per-device tracks');
+      expect(result).toContain('py_compile');
+      expect(result).toContain('elisa_hardware');
+    });
+
+    it('excludes device plugin section when devices is empty', () => {
+      const result = buildMetaPlannerSystem({
+        nugget: { goal: 'A game', type: 'software' },
+        devices: [],
+      });
+      expect(result).not.toContain('## Device Plugin Rules');
+    });
+
+    it('excludes device plugin section when devices is missing', () => {
+      const result = buildMetaPlannerSystem({
+        nugget: { goal: 'A game', type: 'software' },
+      });
+      expect(result).not.toContain('## Device Plugin Rules');
+    });
+
+    it('device section supersedes hardware section when devices are present', () => {
+      const result = buildMetaPlannerSystem({
+        nugget: { goal: 'IoT dashboard', type: 'hardware' },
+        deployment: { target: 'both' },
+        devices: [{ pluginId: 'sensor-node', instanceId: 's1', fields: {} }],
+      });
+      expect(result).toContain('## Device Plugin Rules');
+      expect(result).not.toContain('## Hardware Nugget Rules');
+    });
+
+    it('falls back to hardware section when no devices but hardware type', () => {
+      const result = buildMetaPlannerSystem({
+        nugget: { goal: 'Blink LED', type: 'hardware' },
+        deployment: { target: 'esp32' },
+      });
+      expect(result).toContain('## Hardware Nugget Rules');
+      expect(result).not.toContain('## Device Plugin Rules');
+    });
+
+    it('device section comes before portal section', () => {
+      const result = buildMetaPlannerSystem({
+        nugget: { goal: 'IoT', type: 'general' },
+        devices: [{ pluginId: 'x', instanceId: 'x1', fields: {} }],
+        portals: [{ name: 'api', mechanism: 'mcp' }],
+      });
+      const deviceIdx = result.indexOf('## Device Plugin Rules');
+      const portalIdx = result.indexOf('## Portals');
+      expect(deviceIdx).toBeLessThan(portalIdx);
+    });
+  });
+
   describe('combined hardware and portal sections', () => {
     it('includes both when both conditions are met', () => {
       const result = buildMetaPlannerSystem({

@@ -371,6 +371,9 @@ export function interpretWorkspace(
               }
             }
             spec.devices.push({ pluginId: manifest.id, instanceId: block.id ?? block.type, fields });
+            // Infer deployment target from device manifest deploy method
+            if ((manifest.deploy as any)?.method === 'flash') hasEsp32 = true;
+            if ((manifest.deploy as any)?.method === 'cloud') hasWeb = true;
           }
         }
         break;
