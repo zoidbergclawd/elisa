@@ -113,6 +113,37 @@ export function formatTaskPrompt(params: {
     parts.push(`\n## Style Preferences\n${formatStyle(style)}`);
   }
 
+  // Device plugin context injection -- placed BEFORE predecessors so the agent
+  // sees hardware requirements prominently, not buried at the end of the prompt.
+  if (params.deviceRegistry && spec.devices?.length) {
+    const seen = new Set<string>();
+    const requiredFiles: string[] = [];
+    for (const device of spec.devices) {
+      if (!seen.has(device.pluginId)) {
+        seen.add(device.pluginId);
+        const ctx = params.deviceRegistry.getAgentContext(device.pluginId);
+        if (ctx) parts.push(`\n## Device: ${device.pluginId}\n${ctx}`);
+        // Collect required entry point files from agent-context
+        const fileMatch = ctx?.match(/Generate `([^`]+)` as the entry point/);
+        if (fileMatch) requiredFiles.push(fileMatch[1]);
+      }
+      // Inject per-instance fields so the agent knows user's pin/config selections
+      if (device.fields && Object.keys(device.fields).length > 0) {
+        const fieldLines = Object.entries(device.fields)
+          .map(([k, v]) => `${k}: ${v}`)
+          .join('\n');
+        parts.push(`\n## Device Instance: ${device.pluginId}\n${fieldLines}`);
+      }
+    }
+    if (requiredFiles.length > 0) {
+      parts.push('\n## MANDATORY OUTPUT FILES');
+      parts.push('You MUST create these files. The build will fail if any are missing:');
+      for (const f of requiredFiles) {
+        parts.push(`- **${f}** (device entry point -- required for deployment)`);
+      }
+    }
+  }
+
   if (predecessors.length) {
     parts.push('\n## WHAT HAPPENED BEFORE YOU');
     parts.push('Previous agents completed these tasks. Use their output as context:');
@@ -182,25 +213,6 @@ export function formatTaskPrompt(params: {
         }
       }
       parts.push(`<user_input name="portal:${portal.name}">\n${portalParts.join('\n')}\n</user_input>`);
-    }
-  }
-
-  // Device plugin context injection
-  if (params.deviceRegistry && spec.devices?.length) {
-    const seen = new Set<string>();
-    for (const device of spec.devices) {
-      if (!seen.has(device.pluginId)) {
-        seen.add(device.pluginId);
-        const ctx = params.deviceRegistry.getAgentContext(device.pluginId);
-        if (ctx) parts.push(`\n## Device: ${device.pluginId}\n${ctx}`);
-      }
-      // Inject per-instance fields so the agent knows user's pin/config selections
-      if (device.fields && Object.keys(device.fields).length > 0) {
-        const fieldLines = Object.entries(device.fields)
-          .map(([k, v]) => `${k}: ${v}`)
-          .join('\n');
-        parts.push(`\n## Device Instance: ${device.pluginId}\n${fieldLines}`);
-      }
     }
   }
 
