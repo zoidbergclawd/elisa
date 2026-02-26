@@ -191,7 +191,7 @@ function createApp(staticDir?: string, authToken?: string) {
   const sendEvent = (sessionId: string, event: Record<string, any>) =>
     manager.sendEvent(sessionId, event);
 
-  app.use('/api/sessions', createSessionRouter({ store, sendEvent, hardwareService }));
+  app.use('/api/sessions', createSessionRouter({ store, sendEvent, hardwareService, deviceRegistry }));
   app.use('/api/skills', createSkillRouter({ store, sendEvent }));
   app.use('/api/hardware', createHardwareRouter({ store, hardwareService }));
   app.use('/api/workspace', createWorkspaceRouter());

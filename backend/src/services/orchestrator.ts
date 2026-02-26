@@ -64,14 +64,14 @@ export class Orchestrator {
   private testPhase: TestPhase;
   private deployPhase: DeployPhase;
 
-  constructor(session: BuildSession, sendEvent: SendEvent, hardwareService?: HardwareService, workspacePath?: string) {
+  constructor(session: BuildSession, sendEvent: SendEvent, hardwareService?: HardwareService, workspacePath?: string, deviceRegistry?: DeviceRegistry) {
     this.session = session;
     this.send = sendEvent;
     this.nuggetDir = workspacePath || path.join(os.tmpdir(), `elisa-nugget-${session.id}`);
     this.userWorkspace = !!workspacePath;
     this.hardwareService = hardwareService ?? new HardwareService();
     this.portalService = new PortalService();
-    this.deviceRegistry = new DeviceRegistry(path.resolve(import.meta.dirname, '../../devices'));
+    this.deviceRegistry = deviceRegistry ?? new DeviceRegistry(path.resolve(import.meta.dirname, '../../devices'));
 
     this.planPhase = new PlanPhase(new MetaPlanner(), this.teachingEngine, this.deviceRegistry);
     this.testPhase = new TestPhase(this.testRunner, this.teachingEngine);
