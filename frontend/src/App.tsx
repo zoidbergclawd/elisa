@@ -22,6 +22,7 @@ import { useBoardDetect } from './hooks/useBoardDetect';
 import ReadinessBadge from './components/shared/ReadinessBadge';
 import DirectoryPickerModal from './components/shared/DirectoryPickerModal';
 import BoardDetectedModal from './components/shared/BoardDetectedModal';
+import FlashWizardModal from './components/shared/FlashWizardModal';
 import { playChime } from './lib/playChime';
 import { saveNuggetFile, loadNuggetFile, downloadBlob } from './lib/nuggetFile';
 import { setAuthToken, authFetch } from './lib/apiClient';
@@ -52,8 +53,9 @@ export default function App() {
   const {
     uiState, tasks, agents, commits, events, sessionId,
     teachingMoments, testResults, coveragePct, tokenUsage,
-    serialLines, deployProgress, deployChecklist, deployUrl, gateRequest, questionRequest,
+    serialLines, deployProgress, deployChecklist, deployUrls, gateRequest, questionRequest,
     nuggetDir, errorNotification, narratorMessages, isPlanning,
+    flashWizardState,
     handleEvent, startBuild, stopBuild, clearGateRequest, clearQuestionRequest,
     clearErrorNotification, resetToDesign,
   } = useBuildSession();
@@ -508,6 +510,26 @@ export default function App() {
         />
       )}
 
+      {/* Flash wizard modal */}
+      {flashWizardState?.visible && sessionId && (
+        <FlashWizardModal
+          deviceRole={flashWizardState.deviceRole}
+          message={flashWizardState.message}
+          isFlashing={flashWizardState.isFlashing}
+          progress={flashWizardState.progress}
+          deviceName={flashWizardState.deviceName}
+          onReady={() => {
+            authFetch(`/api/sessions/${sessionId}/gate`, {
+              method: 'POST',
+              body: JSON.stringify({ approved: true }),
+            });
+          }}
+          onCancel={() => {
+            authFetch(`/api/sessions/${sessionId}/stop`, { method: 'POST' });
+          }}
+        />
+      )}
+
       {/* Skills modal */}
       {skillsModalOpen && (
         <SkillsModal
@@ -660,16 +682,17 @@ export default function App() {
               </div>
             )}
             <div className="flex flex-col items-center gap-2">
-              {deployUrl && (
+              {Object.entries(deployUrls).map(([target, url]) => (
                 <a
-                  href={deployUrl}
+                  key={target}
+                  href={url}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="go-btn px-6 py-2.5 rounded-xl text-sm inline-block"
                 >
-                  Open in Browser
+                  {Object.keys(deployUrls).length > 1 ? `Open ${target}` : 'Open in Browser'}
                 </a>
-              )}
+              ))}
               <button
                 onClick={() => {
                   if (sessionId) {

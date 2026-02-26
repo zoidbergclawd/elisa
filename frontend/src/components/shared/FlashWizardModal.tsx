@@ -5,6 +5,7 @@ interface FlashWizardModalProps {
   message: string;
   isFlashing?: boolean;
   progress?: number;
+  deviceName?: string;
   onReady: () => void;
   onCancel: () => void;
 }
@@ -19,12 +20,13 @@ export default function FlashWizardModal({
   message,
   isFlashing = false,
   progress = 0,
+  deviceName,
   onReady,
   onCancel,
 }: FlashWizardModalProps) {
   const friendlyName = useMemo(
-    () => FRIENDLY_NAMES[deviceRole] ?? deviceRole,
-    [deviceRole],
+    () => deviceName ?? FRIENDLY_NAMES[deviceRole] ?? deviceRole,
+    [deviceName, deviceRole],
   );
 
   return (

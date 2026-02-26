@@ -73,7 +73,7 @@ export class Orchestrator {
     this.portalService = new PortalService();
     this.deviceRegistry = new DeviceRegistry(path.resolve(import.meta.dirname, '../../devices'));
 
-    this.planPhase = new PlanPhase(new MetaPlanner(), this.teachingEngine);
+    this.planPhase = new PlanPhase(new MetaPlanner(), this.teachingEngine, this.deviceRegistry);
     this.testPhase = new TestPhase(this.testRunner, this.teachingEngine);
     this.deployPhase = new DeployPhase(
       this.hardwareService,

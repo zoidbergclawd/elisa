@@ -9,6 +9,7 @@ import type { PhaseContext } from './types.js';
 import { MetaPlanner } from '../metaPlanner.js';
 import { TeachingEngine } from '../teachingEngine.js';
 import { TaskDAG } from '../../utils/dag.js';
+import type { DeviceRegistry } from '../deviceRegistry.js';
 
 vi.mock('../metaPlanner.js');
 vi.mock('../teachingEngine.js');
@@ -150,5 +151,50 @@ describe('PlanPhase', () => {
     expect(planReady).toBeDefined();
     expect(planReady![0].explanation).toBe('Build then style.');
     expect(planReady![0].deployment_target).toBe('esp32');
+  });
+
+  it('includes deploy_steps in plan_ready when spec has devices', async () => {
+    const mockRegistry = {
+      getDevice: vi.fn((id: string) => {
+        if (id === 'cloud-dashboard') {
+          return { id: 'cloud-dashboard', name: 'Cloud Dashboard', deploy: { method: 'cloud', provides: ['DASHBOARD_URL'], requires: [] } };
+        }
+        if (id === 'heltec-sensor') {
+          return { id: 'heltec-sensor', name: 'Heltec Sensor Node', deploy: { method: 'flash', provides: [], requires: ['DASHBOARD_URL'] } };
+        }
+        return undefined;
+      }),
+    } as unknown as DeviceRegistry;
+
+    const ctx = makeCtx({ nuggetDir: tmpDir });
+    const phase = new PlanPhase(metaPlanner, teachingEngine, mockRegistry);
+    const spec = {
+      devices: [
+        { pluginId: 'heltec-sensor', instanceId: 'sensor-1', fields: {} },
+        { pluginId: 'cloud-dashboard', instanceId: 'dash-1', fields: {} },
+      ],
+    };
+
+    await phase.execute(ctx, spec);
+
+    const planReady = vi.mocked(ctx.send).mock.calls.find(([ev]) => ev.type === 'plan_ready');
+    expect(planReady![0].deploy_steps).toBeDefined();
+    const steps = planReady![0].deploy_steps;
+    expect(steps).toHaveLength(2);
+    // Cloud first (provides DASHBOARD_URL), then sensor (requires it)
+    expect(steps[0].id).toBe('cloud-dashboard');
+    expect(steps[0].method).toBe('cloud');
+    expect(steps[1].id).toBe('heltec-sensor');
+    expect(steps[1].method).toBe('flash');
+  });
+
+  it('omits deploy_steps when no devices in spec', async () => {
+    const ctx = makeCtx({ nuggetDir: tmpDir });
+    const phase = new PlanPhase(metaPlanner, teachingEngine);
+
+    await phase.execute(ctx, {});
+
+    const planReady = vi.mocked(ctx.send).mock.calls.find(([ev]) => ev.type === 'plan_ready');
+    expect(planReady![0].deploy_steps).toBeUndefined();
   });
 });

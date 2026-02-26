@@ -101,7 +101,7 @@ export class DeployPhase {
 
         await ctx.send({
           type: 'flash_prompt',
-          device_id: device.pluginId,
+          device_role: device.pluginId,
           message: flashConfig.prompt_message,
         });
 
@@ -109,7 +109,7 @@ export class DeployPhase {
 
         await ctx.send({
           type: 'flash_progress',
-          device_id: device.pluginId,
+          device_role: device.pluginId,
           step: 'Flashing...',
           progress: 50,
         });
@@ -132,7 +132,7 @@ export class DeployPhase {
           const flashResult = await this.hardwareService.flashFiles(ctx.nuggetDir, filesToFlash);
           await ctx.send({
             type: 'flash_complete',
-            device_id: device.pluginId,
+            device_role: device.pluginId,
             success: flashResult.success,
             message: flashResult.success
               ? `${manifest.name} flashed successfully`
@@ -141,7 +141,7 @@ export class DeployPhase {
         } catch (err: any) {
           await ctx.send({
             type: 'flash_complete',
-            device_id: device.pluginId,
+            device_role: device.pluginId,
             success: false,
             message: err.message,
           });

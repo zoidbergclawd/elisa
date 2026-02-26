@@ -122,4 +122,31 @@ describe('FlashWizardModal', () => {
     );
     expect(screen.getByText('75% complete')).toBeInTheDocument();
   });
+
+  it('uses deviceName prop over friendly names and raw role', () => {
+    render(
+      <FlashWizardModal
+        deviceRole="heltec-sensor"
+        message="Plug in your device"
+        deviceName="Heltec Sensor Node"
+        onReady={vi.fn()}
+        onCancel={vi.fn()}
+      />
+    );
+    expect(screen.getByText(/Heltec Sensor Node/i)).toBeInTheDocument();
+  });
+
+  it('deviceName takes priority over FRIENDLY_NAMES match', () => {
+    render(
+      <FlashWizardModal
+        deviceRole="sensor_node"
+        message="Plug in device"
+        deviceName="Custom Name"
+        onReady={vi.fn()}
+        onCancel={vi.fn()}
+      />
+    );
+    // Should show "Custom Name" not "Sensor Node"
+    expect(screen.getByText(/Custom Name/i)).toBeInTheDocument();
+  });
 });
