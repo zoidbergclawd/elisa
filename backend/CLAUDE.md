@@ -71,7 +71,12 @@ src/
     redeployClassifier.ts  Redeploy decision matrix: classifyChanges(oldSpec, newSpec) -> action + reasons
     specGraph.ts         Spec Graph service: directed graph of NuggetSpecs with persistence
     compositionService.ts  Nugget composition orchestrator with emergence detection
+    meetingTriggerWiring.ts  Wires MeetingTriggerEngine into orchestrator pipeline per build event
     artAgentMeeting.ts   Art Agent meeting type for BOX-3 display theme customization
+    architectureAgentMeeting.ts  Architecture Agent meeting type (canvasType: blueprint)
+    docAgentMeeting.ts   Documentation Agent meeting type (canvasType: explain-it)
+    mediaAgentMeeting.ts Media Agent meeting type (canvasType: campaign)
+    webDesignAgentMeeting.ts  Web Designer Agent meeting type (canvasType: launch-pad)
     integrationAgentMeeting.ts  Integration meeting type for nugget composition
     runtimeProvisioner.ts Interface + Stub/Local implementations for agent provisioning
     runtime/

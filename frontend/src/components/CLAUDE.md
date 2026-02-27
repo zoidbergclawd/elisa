@@ -29,7 +29,7 @@ App.tsx
     TestResults.tsx                  Pass/fail indicators + coverage bar (build-state aware)
     TraceabilityView.tsx             Requirement-to-test traceability table with status badges
     SystemBoundaryView.tsx           System boundary visualization (inputs/outputs/portals columns)
-    HealthDashboard.tsx              System health vital signs (live score + post-build grade + breakdown)
+    HealthDashboard.tsx              System health vital signs (live score + post-build grade + breakdown + Architect-level trend chart)
     BoardOutput.tsx                  Serial output (conditional on serial data)
     TeachingSidebar.tsx              Learning moments list
     ProgressPanel.tsx                Build progress bar + phase text
@@ -68,7 +68,7 @@ App.tsx
 
 ## BlockCanvas Subsystem
 
-- `blockDefinitions.ts`: Custom block types across 11 categories (Goal, Requirements, Tests, Style, Skills, Rules, Portals, Agents, Flow, System, Deploy). Device plugin blocks add additional categories dynamically.
+- `blockDefinitions.ts`: Custom block types across 12 categories (Goal, Requirements, Tests, Style, Skills, Rules, Portals, Agents, Flow, System, Composition, Deploy). Device plugin blocks add additional categories dynamically.
 - `blockInterpreter.ts`: Walks Blockly workspace JSON, extracts fields, builds NuggetSpec. Device plugin blocks handled generically.
 - `toolbox.ts`: Defines Blockly sidebar categories. Device plugin blocks dynamically added via `buildDeviceCategories()`.
 - `skillFlowToolbox.ts`: Blockly toolbox definition for the skill flow editor.

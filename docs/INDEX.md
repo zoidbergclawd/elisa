@@ -29,7 +29,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/components/Skills/` | Skills CRUD modal + template library |
 | `frontend/src/components/Rules/` | Rules CRUD modal + template library |
 | `frontend/src/components/Portals/` | Portal connections modal |
-| `frontend/src/components/Meeting/` | Agent Meeting framework: modal, canvas registry, default canvas |
+| `frontend/src/components/Meeting/` | Agent Meeting framework: modal, canvas registry, 8 specialized canvases |
 | `frontend/src/components/shared/` | Reusable: tabs, buttons, modals, toasts, avatars |
 | `frontend/src/hooks/` | React hooks (session state, health, WebSocket, board detect, skills) |
 | `frontend/src/lib/` | Utility functions (nugget files, skill templates, terminology) |
@@ -124,6 +124,12 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/services/specGraph.ts` | Spec Graph service: directed graph of NuggetSpecs with persistence |
 | `backend/src/services/compositionService.ts` | Nugget composition orchestrator with emergence detection |
 | `backend/src/services/integrationAgentMeeting.ts` | Integration meeting type for nugget composition |
+| `backend/src/services/meetingTriggerWiring.ts` | Wires MeetingTriggerEngine into orchestrator pipeline per build event |
+| `backend/src/services/healthHistoryService.ts` | Health-over-time persistence (20-entry cap, .elisa/health-history.json) |
+| `backend/src/services/architectureAgentMeeting.ts` | Architecture Agent meeting type (canvasType: blueprint) |
+| `backend/src/services/docAgentMeeting.ts` | Documentation Agent meeting type (canvasType: explain-it) |
+| `backend/src/services/mediaAgentMeeting.ts` | Media Agent meeting type (canvasType: campaign) |
+| `backend/src/services/webDesignAgentMeeting.ts` | Web Designer Agent meeting type (canvasType: launch-pad) |
 | `backend/src/services/artAgentMeeting.ts` | Art Agent meeting type for BOX-3 theme customization |
 | `backend/src/models/runtime.ts` | Agent Runtime types: AgentIdentity, ConversationTurn, UsageRecord, StudyModeConfig, QuizQuestion, BackpackSource |
 | `backend/src/models/specGraph.ts` | Spec Graph types: SpecGraphNode, SpecGraphEdge, SpecGraph, SpecGraphPersistence |
@@ -179,7 +185,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 |------|------|
 | `frontend/src/App.tsx` | Root component, layout, modal routing |
 | `frontend/src/components/BlockCanvas/BlockCanvas.tsx` | Blockly editor wrapper |
-| `frontend/src/components/BlockCanvas/blockDefinitions.ts` | Custom block types (10 categories) |
+| `frontend/src/components/BlockCanvas/blockDefinitions.ts` | Custom block types (12 categories) |
 | `frontend/src/components/BlockCanvas/blockInterpreter.ts` | Workspace -> NuggetSpec JSON conversion |
 | `frontend/src/components/BlockCanvas/toolbox.ts` | Blockly sidebar categories |
 | `frontend/src/components/BlockCanvas/skillFlowBlocks.ts` | Skill flow block definitions |
@@ -201,11 +207,17 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/components/MissionControl/ContextFlowAnimation.tsx` | Animated context flow dots between DAG nodes when tasks complete |
 | `frontend/src/components/MissionControl/PlanningIndicator.tsx` | Planning phase status indicator |
 | `frontend/src/components/BottomBar/SystemBoundaryView.tsx` | System boundary visualization (inputs/outputs/portals columns) |
-| `frontend/src/components/BottomBar/HealthDashboard.tsx` | System health vital signs (live score + post-build grade + breakdown) |
+| `frontend/src/components/BottomBar/HealthDashboard.tsx` | System health vital signs (live score + post-build grade + breakdown + Architect-level trend chart) |
 | `frontend/src/components/BottomBar/TraceabilityView.tsx` | Requirement-to-test traceability table with status badges |
 | `frontend/src/components/shared/ProofMeter.tsx` | Segmented progress bar for requirement verification (green/red/amber) |
 | `frontend/src/components/shared/EsptoolFlashStep.tsx` | Esptool flash progress UI with port detection and manual override |
 | `frontend/src/components/Meeting/ThemePickerCanvas.tsx` | BOX-3 display theme picker canvas for Art Agent meetings |
+| `frontend/src/components/Meeting/BugDetectiveCanvas.tsx` | Bug diagnosis canvas for debug-convergence meetings |
+| `frontend/src/components/Meeting/BlueprintCanvas.tsx` | System overview canvas for Architecture Agent meetings |
+| `frontend/src/components/Meeting/CampaignCanvas.tsx` | Creative asset builder canvas for Media Agent meetings |
+| `frontend/src/components/Meeting/ExplainItCanvas.tsx` | Document editor canvas for Documentation Agent meetings |
+| `frontend/src/components/Meeting/InterfaceDesignerCanvas.tsx` | Interface contract builder canvas for Integration meetings |
+| `frontend/src/components/Meeting/LaunchPadCanvas.tsx` | Launch page builder canvas for Web Designer Agent meetings |
 | `frontend/src/components/shared/ImpactPreview.tsx` | Pre-execution impact preview card (task estimate, complexity, heaviest reqs) |
 
 ### Hooks
@@ -279,9 +291,11 @@ POST /api/spec-graph -> SpecGraphService.create() -> graph_id
 POST /api/spec-graph/:id/nodes -> addNode(spec, label) -> node_id (with composition.provides/requires)
 POST /api/spec-graph/:id/edges -> addEdge(from, to, relationship)
 POST /api/spec-graph/:id/compose -> CompositionService.compose()
+  -> emits composition_started (graph_id, node_ids) via WebSocket
   -> resolveInterfaces() -> match requires to provides
   -> detectEmergence() -> feedback loops, pipelines, hubs
   -> merge NuggetSpecs -> ComposeResult
+  -> emits composition_impact per affected node via WebSocket
 
 Build with graph context:
   spec.composition.parent_graph_id -> SpecGraphService.buildGraphContext()

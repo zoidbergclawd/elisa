@@ -120,6 +120,21 @@ Defines `FlashStrategy` interface with `checkPrerequisites()` and `flash()` meth
 ### redeployClassifier.ts (redeploy decision matrix)
 Pure function `classifyChanges(oldSpec, newSpec)` compares two NuggetSpec objects and returns `{ action: 'config_only' | 'firmware_required' | 'no_change', reasons: string[] }`. Compares `devices` array (plugin IDs, field values), `deployment` section, and `runtime` config. Firmware fields (WiFi SSID/password, wake word, LoRa, device name) trigger `firmware_required`. Runtime config changes (agent name, voice, display theme, greeting) are `config_only`. Used by `RuntimeProvisioner.classifyChanges()`.
 
+### meetingTriggerWiring.ts (meeting trigger wiring)
+Wraps `MeetingTriggerEngine` + `MeetingService` for the orchestrator. `evaluateAndInvite(event, context, session, send)` checks system-level gating via `shouldAutoInviteMeetings()`, evaluates build events against registered meeting trigger conditions, and creates meeting invites for matching types. Wired into orchestrator at `deploy_started` and `session_complete` events.
+
+### architectureAgentMeeting.ts (architecture agent meeting type)
+Registers the `architecture-agent` meeting type with `canvasType: 'blueprint'`. Triggers on `session_complete`. Agent persona is "Blueprint". Frontend canvas: `BlueprintCanvas.tsx`. `registerArchitectureAgentMeeting(registry)` called at startup.
+
+### docAgentMeeting.ts (documentation agent meeting type)
+Registers the `doc-agent` meeting type with `canvasType: 'explain-it'`. Triggers on `session_complete`. Agent persona is "Scribe". Frontend canvas: `ExplainItCanvas.tsx`. `registerDocAgentMeeting(registry)` called at startup.
+
+### mediaAgentMeeting.ts (media agent meeting type)
+Registers the `media-agent` meeting type with `canvasType: 'campaign'`. Triggers on `session_complete`. Agent persona is "Canvas". Frontend canvas: `CampaignCanvas.tsx`. `registerMediaAgentMeeting(registry)` called at startup.
+
+### webDesignAgentMeeting.ts (web designer agent meeting type)
+Registers the `web-design-agent` meeting type with `canvasType: 'launch-pad'`. Triggers on `deploy_started` when target is `web`. Agent persona is "Styler". Frontend canvas: `LaunchPadCanvas.tsx`. `registerWebDesignAgentMeeting(registry)` called at startup.
+
 ### artAgentMeeting.ts (art agent meeting type)
 Registers the `art-agent` meeting type with `canvasType: 'theme-picker'`. Triggers on `deploy_started` when a BOX-3 device is present. Agent persona is "Pixel" (Art Director). Frontend canvas: `ThemePickerCanvas.tsx`. `registerArtAgentMeeting(registry)` called at startup.
 
