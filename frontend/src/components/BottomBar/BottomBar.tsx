@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { Commit, TestResult, TeachingMoment, UIState, Task, Agent, TokenUsage, TraceabilitySummary, CorrectionCycleState } from '../../types';
+import type { Commit, TestResult, TeachingMoment, UIState, Task, Agent, TokenUsage, TraceabilitySummary, CorrectionCycleState, HealthHistoryEntry, SystemLevel } from '../../types';
 import type { SerialLine, DeployProgress } from '../../hooks/useBuildSession';
 import type { BoardInfo } from '../../hooks/useBoardDetect';
 import GitTimeline from './GitTimeline';
@@ -30,6 +30,8 @@ interface Props {
   boundaryAnalysis: { inputs: Array<{ name: string; type: string; source?: string }>; outputs: Array<{ name: string; type: string; source?: string }>; boundary_portals: string[] } | null;
   healthUpdate: { tasks_done: number; tasks_total: number; tests_passing: number; tests_total: number; tokens_used: number; health_score: number } | null;
   healthSummary: { health_score: number; grade: 'A' | 'B' | 'C' | 'D' | 'F'; breakdown: { tasks_score: number; tests_score: number; corrections_score: number; budget_score: number } } | null;
+  healthHistory?: HealthHistoryEntry[];
+  systemLevel?: SystemLevel;
   correctionCycles?: Record<string, CorrectionCycleState>;
 }
 
@@ -38,7 +40,8 @@ type Tab = 'Timeline' | 'Tests' | 'Trace' | 'Board' | 'Learn' | 'Progress' | 'Sy
 export default function BottomBar({
   commits, testResults, coveragePct, teachingMoments, serialLines,
   uiState, tasks, agents, deployProgress, deployChecklist, tokenUsage, boardInfo,
-  traceability, boundaryAnalysis, healthUpdate, healthSummary, correctionCycles = {},
+  traceability, boundaryAnalysis, healthUpdate, healthSummary, healthHistory = [], systemLevel,
+  correctionCycles = {},
 }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('Timeline');
 
@@ -99,7 +102,7 @@ export default function BottomBar({
             ? <SystemBoundaryView inputs={boundaryAnalysis.inputs} outputs={boundaryAnalysis.outputs} boundary_portals={boundaryAnalysis.boundary_portals} />
             : <p className="text-sm text-atelier-text-muted p-4">System boundary data will appear during a build</p>
         )}
-        {activeTab === 'Health' && <HealthDashboard healthUpdate={healthUpdate} healthSummary={healthSummary} />}
+        {activeTab === 'Health' && <HealthDashboard healthUpdate={healthUpdate} healthSummary={healthSummary} healthHistory={healthHistory} systemLevel={systemLevel} />}
         {activeTab === 'Tokens' && (
           <div className="p-4">
             <MetricsPanel tokenUsage={tokenUsage} agents={agents} />

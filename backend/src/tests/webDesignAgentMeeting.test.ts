@@ -7,7 +7,7 @@ describe('WEB_DESIGN_AGENT_MEETING', () => {
     expect(WEB_DESIGN_AGENT_MEETING.id).toBe('web-design-agent');
     expect(WEB_DESIGN_AGENT_MEETING.name).toBe('Web Designer Agent');
     expect(WEB_DESIGN_AGENT_MEETING.agentName).toBe('Styler');
-    expect(WEB_DESIGN_AGENT_MEETING.canvasType).toBe('default');
+    expect(WEB_DESIGN_AGENT_MEETING.canvasType).toBe('launch-pad');
   });
 
   it('has a persona string', () => {
@@ -24,7 +24,7 @@ describe('registerWebDesignAgentMeeting', () => {
     const mt = registry.getById('web-design-agent');
     expect(mt).toBeDefined();
     expect(mt!.id).toBe('web-design-agent');
-    expect(mt!.canvasType).toBe('default');
+    expect(mt!.canvasType).toBe('launch-pad');
   });
 });
 

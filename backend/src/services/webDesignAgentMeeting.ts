@@ -7,7 +7,7 @@ export const WEB_DESIGN_AGENT_MEETING: MeetingType = {
   id: 'web-design-agent',
   name: 'Web Designer Agent',
   agentName: 'Styler',
-  canvasType: 'default',
+  canvasType: 'launch-pad',
   triggerConditions: [
     {
       event: 'deploy_started',

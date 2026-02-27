@@ -554,6 +554,59 @@ const blockDefs = [
     colour: 210,
     tooltip: 'Generate a kid-friendly guide about your project',
   },
+  // Composition category (colour 180, teal — systems thinking interfaces)
+  {
+    type: 'nugget_provides',
+    message0: 'This nugget provides %1 of type %2',
+    args0: [
+      {
+        type: 'field_input',
+        name: 'INTERFACE_NAME',
+        text: 'user_data',
+      },
+      {
+        type: 'field_dropdown',
+        name: 'INTERFACE_TYPE',
+        options: [
+          ['Data', 'data'],
+          ['Event', 'event'],
+          ['Function', 'function'],
+          ['Stream', 'stream'],
+        ],
+      },
+    ],
+    previousStatement: null,
+    nextStatement: null,
+    colour: 180,
+    tooltip: 'Declare an interface this nugget provides to others',
+    helpUrl: '',
+  },
+  {
+    type: 'nugget_requires',
+    message0: 'This nugget requires %1 of type %2',
+    args0: [
+      {
+        type: 'field_input',
+        name: 'INTERFACE_NAME',
+        text: 'user_data',
+      },
+      {
+        type: 'field_dropdown',
+        name: 'INTERFACE_TYPE',
+        options: [
+          ['Data', 'data'],
+          ['Event', 'event'],
+          ['Function', 'function'],
+          ['Stream', 'stream'],
+        ],
+      },
+    ],
+    previousStatement: null,
+    nextStatement: null,
+    colour: 180,
+    tooltip: 'Declare an interface this nugget needs from another',
+    helpUrl: '',
+  },
   // System category (NEW - colour 290, purple)
   {
     type: 'system_level',

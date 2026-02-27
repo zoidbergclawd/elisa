@@ -46,7 +46,7 @@ meetingRegistry.register({
   id: 'debug-convergence',
   name: 'Bug Detective Meeting',
   agentName: 'Bug Detective',
-  canvasType: 'default',
+  canvasType: 'bug-detective',
   triggerConditions: [{ event: 'convergence_stalled' }],
   persona: 'A friendly debugging expert who helps kids figure out why code is not working. Patient, curious, and encouraging.',
 });

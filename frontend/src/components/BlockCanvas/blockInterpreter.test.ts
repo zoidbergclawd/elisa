@@ -1437,6 +1437,98 @@ describe('blockInterpreter', () => {
     });
   });
 
+  describe('nugget_provides block (Composition)', () => {
+    it('creates composition.provides entry', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        goalBlock('Test', {
+          type: 'nugget_provides',
+          fields: { INTERFACE_NAME: 'sensor_data', INTERFACE_TYPE: 'stream' },
+        }),
+      ]));
+      expect(spec.composition).toBeDefined();
+      expect(spec.composition!.provides).toHaveLength(1);
+      expect(spec.composition!.provides![0]).toEqual({ name: 'sensor_data', type: 'stream' });
+    });
+
+    it('defaults field values', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        goalBlock('Test', { type: 'nugget_provides', fields: {} }),
+      ]));
+      expect(spec.composition!.provides![0]).toEqual({ name: 'user_data', type: 'data' });
+    });
+
+    it('accumulates multiple provides', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        chainBlocks(
+          { type: 'nugget_goal', fields: { GOAL_TEXT: 'test' } },
+          { type: 'nugget_provides', fields: { INTERFACE_NAME: 'api_data', INTERFACE_TYPE: 'data' } },
+          { type: 'nugget_provides', fields: { INTERFACE_NAME: 'click_event', INTERFACE_TYPE: 'event' } },
+        ),
+      ]));
+      expect(spec.composition!.provides).toHaveLength(2);
+      expect(spec.composition!.provides![0].name).toBe('api_data');
+      expect(spec.composition!.provides![1].name).toBe('click_event');
+    });
+  });
+
+  describe('nugget_requires block (Composition)', () => {
+    it('creates composition.requires entry', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        goalBlock('Test', {
+          type: 'nugget_requires',
+          fields: { INTERFACE_NAME: 'auth_token', INTERFACE_TYPE: 'function' },
+        }),
+      ]));
+      expect(spec.composition).toBeDefined();
+      expect(spec.composition!.requires).toHaveLength(1);
+      expect(spec.composition!.requires![0]).toEqual({ name: 'auth_token', type: 'function' });
+    });
+
+    it('defaults field values', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        goalBlock('Test', { type: 'nugget_requires', fields: {} }),
+      ]));
+      expect(spec.composition!.requires![0]).toEqual({ name: 'user_data', type: 'data' });
+    });
+
+    it('accumulates multiple requires', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        chainBlocks(
+          { type: 'nugget_goal', fields: { GOAL_TEXT: 'test' } },
+          { type: 'nugget_requires', fields: { INTERFACE_NAME: 'user_profile', INTERFACE_TYPE: 'data' } },
+          { type: 'nugget_requires', fields: { INTERFACE_NAME: 'notifications', INTERFACE_TYPE: 'event' } },
+        ),
+      ]));
+      expect(spec.composition!.requires).toHaveLength(2);
+      expect(spec.composition!.requires![0].name).toBe('user_profile');
+      expect(spec.composition!.requires![1].name).toBe('notifications');
+    });
+  });
+
+  describe('composition provides and requires coexist', () => {
+    it('both provides and requires populate the same composition object', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        chainBlocks(
+          { type: 'nugget_goal', fields: { GOAL_TEXT: 'test' } },
+          { type: 'nugget_provides', fields: { INTERFACE_NAME: 'output_data', INTERFACE_TYPE: 'data' } },
+          { type: 'nugget_requires', fields: { INTERFACE_NAME: 'input_config', INTERFACE_TYPE: 'function' } },
+        ),
+      ]));
+      expect(spec.composition).toBeDefined();
+      expect(spec.composition!.provides).toHaveLength(1);
+      expect(spec.composition!.requires).toHaveLength(1);
+      expect(spec.composition!.provides![0]).toEqual({ name: 'output_data', type: 'data' });
+      expect(spec.composition!.requires![0]).toEqual({ name: 'input_config', type: 'function' });
+    });
+
+    it('composition is undefined when no provides/requires blocks exist', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        goalBlock('Test', { type: 'feature', fields: { FEATURE_TEXT: 'login' } }),
+      ]));
+      expect(spec.composition).toBeUndefined();
+    });
+  });
+
   describe('full workspace with new block types', () => {
     it('combines old and new blocks in a complete workspace', () => {
       const spec = interpretWorkspace(makeWorkspace([

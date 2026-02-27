@@ -7,7 +7,7 @@ describe('DOC_AGENT_MEETING', () => {
     expect(DOC_AGENT_MEETING.id).toBe('doc-agent');
     expect(DOC_AGENT_MEETING.name).toBe('Documentation Agent');
     expect(DOC_AGENT_MEETING.agentName).toBe('Scribe');
-    expect(DOC_AGENT_MEETING.canvasType).toBe('default');
+    expect(DOC_AGENT_MEETING.canvasType).toBe('explain-it');
   });
 
   it('has a persona string', () => {
@@ -24,7 +24,7 @@ describe('registerDocAgentMeeting', () => {
     const mt = registry.getById('doc-agent');
     expect(mt).toBeDefined();
     expect(mt!.id).toBe('doc-agent');
-    expect(mt!.canvasType).toBe('default');
+    expect(mt!.canvasType).toBe('explain-it');
   });
 });
 

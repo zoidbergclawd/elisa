@@ -7,7 +7,7 @@ export const ARCHITECTURE_AGENT_MEETING: MeetingType = {
   id: 'architecture-agent',
   name: 'Architecture Agent',
   agentName: 'Blueprint',
-  canvasType: 'default',
+  canvasType: 'blueprint',
   triggerConditions: [
     {
       event: 'session_complete',

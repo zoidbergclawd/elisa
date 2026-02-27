@@ -1,6 +1,6 @@
 import { useReducer, useCallback, useRef } from 'react';
 import type { NuggetSpec } from '../components/BlockCanvas/blockInterpreter';
-import type { UIState, Task, Agent, Commit, WSEvent, TeachingMoment, TestResult, TokenUsage, QuestionPayload, NarratorMessage, TraceabilityRequirement, TraceabilitySummary, CorrectionCycleState } from '../types';
+import type { UIState, Task, Agent, Commit, WSEvent, TeachingMoment, TestResult, TokenUsage, QuestionPayload, NarratorMessage, TraceabilityRequirement, TraceabilitySummary, CorrectionCycleState, HealthHistoryEntry } from '../types';
 import { authFetch } from '../lib/apiClient';
 
 export const MAX_EVENTS = 500;
@@ -96,6 +96,7 @@ export interface BuildSessionState {
   boundaryAnalysis: { inputs: Array<{ name: string; type: string; source?: string }>; outputs: Array<{ name: string; type: string; source?: string }>; boundary_portals: string[] } | null;
   compositionStarted: { graph_id: string; node_ids: string[] } | null;
   compositionImpacts: Array<{ graph_id: string; changed_node_id: string; affected_nodes: Array<{ node_id: string; label: string; reason: string }>; severity: string }>;
+  healthHistory: HealthHistoryEntry[];
 }
 
 const INITIAL_TOKEN_USAGE: TokenUsage = { input: 0, output: 0, total: 0, costUsd: 0, maxBudget: 500_000, perAgent: {} };
@@ -133,6 +134,7 @@ export const initialState: BuildSessionState = {
   boundaryAnalysis: null,
   compositionStarted: null,
   compositionImpacts: [],
+  healthHistory: [],
 };
 
 // -- Actions --
@@ -677,6 +679,13 @@ function handleWSEvent(state: BuildSessionState, event: WSEvent, deploySteps: Ar
         }],
       };
 
+    case 'health_history':
+      return {
+        ...state,
+        events,
+        healthHistory: event.entries,
+      };
+
     case 'workspace_created':
       return { ...state, events, nuggetDir: event.nugget_dir };
 
@@ -869,6 +878,7 @@ export function useBuildSession() {
     boundaryAnalysis: state.boundaryAnalysis,
     compositionStarted: state.compositionStarted,
     compositionImpacts: state.compositionImpacts,
+    healthHistory: state.healthHistory,
     handleEvent,
     startBuild,
     stopBuild,

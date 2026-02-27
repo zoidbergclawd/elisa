@@ -1,3 +1,5 @@
+import type { HealthHistoryEntry, SystemLevel } from '../../types';
+
 interface HealthUpdate {
   tasks_done: number;
   tasks_total: number;
@@ -21,6 +23,8 @@ interface HealthSummary {
 interface HealthDashboardProps {
   healthUpdate: HealthUpdate | null;
   healthSummary: HealthSummary | null;
+  healthHistory?: HealthHistoryEntry[];
+  systemLevel?: SystemLevel;
 }
 
 const GRADE_COLORS: Record<string, string> = {
@@ -29,6 +33,14 @@ const GRADE_COLORS: Record<string, string> = {
   C: 'text-accent-gold',
   D: 'text-accent-coral',
   F: 'text-red-400',
+};
+
+const GRADE_BAR_COLORS: Record<string, string> = {
+  A: 'bg-accent-mint',
+  B: 'bg-accent-sky',
+  C: 'bg-accent-gold',
+  D: 'bg-accent-coral',
+  F: 'bg-red-400',
 };
 
 function ProgressBar({ value, max, color }: { value: number; max: number; color: string }) {
@@ -43,7 +55,54 @@ function ProgressBar({ value, max, color }: { value: number; max: number; color:
   );
 }
 
-export default function HealthDashboard({ healthUpdate, healthSummary }: HealthDashboardProps) {
+function formatTimestamp(iso: string): string {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  } catch {
+    return '';
+  }
+}
+
+function HealthTrend({ entries }: { entries: HealthHistoryEntry[] }) {
+  if (entries.length === 0) return null;
+
+  const lastIndex = entries.length - 1;
+
+  return (
+    <div className="mt-3 pt-3 border-t border-border-subtle">
+      <div className="text-xs font-medium text-atelier-text-secondary mb-2">Trend</div>
+      <div className="flex items-end gap-1">
+        {entries.map((entry, i) => {
+          const barHeight = Math.max(entry.score, 4);
+          const isLatest = i === lastIndex;
+          const barColor = GRADE_BAR_COLORS[entry.grade] ?? 'bg-atelier-surface';
+
+          return (
+            <div
+              key={`${entry.timestamp}-${i}`}
+              className="flex flex-col items-center flex-1 min-w-0"
+              title={`${entry.goal} - ${entry.score} (${entry.grade}) - ${formatTimestamp(entry.timestamp)}`}
+            >
+              <div className="text-[9px] text-atelier-text-muted mb-0.5">{entry.grade}</div>
+              <div
+                className={`w-full rounded-sm transition-all ${barColor} ${isLatest ? 'ring-1 ring-accent-lavender' : ''}`}
+                style={{ height: `${barHeight * 0.4}px` }}
+              />
+              <div className="text-[8px] text-atelier-text-muted mt-0.5 truncate w-full text-center">
+                {formatTimestamp(entry.timestamp)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export default function HealthDashboard({ healthUpdate, healthSummary, healthHistory = [], systemLevel }: HealthDashboardProps) {
+  const showTrend = systemLevel === 'architect' && healthHistory.length > 0;
+
   // Show summary if available (post-execution)
   if (healthSummary) {
     return (
@@ -85,6 +144,7 @@ export default function HealthDashboard({ healthUpdate, healthSummary }: HealthD
           </div>
           <ProgressBar value={healthSummary.breakdown.budget_score} max={10} color="bg-accent-gold" />
         </div>
+        {showTrend && <HealthTrend entries={healthHistory} />}
       </div>
     );
   }

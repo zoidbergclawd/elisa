@@ -7,7 +7,7 @@ export const DOC_AGENT_MEETING: MeetingType = {
   id: 'doc-agent',
   name: 'Documentation Agent',
   agentName: 'Scribe',
-  canvasType: 'default',
+  canvasType: 'explain-it',
   triggerConditions: [
     {
       event: 'session_complete',

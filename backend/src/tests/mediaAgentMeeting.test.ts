@@ -7,7 +7,7 @@ describe('MEDIA_AGENT_MEETING', () => {
     expect(MEDIA_AGENT_MEETING.id).toBe('media-agent');
     expect(MEDIA_AGENT_MEETING.name).toBe('Media Agent');
     expect(MEDIA_AGENT_MEETING.agentName).toBe('Canvas');
-    expect(MEDIA_AGENT_MEETING.canvasType).toBe('default');
+    expect(MEDIA_AGENT_MEETING.canvasType).toBe('campaign');
   });
 
   it('has a persona string', () => {
@@ -24,7 +24,7 @@ describe('registerMediaAgentMeeting', () => {
     const mt = registry.getById('media-agent');
     expect(mt).toBeDefined();
     expect(mt!.id).toBe('media-agent');
-    expect(mt!.canvasType).toBe('default');
+    expect(mt!.canvasType).toBe('campaign');
   });
 });
 

@@ -7,7 +7,7 @@ describe('ARCHITECTURE_AGENT_MEETING', () => {
     expect(ARCHITECTURE_AGENT_MEETING.id).toBe('architecture-agent');
     expect(ARCHITECTURE_AGENT_MEETING.name).toBe('Architecture Agent');
     expect(ARCHITECTURE_AGENT_MEETING.agentName).toBe('Blueprint');
-    expect(ARCHITECTURE_AGENT_MEETING.canvasType).toBe('default');
+    expect(ARCHITECTURE_AGENT_MEETING.canvasType).toBe('blueprint');
   });
 
   it('has a persona string', () => {
@@ -24,7 +24,7 @@ describe('registerArchitectureAgentMeeting', () => {
     const mt = registry.getById('architecture-agent');
     expect(mt).toBeDefined();
     expect(mt!.id).toBe('architecture-agent');
-    expect(mt!.canvasType).toBe('default');
+    expect(mt!.canvasType).toBe('blueprint');
   });
 });
 

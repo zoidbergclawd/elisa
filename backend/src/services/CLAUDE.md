@@ -81,6 +81,9 @@ Analyzes NuggetSpec to identify system inputs (user input, portal data, hardware
 ### healthTracker.ts (system health dashboard)
 Tracks vital signs during execution: tasks completed/total, tests passing/total, tokens used, correction cycles. Health score formula (0-100): `(tasks/total*30) + (tests_passing/total*40) + (no_corrections*20) + (under_budget*10)`. Grades: A(90+), B(80+), C(70+), D(60+), F(<60). Emits `system_health_update` (periodic) and `system_health_summary` (post-execution).
 
+### healthHistoryService.ts (health-over-time tracking)
+Persists health summaries across builds for Architect-level trend tracking. Saves to `.elisa/health-history.json` in the nugget workspace. Each entry: `{ timestamp, goal, score, grade, breakdown: { tasks, tests, corrections, budget } }`. Loads on build start, records after health summary, emits `health_history` event. Caps at 20 entries (oldest trimmed). Graceful degradation on file corruption.
+
 ### runtime/displayManager.ts (BOX-3 display)
 Generates `DisplayCommand[]` sequences for the BOX-3 2.4" IPS touchscreen (320x240). Screen generators: `getIdleScreen`, `getConversationScreen`, `getThinkingScreen`, `getErrorScreen`, `getStatusScreen`, `getMenuScreen`. Text truncation with ellipsis. Theme management from predefined `DEFAULT_THEMES` (4 themes). Types defined in `models/display.ts`.
 

@@ -115,6 +115,15 @@ export const toolbox = {
     },
     {
       kind: 'category',
+      name: 'Composition',
+      colour: '180',
+      contents: [
+        { kind: 'block', type: 'nugget_provides' },
+        { kind: 'block', type: 'nugget_requires' },
+      ],
+    },
+    {
+      kind: 'category',
       name: 'Deploy',
       colour: '180',
       contents: [

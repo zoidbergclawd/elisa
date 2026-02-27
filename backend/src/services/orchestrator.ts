@@ -28,6 +28,7 @@ import { DeviceRegistry } from './deviceRegistry.js';
 import { TraceabilityTracker } from './traceabilityTracker.js';
 import { FeedbackLoopTracker } from './feedbackLoopTracker.js';
 import { HealthTracker } from './healthTracker.js';
+import { HealthHistoryService } from './healthHistoryService.js';
 import { autoMatchTests } from './autoTestMatcher.js';
 import { MeetingTriggerWiring } from './meetingTriggerWiring.js';
 import { getLevel } from './systemLevelService.js';
@@ -211,6 +212,13 @@ export class Orchestrator {
       // Emit final health summary
       await this.healthTracker.emitUpdate(this.send);
       await this.healthTracker.emitSummary(this.send);
+
+      // Health history: load, record current build, emit, persist
+      const healthHistory = new HealthHistoryService(this.nuggetDir);
+      healthHistory.load();
+      const healthSummary = this.healthTracker.getSummary();
+      healthHistory.record(spec.nugget?.goal ?? 'Build', healthSummary);
+      await healthHistory.emitHistory(this.send);
 
       // Deploy
       console.log('[orchestrator] entering deploy phase');

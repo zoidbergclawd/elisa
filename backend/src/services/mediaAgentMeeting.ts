@@ -7,7 +7,7 @@ export const MEDIA_AGENT_MEETING: MeetingType = {
   id: 'media-agent',
   name: 'Media Agent',
   agentName: 'Canvas',
-  canvasType: 'default',
+  canvasType: 'campaign',
   triggerConditions: [
     {
       event: 'session_complete',

@@ -62,6 +62,12 @@ export interface NuggetSpec {
   };
   runtime?: RuntimeConfig;
   knowledge?: KnowledgeConfig;
+  composition?: {
+    parent_graph_id?: string;
+    node_id?: string;
+    provides?: Array<{ name: string; type: string }>;
+    requires?: Array<{ name: string; type: string }>;
+  };
 }
 
 interface BlockJson {
@@ -419,6 +425,23 @@ export function interpretWorkspace(
           connects_from: connectsFrom,
           connects_to: connectsTo,
         });
+        break;
+      }
+      // --- Systems Thinking: composition interface blocks ---
+      case 'nugget_provides': {
+        const name = (block.fields?.INTERFACE_NAME as string) ?? 'user_data';
+        const type = (block.fields?.INTERFACE_TYPE as string) ?? 'data';
+        if (!spec.composition) spec.composition = { provides: [], requires: [] };
+        if (!spec.composition.provides) spec.composition.provides = [];
+        spec.composition.provides.push({ name, type });
+        break;
+      }
+      case 'nugget_requires': {
+        const name = (block.fields?.INTERFACE_NAME as string) ?? 'user_data';
+        const type = (block.fields?.INTERFACE_TYPE as string) ?? 'data';
+        if (!spec.composition) spec.composition = { provides: [], requires: [] };
+        if (!spec.composition.requires) spec.composition.requires = [];
+        spec.composition.requires.push({ name, type });
         break;
       }
       // --- Systems Thinking: system level block ---

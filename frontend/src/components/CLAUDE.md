@@ -53,6 +53,12 @@ App.tsx
   Meeting/canvasRegistry.ts          Registry for pluggable canvas components (Map<canvasType, Component>)
   Meeting/DefaultCanvas.tsx          Placeholder canvas shown when no specialized canvas is registered
   Meeting/ThemePickerCanvas.tsx      BOX-3 display theme picker canvas for Art Agent meetings
+  Meeting/BugDetectiveCanvas.tsx     Bug diagnosis canvas for debug-convergence meetings (expected vs actual, fix decision)
+  Meeting/BlueprintCanvas.tsx        System overview walkthrough canvas for Architecture Agent meetings (tasks, reqs, stats)
+  Meeting/CampaignCanvas.tsx         Creative asset builder canvas for Media Agent meetings (poster, social card, storyboard)
+  Meeting/InterfaceDesignerCanvas.tsx Interface contract builder canvas for Integration meetings (provides/requires/connections)
+  Meeting/ExplainItCanvas.tsx        Document editor canvas for Documentation Agent meetings (title, content, suggestions, word count)
+  Meeting/LaunchPadCanvas.tsx        Launch page builder canvas for Web Designer Agent meetings (template selection, customization, live preview)
   Skills/SkillsModal.tsx             CRUD editor for custom skills + template library
   Skills/SkillFlowEditor.tsx         Visual flow editor for composite skill steps
   Skills/SkillQuestionModal.tsx      Modal for skill questions during execution
