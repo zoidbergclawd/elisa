@@ -11,12 +11,14 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/routes/` | REST endpoint handlers (sessions, hardware, skills, workspace, meetings) |
 | `backend/src/services/` | Core services: orchestrator, runners, hardware, portals |
 | `backend/src/services/phases/` | Pipeline stage handlers: plan, execute, test, deploy |
+| `backend/src/services/runtime/` | Agent Runtime: identity store, conversation manager, turn pipeline, safety |
 | `backend/src/models/` | TypeScript type definitions (session, skillPlan, runtime, display) |
 | `backend/src/prompts/` | Agent role prompts + curriculum templates |
 | `backend/src/utils/` | DAG, validation, logging, tokens, context, timeout |
 | `backend/src/tests/` | Backend tests |
 | `backend/src/tests/behavioral/` | Integration/behavioral tests for services and routes |
 | `backend/src/tests/fixtures/` | Test fixture data (plans, specs) |
+| `backend/src/tests/runtime/` | Agent Runtime unit/integration tests |
 | `backend/src/tests/runtime/` | Agent Runtime service tests (displayManager, etc.) |
 | `frontend/` | React 19 + Vite SPA |
 | `frontend/src/components/` | UI component tree |
@@ -78,6 +80,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/routes/skills.ts` | /api/skills/* endpoints (run, answer, list) |
 | `backend/src/routes/workspace.ts` | /api/workspace/* endpoints (save, load design files) |
 | `backend/src/routes/meetings.ts` | /api/sessions/:id/meetings/* endpoints (accept, decline, message, end) |
+| `backend/src/routes/runtime.ts` | /v1/agents/* endpoints (provision, update, delete, turn, history, heartbeat) |
 
 ### Services
 
@@ -102,6 +105,12 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/services/autoTestMatcher.ts` | Explorer-level auto-generation of behavioral tests for when_then requirements |
 | `backend/src/services/traceabilityTracker.ts` | Requirement-to-test traceability map with coverage tracking |
 | `backend/src/services/runtime/displayManager.ts` | BOX-3 display command generator (screen layouts, themes, truncation) |
+| `backend/src/services/runtime/agentStore.ts` | In-memory agent identity store (NuggetSpec -> AgentIdentity) |
+| `backend/src/services/runtime/conversationManager.ts` | Per-agent conversation session and turn history management |
+| `backend/src/services/runtime/turnPipeline.ts` | Core text conversation loop: input -> Claude API -> response |
+| `backend/src/services/runtime/safetyGuardrails.ts` | Safety prompt generator for all agent system prompts (PRD-001 Section 6.3) |
+| `backend/src/services/runtimeProvisioner.ts` | Provisioner interface + Stub/Local implementations |
+| `backend/src/models/runtime.ts` | Agent Runtime types: AgentIdentity, ConversationTurn, UsageRecord |
 | `backend/src/utils/deviceManifestSchema.ts` | Zod schema for device.json manifest validation |
 
 ### Phases
