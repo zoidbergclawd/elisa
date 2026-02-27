@@ -1,5 +1,5 @@
 /**
- * Runtime agent provisioner interface and stub implementation.
+ * Runtime agent provisioner interface and implementations.
  *
  * At deploy time, the runtime compiles the kid's NuggetSpec into a stored
  * agent configuration. The provisioner handles:
@@ -7,12 +7,14 @@
  *   - PUT /v1/agents/:id for config-only updates (no reflash)
  *   - Classifying changes as config-only vs firmware-required
  *
- * The real implementation will come in task #8 (Agent Runtime service).
- * This file provides a clean interface + stub for development.
+ * Two implementations:
+ *   - StubRuntimeProvisioner: Returns mock values (for tests/dev without runtime).
+ *   - LocalRuntimeProvisioner: Calls the in-process AgentStore directly.
  */
 
 import { randomUUID } from 'node:crypto';
 import type { DeviceManifest } from '../utils/deviceManifestSchema.js';
+import type { AgentStore } from './runtime/agentStore.js';
 
 // ── Interfaces ──────────────────────────────────────────────────────────
 
@@ -130,6 +132,76 @@ export class StubRuntimeProvisioner implements RuntimeProvisioner {
     }
 
     console.log(`[RuntimeProvisioner:stub] classifyChanges: config_only`);
+    return 'config_only';
+  }
+}
+
+// ── Local Implementation (in-process AgentStore) ─────────────────────
+
+/**
+ * Local runtime provisioner that uses the in-process AgentStore.
+ * Replaces StubRuntimeProvisioner when the Agent Runtime is running
+ * within the same backend process.
+ */
+export class LocalRuntimeProvisioner implements RuntimeProvisioner {
+  private agentStore: AgentStore;
+
+  constructor(agentStore: AgentStore) {
+    this.agentStore = agentStore;
+  }
+
+  async provision(spec: Record<string, any>): Promise<ProvisionResult> {
+    const result = this.agentStore.provision(spec);
+
+    console.log(`[RuntimeProvisioner:local] provision complete`, {
+      agentId: result.agent_id,
+      runtimeUrl: result.runtime_url,
+    });
+
+    return result;
+  }
+
+  async updateConfig(agentId: string, spec: Record<string, any>): Promise<void> {
+    this.agentStore.update(agentId, spec);
+
+    console.log(`[RuntimeProvisioner:local] updateConfig complete`, {
+      agentId,
+      specKeys: Object.keys(spec),
+    });
+  }
+
+  classifyChanges(
+    oldSpec: Record<string, any>,
+    newSpec: Record<string, any>,
+    manifest: DeviceManifest,
+  ): 'config_only' | 'firmware_required' {
+    // Check device fields that require firmware reflash
+    const oldFields = oldSpec.fields ?? {};
+    const newFields = newSpec.fields ?? {};
+
+    for (const field of FIRMWARE_FIELDS) {
+      const oldVal = oldFields[field];
+      const newVal = newFields[field];
+      if (oldVal !== newVal && (oldVal !== undefined || newVal !== undefined)) {
+        return 'firmware_required';
+      }
+    }
+
+    // Check manifest-specific config_fields if runtime_provision is configured
+    const deploy = manifest.deploy as any;
+    if (deploy.runtime_provision?.config_fields) {
+      const configFields = new Set(deploy.runtime_provision.config_fields as string[]);
+      for (const key of Object.keys({ ...oldFields, ...newFields })) {
+        if (!configFields.has(key) && !FIRMWARE_FIELDS.has(key)) {
+          const oldVal = oldFields[key];
+          const newVal = newFields[key];
+          if (oldVal !== newVal && (oldVal !== undefined || newVal !== undefined)) {
+            return 'firmware_required';
+          }
+        }
+      }
+    }
+
     return 'config_only';
   }
 }

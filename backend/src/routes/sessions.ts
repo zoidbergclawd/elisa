@@ -14,6 +14,7 @@ import { validateWorkspacePath } from '../utils/pathValidator.js';
 import type { HardwareService } from '../services/hardwareService.js';
 import type { SessionStore } from '../services/sessionStore.js';
 import type { DeviceRegistry } from '../services/deviceRegistry.js';
+import type { MeetingRegistry } from '../services/meetingRegistry.js';
 import type { SkillSpec } from '../models/skillPlan.js';
 
 interface SessionRouterDeps {
@@ -21,9 +22,10 @@ interface SessionRouterDeps {
   sendEvent: (sessionId: string, event: Record<string, any>) => Promise<void>;
   hardwareService?: HardwareService;
   deviceRegistry?: DeviceRegistry;
+  meetingRegistry?: MeetingRegistry;
 }
 
-export function createSessionRouter({ store, sendEvent, hardwareService, deviceRegistry }: SessionRouterDeps): Router {
+export function createSessionRouter({ store, sendEvent, hardwareService, deviceRegistry, meetingRegistry }: SessionRouterDeps): Router {
   const router = Router();
 
   // Create session
@@ -142,6 +144,7 @@ export function createSessionRouter({ store, sendEvent, hardwareService, deviceR
       hardwareService,
       workspacePath,
       deviceRegistry,
+      meetingRegistry,
     );
     entry.orchestrator = orchestrator;
 

@@ -104,6 +104,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/services/systemLevelService.ts` | Progressive mastery level feature flags (Explorer/Builder/Architect) |
 | `backend/src/services/autoTestMatcher.ts` | Explorer-level auto-generation of behavioral tests for when_then requirements |
 | `backend/src/services/traceabilityTracker.ts` | Requirement-to-test traceability map with coverage tracking |
+| `backend/src/services/feedbackLoopTracker.ts` | Passive observer tracking correction cycles, convergence trends, and debug meeting triggers |
 | `backend/src/services/runtime/displayManager.ts` | BOX-3 display command generator (screen layouts, themes, truncation) |
 | `backend/src/services/runtime/agentStore.ts` | In-memory agent identity store (NuggetSpec -> AgentIdentity) |
 | `backend/src/services/runtime/conversationManager.ts` | Per-agent conversation session and turn history management |
@@ -175,6 +176,8 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/components/MissionControl/MissionControlPanel.tsx` | Main mission control layout with narrator feed + minion squad |
 | `frontend/src/components/MissionControl/MinionSquadPanel.tsx` | Minion cards with status badges and task assignments |
 | `frontend/src/components/MissionControl/NarratorFeed.tsx` | Scrolling narrator message feed with mood indicators |
+| `frontend/src/components/MissionControl/FeedbackLoopIndicator.tsx` | Correction cycle animation and attempt counter for retrying tasks |
+| `frontend/src/components/MissionControl/ConvergencePanel.tsx` | Convergence tracking panel showing attempt history, trends, and teaching moments |
 
 ### Hooks
 
@@ -225,4 +228,22 @@ Blockly workspace (dynamic device blocks from plugin manifests)
   -> orchestrator -> agents receive plugin context via DeviceRegistry.getAgentContext()
   -> deployPhase: resolveDeployOrder() -> FlashWizardModal per device
   -> flash files + shared libs from plugin manifest
+```
+
+### Agent Runtime Pipeline (PRD-001)
+
+```
+NuggetSpec (from deploy)
+  -> POST /v1/agents -> AgentStore.provision() -> AgentIdentity + api_key
+  -> Deploy target (BOX-3, Telegram, Web) receives agent_id + api_key
+
+User input (from any deploy target)
+  -> POST /v1/agents/:id/turn/text (with x-api-key)
+  -> TurnPipeline.receiveTurn()
+    -> Load AgentIdentity (system prompt + safety guardrails)
+    -> Load conversation history from ConversationManager
+    -> Call Claude API with assembled context
+    -> Store user + assistant turns in history
+    -> Track usage via UsageTracker
+  -> Return { response, session_id }
 ```

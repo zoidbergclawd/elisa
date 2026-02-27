@@ -10,6 +10,8 @@ import { TaskDAG } from '../../utils/dag.js';
 import type { DeviceRegistry } from '../deviceRegistry.js';
 import { resolveDeployOrder } from './deployOrder.js';
 import type { Task, Agent } from '../../models/session.js';
+import { estimate as estimateImpact } from '../impactEstimator.js';
+import { analyze as analyzeBoundary } from '../boundaryAnalyzer.js';
 
 export interface PlanResult {
   tasks: Task[];
@@ -108,6 +110,44 @@ export class PlanPhase {
     await ctx.send(planReadyEvent);
 
     await maybeTeach(this.teachingEngine, ctx, 'plan_ready', planExplanation, nuggetType);
+
+    // Emit decomposition_narrated events for each task
+    const goal = spec.nugget?.goal ?? 'Build something awesome';
+    await ctx.send({
+      type: 'decomposition_narrated',
+      goal: String(goal),
+      subtasks: tasks.map((t: Task) => t.name ?? t.id),
+      explanation: planExplanation || `Let me break "${goal}" into pieces so the team can work on it.`,
+    });
+
+    // Emit impact_estimate for pre-execution preview
+    const impact = estimateImpact(spec);
+    await ctx.send({
+      type: 'impact_estimate',
+      estimated_tasks: impact.estimated_tasks,
+      complexity: impact.complexity,
+      heaviest_requirements: impact.heaviest_requirements,
+    });
+
+    // Emit boundary_analysis
+    const boundary = analyzeBoundary(spec);
+    await ctx.send({
+      type: 'boundary_analysis',
+      inputs: boundary.inputs,
+      outputs: boundary.outputs,
+      boundary_portals: boundary.boundary_portals,
+    });
+
+    // Add dependency explanations (why_blocked_by) as narrated events
+    for (const task of tasks) {
+      if (task.dependencies && task.dependencies.length > 0) {
+        const depNames = task.dependencies
+          .map((depId: string) => taskMap[depId]?.name ?? depId)
+          .join(', ');
+        // Attach dependency explanation to the task object for frontend use
+        (task as any).why_blocked_by = `"${task.name}" needs ${depNames} to finish first.`;
+      }
+    }
 
     if (spec.skills?.length) await maybeTeach(this.teachingEngine, ctx, 'skill_used', '', nuggetType);
     if (spec.rules?.length) await maybeTeach(this.teachingEngine, ctx, 'rule_used', '', nuggetType);

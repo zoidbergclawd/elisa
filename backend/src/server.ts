@@ -19,6 +19,11 @@ import { createDeviceRouter } from './routes/devices.js';
 import { MeetingRegistry } from './services/meetingRegistry.js';
 import { MeetingService } from './services/meetingService.js';
 import { createMeetingRouter } from './routes/meetings.js';
+import { AgentStore } from './services/runtime/agentStore.js';
+import { ConversationManager } from './services/runtime/conversationManager.js';
+import { TurnPipeline } from './services/runtime/turnPipeline.js';
+import { createRuntimeRouter } from './routes/runtime.js';
+import { getAnthropicClient } from './utils/anthropicClient.js';
 
 // -- State --
 
@@ -27,6 +32,25 @@ const hardwareService = new HardwareService();
 const deviceRegistry = new DeviceRegistry(path.resolve(import.meta.dirname, '../../devices'));
 const meetingRegistry = new MeetingRegistry();
 const meetingService = new MeetingService(meetingRegistry);
+
+// Register default meeting types
+meetingRegistry.register({
+  id: 'debug-convergence',
+  name: 'Bug Detective Meeting',
+  agentName: 'Bug Detective',
+  canvasType: 'default',
+  triggerConditions: [{ event: 'convergence_stalled' }],
+  persona: 'A friendly debugging expert who helps kids figure out why code is not working. Patient, curious, and encouraging.',
+});
+
+// Agent Runtime (PRD-001)
+const agentStore = new AgentStore();
+const conversationManager = new ConversationManager();
+const turnPipeline = new TurnPipeline({
+  agentStore,
+  conversationManager,
+  getClient: getAnthropicClient,
+});
 
 // -- Health --
 
@@ -199,12 +223,15 @@ function createApp(staticDir?: string, authToken?: string) {
   const sendEvent = (sessionId: string, event: Record<string, any>) =>
     manager.sendEvent(sessionId, event);
 
-  app.use('/api/sessions', createSessionRouter({ store, sendEvent, hardwareService, deviceRegistry }));
+  app.use('/api/sessions', createSessionRouter({ store, sendEvent, hardwareService, deviceRegistry, meetingRegistry }));
   app.use('/api/skills', createSkillRouter({ store, sendEvent }));
   app.use('/api/hardware', createHardwareRouter({ store, hardwareService }));
   app.use('/api/workspace', createWorkspaceRouter());
   app.use('/api/devices', createDeviceRouter({ registry: deviceRegistry }));
   app.use('/api/sessions/:sessionId/meetings', createMeetingRouter({ store, meetingService, sendEvent }));
+
+  // Agent Runtime (PRD-001) — mounted at /v1/* with its own api-key auth
+  app.use('/v1', createRuntimeRouter({ agentStore, conversationManager, turnPipeline }));
 
   // Templates
   app.get('/api/templates', (_req, res) => {

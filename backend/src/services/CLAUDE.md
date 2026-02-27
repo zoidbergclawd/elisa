@@ -57,6 +57,9 @@ At Explorer level, auto-generates behavioral tests for `when_then` requirements 
 ### traceabilityTracker.ts (requirement-test traceability)
 Builds a map from NuggetSpec requirements to behavioral tests at plan time. Updates status (untested/passing/failing) as test results arrive via `recordTestResult()`. Computes coverage statistics via `getCoverage()`. Emits `traceability_update` per linked test result and `traceability_summary` after all tests complete. Wired into orchestrator after TestPhase. Does not modify test execution logic -- observes only.
 
+### feedbackLoopTracker.ts (feedback loop visualization)
+Passive observer that tracks correction cycles during task execution. Created per build in the orchestrator and injected into ExecutePhase. Tracks attempts per task: `startAttempt()`, `markFixing()`, `markRetesting()`, `recordAttemptResult()`. Computes convergence trend (improving/stalled/diverging) by comparing test pass ratios across attempts. Emits `correction_cycle_started`, `correction_cycle_progress`, and `convergence_update` events for frontend visualization. After 2+ stalled attempts, triggers a `meeting_invite` for the registered `debug-convergence` meeting type (Bug Detective Meeting). Does NOT modify retry logic -- observes only.
+
 ### teachingEngine.ts (educational moments)
 Fast-path curriculum lookup maps events to concepts. Deduplicates per concept per session. Falls back to Claude Sonnet API for dynamic generation. Targets ages 8-14.
 
@@ -65,6 +68,15 @@ Translates raw build events into kid-friendly commentary via Claude Haiku (`NARR
 
 ### permissionPolicy.ts (agent permissions)
 Auto-resolves agent permission requests (`file_write`, `file_edit`, `bash`, `command`) based on configurable policy rules. Three decision outcomes: `approved`, `denied`, `escalate`. Workspace-scoped writes are auto-approved when within the nugget directory. Read-only commands (`ls`, `cat`, `grep`, etc.) are always safe. Workspace-restricted commands (`mkdir`, `python`, `npm`, etc.) require cwd to be within the nugget dir. Network commands (`curl`, `wget`, etc.) denied by default. Package installs (`pip install`, `npm install`) escalate to user. Denial counter per task escalates to user after threshold (default 3).
+
+### impactEstimator.ts (pre-execution impact analysis)
+Estimates build complexity before execution. Count-based heuristics: requirement count, behavioral test count, device count, portal count, feedback loops. Returns `{ estimated_tasks, complexity: 'simple'|'moderate'|'complex', heaviest_requirements }`. Complexity thresholds: simple (weight<=6), moderate (weight<=15), complex (weight>15). Heaviest requirements ranked by description length + behavioral test linkage.
+
+### boundaryAnalyzer.ts (system boundary analysis)
+Analyzes NuggetSpec to identify system inputs (user input, portal data, hardware signals), outputs (display, hardware commands, data output), and boundary portals. Scans requirements, behavioral tests, portals, and devices. Portals sit on the boundary. Returns `{ inputs: BoundaryItem[], outputs: BoundaryItem[], boundary_portals: string[] }`.
+
+### healthTracker.ts (system health dashboard)
+Tracks vital signs during execution: tasks completed/total, tests passing/total, tokens used, correction cycles. Health score formula (0-100): `(tasks/total*30) + (tests_passing/total*40) + (no_corrections*20) + (under_budget*10)`. Grades: A(90+), B(80+), C(70+), D(60+), F(<60). Emits `system_health_update` (periodic) and `system_health_summary` (post-execution).
 
 ### runtime/displayManager.ts (BOX-3 display)
 Generates `DisplayCommand[]` sequences for the BOX-3 2.4" IPS touchscreen (320x240). Screen generators: `getIdleScreen`, `getConversationScreen`, `getThinkingScreen`, `getErrorScreen`, `getStatusScreen`, `getMenuScreen`. Text truncation with ellipsis. Theme management from predefined `DEFAULT_THEMES` (4 themes). Types defined in `models/display.ts`.
