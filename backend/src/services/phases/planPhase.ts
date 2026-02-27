@@ -8,6 +8,7 @@ import { MetaPlanner } from '../metaPlanner.js';
 import { TeachingEngine } from '../teachingEngine.js';
 import { TaskDAG } from '../../utils/dag.js';
 import type { DeviceRegistry } from '../deviceRegistry.js';
+import type { SpecGraphService } from '../specGraph.js';
 import { resolveDeployOrder } from './deployOrder.js';
 import type { Task, Agent } from '../../models/session.js';
 import type { NuggetSpec } from '../../utils/specValidator.js';
@@ -27,11 +28,13 @@ export class PlanPhase {
   private metaPlanner: MetaPlanner;
   private teachingEngine: TeachingEngine;
   private deviceRegistry?: DeviceRegistry;
+  private specGraphService?: SpecGraphService;
 
-  constructor(metaPlanner: MetaPlanner, teachingEngine: TeachingEngine, deviceRegistry?: DeviceRegistry) {
+  constructor(metaPlanner: MetaPlanner, teachingEngine: TeachingEngine, deviceRegistry?: DeviceRegistry, specGraphService?: SpecGraphService) {
     this.metaPlanner = metaPlanner;
     this.teachingEngine = teachingEngine;
     this.deviceRegistry = deviceRegistry;
+    this.specGraphService = specGraphService;
   }
 
   async execute(ctx: PhaseContext, spec: NuggetSpec): Promise<PlanResult> {
@@ -41,7 +44,18 @@ export class PlanPhase {
 
     const nuggetType = (ctx.session.spec ?? {}).nugget?.type ?? 'software';
 
-    const plan = await this.metaPlanner.plan(spec);
+    // Inject Spec Graph context when the spec belongs to a graph
+    let graphContext: string | undefined;
+    const graphId = spec.composition?.parent_graph_id;
+    if (graphId && this.specGraphService) {
+      try {
+        graphContext = this.specGraphService.buildGraphContext(graphId, spec.composition?.node_id);
+      } catch {
+        // Graph not found or unavailable -- proceed without context
+      }
+    }
+
+    const plan = await this.metaPlanner.plan(spec, graphContext);
 
     const tasks: Task[] = plan.tasks;
     const agents: Agent[] = plan.agents;

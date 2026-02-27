@@ -71,8 +71,16 @@ registerMediaAgentMeeting(meetingRegistry);
 import { registerArchitectureAgentMeeting } from './services/architectureAgentMeeting.js';
 registerArchitectureAgentMeeting(meetingRegistry);
 
+// Register Integration Agent meeting type (cross-nugget composition)
+import { registerIntegrationAgentMeeting } from './services/integrationAgentMeeting.js';
+registerIntegrationAgentMeeting(meetingRegistry);
+
 // Spec Graph
 const specGraphService = new SpecGraphService();
+
+// Composition Service (cross-nugget composition + impact detection)
+import { CompositionService } from './services/compositionService.js';
+const compositionService = new CompositionService(specGraphService);
 
 // Agent Runtime (PRD-001)
 const agentStore = new AgentStore();
@@ -268,7 +276,7 @@ function createApp(staticDir?: string, authToken?: string) {
   app.use('/api/workspace', createWorkspaceRouter());
   app.use('/api/devices', createDeviceRouter({ registry: deviceRegistry }));
   app.use('/api/sessions/:sessionId/meetings', createMeetingRouter({ store, meetingService, sendEvent }));
-  app.use('/api/spec-graph', createSpecGraphRouter({ specGraphService }));
+  app.use('/api/spec-graph', createSpecGraphRouter({ specGraphService, compositionService }));
 
   // Agent Runtime (PRD-001) — mounted at /v1/* with its own api-key auth
   app.use('/v1', createRuntimeRouter({ agentStore, conversationManager, turnPipeline, knowledgeBackpack, studyMode, gapDetector }));

@@ -32,14 +32,18 @@ export class MetaPlanner {
     this.client = getAnthropicClient();
   }
 
-  async plan(spec: NuggetSpec): Promise<MetaPlannerPlan> {
+  async plan(spec: NuggetSpec, graphContext?: string): Promise<MetaPlannerPlan> {
     if (!spec.agents) {
       spec = { ...spec, agents: DEFAULT_AGENTS };
     }
 
     const specJson = JSON.stringify(spec, null, 2);
     const userMsg = metaPlannerUser(specJson);
-    const systemPrompt = buildMetaPlannerSystem(spec);
+    let systemPrompt = buildMetaPlannerSystem(spec);
+
+    if (graphContext) {
+      systemPrompt += '\n\n' + graphContext;
+    }
 
     const model = process.env.CLAUDE_MODEL || DEFAULT_MODEL;
     const response = await this.client.messages.create({

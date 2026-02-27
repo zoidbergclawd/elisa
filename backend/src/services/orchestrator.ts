@@ -30,6 +30,7 @@ import { FeedbackLoopTracker } from './feedbackLoopTracker.js';
 import { HealthTracker } from './healthTracker.js';
 import { autoMatchTests } from './autoTestMatcher.js';
 import type { RuntimeProvisioner } from './runtimeProvisioner.js';
+import type { SpecGraphService } from './specGraph.js';
 
 export class Orchestrator {
   private session: BuildSession;
@@ -72,7 +73,7 @@ export class Orchestrator {
   private testPhase: TestPhase;
   private deployPhase: DeployPhase;
 
-  constructor(session: BuildSession, sendEvent: SendEvent, hardwareService?: HardwareService, workspacePath?: string, deviceRegistry?: DeviceRegistry, meetingRegistry?: import('./meetingRegistry.js').MeetingRegistry, runtimeProvisioner?: RuntimeProvisioner) {
+  constructor(session: BuildSession, sendEvent: SendEvent, hardwareService?: HardwareService, workspacePath?: string, deviceRegistry?: DeviceRegistry, meetingRegistry?: import('./meetingRegistry.js').MeetingRegistry, runtimeProvisioner?: RuntimeProvisioner, specGraphService?: SpecGraphService) {
     this.session = session;
     this.send = sendEvent;
     this.nuggetDir = workspacePath || path.join(os.tmpdir(), `elisa-nugget-${session.id}`);
@@ -82,7 +83,7 @@ export class Orchestrator {
     this.deviceRegistry = deviceRegistry ?? new DeviceRegistry(path.resolve(import.meta.dirname, '../../devices'));
     this.meetingRegistry = meetingRegistry;
 
-    this.planPhase = new PlanPhase(new MetaPlanner(), this.teachingEngine, this.deviceRegistry);
+    this.planPhase = new PlanPhase(new MetaPlanner(), this.teachingEngine, this.deviceRegistry, specGraphService);
     this.testPhase = new TestPhase(this.testRunner, this.teachingEngine);
     this.deployPhase = new DeployPhase(
       this.hardwareService,

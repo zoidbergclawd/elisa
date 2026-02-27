@@ -10,6 +10,7 @@ import { MetaPlanner } from '../metaPlanner.js';
 import { TeachingEngine } from '../teachingEngine.js';
 import { TaskDAG } from '../../utils/dag.js';
 import type { DeviceRegistry } from '../deviceRegistry.js';
+import type { SpecGraphService } from '../specGraph.js';
 import type { MetaPlannerPlan } from '../../models/session.js';
 
 vi.mock('../metaPlanner.js');
@@ -63,7 +64,7 @@ describe('PlanPhase', () => {
 
     const result = await phase.execute(ctx, spec);
 
-    expect(metaPlanner.plan).toHaveBeenCalledWith(spec);
+    expect(metaPlanner.plan).toHaveBeenCalledWith(spec, undefined);
     expect(result.dag).toBeInstanceOf(TaskDAG);
     expect(result.tasks).toHaveLength(2);
     expect(result.agents).toHaveLength(1);
@@ -201,5 +202,73 @@ describe('PlanPhase', () => {
     const planReady = vi.mocked(ctx.send).mock.calls.find(([ev]) => ev.type === 'plan_ready');
     const evt = planReady![0] as Extract<WSEvent, { type: 'plan_ready' }>;
     expect(evt.deploy_steps).toBeUndefined();
+  });
+
+  // --- Spec Graph context integration ---
+
+  it('passes graph context to metaPlanner when spec has composition.parent_graph_id', async () => {
+    const ctx = makeCtx({ nuggetDir: tmpDir });
+    const graphContext = '## Spec Graph Context\n\n### Existing Nuggets (1)\n- **Weather App**: Build a weather app';
+
+    const mockGraphService = {
+      buildGraphContext: vi.fn().mockReturnValue(graphContext),
+    } as unknown as SpecGraphService;
+
+    const phase = new PlanPhase(metaPlanner, teachingEngine, undefined, mockGraphService);
+    const spec = {
+      nugget: { type: 'software' },
+      composition: { parent_graph_id: 'graph-123', node_id: 'node-456' },
+    };
+
+    await phase.execute(ctx, spec);
+
+    expect(mockGraphService.buildGraphContext).toHaveBeenCalledWith('graph-123', 'node-456');
+    expect(metaPlanner.plan).toHaveBeenCalledWith(spec, graphContext);
+  });
+
+  it('calls metaPlanner.plan without graphContext when spec has no composition', async () => {
+    const ctx = makeCtx({ nuggetDir: tmpDir });
+    const mockGraphService = {
+      buildGraphContext: vi.fn(),
+    } as unknown as SpecGraphService;
+
+    const phase = new PlanPhase(metaPlanner, teachingEngine, undefined, mockGraphService);
+    const spec = { nugget: { type: 'software' } };
+
+    await phase.execute(ctx, spec);
+
+    expect(mockGraphService.buildGraphContext).not.toHaveBeenCalled();
+    expect(metaPlanner.plan).toHaveBeenCalledWith(spec, undefined);
+  });
+
+  it('calls metaPlanner.plan without graphContext when no specGraphService is provided', async () => {
+    const ctx = makeCtx({ nuggetDir: tmpDir });
+    const phase = new PlanPhase(metaPlanner, teachingEngine);
+    const spec = {
+      nugget: { type: 'software' },
+      composition: { parent_graph_id: 'graph-123' },
+    };
+
+    await phase.execute(ctx, spec);
+
+    expect(metaPlanner.plan).toHaveBeenCalledWith(spec, undefined);
+  });
+
+  it('gracefully handles buildGraphContext throwing (graph not found)', async () => {
+    const ctx = makeCtx({ nuggetDir: tmpDir });
+    const mockGraphService = {
+      buildGraphContext: vi.fn().mockImplementation(() => { throw new Error('Graph not found: bad-id'); }),
+    } as unknown as SpecGraphService;
+
+    const phase = new PlanPhase(metaPlanner, teachingEngine, undefined, mockGraphService);
+    const spec = {
+      nugget: { type: 'software' },
+      composition: { parent_graph_id: 'bad-id' },
+    };
+
+    await phase.execute(ctx, spec);
+
+    // Should still call plan, just without graph context
+    expect(metaPlanner.plan).toHaveBeenCalledWith(spec, undefined);
   });
 });
