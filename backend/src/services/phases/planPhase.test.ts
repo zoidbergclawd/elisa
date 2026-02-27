@@ -5,11 +5,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { PlanPhase } from './planPhase.js';
-import type { PhaseContext } from './types.js';
+import type { PhaseContext, WSEvent } from './types.js';
 import { MetaPlanner } from '../metaPlanner.js';
 import { TeachingEngine } from '../teachingEngine.js';
 import { TaskDAG } from '../../utils/dag.js';
 import type { DeviceRegistry } from '../deviceRegistry.js';
+import type { MetaPlannerPlan } from '../../models/session.js';
 
 vi.mock('../metaPlanner.js');
 vi.mock('../teachingEngine.js');
@@ -17,7 +18,7 @@ vi.mock('../teachingEngine.js');
 function makeCtx(overrides: Partial<PhaseContext> = {}): PhaseContext {
   return {
     session: { id: 'test', state: 'idle', spec: { nugget: { type: 'software' } }, tasks: [], agents: [] } as any,
-    send: vi.fn().mockResolvedValue(undefined),
+    send: vi.fn().mockResolvedValue(undefined) as any,
     logger: { phase: vi.fn() } as any,
     nuggetDir: '',
     nuggetType: 'software',
@@ -26,13 +27,13 @@ function makeCtx(overrides: Partial<PhaseContext> = {}): PhaseContext {
   };
 }
 
-const SIMPLE_PLAN = {
+const SIMPLE_PLAN: MetaPlannerPlan = {
   tasks: [
-    { id: 'task-1', name: 'Build UI', dependencies: [] },
-    { id: 'task-2', name: 'Add CSS', dependencies: ['task-1'] },
+    { id: 'task-1', name: 'Build UI', description: '', status: 'pending', agent_name: 'Builder Bot', dependencies: [], acceptance_criteria: [] },
+    { id: 'task-2', name: 'Add CSS', description: '', status: 'pending', agent_name: 'Builder Bot', dependencies: ['task-1'], acceptance_criteria: [] },
   ],
   agents: [
-    { name: 'Builder Bot', role: 'builder' },
+    { name: 'Builder Bot', role: 'builder', persona: '', status: 'idle' },
   ],
   plan_explanation: 'Build then style.',
 };
@@ -84,10 +85,10 @@ describe('PlanPhase', () => {
   });
 
   it('handles circular deps: sends error event and throws', async () => {
-    const circularPlan = {
+    const circularPlan: MetaPlannerPlan = {
       tasks: [
-        { id: 'a', name: 'A', dependencies: ['b'] },
-        { id: 'b', name: 'B', dependencies: ['a'] },
+        { id: 'a', name: 'A', description: '', status: 'pending', agent_name: '', dependencies: ['b'], acceptance_criteria: [] },
+        { id: 'b', name: 'B', description: '', status: 'pending', agent_name: '', dependencies: ['a'], acceptance_criteria: [] },
       ],
       agents: [],
       plan_explanation: '',
@@ -101,7 +102,8 @@ describe('PlanPhase', () => {
 
     const errorEvent = vi.mocked(ctx.send).mock.calls.find(([ev]) => ev.type === 'error');
     expect(errorEvent).toBeDefined();
-    expect(errorEvent![0].recoverable).toBe(false);
+    const errEvt = errorEvent![0] as Extract<WSEvent, { type: 'error' }>;
+    expect(errEvt.recoverable).toBe(false);
   });
 
   it('writes dag.json to nuggetDir', async () => {
@@ -149,8 +151,9 @@ describe('PlanPhase', () => {
 
     const planReady = vi.mocked(ctx.send).mock.calls.find(([ev]) => ev.type === 'plan_ready');
     expect(planReady).toBeDefined();
-    expect(planReady![0].explanation).toBe('Build then style.');
-    expect(planReady![0].deployment_target).toBe('esp32');
+    const evt = planReady![0] as Extract<WSEvent, { type: 'plan_ready' }>;
+    expect(evt.explanation).toBe('Build then style.');
+    expect(evt.deployment_target).toBe('esp32');
   });
 
   it('includes deploy_steps in plan_ready when spec has devices', async () => {
@@ -178,8 +181,9 @@ describe('PlanPhase', () => {
     await phase.execute(ctx, spec);
 
     const planReady = vi.mocked(ctx.send).mock.calls.find(([ev]) => ev.type === 'plan_ready');
-    expect(planReady![0].deploy_steps).toBeDefined();
-    const steps = planReady![0].deploy_steps;
+    const evt = planReady![0] as Extract<WSEvent, { type: 'plan_ready' }>;
+    expect(evt.deploy_steps).toBeDefined();
+    const steps = evt.deploy_steps!;
     expect(steps).toHaveLength(2);
     // Cloud first (provides DASHBOARD_URL), then sensor (requires it)
     expect(steps[0].id).toBe('cloud-dashboard');
@@ -195,6 +199,7 @@ describe('PlanPhase', () => {
     await phase.execute(ctx, {});
 
     const planReady = vi.mocked(ctx.send).mock.calls.find(([ev]) => ev.type === 'plan_ready');
-    expect(planReady![0].deploy_steps).toBeUndefined();
+    const evt = planReady![0] as Extract<WSEvent, { type: 'plan_ready' }>;
+    expect(evt.deploy_steps).toBeUndefined();
   });
 });

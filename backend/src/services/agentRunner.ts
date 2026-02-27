@@ -10,6 +10,22 @@ import type { AgentResult } from '../models/session.js';
 import { withTimeout } from '../utils/withTimeout.js';
 import { MAX_TURNS_DEFAULT } from '../utils/constants.js';
 
+/** SDK assistant message shape (subset we consume). */
+interface SDKAssistantMessage {
+  type: 'assistant';
+  message?: { content?: Array<{ type: string; text?: string }> };
+}
+
+/** SDK result message shape (subset we consume). */
+interface SDKResultMessage {
+  type: 'result';
+  subtype?: 'success' | string;
+  result?: string;
+  total_cost_usd?: number;
+  usage?: { input_tokens?: number; output_tokens?: number };
+  errors?: string[];
+}
+
 export interface AgentRunnerParams {
   taskId: string;
   prompt: string;
@@ -123,8 +139,9 @@ export class AgentRunner {
 
     for await (const message of conversation) {
       if (message.type === 'assistant') {
-        for (const block of (message as any).message?.content ?? []) {
-          if (block.type === 'text') {
+        const assistantMsg = message as SDKAssistantMessage;
+        for (const block of assistantMsg.message?.content ?? []) {
+          if (block.type === 'text' && block.text) {
             accumulatedText.push(block.text);
             onOutput(taskId, block.text).catch(() => {});
           }
@@ -132,7 +149,7 @@ export class AgentRunner {
       }
 
       if (message.type === 'result') {
-        const result = message as any;
+        const result = message as SDKResultMessage;
         costUsd = result.total_cost_usd ?? 0;
         inputTokens = result.usage?.input_tokens ?? 0;
         outputTokens = result.usage?.output_tokens ?? 0;

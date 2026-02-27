@@ -13,7 +13,7 @@ React 19 + TypeScript + Vite SPA. Visual block editor (Blockly) for composing nu
 
 ```
 src/
-  App.tsx                    Root component. Owns all session state. Tabbed main layout.
+  App.tsx                    Thin layout shell: header, tabbed main, bottom bar, overlays.
   main.tsx                   Entry point. React 19 createRoot.
   components/
     BlockCanvas/             Blockly editor + block-to-NuggetSpec conversion + WorkspaceSidebar
@@ -24,9 +24,10 @@ src/
     Skills/                  Skills editor modal + template library + SkillFlowEditor (visual flow editor)
     Rules/                   Rules editor modal + template library
     Portals/                 Portals editor modal + registry
-    shared/                  MainTabBar, GoButton, HumanGateModal, QuestionModal, TeachingToast, AgentAvatar, ReadinessBadge, ExamplePickerModal, DirectoryPickerModal, FlashWizardModal
+    shared/                  MainTabBar, GoButton, ModalHost, HumanGateModal, QuestionModal, TeachingToast, AgentAvatar, ReadinessBadge, ExamplePickerModal, DirectoryPickerModal, FlashWizardModal
   hooks/
-    useBuildSession.ts       All build session state (tasks, agents, commits, events, etc.)
+    useBuildSession.ts       Build session state via useReducer (typed actions + reducer)
+    useWorkspaceIO.ts        Workspace file I/O: open/save/load nugget, open folder, select example, syncDesignToStorage
     useSkillSession.ts       Standalone skill execution state + WebSocket events
     useBoardDetect.ts        ESP32 board detection polling via /api/hardware/detect
     useHealthCheck.ts        Polls /api/health for backend readiness (API key + SDK status)
@@ -44,7 +45,7 @@ src/
 
 ## State Management
 
-No state library. `useBuildSession` hook holds all session state as `useState` variables. WebSocket events arrive and are dispatched through `handleEvent()` which updates the relevant state slices.
+No state library. `useBuildSession` hook holds all session state via `useReducer` with typed `BuildSessionAction` discriminated union. WebSocket events arrive and are dispatched through `handleEvent()` -> reducer. Workspace I/O (skills, rules, portals, file open/save) lives in `useWorkspaceIO` hook. All modals are rendered by `shared/ModalHost`.
 
 Workspace JSON, skills, and rules auto-save to `localStorage` on every change and restore on page load. Keys: `elisa:workspace`, `elisa:skills`, `elisa:rules`, `elisa:portals`, `elisa:workspace-path` (user-chosen directory).
 

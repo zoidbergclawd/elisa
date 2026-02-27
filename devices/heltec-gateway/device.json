@@ -44,8 +44,8 @@
     "requires": ["cloud_url", "api_key"],
     "flash": {
       "files": ["gateway_main.py"],
-      "lib": ["nodes.py", "oled.py", "ssd1306.py"],
-      "shared_lib": ["elisa_hardware.py", "_sx126x.py", "sx126x.py", "sx1262.py"],
+      "lib": ["nodes.py"],
+      "shared_lib": ["elisa_hardware.py", "_sx126x.py", "sx126x.py", "sx1262.py", "oled.py", "ssd1306.py"],
       "prompt_message": "Plug in your Gateway Node and click Ready"
     }
   }

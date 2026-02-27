@@ -23,47 +23,56 @@ npm run test:watch   # Vitest (watch mode)
 
 ```
 src/
+  App.tsx                    Root component. Owns all session state. Tabbed main layout.
   components/
-    BlockCanvas/         Blockly workspace
-      BlockCanvas.tsx      Editor wrapper (read-only during builds)
-      blockDefinitions.ts  All 25 block type definitions
-      blockInterpreter.ts  Workspace -> ProjectSpec JSON conversion
-      toolbox.ts           Palette categories and block ordering
-    MissionControl/      Right sidebar (w-80)
-      MissionControl.tsx   Container with tabs/panels
-      TaskDAG.tsx          @xyflow/react dependency graph
-      CommsFeed.tsx        Scrolling agent message log
-      MetricsPanel.tsx     Token usage bars per agent
-    BottomBar/           Bottom panel (h-32, 4 tabs)
-      BottomBar.tsx        Tab container
-      GitTimeline.tsx      Commit list with file diffs
-      TestResults.tsx      Pass/fail list + coverage bar
-      BoardOutput.tsx      ESP32 serial output stream
-      TeachingSidebar.tsx  Teaching moments list
-    shared/              Reusable UI components
-      GoButton.tsx         Floating build trigger
-      HumanGateModal.tsx   Approval/reject modal
-      QuestionModal.tsx    Multi-choice agent question modal
-      TeachingToast.tsx    Floating notification
-      AgentAvatar.tsx      Status dot + role icon
-    Skills/
-      SkillsModal.tsx      CRUD editor for custom skills + template library
-    Rules/
-      RulesModal.tsx       CRUD editor for rules + template library
+    BlockCanvas/             Blockly editor + block-to-NuggetSpec conversion + WorkspaceSidebar
+      blockDefinitions.ts      27 block type definitions (10 categories)
+      blockInterpreter.ts      Workspace -> NuggetSpec JSON conversion
+      toolbox.ts               Palette categories and block ordering
+    AgentTeam/               Full-width agent cards + comms feed (Agents tab)
+    TaskMap/                 Full-width interactive task DAG (Tasks tab)
+    MissionControl/          MissionControlPanel, MinionSquadPanel, NarratorFeed, TaskDAG, CommsFeed, MetricsPanel
+    BottomBar/               Bottom panel (6 tabs: Timeline, Tests, Board, Learn, Progress, Tokens)
+      GitTimeline.tsx          Commit list with file diffs
+      TestResults.tsx          Pass/fail list + coverage bar
+      BoardOutput.tsx          ESP32 serial output stream
+      TeachingSidebar.tsx      Teaching moments list
+      ProgressPanel.tsx        Build progress + deploy status
+    Skills/                  Skills CRUD modal + template library + SkillFlowEditor
+    Rules/                   Rules CRUD modal + template library
+    Portals/                 Portal connections modal + registry
+    shared/                  MainTabBar, GoButton, HumanGateModal, QuestionModal, TeachingToast,
+                             AgentAvatar, MinionAvatar, ReadinessBadge, FlashWizardModal,
+                             BoardDetectedModal, DirectoryPickerModal, ExamplePickerModal, ErrorBoundary
   hooks/
-    useBuildSession.ts   WebSocket connection + session state
-  App.tsx                Root layout, all top-level state (useState)
+    useBuildSession.ts       All session state + WebSocket event dispatching
+    useSkillSession.ts       Standalone skill execution state
+    useBoardDetect.ts        ESP32 board detection polling
+    useHealthCheck.ts        Backend readiness polling
+    useWebSocket.ts          WebSocket connection with auto-reconnect
+  lib/
+    apiClient.ts             REST API wrapper
+    nuggetFile.ts            .elisa nugget file save/load (JSZip-based)
+    playChime.ts             Web Audio API chime for board detection events
+    skillTemplates.ts        Pre-built skill and rule templates
+    terminology.ts           Kid-friendly term mappings
+    deviceBlocks.ts          Dynamic Blockly block registration from device plugins
+    examples/                Bundled example nuggets
+  types/
+    index.ts                 All TypeScript interfaces (NuggetSpec, Task, Agent, WSEvent, etc.)
 ```
 
 ## State Management
 
-No state library. All state lives in `App.tsx` via `useState` and is passed down as props. The `useBuildSession` hook manages the WebSocket connection and dispatches incoming events to state setters.
+No state library. `useBuildSession` hook holds all session state as `useState` variables. WebSocket events dispatched through `handleEvent()` to update state slices. Auto-saves workspace, skills, rules, and portals to `localStorage`.
 
-UI state machine: `design` -> `building` -> `review` -> `deploy` -> `done`
+UI phases: `design` | `building` | `review` | `deploy` | `done`
+
+Main tabs: `workspace` | `agents` | `tasks` (auto-switches to `agents` when build starts)
 
 ## Adding a New Block Type
 
 1. Define the block in `BlockCanvas/blockDefinitions.ts` following existing patterns (colour, fields, connections).
 2. Add it to the appropriate category in `BlockCanvas/toolbox.ts`.
-3. Add interpretation logic in `BlockCanvas/blockInterpreter.ts` to map it into `ProjectSpec`.
+3. Add interpretation logic in `BlockCanvas/blockInterpreter.ts` to map it into `NuggetSpec`.
 4. Rebuild and test -- the block appears in the palette automatically.

@@ -34,12 +34,19 @@ export interface Agent {
   restricted_paths?: string[];
 }
 
+/** Output of the MetaPlanner: a task DAG with agent assignments. */
+export interface MetaPlannerPlan {
+  tasks: Task[];
+  agents: Agent[];
+  plan_explanation?: string;
+}
+
 export interface BuildSession {
   id: string;
   state: SessionState;
   spec: Record<string, any> | null;
-  tasks: Record<string, any>[];
-  agents: Record<string, any>[];
+  tasks: Task[];
+  agents: Agent[];
 }
 
 export interface AgentResult {

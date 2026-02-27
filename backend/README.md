@@ -8,8 +8,9 @@ Express 5 + WebSocket server. Orchestrates AI agents, manages build sessions, an
 - ws 8 (WebSocket)
 - simple-git 3 (git operations)
 - serialport 12 (ESP32 communication)
-- @anthropic-ai/sdk (Claude API for planner/teaching)
+- @anthropic-ai/sdk + @anthropic-ai/claude-agent-sdk (Claude API + Agent SDK)
 - zod 4 (validation)
+- archiver 7 (zip streaming for nugget export)
 
 ## Dev Commands
 
@@ -24,33 +25,50 @@ npm run test:watch   # Vitest (watch mode)
 
 ```
 src/
-  server.ts            Express app, route registration, WebSocket upgrade
+  server.ts              Express app, route registration, WebSocket upgrade
   routes/
-    sessions.ts        /api/sessions/* endpoints
-    hardware.ts        /api/hardware/* endpoints
+    sessions.ts          /api/sessions/* endpoints (create, start, stop, gate, question, export)
+    hardware.ts          /api/hardware/* endpoints (detect, flash)
+    skills.ts            /api/skills/* endpoints (run, answer, list)
+    workspace.ts         /api/workspace/* endpoints (save, load design files)
+    devices.ts           /api/devices endpoint (list device plugin manifests)
+  models/
+    session.ts           Type definitions: Session, Task, Agent, BuildPhase, WSEvent
   services/
-    orchestrator.ts    Central build pipeline controller
-    metaPlanner.ts     ProjectSpec -> task DAG decomposition (Claude API)
-    agentRunner.ts     Runs agents via SDK query() API per task
-    gitService.ts      Per-session git repo init + commits
-    testRunner.ts      pytest execution + coverage parsing
-    hardwareService.ts ESP32 detect/compile/flash/serial monitor
-    teachingEngine.ts  Concept curriculum, dedup, Claude Sonnet fallback
+    orchestrator.ts      Thin coordinator: delegates to phase handlers in sequence
+    sessionStore.ts      Consolidated session state with JSON persistence
+    metaPlanner.ts       NuggetSpec -> task DAG decomposition (Claude API)
+    agentRunner.ts       Runs agents via SDK query() API per task
+    gitService.ts        Per-session git repo init + commits
+    testRunner.ts        pytest / Node test runner + coverage parsing
+    hardwareService.ts   ESP32 detect/compile/flash/serial monitor
+    teachingEngine.ts    Contextual learning moments (curriculum + Claude)
+    skillRunner.ts       Step-by-step SkillPlan execution (ask_user, branch, run_agent)
+    narratorService.ts   Narrator messages for build events (Claude Haiku)
+    permissionPolicy.ts  Auto-resolves agent permission requests
+    deviceRegistry.ts    Loads device plugin manifests, provides block defs + agent context
+    cloudDeployService.ts Google Cloud Run deployment (scaffold, gcloud CLI)
+    portalService.ts     Portal adapters (MCP, CLI) with command allowlist
+    phases/
+      planPhase.ts       MetaPlanner invocation, DAG setup
+      executePhase.ts    Task execution loop (parallel, git mutex, context chain)
+      testPhase.ts       Test runner invocation, result reporting
+      deployPhase.ts     Device flash, portal deployment, web preview
+      deployOrder.ts     Device deploy ordering (provides/requires DAG)
+  prompts/               Agent role prompts + curriculum templates
+  utils/                 DAG, validation, logging, tokens, context, timeout
 ```
 
-## Service Architecture
+## Build Pipeline
 
-**Build pipeline** (managed by Orchestrator):
+Orchestrator delegates to phase handlers in sequence:
 
-1. `MetaPlanner.plan(spec)` -- Calls Claude (model: `claude-opus-4-6`) to decompose ProjectSpec into a task DAG with dependencies. Validates for cycles. Retries on parse failure.
-2. **Task execution loop** -- For each ready task:
-   - `AgentRunner.execute(prompt)` -- Calls SDK `query()` to run agent. Streams output/tokens via async iteration. Timeout: 300s, retries: 2, model: `claude-opus-4-6`.
-   - `GitService.commit()` -- Commits changes with agent attribution.
-   - `TeachingEngine.check()` -- Surfaces teaching moments (deduped per concept per session). Falls back to Claude Sonnet.
-3. `TestRunner.runTests()` -- Runs `pytest tests/ -v --cov=src`. Parses output. Timeout: 120s.
-4. `HardwareService.flash()` -- If ESP32 target: detect USB, compile with `py_compile`, flash via `mpremote`. Timeout: 60s.
+1. **Plan** -- `MetaPlanner.plan(spec)` decomposes NuggetSpec into a task DAG. Validates for cycles. Retries on parse failure.
+2. **Execute** -- Up to 3 tasks run concurrently via Promise.race pool. Each task: `AgentRunner.execute()` -> `GitService.commit()` -> `TeachingEngine.check()`.
+3. **Test** -- `TestRunner.runTests()` runs pytest or Node test runner. Parses output + coverage.
+4. **Deploy** -- `HardwareService.flash()` for ESP32, `CloudDeployService` for Cloud Run, `PortalService` for portal connections.
 
-All state is in-memory. No database. Each session gets a temp workspace directory.
+All state is in-memory with optional JSON persistence. No database.
 
 ## Adding a New API Endpoint
 

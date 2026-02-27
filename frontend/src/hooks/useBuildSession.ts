@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useReducer, useCallback, useRef } from 'react';
 import type { NuggetSpec } from '../components/BlockCanvas/blockInterpreter';
 import type { UIState, Task, Agent, Commit, WSEvent, TeachingMoment, TestResult, TokenUsage, QuestionPayload, NarratorMessage } from '../types';
 import { authFetch } from '../lib/apiClient';
@@ -33,361 +33,513 @@ export interface ErrorNotification {
   timestamp: number;
 }
 
-export function useBuildSession() {
-  const [uiState, setUiState] = useState<UIState>('design');
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const [commits, setCommits] = useState<Commit[]>([]);
-  const [events, setEvents] = useState<WSEvent[]>([]);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [teachingMoments, setTeachingMoments] = useState<TeachingMoment[]>([]);
-  const [testResults, setTestResults] = useState<TestResult[]>([]);
-  const [coveragePct, setCoveragePct] = useState<number | null>(null);
-  const [tokenUsage, setTokenUsage] = useState<TokenUsage>({ input: 0, output: 0, total: 0, costUsd: 0, maxBudget: 500_000, perAgent: {} });
-  const [serialLines, setSerialLines] = useState<SerialLine[]>([]);
-  const [deployProgress, setDeployProgress] = useState<DeployProgress | null>(null);
-  const [gateRequest, setGateRequest] = useState<GateRequest | null>(null);
-  const [questionRequest, setQuestionRequest] = useState<QuestionRequest | null>(null);
-  const [nuggetDir, setNuggetDir] = useState<string | null>(null);
-  const [errorNotification, setErrorNotification] = useState<ErrorNotification | null>(null);
-  const [narratorMessages, setNarratorMessages] = useState<NarratorMessage[]>([]);
-  const [deployChecklist, setDeployChecklist] = useState<Array<{ name: string; prompt: string }> | null>(null);
-  const [deployUrls, setDeployUrls] = useState<Record<string, string>>({});
-  const [isPlanning, setIsPlanning] = useState(false);
-  const deployStepsRef = useRef<Array<{ id: string; name: string; method: string }>>([]);
-  const [flashWizardState, setFlashWizardState] = useState<{
-    visible: boolean;
-    deviceRole: string;
-    message: string;
-    isFlashing: boolean;
-    progress: number;
-    deviceName?: string;
-  } | null>(null);
-  const [documentationPath, setDocumentationPath] = useState<string | null>(null);
-  const tasksRef = useRef<Task[]>([]);
+export interface FlashWizardState {
+  visible: boolean;
+  deviceRole: string;
+  message: string;
+  isFlashing: boolean;
+  progress: number;
+  deviceName?: string;
+}
 
-  const handleEvent = useCallback((event: WSEvent) => {
-    setEvents(prev => {
-      const next = [...prev, event];
-      return next.length > MAX_EVENTS ? next.slice(next.length - MAX_EVENTS) : next;
-    });
+// -- State --
 
-    switch (event.type) {
-      case 'planning_started':
-        setIsPlanning(true);
-        break;
-      case 'plan_ready': {
-        setIsPlanning(false);
-        const planTasks: Task[] = event.tasks;
-        const lastTaskId = planTasks.length > 0 ? planTasks[planTasks.length - 1].id : undefined;
-        const deployTarget = event.deployment_target ?? '';
-        const steps = event.deploy_steps;
+export interface BuildSessionState {
+  uiState: UIState;
+  tasks: Task[];
+  agents: Agent[];
+  commits: Commit[];
+  events: WSEvent[];
+  sessionId: string | null;
+  teachingMoments: TeachingMoment[];
+  testResults: TestResult[];
+  coveragePct: number | null;
+  tokenUsage: TokenUsage;
+  serialLines: SerialLine[];
+  deployProgress: DeployProgress | null;
+  deployChecklist: Array<{ name: string; prompt: string }> | null;
+  deployUrls: Record<string, string>;
+  gateRequest: GateRequest | null;
+  questionRequest: QuestionRequest | null;
+  nuggetDir: string | null;
+  errorNotification: ErrorNotification | null;
+  narratorMessages: NarratorMessage[];
+  isPlanning: boolean;
+  flashWizardState: FlashWizardState | null;
+  documentationPath: string | null;
+}
 
-        if (steps && steps.length > 0) {
-          // Per-device deploy nodes from backend deploy_steps
-          deployStepsRef.current = steps;
-          for (const step of steps) {
-            const label = step.method === 'cloud' ? `Deploy ${step.name}` : `Flash ${step.name}`;
-            planTasks.push({
-              id: `__deploy_${step.id}__`,
-              name: label,
-              description: `${label} via ${step.method}`,
-              status: 'pending',
-              agent_name: '',
-              dependencies: lastTaskId ? [lastTaskId] : [],
-            });
-          }
-          // Add web preview node if target is 'both' and no cloud device provides a web preview
-          const hasCloud = steps.some(s => s.method === 'cloud');
-          if (deployTarget === 'both' && !hasCloud) {
-            planTasks.push({
-              id: '__deploy_web__',
-              name: 'Web Preview',
-              description: 'Start local web preview server',
-              status: 'pending',
-              agent_name: '',
-              dependencies: lastTaskId ? [lastTaskId] : [],
-            });
-          }
-        } else if (deployTarget === 'esp32' || deployTarget === 'both') {
-          // Legacy fallback: single deploy node
+const INITIAL_TOKEN_USAGE: TokenUsage = { input: 0, output: 0, total: 0, costUsd: 0, maxBudget: 500_000, perAgent: {} };
+
+export const initialState: BuildSessionState = {
+  uiState: 'design',
+  tasks: [],
+  agents: [],
+  commits: [],
+  events: [],
+  sessionId: null,
+  teachingMoments: [],
+  testResults: [],
+  coveragePct: null,
+  tokenUsage: INITIAL_TOKEN_USAGE,
+  serialLines: [],
+  deployProgress: null,
+  deployChecklist: null,
+  deployUrls: {},
+  gateRequest: null,
+  questionRequest: null,
+  nuggetDir: null,
+  errorNotification: null,
+  narratorMessages: [],
+  isPlanning: false,
+  flashWizardState: null,
+  documentationPath: null,
+};
+
+// -- Actions --
+
+export type BuildSessionAction =
+  | { type: 'WS_EVENT'; event: WSEvent; deploySteps: Array<{ id: string; name: string; method: string }> }
+  | { type: 'SET_UI_STATE'; uiState: UIState }
+  | { type: 'SET_SESSION_ID'; sessionId: string }
+  | { type: 'SET_ERROR'; message: string; recoverable: boolean }
+  | { type: 'CLEAR_GATE_REQUEST' }
+  | { type: 'CLEAR_QUESTION_REQUEST' }
+  | { type: 'CLEAR_ERROR_NOTIFICATION' }
+  | { type: 'RESET_FOR_BUILD' }
+  | { type: 'RESET_TO_DESIGN' }
+  | { type: 'STOP_BUILD' };
+
+// -- Helpers for task updates --
+
+function updateTasks(tasks: Task[], taskId: string, status: Task['status']): Task[] {
+  return tasks.map(t => t.id === taskId ? { ...t, status } : t);
+}
+
+function updateTasksMulti(tasks: Task[], predicate: (t: Task) => boolean, status: Task['status']): Task[] {
+  return tasks.map(t => predicate(t) ? { ...t, status } : t);
+}
+
+function updateAgents(agents: Agent[], agentName: string, status: Agent['status']): Agent[] {
+  return agents.map(a => a.name === agentName ? { ...a, status } : a);
+}
+
+function appendEvent(events: WSEvent[], event: WSEvent): WSEvent[] {
+  const next = [...events, event];
+  return next.length > MAX_EVENTS ? next.slice(next.length - MAX_EVENTS) : next;
+}
+
+// -- Reducer --
+
+function handleWSEvent(state: BuildSessionState, event: WSEvent, deploySteps: Array<{ id: string; name: string; method: string }>): BuildSessionState {
+  const events = appendEvent(state.events, event);
+
+  switch (event.type) {
+    case 'planning_started':
+      return { ...state, events, isPlanning: true };
+
+    case 'plan_ready': {
+      const planTasks: Task[] = [...event.tasks];
+      const lastTaskId = planTasks.length > 0 ? planTasks[planTasks.length - 1].id : undefined;
+      const deployTarget = event.deployment_target ?? '';
+      const steps = event.deploy_steps;
+
+      if (steps && steps.length > 0) {
+        for (const step of steps) {
+          const label = step.method === 'cloud' ? `Deploy ${step.name}` : `Flash ${step.name}`;
           planTasks.push({
-            id: '__deploy__',
-            name: 'Flash to Board',
-            description: 'Flash MicroPython code to ESP32 via mpremote',
+            id: `__deploy_${step.id}__`,
+            name: label,
+            description: `${label} via ${step.method}`,
             status: 'pending',
             agent_name: '',
             dependencies: lastTaskId ? [lastTaskId] : [],
           });
         }
-        setTasks(planTasks);
-        tasksRef.current = planTasks;
-        setAgents(event.agents);
-        break;
-      }
-      case 'task_started':
-        setTasks(prev => {
-          const next = prev.map(t =>
-            t.id === event.task_id ? { ...t, status: 'in_progress' as const } : t
-          );
-          tasksRef.current = next;
-          return next;
-        });
-        setAgents(prev => prev.map(a =>
-          a.name === event.agent_name ? { ...a, status: 'working' as const } : a
-        ));
-        break;
-      case 'task_completed': {
-        const completedTask = tasksRef.current.find(t => t.id === event.task_id);
-        setTasks(prev => {
-          const next = prev.map(t =>
-            t.id === event.task_id ? { ...t, status: 'done' as const } : t
-          );
-          tasksRef.current = next;
-          return next;
-        });
-        if (completedTask) {
-          setAgents(prev => prev.map(a =>
-            a.name === completedTask.agent_name ? { ...a, status: 'idle' as const } : a
-          ));
+        const hasCloud = steps.some(s => s.method === 'cloud');
+        if (deployTarget === 'both' && !hasCloud) {
+          planTasks.push({
+            id: '__deploy_web__',
+            name: 'Web Preview',
+            description: 'Start local web preview server',
+            status: 'pending',
+            agent_name: '',
+            dependencies: lastTaskId ? [lastTaskId] : [],
+          });
         }
-        break;
-      }
-      case 'task_failed': {
-        const failedTask = tasksRef.current.find(t => t.id === event.task_id);
-        setTasks(prev => {
-          const next = prev.map(t =>
-            t.id === event.task_id ? { ...t, status: 'failed' as const } : t
-          );
-          tasksRef.current = next;
-          return next;
+      } else if (deployTarget === 'esp32' || deployTarget === 'both') {
+        planTasks.push({
+          id: '__deploy__',
+          name: 'Flash to Board',
+          description: 'Flash MicroPython code to ESP32 via mpremote',
+          status: 'pending',
+          agent_name: '',
+          dependencies: lastTaskId ? [lastTaskId] : [],
         });
-        if (failedTask) {
-          setAgents(prev => prev.map(a =>
-            a.name === failedTask.agent_name ? { ...a, status: 'error' as const } : a
-          ));
-        }
-        break;
       }
-      case 'commit_created':
-        setCommits(prev => [...prev, {
+      return { ...state, events, isPlanning: false, tasks: planTasks, agents: event.agents };
+    }
+
+    case 'task_started':
+      return {
+        ...state,
+        events,
+        tasks: updateTasks(state.tasks, event.task_id, 'in_progress'),
+        agents: updateAgents(state.agents, event.agent_name, 'working'),
+      };
+
+    case 'task_completed': {
+      const completedTask = state.tasks.find(t => t.id === event.task_id);
+      return {
+        ...state,
+        events,
+        tasks: updateTasks(state.tasks, event.task_id, 'done'),
+        agents: completedTask
+          ? updateAgents(state.agents, completedTask.agent_name, 'idle')
+          : state.agents,
+      };
+    }
+
+    case 'task_failed': {
+      const failedTask = state.tasks.find(t => t.id === event.task_id);
+      return {
+        ...state,
+        events,
+        tasks: updateTasks(state.tasks, event.task_id, 'failed'),
+        agents: failedTask
+          ? updateAgents(state.agents, failedTask.agent_name, 'error')
+          : state.agents,
+      };
+    }
+
+    case 'commit_created':
+      return {
+        ...state,
+        events,
+        commits: [...state.commits, {
           sha: event.sha,
           message: event.message,
           agent_name: event.agent_name,
           task_id: event.task_id,
           timestamp: event.timestamp,
           files_changed: event.files_changed,
-        }]);
-        break;
-      case 'deploy_started': {
-        setUiState('building');
-        setDeployProgress({ step: 'Starting deployment...', progress: 0 });
-        const deployNodeId = `__deploy_${event.target}__`;
-        setTasks(prev => {
-          const next = prev.map(t =>
-            (t.id === deployNodeId || t.id === '__deploy__') ? { ...t, status: 'in_progress' as const } : t
-          );
-          tasksRef.current = next;
-          return next;
-        });
-        break;
-      }
-      case 'deploy_progress':
-        setDeployProgress({ step: event.step, progress: event.progress });
-        break;
-      case 'deploy_checklist':
-        setDeployChecklist(event.rules);
-        break;
-      case 'deploy_complete': {
-        setDeployProgress(null);
-        setDeployChecklist(null);
-        if (event.url) {
-          setDeployUrls(prev => ({ ...prev, [event.target]: event.url! }));
-        }
-        const completeNodeId = `__deploy_${event.target}__`;
-        setTasks(prev => {
-          const next = prev.map(t =>
-            (t.id === completeNodeId || t.id === '__deploy__') ? { ...t, status: 'done' as const } : t
-          );
-          tasksRef.current = next;
-          return next;
-        });
-        break;
-      }
-      case 'serial_data':
-        setSerialLines(prev => {
-          const next = [...prev, { line: event.line, timestamp: event.timestamp }];
-          return next.length > MAX_SERIAL_LINES ? next.slice(next.length - MAX_SERIAL_LINES) : next;
-        });
-        break;
-      case 'human_gate':
-        setUiState('review');
-        setGateRequest({ task_id: event.task_id, question: event.question, context: event.context });
-        break;
-      case 'user_question':
-        setQuestionRequest({ task_id: event.task_id, questions: event.questions });
-        break;
-      case 'session_complete':
-        setUiState('done');
-        setAgents(prev => prev.map(a => ({ ...a, status: 'done' as const })));
-        break;
-      case 'teaching_moment':
-        setTeachingMoments(prev => [...prev, {
+        }],
+      };
+
+    case 'deploy_started': {
+      const deployNodeId = `__deploy_${event.target}__`;
+      return {
+        ...state,
+        events,
+        uiState: 'building',
+        deployProgress: { step: 'Starting deployment...', progress: 0 },
+        tasks: updateTasksMulti(
+          state.tasks,
+          t => t.id === deployNodeId || t.id === '__deploy__',
+          'in_progress',
+        ),
+      };
+    }
+
+    case 'deploy_progress':
+      return { ...state, events, deployProgress: { step: event.step, progress: event.progress } };
+
+    case 'deploy_checklist':
+      return { ...state, events, deployChecklist: event.rules };
+
+    case 'deploy_complete': {
+      const completeNodeId = `__deploy_${event.target}__`;
+      return {
+        ...state,
+        events,
+        deployProgress: null,
+        deployChecklist: null,
+        deployUrls: event.url
+          ? { ...state.deployUrls, [event.target]: event.url }
+          : state.deployUrls,
+        tasks: updateTasksMulti(
+          state.tasks,
+          t => t.id === completeNodeId || t.id === '__deploy__',
+          'done',
+        ),
+      };
+    }
+
+    case 'serial_data': {
+      const nextLines = [...state.serialLines, { line: event.line, timestamp: event.timestamp }];
+      return {
+        ...state,
+        events,
+        serialLines: nextLines.length > MAX_SERIAL_LINES
+          ? nextLines.slice(nextLines.length - MAX_SERIAL_LINES)
+          : nextLines,
+      };
+    }
+
+    case 'human_gate':
+      return {
+        ...state,
+        events,
+        uiState: 'review',
+        gateRequest: { task_id: event.task_id, question: event.question, context: event.context },
+      };
+
+    case 'user_question':
+      return {
+        ...state,
+        events,
+        questionRequest: { task_id: event.task_id, questions: event.questions },
+      };
+
+    case 'session_complete':
+      return {
+        ...state,
+        events,
+        uiState: 'done',
+        agents: state.agents.map(a => ({ ...a, status: 'done' as const })),
+      };
+
+    case 'teaching_moment':
+      return {
+        ...state,
+        events,
+        teachingMoments: [...state.teachingMoments, {
           concept: event.concept,
           headline: event.headline,
           explanation: event.explanation,
           tell_me_more: event.tell_me_more,
           related_concepts: event.related_concepts,
-        }]);
-        break;
-      case 'test_result':
-        setTestResults(prev => [...prev, {
+        }],
+      };
+
+    case 'test_result':
+      return {
+        ...state,
+        events,
+        testResults: [...state.testResults, {
           test_name: event.test_name,
           passed: event.passed,
           details: event.details,
-        }]);
-        break;
-      case 'coverage_update':
-        setCoveragePct(event.percentage);
-        break;
-      case 'token_usage':
-        setTokenUsage(prev => {
-          const newInput = prev.input + event.input_tokens;
-          const newOutput = prev.output + event.output_tokens;
-          const newCost = prev.costUsd + (event.cost_usd ?? 0);
-          const agentPrev = prev.perAgent[event.agent_name] || { input: 0, output: 0 };
-          return {
-            input: newInput,
-            output: newOutput,
-            total: newInput + newOutput,
-            costUsd: newCost,
-            maxBudget: prev.maxBudget,
-            perAgent: {
-              ...prev.perAgent,
-              [event.agent_name]: {
-                input: agentPrev.input + event.input_tokens,
-                output: agentPrev.output + event.output_tokens,
-              },
+        }],
+      };
+
+    case 'coverage_update':
+      return { ...state, events, coveragePct: event.percentage };
+
+    case 'token_usage': {
+      const prev = state.tokenUsage;
+      const newInput = prev.input + event.input_tokens;
+      const newOutput = prev.output + event.output_tokens;
+      const newCost = prev.costUsd + (event.cost_usd ?? 0);
+      const agentPrev = prev.perAgent[event.agent_name] || { input: 0, output: 0 };
+      return {
+        ...state,
+        events,
+        tokenUsage: {
+          input: newInput,
+          output: newOutput,
+          total: newInput + newOutput,
+          costUsd: newCost,
+          maxBudget: prev.maxBudget,
+          perAgent: {
+            ...prev.perAgent,
+            [event.agent_name]: {
+              input: agentPrev.input + event.input_tokens,
+              output: agentPrev.output + event.output_tokens,
             },
-          };
-        });
-        break;
-      case 'budget_warning':
-        setErrorNotification({
+          },
+        },
+      };
+    }
+
+    case 'budget_warning':
+      return {
+        ...state,
+        events,
+        errorNotification: {
           message: `Token budget warning: ${Math.round((event.total_tokens / event.max_budget) * 100)}% used ($${event.cost_usd.toFixed(2)})`,
           recoverable: true,
           timestamp: Date.now(),
-        });
-        break;
-      // Skill execution events (within a build session)
-      case 'skill_started':
-      case 'skill_step':
-      case 'skill_output':
-      case 'skill_completed':
-      case 'skill_error':
-        // Logged to events array above; no additional state updates needed for build
-        break;
-      case 'skill_question':
-        // During build, skill questions route through the same question modal
-        setQuestionRequest({
+        },
+      };
+
+    case 'skill_started':
+    case 'skill_step':
+    case 'skill_output':
+    case 'skill_completed':
+    case 'skill_error':
+      return { ...state, events };
+
+    case 'skill_question':
+      return {
+        ...state,
+        events,
+        questionRequest: {
           task_id: event.step_id,
           questions: event.questions,
-        });
-        break;
-      case 'narrator_message':
-        setNarratorMessages(prev => [...prev, {
+        },
+      };
+
+    case 'narrator_message':
+      return {
+        ...state,
+        events,
+        narratorMessages: [...state.narratorMessages, {
           from: event.from,
           text: event.text,
           mood: event.mood,
           related_task_id: event.related_task_id,
           timestamp: Date.now(),
-        }]);
-        break;
-      case 'permission_auto_resolved':
-        // Logged to events array above; no additional state updates
-        break;
-      case 'minion_state_change':
-        setAgents(prev => prev.map(a =>
+        }],
+      };
+
+    case 'permission_auto_resolved':
+      return { ...state, events };
+
+    case 'minion_state_change':
+      return {
+        ...state,
+        events,
+        agents: state.agents.map(a =>
           a.name === event.agent_name ? { ...a, status: event.new_status as Agent['status'] } : a
-        ));
-        break;
-      case 'flash_prompt': {
-        const stepInfo = deployStepsRef.current.find(s => s.id === event.device_role);
-        setFlashWizardState({
+        ),
+      };
+
+    case 'flash_prompt': {
+      const stepInfo = deploySteps.find(s => s.id === event.device_role);
+      const flashNodeId = `__deploy_${event.device_role}__`;
+      return {
+        ...state,
+        events,
+        flashWizardState: {
           visible: true,
           deviceRole: event.device_role,
           message: event.message,
           isFlashing: false,
           progress: 0,
           deviceName: stepInfo?.name,
-        });
-        // Mark per-device deploy node as in_progress
-        const flashNodeId = `__deploy_${event.device_role}__`;
-        setTasks(prev => {
-          const next = prev.map(t =>
-            t.id === flashNodeId ? { ...t, status: 'in_progress' as const } : t
-          );
-          tasksRef.current = next;
-          return next;
-        });
-        break;
-      }
-      case 'flash_progress':
-        setFlashWizardState(prev => prev ? ({
-          ...prev,
+        },
+        tasks: updateTasks(state.tasks, flashNodeId, 'in_progress'),
+      };
+    }
+
+    case 'flash_progress':
+      return {
+        ...state,
+        events,
+        flashWizardState: state.flashWizardState ? {
+          ...state.flashWizardState,
           isFlashing: true,
           progress: event.progress,
-        }) : prev);
-        break;
-      case 'flash_complete': {
-        setFlashWizardState(prev => prev ? ({
-          ...prev,
+        } : state.flashWizardState,
+      };
+
+    case 'flash_complete': {
+      const flashDoneId = `__deploy_${event.device_role}__`;
+      const flashStatus = event.success ? 'done' as const : 'failed' as const;
+      return {
+        ...state,
+        events,
+        flashWizardState: state.flashWizardState ? {
+          ...state.flashWizardState,
           isFlashing: false,
           progress: 100,
           visible: false,
-        }) : prev);
-        const flashDoneId = `__deploy_${event.device_role}__`;
-        const flashStatus = event.success ? 'done' as const : 'failed' as const;
-        setTasks(prev => {
-          const next = prev.map(t =>
-            t.id === flashDoneId ? { ...t, status: flashStatus } : t
-          );
-          tasksRef.current = next;
-          return next;
-        });
-        break;
+        } : state.flashWizardState,
+        tasks: updateTasks(state.tasks, flashDoneId, flashStatus),
+      };
+    }
+
+    case 'documentation_ready':
+      return { ...state, events, documentationPath: event.file_path };
+
+    case 'workspace_created':
+      return { ...state, events, nuggetDir: event.nugget_dir };
+
+    case 'error': {
+      let errorMsg = event.message;
+      if (/auth|api.key|401|invalid.*key|invalid.*x-api-key/i.test(errorMsg) && !/deploy|gcloud|cloud.run/i.test(errorMsg)) {
+        errorMsg = 'Elisa can\'t connect to her AI brain. Ask your parent to check the API key!';
       }
-      case 'documentation_ready':
-        setDocumentationPath(event.file_path);
-        break;
-      case 'workspace_created':
-        setNuggetDir(event.nugget_dir);
-        break;
-      case 'error': {
-        // Replace technical auth/key errors with kid-friendly messages
-        let errorMsg = event.message;
-        if (/auth|api.key|401|invalid.*key|invalid.*x-api-key/i.test(errorMsg) && !/deploy|gcloud|cloud.run/i.test(errorMsg)) {
-          errorMsg = 'Elisa can\'t connect to her AI brain. Ask your parent to check the API key!';
-        }
-        setErrorNotification({
+      const isDeployError = event.message.includes('flash') || event.message.includes('mpremote') ||
+        event.message.includes('Compilation failed') || event.message.includes('board detected');
+      return {
+        ...state,
+        events,
+        errorNotification: {
           message: errorMsg,
           recoverable: event.recoverable,
           timestamp: Date.now(),
-        });
-        // Mark synthetic deploy node(s) as failed if deploy-related error
-        if (event.message.includes('flash') || event.message.includes('mpremote') ||
-            event.message.includes('Compilation failed') || event.message.includes('board detected')) {
-          setTasks(prev => {
-            const next = prev.map(t =>
-              t.id.startsWith('__deploy') && t.status === 'in_progress' ? { ...t, status: 'failed' as const } : t
-            );
-            tasksRef.current = next;
-            return next;
-          });
-        }
-        break;
-      }
+        },
+        tasks: isDeployError
+          ? updateTasksMulti(state.tasks, t => t.id.startsWith('__deploy') && t.status === 'in_progress', 'failed')
+          : state.tasks,
+      };
     }
+
+    default:
+      return { ...state, events };
+  }
+}
+
+export function buildSessionReducer(state: BuildSessionState, action: BuildSessionAction): BuildSessionState {
+  switch (action.type) {
+    case 'WS_EVENT':
+      return handleWSEvent(state, action.event, action.deploySteps);
+
+    case 'SET_UI_STATE':
+      return { ...state, uiState: action.uiState };
+
+    case 'SET_SESSION_ID':
+      return { ...state, sessionId: action.sessionId };
+
+    case 'SET_ERROR':
+      return {
+        ...state,
+        errorNotification: { message: action.message, recoverable: action.recoverable, timestamp: Date.now() },
+      };
+
+    case 'CLEAR_GATE_REQUEST':
+      return { ...state, gateRequest: null };
+
+    case 'CLEAR_QUESTION_REQUEST':
+      return { ...state, questionRequest: null };
+
+    case 'CLEAR_ERROR_NOTIFICATION':
+      return { ...state, errorNotification: null };
+
+    case 'RESET_FOR_BUILD':
+      return {
+        ...initialState,
+        uiState: 'building',
+        sessionId: state.sessionId,
+      };
+
+    case 'RESET_TO_DESIGN':
+      return { ...initialState };
+
+    case 'STOP_BUILD':
+      return {
+        ...state,
+        uiState: 'done',
+        agents: state.agents.map(a => ({ ...a, status: 'done' as const })),
+      };
+
+    default:
+      return state;
+  }
+}
+
+export function useBuildSession() {
+  const [state, dispatch] = useReducer(buildSessionReducer, initialState);
+  const deployStepsRef = useRef<Array<{ id: string; name: string; method: string }>>([]);
+
+  const handleEvent = useCallback((event: WSEvent) => {
+    // Track deploy steps from plan_ready for flash_prompt lookup
+    if (event.type === 'plan_ready' && event.deploy_steps && event.deploy_steps.length > 0) {
+      deployStepsRef.current = event.deploy_steps;
+    }
+    dispatch({ type: 'WS_EVENT', event, deploySteps: deployStepsRef.current });
   }, []);
 
   const startBuild = useCallback(async (
@@ -396,41 +548,19 @@ export function useBuildSession() {
     workspacePath?: string,
     workspaceJson?: Record<string, unknown>,
   ) => {
-    setUiState('building');
-    setEvents([]);
-    setTasks([]);
-    tasksRef.current = [];
-    setAgents([]);
-    setCommits([]);
-    setTeachingMoments([]);
-    setTestResults([]);
-    setCoveragePct(null);
-    setTokenUsage({ input: 0, output: 0, total: 0, costUsd: 0, maxBudget: 500_000, perAgent: {} });
-    setSerialLines([]);
-    setDeployProgress(null);
-    setDeployChecklist(null);
-    setDeployUrls({});
-    setIsPlanning(false);
+    dispatch({ type: 'RESET_FOR_BUILD' });
     deployStepsRef.current = [];
-    setGateRequest(null);
-    setQuestionRequest(null);
-    setNuggetDir(null);
-    setErrorNotification(null);
-    setNarratorMessages([]);
-    setFlashWizardState(null);
-    setDocumentationPath(null);
 
     const res = await authFetch('/api/sessions', { method: 'POST' });
     if (!res.ok) {
       const body = await res.json().catch(() => ({ detail: res.statusText }));
-      setUiState('design');
-      setErrorNotification({ message: body.detail || 'Elisa couldn\'t get ready to build. Try again!', recoverable: true, timestamp: Date.now() });
+      dispatch({ type: 'SET_UI_STATE', uiState: 'design' });
+      dispatch({ type: 'SET_ERROR', message: body.detail || 'Elisa couldn\'t get ready to build. Try again!', recoverable: true });
       return;
     }
     const { session_id } = await res.json();
-    setSessionId(session_id);
+    dispatch({ type: 'SET_SESSION_ID', sessionId: session_id });
 
-    // Wait for WebSocket to be open before starting the build
     if (waitForWs) {
       await waitForWs();
     }
@@ -454,64 +584,63 @@ export function useBuildSession() {
         );
         message += '\n' + fieldErrors.join('\n');
       }
-      setUiState('design');
-      setErrorNotification({ message, recoverable: true, timestamp: Date.now() });
+      dispatch({ type: 'SET_UI_STATE', uiState: 'design' });
+      dispatch({ type: 'SET_ERROR', message, recoverable: true });
     }
   }, []);
 
   const clearGateRequest = useCallback(() => {
-    setGateRequest(null);
+    dispatch({ type: 'CLEAR_GATE_REQUEST' });
   }, []);
 
   const clearQuestionRequest = useCallback(() => {
-    setQuestionRequest(null);
+    dispatch({ type: 'CLEAR_QUESTION_REQUEST' });
   }, []);
 
   const clearErrorNotification = useCallback(() => {
-    setErrorNotification(null);
+    dispatch({ type: 'CLEAR_ERROR_NOTIFICATION' });
   }, []);
 
   const stopBuild = useCallback(async () => {
-    if (!sessionId) return;
-    await authFetch(`/api/sessions/${sessionId}/stop`, { method: 'POST' });
-    setUiState('done');
-    setAgents(prev => prev.map(a => ({ ...a, status: 'done' as const })));
-  }, [sessionId]);
+    if (!state.sessionId) return;
+    await authFetch(`/api/sessions/${state.sessionId}/stop`, { method: 'POST' });
+    dispatch({ type: 'STOP_BUILD' });
+  }, [state.sessionId]);
 
   const resetToDesign = useCallback(() => {
-    setUiState('design');
-    setSessionId(null);
-    setNuggetDir(null);
-    setEvents([]);
-    setTasks([]);
-    tasksRef.current = [];
-    setAgents([]);
-    setCommits([]);
-    setTeachingMoments([]);
-    setTestResults([]);
-    setCoveragePct(null);
-    setSerialLines([]);
-    setDeployProgress(null);
-    setDeployChecklist(null);
-    setDeployUrls({});
-    setIsPlanning(false);
+    dispatch({ type: 'RESET_TO_DESIGN' });
     deployStepsRef.current = [];
-    setGateRequest(null);
-    setQuestionRequest(null);
-    setErrorNotification(null);
-    setNarratorMessages([]);
-    setFlashWizardState(null);
-    setDocumentationPath(null);
-    setTokenUsage({ input: 0, output: 0, total: 0, costUsd: 0, maxBudget: 500_000, perAgent: {} });
   }, []);
 
   return {
-    uiState, tasks, agents, commits, events, sessionId,
-    teachingMoments, testResults, coveragePct, tokenUsage,
-    serialLines, deployProgress, deployChecklist, deployUrls, gateRequest, questionRequest,
-    nuggetDir, errorNotification, narratorMessages, isPlanning,
-    flashWizardState, documentationPath,
-    handleEvent, startBuild, stopBuild, clearGateRequest, clearQuestionRequest,
-    clearErrorNotification, resetToDesign,
+    uiState: state.uiState,
+    tasks: state.tasks,
+    agents: state.agents,
+    commits: state.commits,
+    events: state.events,
+    sessionId: state.sessionId,
+    teachingMoments: state.teachingMoments,
+    testResults: state.testResults,
+    coveragePct: state.coveragePct,
+    tokenUsage: state.tokenUsage,
+    serialLines: state.serialLines,
+    deployProgress: state.deployProgress,
+    deployChecklist: state.deployChecklist,
+    deployUrls: state.deployUrls,
+    gateRequest: state.gateRequest,
+    questionRequest: state.questionRequest,
+    nuggetDir: state.nuggetDir,
+    errorNotification: state.errorNotification,
+    narratorMessages: state.narratorMessages,
+    isPlanning: state.isPlanning,
+    flashWizardState: state.flashWizardState,
+    documentationPath: state.documentationPath,
+    handleEvent,
+    startBuild,
+    stopBuild,
+    clearGateRequest,
+    clearQuestionRequest,
+    clearErrorNotification,
+    resetToDesign,
   };
 }

@@ -2,6 +2,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import type { Task, Agent } from '../models/session.js';
 
 const SKIP_DIRS = new Set(['.elisa', '.git', '__pycache__', 'node_modules']);
 
@@ -95,10 +96,10 @@ export class ContextManager {
   }
 
   static buildCurrentState(
-    tasks: Record<string, any>[],
-    agents: Record<string, any>[],
-  ): Record<string, any> {
-    const taskEntries: Record<string, any> = {};
+    tasks: Task[],
+    agents: Agent[],
+  ): Record<string, Record<string, Record<string, string>>> {
+    const taskEntries: Record<string, { name: string; status: string; agent_name: string }> = {};
     for (const t of tasks) {
       taskEntries[t.id] = {
         name: t.name ?? '',
@@ -106,7 +107,7 @@ export class ContextManager {
         agent_name: t.agent_name ?? '',
       };
     }
-    const agentEntries: Record<string, any> = {};
+    const agentEntries: Record<string, { role: string; status: string }> = {};
     for (const a of agents) {
       agentEntries[a.name] = {
         role: a.role ?? '',
@@ -209,7 +210,7 @@ export class ContextManager {
 
   static getTransitivePredecessors(
     taskId: string,
-    taskMap: Record<string, Record<string, any>>,
+    taskMap: Record<string, Task>,
   ): string[] {
     const result: string[] = [];
     const visited = new Set<string>();

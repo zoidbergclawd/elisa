@@ -1,55 +1,29 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import BlockCanvas from './components/BlockCanvas/BlockCanvas';
 import type { BlockCanvasHandle } from './components/BlockCanvas/BlockCanvas';
-import { interpretWorkspace, migrateWorkspace, type NuggetSpec } from './components/BlockCanvas/blockInterpreter';
 import BottomBar from './components/BottomBar/BottomBar';
 import GoButton from './components/shared/GoButton';
 import MainTabBar, { type MainTab } from './components/shared/MainTabBar';
 import WorkspaceSidebar from './components/BlockCanvas/WorkspaceSidebar';
 import MissionControlPanel from './components/MissionControl/MissionControlPanel';
 import TeachingToast from './components/shared/TeachingToast';
-import HumanGateModal from './components/shared/HumanGateModal';
-import QuestionModal from './components/shared/QuestionModal';
-import SkillsModal from './components/Skills/SkillsModal';
-import RulesModal from './components/Rules/RulesModal';
-import PortalsModal from './components/Portals/PortalsModal';
-import ExamplePickerModal from './components/shared/ExamplePickerModal';
-import { EXAMPLE_NUGGETS } from './lib/examples';
+import ReadinessBadge from './components/shared/ReadinessBadge';
+import ModalHost from './components/shared/ModalHost';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useBuildSession } from './hooks/useBuildSession';
 import { useHealthCheck } from './hooks/useHealthCheck';
 import { useBoardDetect } from './hooks/useBoardDetect';
-import ReadinessBadge from './components/shared/ReadinessBadge';
-import DirectoryPickerModal from './components/shared/DirectoryPickerModal';
-import BoardDetectedModal from './components/shared/BoardDetectedModal';
-import FlashWizardModal from './components/shared/FlashWizardModal';
-import { playChime } from './lib/playChime';
-import { saveNuggetFile, loadNuggetFile, downloadBlob } from './lib/nuggetFile';
+import { useWorkspaceIO } from './hooks/useWorkspaceIO';
 import { setAuthToken, authFetch } from './lib/apiClient';
 import { registerDeviceBlocks, type DeviceManifest } from './lib/deviceBlocks';
+import { playChime } from './lib/playChime';
 import type { TeachingMoment } from './types';
 import elisaLogo from '../assets/elisa.svg';
-import type { Skill, Rule } from './components/Skills/types';
-import type { Portal } from './components/Portals/types';
-
-const LS_WORKSPACE = 'elisa:workspace';
-const LS_SKILLS = 'elisa:skills';
-const LS_RULES = 'elisa:rules';
-const LS_PORTALS = 'elisa:portals';
-const LS_WORKSPACE_PATH = 'elisa:workspace-path';
-
-function readLocalStorageJson<T>(key: string): T | null {
-  try {
-    const raw = localStorage.getItem(key);
-    if (raw) return JSON.parse(raw) as T;
-  } catch {
-    // corrupted data -- ignore
-  }
-  return null;
-}
 
 export default function App() {
-  const [spec, setSpec] = useState<NuggetSpec | null>(null);
+  const blockCanvasRef = useRef<BlockCanvasHandle>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const {
     uiState, tasks, agents, commits, events, sessionId,
     teachingMoments, testResults, coveragePct, tokenUsage,
@@ -75,7 +49,6 @@ export default function App() {
         setAuthReady(true);
       });
     } else {
-      // Dev mode without Electron: use dev default
       setAuthToken('dev-token');
     }
   }, []);
@@ -85,7 +58,6 @@ export default function App() {
   // Device manifests from backend plugin registry
   const [deviceManifests, setDeviceManifests] = useState<DeviceManifest[]>([]);
 
-  // Fetch device manifests after auth token is ready
   useEffect(() => {
     if (!authReady) return;
     authFetch('/api/devices')
@@ -97,13 +69,21 @@ export default function App() {
       .catch(() => { /* device plugins unavailable -- not critical */ });
   }, [authReady]);
 
+  // Workspace I/O hook
+  const {
+    skills, setSkills, rules, setRules, portals, setPortals,
+    spec, workspacePath, workspaceJson, initialWorkspace,
+    dirPickerOpen, examplePickerOpen, setExamplePickerOpen,
+    handleWorkspaceChange, handleSaveNugget, handleOpenNugget,
+    handleOpenFolder, handleSelectExample,
+    handleDirPickerSelect, handleDirPickerCancel,
+    ensureWorkspacePath, reinterpretWorkspace,
+  } = useWorkspaceIO({ blockCanvasRef, sessionId, deviceManifests });
+
   // Main tab state
   const [activeMainTab, setActiveMainTab] = useState<MainTab>('workspace');
 
-  // Restore skills/rules from localStorage on mount
-  const [skills, setSkills] = useState<Skill[]>(() => readLocalStorageJson<Skill[]>(LS_SKILLS) ?? []);
-  const [rules, setRules] = useState<Rule[]>(() => readLocalStorageJson<Rule[]>(LS_RULES) ?? []);
-  const [portals, setPortals] = useState<Portal[]>(() => readLocalStorageJson<Portal[]>(LS_PORTALS) ?? []);
+  // Modal toggles
   const [skillsModalOpen, setSkillsModalOpen] = useState(false);
   const [rulesModalOpen, setRulesModalOpen] = useState(false);
   const [portalsModalOpen, setPortalsModalOpen] = useState(false);
@@ -111,38 +91,14 @@ export default function App() {
   const [boardDetectedModalOpen, setBoardDetectedModalOpen] = useState(false);
   const boardDismissedPortsRef = useRef<Set<string>>(new Set());
 
-  // Workspace directory path (user-chosen output location)
-  const [workspacePath, setWorkspacePath] = useState<string | null>(
-    () => localStorage.getItem(LS_WORKSPACE_PATH),
-  );
-  const [dirPickerOpen, setDirPickerOpen] = useState(false);
-
-  // The latest workspace JSON for saving nuggets
-  const [workspaceJson, setWorkspaceJson] = useState<Record<string, unknown> | null>(null);
-
-  // Saved workspace loaded from localStorage (read once on mount, passed to BlockCanvas)
-  const [initialWorkspace] = useState<Record<string, unknown> | null>(
-    () => {
-      const ws = readLocalStorageJson<Record<string, unknown>>(LS_WORKSPACE);
-      if (ws) migrateWorkspace(ws);
-      return ws;
-    },
-  );
-
-  // Open example picker on first launch (no saved workspace)
-  const [examplePickerOpen, setExamplePickerOpen] = useState(!initialWorkspace);
-
-  const blockCanvasRef = useRef<BlockCanvasHandle>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
+  // Teaching toast
   const [currentToast, setCurrentToast] = useState<TeachingMoment | null>(null);
   const lastToastIndexRef = useRef(-1);
 
-  // Show toast when a new teaching moment arrives
   useEffect(() => {
     const latestIndex = teachingMoments.length - 1;
     if (latestIndex > lastToastIndexRef.current && teachingMoments.length > 0) {
-      setCurrentToast(teachingMoments[latestIndex]); // eslint-disable-line react-hooks/set-state-in-effect
+      setCurrentToast(teachingMoments[latestIndex]); // eslint-disable-line react-hooks/set-state-in-effect -- derived from WS events
       lastToastIndexRef.current = latestIndex;
     }
   }, [teachingMoments]);
@@ -151,52 +107,46 @@ export default function App() {
     setCurrentToast(null);
   }, []);
 
-  // Persist skills/rules to localStorage on change
+  // Persist skills/rules/portals to localStorage on change
   useEffect(() => {
-    localStorage.setItem(LS_SKILLS, JSON.stringify(skills));
+    localStorage.setItem('elisa:skills', JSON.stringify(skills));
   }, [skills]);
 
   useEffect(() => {
-    localStorage.setItem(LS_RULES, JSON.stringify(rules));
+    localStorage.setItem('elisa:rules', JSON.stringify(rules));
   }, [rules]);
 
   useEffect(() => {
-    localStorage.setItem(LS_PORTALS, JSON.stringify(portals));
+    localStorage.setItem('elisa:portals', JSON.stringify(portals));
   }, [portals]);
 
-  // Re-interpret workspace when skills/rules/portals change (without Blockly interaction)
+  // Re-interpret workspace when skills/rules/portals change
   useEffect(() => {
-    if (workspaceJson) {
-      setSpec(interpretWorkspace(workspaceJson, skills, rules, portals, deviceManifests)); // eslint-disable-line react-hooks/set-state-in-effect
-    }
+    reinterpretWorkspace();
   }, [skills, rules, portals, deviceManifests]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-switch to agents tab when build starts
+  // Auto-switch to mission tab when build starts
   useEffect(() => {
     if (uiState === 'building' && activeMainTab === 'workspace') {
-      setActiveMainTab('mission'); // eslint-disable-line react-hooks/set-state-in-effect
+      setActiveMainTab('mission'); // eslint-disable-line react-hooks/set-state-in-effect -- intentional tab auto-switch
     }
   }, [uiState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Show board-detected modal when a board is newly plugged in
   useEffect(() => {
     if (!justConnected || !boardInfo) return;
-
-    // Don't re-show if dismissed for this port already
     if (boardDismissedPortsRef.current.has(boardInfo.port)) {
       acknowledgeConnection();
       return;
     }
-
     playChime();
-    setBoardDetectedModalOpen(true); // eslint-disable-line react-hooks/set-state-in-effect
+    setBoardDetectedModalOpen(true); // eslint-disable-line react-hooks/set-state-in-effect -- responding to hardware event
     acknowledgeConnection();
   }, [justConnected, boardInfo, acknowledgeConnection]);
 
   // Resize Blockly when returning to workspace tab
   useEffect(() => {
     if (activeMainTab === 'workspace') {
-      // Small delay to let CSS display change take effect before resize
       const timer = setTimeout(() => {
         blockCanvasRef.current?.resize();
       }, 50);
@@ -204,188 +154,14 @@ export default function App() {
     }
   }, [activeMainTab]);
 
-  const handleWorkspaceChange = useCallback((json: Record<string, unknown>) => {
-    setSpec(interpretWorkspace(json, skills, rules, portals, deviceManifests));
-    setWorkspaceJson(json);
-    try {
-      localStorage.setItem(LS_WORKSPACE, JSON.stringify(json));
-    } catch {
-      // localStorage full or unavailable -- ignore
-    }
-  }, [skills, rules, portals, deviceManifests]);
-
-  const pickDirectory = async (): Promise<string | null> => {
-    // Try Electron native dialog first
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const api = (window as unknown as Record<string, any>).elisaAPI;
-    if (api?.pickDirectory) {
-      return api.pickDirectory();
-    }
-    // Fall back to manual text input modal
-    return new Promise((resolve) => {
-      setDirPickerOpen(true);
-      dirPickerResolveRef.current = resolve;
-    });
-  };
-
-  const dirPickerResolveRef = useRef<((value: string | null) => void) | null>(null);
-
-  const handleDirPickerSelect = (dir: string) => {
-    setDirPickerOpen(false);
-    dirPickerResolveRef.current?.(dir);
-    dirPickerResolveRef.current = null;
-  };
-
-  const handleDirPickerCancel = () => {
-    setDirPickerOpen(false);
-    dirPickerResolveRef.current?.(null);
-    dirPickerResolveRef.current = null;
-  };
-
   const handleGo = async () => {
     if (!spec) return;
-
-    let wp = workspacePath;
-    if (!wp) {
-      wp = await pickDirectory();
-      if (!wp) return; // User cancelled
-      setWorkspacePath(wp);
-      localStorage.setItem(LS_WORKSPACE_PATH, wp);
-    }
-
+    const wp = await ensureWorkspacePath();
+    if (!wp) return;
     lastToastIndexRef.current = -1;
     setCurrentToast(null);
-    await startBuild(spec, waitForOpen, wp ?? undefined, workspaceJson ?? undefined);
+    await startBuild(spec, waitForOpen, wp, workspaceJson ?? undefined);
   };
-
-  // -- Save Nugget --
-  const handleSaveNugget = async () => {
-    if (!workspaceJson) return;
-
-    // If workspace path is set, save design files to workspace via backend
-    if (workspacePath) {
-      try {
-        await authFetch('/api/workspace/save', {
-          method: 'POST',
-          body: JSON.stringify({
-            workspace_path: workspacePath,
-            workspace_json: workspaceJson,
-            skills,
-            rules,
-            portals,
-          }),
-        });
-      } catch {
-        // Fall through to zip download
-      }
-      return;
-    }
-
-    // No workspace path: fall back to .elisa ZIP download
-    let outputArchive: Blob | undefined;
-    if (sessionId) {
-      try {
-        const resp = await authFetch(`/api/sessions/${sessionId}/export`);
-        if (resp.ok) {
-          outputArchive = await resp.blob();
-        }
-      } catch {
-        // no generated code available -- that's fine
-      }
-    }
-
-    const blob = await saveNuggetFile(workspaceJson, skills, rules, portals, outputArchive);
-    const name = spec?.nugget.goal
-      ? spec.nugget.goal.slice(0, 40).replace(/[^a-zA-Z0-9]+/g, '-').replace(/-+$/, '')
-      : 'nugget';
-    downloadBlob(blob, `${name}.elisa`);
-  };
-
-  // -- Open Nugget --
-  const handleOpenNugget = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const data = await loadNuggetFile(file);
-
-      // Migrate old block types in workspace
-      migrateWorkspace(data.workspace);
-
-      // Restore skills, rules, and portals
-      setSkills(data.skills);
-      setRules(data.rules);
-      setPortals(data.portals);
-
-      // Restore workspace via imperative handle
-      setWorkspaceJson(data.workspace);
-      blockCanvasRef.current?.loadWorkspace(data.workspace);
-
-      // Update localStorage
-      localStorage.setItem(LS_WORKSPACE, JSON.stringify(data.workspace));
-      localStorage.setItem(LS_SKILLS, JSON.stringify(data.skills));
-      localStorage.setItem(LS_RULES, JSON.stringify(data.rules));
-      localStorage.setItem(LS_PORTALS, JSON.stringify(data.portals));
-    } catch (err) {
-      console.error('Failed to open nugget file:', err);
-    }
-
-    // Reset input so the same file can be selected again
-    e.target.value = '';
-  };
-
-  // -- Open Folder (load workspace from directory) --
-  const handleOpenFolder = async () => {
-    const dir = await pickDirectory();
-    if (!dir) return;
-
-    try {
-      const resp = await authFetch('/api/workspace/load', {
-        method: 'POST',
-        body: JSON.stringify({ workspace_path: dir }),
-      });
-      if (!resp.ok) return;
-      const data = await resp.json();
-
-      if (data.workspace && Object.keys(data.workspace).length > 0) {
-        const ws = data.workspace;
-        migrateWorkspace(ws);
-        setWorkspaceJson(ws);
-        blockCanvasRef.current?.loadWorkspace(ws);
-        localStorage.setItem(LS_WORKSPACE, JSON.stringify(ws));
-      }
-      if (data.skills) {
-        setSkills(data.skills);
-        localStorage.setItem(LS_SKILLS, JSON.stringify(data.skills));
-      }
-      if (data.rules) {
-        setRules(data.rules);
-        localStorage.setItem(LS_RULES, JSON.stringify(data.rules));
-      }
-      if (data.portals) {
-        setPortals(data.portals);
-        localStorage.setItem(LS_PORTALS, JSON.stringify(data.portals));
-      }
-
-      setWorkspacePath(dir);
-      localStorage.setItem(LS_WORKSPACE_PATH, dir);
-    } catch (err) {
-      console.error('Failed to load workspace from folder:', err);
-    }
-  };
-
-  const handleSelectExample = useCallback((example: typeof EXAMPLE_NUGGETS[number]) => {
-    setSkills(example.skills);
-    setRules(example.rules);
-    setPortals(example.portals);
-    setWorkspaceJson(example.workspace);
-    blockCanvasRef.current?.loadWorkspace(example.workspace);
-    localStorage.setItem(LS_WORKSPACE, JSON.stringify(example.workspace));
-    localStorage.setItem(LS_SKILLS, JSON.stringify(example.skills));
-    localStorage.setItem(LS_RULES, JSON.stringify(example.rules));
-    localStorage.setItem(LS_PORTALS, JSON.stringify(example.portals));
-    setExamplePickerOpen(false);
-  }, []);
 
   const handleBoardDismiss = useCallback(() => {
     if (boardInfo) boardDismissedPortsRef.current.add(boardInfo.port);
@@ -394,7 +170,7 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen atelier-bg noise-overlay text-atelier-text">
-      {/* Header: Logo | MainTabBar | GO button | ReadinessBadge */}
+      {/* Header */}
       <header className="relative z-10 flex items-center justify-between px-5 py-2 glass-panel border-t-0 border-x-0">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-3">
@@ -430,7 +206,7 @@ export default function App() {
 
       {/* Main area: tabbed content */}
       <main className="flex flex-1 overflow-hidden relative z-10">
-        {/* Workspace tab: sidebar + BlockCanvas (always mounted, hidden when not active) */}
+        {/* Workspace tab (always mounted, hidden when not active) */}
         <div className={activeMainTab === 'workspace' ? 'flex w-full h-full' : 'hidden'}>
           <WorkspaceSidebar
             onOpen={() => fileInputRef.current?.click()}
@@ -490,147 +266,39 @@ export default function App() {
         boardInfo={boardInfo}
       />
 
-      {/* Human gate modal */}
-      {gateRequest && sessionId && (
-        <HumanGateModal
-          taskId={gateRequest.task_id}
-          question={gateRequest.question}
-          context={gateRequest.context}
-          sessionId={sessionId}
-          onClose={clearGateRequest}
-        />
-      )}
-
-      {/* Question modal */}
-      {questionRequest && sessionId && (
-        <QuestionModal
-          taskId={questionRequest.task_id}
-          questions={questionRequest.questions}
-          sessionId={sessionId}
-          onClose={clearQuestionRequest}
-        />
-      )}
-
-      {/* Flash wizard modal */}
-      {flashWizardState?.visible && sessionId && (
-        <FlashWizardModal
-          deviceRole={flashWizardState.deviceRole}
-          message={flashWizardState.message}
-          isFlashing={flashWizardState.isFlashing}
-          progress={flashWizardState.progress}
-          deviceName={flashWizardState.deviceName}
-          onReady={() => {
-            authFetch(`/api/sessions/${sessionId}/gate`, {
-              method: 'POST',
-              body: JSON.stringify({ approved: true }),
-            });
-          }}
-          onCancel={() => {
-            authFetch(`/api/sessions/${sessionId}/stop`, { method: 'POST' });
-          }}
-        />
-      )}
-
-      {/* Skills modal */}
-      {skillsModalOpen && (
-        <SkillsModal
-          skills={skills}
-          onSkillsChange={setSkills}
-          onClose={() => setSkillsModalOpen(false)}
-        />
-      )}
-
-      {/* Rules modal */}
-      {rulesModalOpen && (
-        <RulesModal
-          rules={rules}
-          onRulesChange={setRules}
-          onClose={() => setRulesModalOpen(false)}
-        />
-      )}
-
-      {/* Portals modal */}
-      {portalsModalOpen && (
-        <PortalsModal
-          portals={portals}
-          onPortalsChange={setPortals}
-          onClose={() => setPortalsModalOpen(false)}
-        />
-      )}
-
-      {/* Directory picker modal (fallback for non-Electron) */}
-      {dirPickerOpen && (
-        <DirectoryPickerModal
-          onSelect={handleDirPickerSelect}
-          onCancel={handleDirPickerCancel}
-        />
-      )}
-
-      {/* Board detected modal */}
-      {boardDetectedModalOpen && boardInfo && (
-        <BoardDetectedModal
-          boardInfo={boardInfo}
-          matchingPlugins={deviceManifests.filter(m => {
-            if (!m.board) return false;
-            // Match by USB VID when both sides have detection info.
-            // PIDs vary across firmware versions and board manufacturers under the
-            // same VID, so matching on VID alone is sufficient for board family.
-            const det = m.board.detection;
-            if (det?.usb_vid && boardInfo.vendorId) {
-              const manifestVid = det.usb_vid.replace(/^0x/i, '').toUpperCase();
-              return manifestVid === boardInfo.vendorId.toUpperCase();
-            }
-            // Fallback: check if detected board type contains the plugin board type
-            return boardInfo.boardType.toLowerCase().includes(m.board.type.toLowerCase());
-          })}
-          onDismiss={handleBoardDismiss}
-        />
-      )}
-
-      {/* Example picker modal */}
-      {examplePickerOpen && (
-        <ExamplePickerModal
-          examples={EXAMPLE_NUGGETS}
-          onSelect={handleSelectExample}
-          onClose={() => setExamplePickerOpen(false)}
-        />
-      )}
-
-      {/* Help modal */}
-      {helpOpen && (
-        <div className="fixed inset-0 modal-backdrop z-50 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="help-modal-title" onClick={() => setHelpOpen(false)}>
-          <div className="glass-elevated rounded-2xl shadow-2xl p-6 max-w-md mx-4 animate-float-in" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 id="help-modal-title" className="text-lg font-display font-bold gradient-text-warm">Getting Started</h2>
-              <button onClick={() => setHelpOpen(false)} className="text-atelier-text-secondary hover:text-atelier-text cursor-pointer" aria-label="Close">x</button>
-            </div>
-            <div className="space-y-3 text-sm text-atelier-text-secondary">
-              <div>
-                <h3 className="font-semibold text-atelier-text mb-1">1. Design your nugget</h3>
-                <p>Drag blocks from the toolbox to describe what you want to build. Start with a Goal block.</p>
-              </div>
-              <div>
-                <h3 className="font-semibold text-atelier-text mb-1">2. Add skills and rules</h3>
-                <p>Use the Skills sidebar to teach Elisa custom abilities and constraints.</p>
-              </div>
-              <div>
-                <h3 className="font-semibold text-atelier-text mb-1">3. Press GO</h3>
-                <p>Elisa plans tasks, sends your minion squad, and builds your project automatically.</p>
-              </div>
-              <div className="pt-2 border-t border-border-subtle">
-                <h3 className="font-semibold text-atelier-text mb-1">Sidebar</h3>
-                <ul className="space-y-0.5">
-                  <li><span className="text-atelier-text">Open / Save</span> - Load or save .elisa nugget files</li>
-                  <li><span className="text-atelier-text">Skills</span> - Custom agent skills and behaviors</li>
-                  <li><span className="text-atelier-text">Rules</span> - Constraints and checks for your agents</li>
-                  <li><span className="text-atelier-text">Portals</span> - Connect external tools (MCP, CLI, hardware)</li>
-                  <li><span className="text-atelier-text">Examples</span> - Load a pre-built example nugget</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* All modals */}
+      <ModalHost
+        sessionId={sessionId}
+        gateRequest={gateRequest}
+        clearGateRequest={clearGateRequest}
+        questionRequest={questionRequest}
+        clearQuestionRequest={clearQuestionRequest}
+        flashWizardState={flashWizardState}
+        skillsModalOpen={skillsModalOpen}
+        setSkillsModalOpen={setSkillsModalOpen}
+        skills={skills}
+        onSkillsChange={setSkills}
+        rulesModalOpen={rulesModalOpen}
+        setRulesModalOpen={setRulesModalOpen}
+        rules={rules}
+        onRulesChange={setRules}
+        portalsModalOpen={portalsModalOpen}
+        setPortalsModalOpen={setPortalsModalOpen}
+        portals={portals}
+        onPortalsChange={setPortals}
+        dirPickerOpen={dirPickerOpen}
+        onDirPickerSelect={handleDirPickerSelect}
+        onDirPickerCancel={handleDirPickerCancel}
+        boardDetectedModalOpen={boardDetectedModalOpen}
+        boardInfo={boardInfo}
+        deviceManifests={deviceManifests}
+        onBoardDismiss={handleBoardDismiss}
+        examplePickerOpen={examplePickerOpen}
+        onSelectExample={handleSelectExample}
+        onCloseExamplePicker={() => setExamplePickerOpen(false)}
+        helpOpen={helpOpen}
+        setHelpOpen={setHelpOpen}
+      />
 
       {/* Error notification banner */}
       {errorNotification && (

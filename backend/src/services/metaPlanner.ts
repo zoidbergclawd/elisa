@@ -4,6 +4,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { buildMetaPlannerSystem, META_PLANNER_SYSTEM, metaPlannerUser } from '../prompts/metaPlanner.js';
 import { DEFAULT_MODEL } from '../utils/constants.js';
 import { getAnthropicClient } from '../utils/anthropicClient.js';
+import type { MetaPlannerPlan, Task, Agent } from '../models/session.js';
 
 const DEFAULT_AGENTS = [
   {
@@ -30,7 +31,7 @@ export class MetaPlanner {
     this.client = getAnthropicClient();
   }
 
-  async plan(spec: Record<string, any>): Promise<Record<string, any>> {
+  async plan(spec: Record<string, any>): Promise<MetaPlannerPlan> {
     if (!spec.agents) {
       spec = { ...spec, agents: DEFAULT_AGENTS };
     }
@@ -57,7 +58,7 @@ export class MetaPlanner {
     }
 
     this.validate(plan);
-    return plan;
+    return plan as MetaPlannerPlan;
   }
 
   private async retryParse(
@@ -111,7 +112,8 @@ export class MetaPlanner {
     }
   }
 
-  private validate(plan: Record<string, any>): void {
+  /** Validates the raw parsed JSON conforms to MetaPlannerPlan structure. Mutates in place. */
+  private validate(plan: Record<string, any>): asserts plan is MetaPlannerPlan {
     if (typeof plan !== 'object' || plan === null) {
       throw new Error('Plan must be a JSON object');
     }
@@ -125,10 +127,10 @@ export class MetaPlanner {
       throw new Error('Plan must have at least one task');
     }
 
-    const taskIds = new Set(plan.tasks.map((t: any) => t.id));
-    const agentNames = new Set(plan.agents.map((a: any) => a.name));
+    const taskIds = new Set(plan.tasks.map((t: Record<string, any>) => t.id));
+    const agentNames = new Set(plan.agents.map((a: Record<string, any>) => a.name));
 
-    for (const task of plan.tasks) {
+    for (const task of plan.tasks as Record<string, any>[]) {
       if (!task.id) throw new Error(`Task missing 'id': ${JSON.stringify(task)}`);
       if (!task.dependencies) throw new Error(`Task missing 'dependencies': ${task.id}`);
       for (const dep of task.dependencies) {
@@ -146,7 +148,7 @@ export class MetaPlanner {
     }
 
     // Content validation for agents
-    for (const agent of plan.agents) {
+    for (const agent of plan.agents as Record<string, any>[]) {
       // Filter allowed_paths: must be relative, no '..'
       if (agent.allowed_paths) {
         agent.allowed_paths = agent.allowed_paths.filter(

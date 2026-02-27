@@ -39,6 +39,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `devices/cloud-dashboard/` | Cloud Run dashboard scaffold plugin |
 | `scripts/` | Build tooling (esbuild backend bundler, port killer, subdirectory installer) |
 | `docs/` | Product + technical documentation |
+| `docs/plans/` | Design docs and implementation plans (dated, archival) |
 | `support/` | ESP32 firmware binaries |
 
 ## Documentation Map
@@ -61,6 +62,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `docs/elisa-prd.md` | Product | PRD: vision, features, target audience |
 | `docs/device-plugins.md` | User | Device plugins guide: using shipped hardware plugins |
 | `docs/creating-device-plugins.md` | Dev | Developer guide for creating new device plugins |
+| `docs/plans/` | Archive | Dated design docs and implementation plans (device plugins, IoT sensor network) |
 
 ## Key Source Files
 

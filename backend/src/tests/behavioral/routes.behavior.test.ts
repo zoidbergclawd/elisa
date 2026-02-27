@@ -42,6 +42,19 @@ vi.mock('../../services/skillRunner.js', () => {
   return { SkillRunner: MockSkillRunner };
 });
 
+// Mock HardwareService so detect tests pass regardless of connected hardware
+vi.mock('../../services/hardwareService.js', () => {
+  const MockHardwareService = vi.fn(function (this: any) {
+    this.detectBoardFast = vi.fn().mockResolvedValue(null);
+    this.detectBoard = vi.fn().mockResolvedValue(null);
+    this.flash = vi.fn().mockResolvedValue({ success: false, message: 'no board' });
+    this.startSerialMonitor = vi.fn().mockReturnValue(null);
+    this.stopSerialMonitor = vi.fn();
+    this.compile = vi.fn().mockResolvedValue({ success: true, errors: [], outputPath: '' });
+  });
+  return { HardwareService: MockHardwareService };
+});
+
 import { startServer } from '../../server.js';
 
 let server: http.Server | null = null;

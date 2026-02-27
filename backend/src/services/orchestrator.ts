@@ -4,8 +4,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { ChildProcess } from 'node:child_process';
-import type { BuildSession, CommitInfo } from '../models/session.js';
-import type { PhaseContext } from './phases/types.js';
+import type { BuildSession, Task, Agent, CommitInfo } from '../models/session.js';
+import type { PhaseContext, SendEvent } from './phases/types.js';
 import { PlanPhase } from './phases/planPhase.js';
 import { ExecutePhase } from './phases/executePhase.js';
 import { TestPhase } from './phases/testPhase.js';
@@ -23,8 +23,6 @@ import { ContextManager } from '../utils/contextManager.js';
 import { SessionLogger } from '../utils/sessionLogger.js';
 import { TokenTracker } from '../utils/tokenTracker.js';
 import { DeviceRegistry } from './deviceRegistry.js';
-
-type SendEvent = (event: Record<string, any>) => Promise<void>;
 
 export class Orchestrator {
   private session: BuildSession;
@@ -111,7 +109,7 @@ export class Orchestrator {
       // Execute
       this.permissionPolicy = new PermissionPolicy(
         this.nuggetDir,
-        (spec as any).permissions ?? {},
+        spec.permissions ?? {},
       );
       this.narratorService.reset();
 
@@ -187,8 +185,8 @@ export class Orchestrator {
   // -- Completion --
 
   private async complete(
-    tasks: Record<string, any>[],
-    agents: Record<string, any>[],
+    tasks: Task[],
+    agents: Agent[],
   ): Promise<void> {
     this.session.state = 'done';
     this.logger?.phase('done');

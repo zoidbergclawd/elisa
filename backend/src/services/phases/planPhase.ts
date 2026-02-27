@@ -9,12 +9,13 @@ import { TeachingEngine } from '../teachingEngine.js';
 import { TaskDAG } from '../../utils/dag.js';
 import type { DeviceRegistry } from '../deviceRegistry.js';
 import { resolveDeployOrder } from './deployOrder.js';
+import type { Task, Agent } from '../../models/session.js';
 
 export interface PlanResult {
-  tasks: Record<string, any>[];
-  agents: Record<string, any>[];
-  taskMap: Record<string, Record<string, any>>;
-  agentMap: Record<string, Record<string, any>>;
+  tasks: Task[];
+  agents: Agent[];
+  taskMap: Record<string, Task>;
+  agentMap: Record<string, Agent>;
   dag: TaskDAG;
   nuggetType: string;
 }
@@ -39,10 +40,10 @@ export class PlanPhase {
 
     const plan = await this.metaPlanner.plan(spec);
 
-    const tasks = plan.tasks;
-    const agents = plan.agents;
-    const taskMap = Object.fromEntries(tasks.map((t: any) => [t.id, t]));
-    const agentMap = Object.fromEntries(agents.map((a: any) => [a.name, a]));
+    const tasks: Task[] = plan.tasks;
+    const agents: Agent[] = plan.agents;
+    const taskMap: Record<string, Task> = Object.fromEntries(tasks.map((t) => [t.id, t]));
+    const agentMap: Record<string, Agent> = Object.fromEntries(agents.map((a) => [a.name, a]));
 
     for (const task of tasks) task.status ??= 'pending';
     for (const agent of agents) agent.status ??= 'idle';
@@ -96,14 +97,15 @@ export class PlanPhase {
         .filter((s): s is { id: string; name: string; method: string } => s !== null);
     }
 
-    await ctx.send({
+    const planReadyEvent: Parameters<typeof ctx.send>[0] = {
       type: 'plan_ready',
       tasks,
       agents,
       explanation: planExplanation,
       deployment_target: spec.deployment?.target ?? '',
       ...(deploySteps ? { deploy_steps: deploySteps } : {}),
-    });
+    };
+    await ctx.send(planReadyEvent);
 
     await maybeTeach(this.teachingEngine, ctx, 'plan_ready', planExplanation, nuggetType);
 

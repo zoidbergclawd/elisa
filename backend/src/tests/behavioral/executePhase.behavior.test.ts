@@ -49,7 +49,7 @@ import { TaskDAG } from '../../utils/dag.js';
 import { ContextManager } from '../../utils/contextManager.js';
 import { TokenTracker } from '../../utils/tokenTracker.js';
 import type { PhaseContext } from '../../services/phases/types.js';
-import type { BuildSession } from '../../models/session.js';
+import type { BuildSession, Task, Agent, TaskStatus, AgentRole, AgentStatus } from '../../models/session.js';
 
 // -- Helpers --
 
@@ -80,7 +80,7 @@ function makeCtx(overrides: Partial<PhaseContext> = {}): PhaseContext {
       tasks: [],
       agents: [],
     } as unknown as BuildSession,
-    send: async (evt: Record<string, any>) => { events.push(evt); },
+    send: (async (evt: Record<string, any>) => { events.push(evt); }) as any,
     logger: null,
     nuggetDir,
     nuggetType: 'software',
@@ -89,20 +89,20 @@ function makeCtx(overrides: Partial<PhaseContext> = {}): PhaseContext {
   };
 }
 
-function makeTask(id: string, name: string, agentName: string, deps: string[] = []) {
+function makeTask(id: string, name: string, agentName: string, deps: string[] = []): Task {
   return {
     id,
     name,
     description: `Do ${name}`,
-    status: 'pending',
+    status: 'pending' as TaskStatus,
     agent_name: agentName,
     dependencies: deps,
     acceptance_criteria: [`${name} done`],
   };
 }
 
-function makeAgent(name: string, role = 'builder') {
-  return { name, role, persona: 'helpful', status: 'idle' };
+function makeAgent(name: string, role: AgentRole = 'builder'): Agent {
+  return { name, role, persona: 'helpful', status: 'idle' as AgentStatus };
 }
 
 function makeDeps(
@@ -111,9 +111,9 @@ function makeDeps(
 ): ExecuteDeps {
   const tasks = overrides.tasks ?? [];
   const agents = overrides.agents ?? [];
-  const taskMap: Record<string, Record<string, any>> = {};
+  const taskMap: Record<string, Task> = {};
   for (const t of tasks) taskMap[t.id] = t;
-  const agentMap: Record<string, Record<string, any>> = {};
+  const agentMap: Record<string, Agent> = {};
   for (const a of agents) agentMap[a.name] = a;
   const dag = overrides.dag ?? new TaskDAG();
   if (!overrides.dag) {
@@ -556,8 +556,8 @@ describe('failed task DAG propagation', () => {
     dag.addTask('task-1', ['task-missing']); // depends on nonexistent task
     const tasks = [makeTask('task-1', 'Blocked', 'Agent-A')];
     const agents = [makeAgent('Agent-A')];
-    const taskMap: Record<string, Record<string, any>> = { 'task-1': tasks[0] };
-    const agentMap: Record<string, Record<string, any>> = { 'Agent-A': agents[0] };
+    const taskMap: Record<string, Task> = { 'task-1': tasks[0] };
+    const agentMap: Record<string, Agent> = { 'Agent-A': agents[0] };
     const deps = makeDeps(executeMock, { tasks, agents, dag, taskMap, agentMap });
     const ctx = makeCtx();
     const phase = new ExecutePhase(deps);

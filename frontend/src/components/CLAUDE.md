@@ -27,6 +27,7 @@ App.tsx
     BoardOutput.tsx                  Serial output (conditional on serial data)
     TeachingSidebar.tsx              Learning moments list
     ProgressPanel.tsx                Build progress bar + phase text
+  shared/ModalHost.tsx               Renders all overlay modals (gate, question, flash, skills, rules, portals, dir picker, board detected, examples, help)
   shared/HumanGateModal.tsx          Blocks pipeline, awaits user approve/reject
   shared/QuestionModal.tsx           Multi-choice from agent, user picks answer
   shared/TeachingToast.tsx           Floating notification for learning moments
@@ -53,9 +54,10 @@ App.tsx
 
 ## Key Patterns
 
-- All state lives in App.tsx via `useBuildSession` hook. Components receive state and callbacks as props.
+- Build session state managed by `useBuildSession` (useReducer with typed actions). Workspace I/O in `useWorkspaceIO` hook.
+- App.tsx is a thin layout shell; `ModalHost` renders all modals; hooks own the state logic.
 - WSEvent discriminated union ensures exhaustive handling of all event types.
 - BlockCanvas stays mounted (hidden via CSS) to preserve Blockly workspace state across tab switches.
 - Auto-switch: build starts -> Agents tab + Progress bottom tab.
 - Modals use fixed positioning with backdrop overlay. Only one modal shows at a time.
-- Skills/Rules and workspace state are persisted to localStorage and restored on page load.
+- Skills/Rules and workspace state are persisted to localStorage and restored on page load via `syncDesignToStorage` helper.
