@@ -52,8 +52,8 @@
     "requires": [],
     "flash": {
       "files": ["sensor_main.py"],
-      "lib": ["sensors.py", "oled.py", "nodes.py", "ssd1306.py"],
-      "shared_lib": ["elisa_hardware.py", "_sx126x.py", "sx126x.py", "sx1262.py"],
+      "lib": ["sensors.py", "nodes.py"],
+      "shared_lib": ["elisa_hardware.py", "_sx126x.py", "sx126x.py", "sx1262.py", "oled.py", "ssd1306.py"],
       "prompt_message": "Plug in your Sensor Node and click Ready"
     }
   },
