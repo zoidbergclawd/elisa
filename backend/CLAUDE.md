@@ -20,6 +20,7 @@ src/
     hardware.ts          /api/hardware/* endpoints (detect, flash)
     skills.ts            /api/skills/* endpoints (run, answer, list)
     workspace.ts         /api/workspace/* endpoints (save, load design files)
+    devices.ts           /api/devices endpoint (list device plugin manifests)
   models/
     session.ts           Type definitions: Session, Task, Agent, BuildPhase, WSEvent
   services/
@@ -42,6 +43,8 @@ src/
     narratorService.ts   Generates narrator messages for build events (Claude Haiku)
     permissionPolicy.ts  Auto-resolves agent permission requests based on policy rules
     deviceRegistry.ts    Loads device plugin manifests, provides block defs + agent context
+    cloudDeployService.ts Google Cloud Run deployment (scaffold, gcloud CLI)
+    portalService.ts     Portal adapters (MCP, CLI) with command allowlist
   prompts/
     metaPlanner.ts       System prompt for task decomposition
     builderAgent.ts      Builder role prompt template
