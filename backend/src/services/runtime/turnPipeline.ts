@@ -280,6 +280,135 @@ export class TurnPipeline {
     };
   }
 
+  /**
+   * Process a streaming text conversation turn.
+   *
+   * Yields partial response chunks as they arrive from the Claude API.
+   * Final yield includes usage metadata. Callers should iterate the
+   * async generator and forward chunks to the client.
+   */
+  async *receiveStreamingTurn(
+    agentId: string,
+    input: TurnInput,
+  ): AsyncGenerator<{ type: 'text_delta'; text: string } | { type: 'turn_complete'; result: TurnResult }> {
+    // 1. Load agent identity
+    const identity = this.agentStore.get(agentId);
+    if (!identity) {
+      throw new Error(`Agent not found: ${agentId}`);
+    }
+
+    // 1b. Usage limiter pre-check
+    const limitCheck = this.usageLimiter.checkLimit(agentId);
+    if (!limitCheck.allowed) {
+      throw new Error(limitCheck.message ?? 'Usage limit reached');
+    }
+
+    // 2. Get or create session
+    let sessionId = input.session_id;
+    if (!sessionId) {
+      const session = this.conversationManager.createSession(agentId);
+      sessionId = session.session_id;
+    } else {
+      const session = this.conversationManager.getSession(sessionId);
+      if (!session) {
+        throw new Error(`Session not found: ${sessionId}`);
+      }
+      if (session.agent_id !== agentId) {
+        throw new Error(`Session ${sessionId} does not belong to agent ${agentId}`);
+      }
+    }
+
+    // 3. Store user turn
+    this.conversationManager.addTurn(sessionId, 'user', input.text);
+
+    // 4. Load history and build system prompt
+    const history = this.conversationManager.formatForClaude(sessionId);
+    let systemPrompt = identity.system_prompt;
+    if (this.knowledgeBackpack) {
+      const backpackContext = this.knowledgeBackpack.buildContext(agentId, input.text);
+      if (backpackContext) {
+        systemPrompt = systemPrompt + '\n\n' + backpackContext;
+      }
+    }
+
+    // 5. Call Claude API with streaming
+    let responseText = '';
+    let inputTokens = 0;
+    let outputTokens = 0;
+
+    try {
+      const client = this.getClient();
+      const tools = identity.tool_configs.map((tc) => ({
+        name: tc.name,
+        description: tc.description,
+        input_schema: {
+          type: 'object' as const,
+          properties: tc.parameters,
+        },
+      }));
+
+      const apiParams: any = {
+        model: this.model,
+        max_tokens: 4096,
+        system: systemPrompt,
+        messages: history,
+      };
+      if (tools.length > 0) {
+        apiParams.tools = tools;
+      }
+
+      const stream = client.messages.stream(apiParams);
+
+      for await (const event of stream) {
+        if (event.type === 'content_block_delta' && (event.delta as any).type === 'text_delta') {
+          const text = (event.delta as any).text;
+          responseText += text;
+          yield { type: 'text_delta', text };
+        }
+      }
+
+      const finalMessage = await stream.finalMessage();
+      inputTokens = finalMessage.usage?.input_tokens ?? 0;
+      outputTokens = finalMessage.usage?.output_tokens ?? 0;
+    } catch (err: any) {
+      console.error(`[TurnPipeline] Claude streaming error for agent ${agentId}:`, err.message);
+      responseText = identity.fallback_response;
+      yield { type: 'text_delta', text: responseText };
+    }
+
+    // 5b. Content filter
+    const filterResult = filterAgentResponse(responseText);
+    responseText = filterResult.content;
+    if (filterResult.flagged) {
+      console.warn(`[TurnPipeline] Content filter flagged agent ${agentId}:`, filterResult.flags);
+    }
+
+    // 5c. Gap detection
+    if (this.gapDetector) {
+      const gap = this.gapDetector.detectGap(agentId, input.text, responseText, identity.fallback_response);
+      if (gap) {
+        console.info(`[TurnPipeline] Gap detected for agent ${agentId}: ${gap.reason} — "${gap.topic}"`);
+      }
+    }
+
+    // 6. Store assistant turn
+    this.conversationManager.addTurn(sessionId, 'assistant', responseText, outputTokens);
+
+    // 7. Track usage
+    this.usageTracker.record(agentId, inputTokens, outputTokens);
+    this.usageLimiter.recordUsage(agentId, inputTokens + outputTokens);
+
+    yield {
+      type: 'turn_complete',
+      result: {
+        response: responseText,
+        session_id: sessionId,
+        input_tokens: inputTokens,
+        output_tokens: outputTokens,
+      },
+    };
+  }
+
   getUsageTracker(): UsageTracker {
     return this.usageTracker;
   }

@@ -131,7 +131,9 @@ src/
 | DELETE | /v1/agents/:id | Deprovision agent (x-api-key auth) |
 | POST | /v1/agents/:id/turn/text | Text conversation turn (x-api-key auth) |
 | GET | /v1/agents/:id/history | Conversation history (x-api-key auth) |
+| GET | /v1/agents/:id/gaps | Knowledge gap list (x-api-key auth) |
 | GET | /v1/agents/:id/heartbeat | Agent health check (no auth) |
+| WS | /v1/agents/:id/stream?api_key= | Streaming conversation turn (WebSocket) |
 
 ### WebSocket Events (server -> client)
 `planning_started`, `plan_ready`, `task_started`, `task_completed`, `task_failed`, `agent_output`, `commit_created`, `token_usage`, `budget_warning`, `test_result`, `coverage_update`, `deploy_started`, `deploy_progress`, `deploy_checklist`, `deploy_complete` (includes `url?` for web deploys), `serial_data`, `human_gate`, `user_question`, `skill_*`, `teaching_moment`, `narrator_message`, `permission_auto_resolved`, `minion_state_change`, `workspace_created`, `flash_prompt`, `flash_progress`, `flash_complete`, `context_flow` (from_task_id, to_task_ids, summary_preview), `documentation_ready`, `meeting_invite`, `meeting_started`, `meeting_message`, `meeting_canvas_update`, `meeting_outcome`, `meeting_ended`, `traceability_update`, `traceability_summary`, `correction_cycle_started`, `correction_cycle_progress`, `convergence_update`, `decomposition_narrated`, `impact_estimate`, `boundary_analysis`, `system_health_update`, `system_health_summary`, `error`, `session_complete`

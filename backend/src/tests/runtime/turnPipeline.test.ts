@@ -452,6 +452,185 @@ describe('TurnPipeline', () => {
   });
 });
 
+// ── Streaming ─────────────────────────────────────────────────────────
+
+function createStreamingMockClient(chunks: string[] = ['Hello ', 'world!']) {
+  const finalMessage = {
+    content: [{ type: 'text', text: chunks.join('') }],
+    usage: { input_tokens: 80, output_tokens: 30 },
+  };
+
+  async function* fakeStream() {
+    for (const text of chunks) {
+      yield { type: 'content_block_delta', delta: { type: 'text_delta', text } };
+    }
+  }
+
+  return {
+    messages: {
+      create: vi.fn().mockResolvedValue({
+        content: [{ type: 'text', text: chunks.join('') }],
+        usage: { input_tokens: 80, output_tokens: 30 },
+      }),
+      stream: vi.fn().mockReturnValue({
+        [Symbol.asyncIterator]: () => fakeStream()[Symbol.asyncIterator](),
+        finalMessage: vi.fn().mockResolvedValue(finalMessage),
+      }),
+    },
+  } as any;
+}
+
+describe('TurnPipeline streaming', () => {
+  let agentStore: AgentStore;
+  let conversationManager: ConversationManager;
+  let usageTracker: UsageTracker;
+
+  beforeEach(() => {
+    agentStore = new AgentStore();
+    conversationManager = new ConversationManager();
+    usageTracker = new UsageTracker();
+  });
+
+  it('yields text_delta chunks followed by turn_complete', async () => {
+    const client = createStreamingMockClient(['Hi ', 'there!']);
+    const pipeline = new TurnPipeline(
+      {
+        agentStore,
+        conversationManager,
+        getClient: () => client,
+      },
+      usageTracker,
+    );
+
+    const { agent_id } = agentStore.provision(makeSpec());
+    const chunks: any[] = [];
+    for await (const chunk of pipeline.receiveStreamingTurn(agent_id, { text: 'Hello' })) {
+      chunks.push(chunk);
+    }
+
+    // Should have 2 text_delta chunks + 1 turn_complete
+    expect(chunks).toHaveLength(3);
+    expect(chunks[0]).toEqual({ type: 'text_delta', text: 'Hi ' });
+    expect(chunks[1]).toEqual({ type: 'text_delta', text: 'there!' });
+    expect(chunks[2].type).toBe('turn_complete');
+    expect(chunks[2].result.response).toBe('Hi there!');
+    expect(chunks[2].result.input_tokens).toBe(80);
+    expect(chunks[2].result.output_tokens).toBe(30);
+  });
+
+  it('creates a session when none provided', async () => {
+    const client = createStreamingMockClient(['OK']);
+    const pipeline = new TurnPipeline(
+      {
+        agentStore,
+        conversationManager,
+        getClient: () => client,
+      },
+      usageTracker,
+    );
+
+    const { agent_id } = agentStore.provision(makeSpec());
+    const chunks: any[] = [];
+    for await (const chunk of pipeline.receiveStreamingTurn(agent_id, { text: 'Hi' })) {
+      chunks.push(chunk);
+    }
+
+    const complete = chunks.find(c => c.type === 'turn_complete');
+    expect(complete.result.session_id).toBeTruthy();
+  });
+
+  it('stores turns in history', async () => {
+    const client = createStreamingMockClient(['Response']);
+    const pipeline = new TurnPipeline(
+      {
+        agentStore,
+        conversationManager,
+        getClient: () => client,
+      },
+      usageTracker,
+    );
+
+    const { agent_id } = agentStore.provision(makeSpec());
+    const chunks: any[] = [];
+    for await (const chunk of pipeline.receiveStreamingTurn(agent_id, { text: 'Hello' })) {
+      chunks.push(chunk);
+    }
+
+    const complete = chunks.find(c => c.type === 'turn_complete');
+    const history = conversationManager.getHistory(complete.result.session_id);
+    expect(history).toHaveLength(2);
+    expect(history[0].content).toBe('Hello');
+    expect(history[1].content).toBe('Response');
+  });
+
+  it('tracks usage', async () => {
+    const client = createStreamingMockClient(['Data']);
+    const pipeline = new TurnPipeline(
+      {
+        agentStore,
+        conversationManager,
+        getClient: () => client,
+      },
+      usageTracker,
+    );
+
+    const { agent_id } = agentStore.provision(makeSpec());
+    for await (const _ of pipeline.receiveStreamingTurn(agent_id, { text: 'Q' })) {
+      // consume
+    }
+
+    const totals = usageTracker.getTotals(agent_id);
+    expect(totals.input_tokens).toBe(80);
+    expect(totals.output_tokens).toBe(30);
+  });
+
+  it('falls back on API error', async () => {
+    const client = {
+      messages: {
+        create: vi.fn(),
+        stream: vi.fn().mockImplementation(() => {
+          throw new Error('Stream failed');
+        }),
+      },
+    } as any;
+
+    const pipeline = new TurnPipeline(
+      {
+        agentStore,
+        conversationManager,
+        getClient: () => client,
+      },
+      usageTracker,
+    );
+
+    const { agent_id } = agentStore.provision(makeSpec());
+    const chunks: any[] = [];
+    for await (const chunk of pipeline.receiveStreamingTurn(agent_id, { text: 'Hi' })) {
+      chunks.push(chunk);
+    }
+
+    // Should get fallback text_delta + turn_complete
+    const textChunks = chunks.filter(c => c.type === 'text_delta');
+    expect(textChunks).toHaveLength(1);
+    expect(textChunks[0].text).toBe("Hmm, I'm not sure about that fossil...");
+  });
+
+  it('throws for non-existent agent', async () => {
+    const client = createStreamingMockClient();
+    const pipeline = new TurnPipeline(
+      {
+        agentStore,
+        conversationManager,
+        getClient: () => client,
+      },
+      usageTracker,
+    );
+
+    const gen = pipeline.receiveStreamingTurn('nonexistent', { text: 'Hi' });
+    await expect(gen.next()).rejects.toThrow('Agent not found');
+  });
+});
+
 // ── UsageTracker ─────────────────────────────────────────────────────
 
 describe('UsageTracker', () => {

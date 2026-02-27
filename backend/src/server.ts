@@ -324,35 +324,81 @@ export function startServer(
   const server = http.createServer(app);
   const wss = new WebSocketServer({ noServer: true });
 
-  // Handle WebSocket upgrades on /ws/session/:id
+  // WebSocket server for Agent Runtime streaming (/v1/agents/:id/stream)
+  const runtimeWss = new WebSocketServer({ noServer: true });
+
+  // Handle WebSocket upgrades
   server.on('upgrade', (request, socket, head) => {
     const url = new URL(request.url ?? '', `http://${request.headers.host}`);
-    const match = url.pathname.match(/^\/ws\/session\/(.+)$/);
-    if (!match) {
-      socket.destroy();
-      return;
-    }
 
-    // Check auth token from query parameter
-    const wsToken = url.searchParams.get('token');
-    if (wsToken !== token) {
-      socket.destroy();
-      return;
-    }
+    // ── Build session WebSocket: /ws/session/:id ──────────────────────
+    const sessionMatch = url.pathname.match(/^\/ws\/session\/(.+)$/);
+    if (sessionMatch) {
+      const wsToken = url.searchParams.get('token');
+      if (wsToken !== token) {
+        socket.destroy();
+        return;
+      }
 
-    const sessionId = match[1];
-    if (!store.has(sessionId)) {
-      socket.destroy();
-      return;
-    }
+      const sessionId = sessionMatch[1];
+      if (!store.has(sessionId)) {
+        socket.destroy();
+        return;
+      }
 
-    wss.handleUpgrade(request, socket, head, (ws) => {
-      manager.connect(sessionId, ws);
-      ws.on('close', () => manager.disconnect(sessionId, ws));
-      ws.on('message', () => {
-        // Client keepalive; ignore content
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        manager.connect(sessionId, ws);
+        ws.on('close', () => manager.disconnect(sessionId, ws));
+        ws.on('message', () => {
+          // Client keepalive; ignore content
+        });
       });
-    });
+      return;
+    }
+
+    // ── Agent Runtime streaming: /v1/agents/:id/stream ────────────────
+    const agentMatch = url.pathname.match(/^\/v1\/agents\/([^/]+)\/stream$/);
+    if (agentMatch) {
+      const wsAgentId = agentMatch[1];
+      const apiKey = url.searchParams.get('api_key');
+
+      if (!apiKey || !agentStore.validateApiKey(wsAgentId, apiKey)) {
+        socket.destroy();
+        return;
+      }
+
+      runtimeWss.handleUpgrade(request, socket, head, (ws) => {
+        ws.on('message', async (raw) => {
+          try {
+            const msg = JSON.parse(String(raw));
+            if (msg.type !== 'turn' || !msg.text) {
+              ws.send(JSON.stringify({ type: 'error', detail: 'Expected { type: "turn", text: string, session_id?: string }' }));
+              return;
+            }
+
+            for await (const chunk of turnPipeline.receiveStreamingTurn(wsAgentId, {
+              text: msg.text,
+              session_id: msg.session_id,
+            })) {
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify(chunk));
+              }
+            }
+          } catch (err: any) {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'error', detail: err.message }));
+            }
+          }
+        });
+
+        // Send ready signal
+        ws.send(JSON.stringify({ type: 'connected', agent_id: wsAgentId }));
+      });
+      return;
+    }
+
+    // Unknown WebSocket path
+    socket.destroy();
   });
 
   // Graceful shutdown handler
