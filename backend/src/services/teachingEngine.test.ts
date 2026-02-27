@@ -11,6 +11,7 @@ vi.mock('@anthropic-ai/sdk', () => ({
 }));
 
 import { TeachingEngine } from './teachingEngine.js';
+import * as teachingModule from '../prompts/teaching.js';
 
 describe('TeachingEngine', () => {
   let engine: TeachingEngine;
@@ -175,5 +176,106 @@ describe('TeachingEngine', () => {
     expect(context!.headline.length).toBeGreaterThan(0);
     expect(context!.explanation.length).toBeGreaterThan(0);
     expect(context!.tell_me_more.length).toBeGreaterThan(0);
+  });
+
+  // -- API fallback path tests --
+
+  it('falls back to API when curriculum returns null', async () => {
+    const apiMoment = {
+      concept: 'custom',
+      headline: 'API headline',
+      explanation: 'API explanation',
+      tell_me_more: 'More info',
+    };
+    mockCreate.mockResolvedValue({
+      content: [{ type: 'text', text: JSON.stringify(apiMoment) }],
+    });
+
+    // Force curriculum miss by temporarily mocking getCurriculumMoment
+    const spy = vi.spyOn(teachingModule, 'getCurriculumMoment').mockReturnValueOnce(null);
+
+    const moment = await engine.getMoment('plan_ready');
+
+    expect(moment).not.toBeNull();
+    expect(moment!.headline).toBe('API headline');
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    spy.mockRestore();
+  });
+
+  it('returns null when API fallback returns invalid JSON', async () => {
+    mockCreate.mockResolvedValue({
+      content: [{ type: 'text', text: 'not json at all' }],
+    });
+    const spy = vi.spyOn(teachingModule, 'getCurriculumMoment').mockReturnValueOnce(null);
+
+    const moment = await engine.getMoment('plan_ready');
+
+    expect(moment).toBeNull();
+    spy.mockRestore();
+  });
+
+  it('returns null when API fallback throws (silent failure)', async () => {
+    mockCreate.mockRejectedValue(new Error('Network error'));
+    const spy = vi.spyOn(teachingModule, 'getCurriculumMoment').mockReturnValueOnce(null);
+
+    const moment = await engine.getMoment('plan_ready');
+
+    expect(moment).toBeNull();
+    spy.mockRestore();
+  });
+
+  it('API fallback marks concept as shown on success', async () => {
+    mockCreate.mockResolvedValue({
+      content: [{ type: 'text', text: JSON.stringify({ concept: 'x', headline: 'h', explanation: 'e', tell_me_more: 'm' }) }],
+    });
+    const spy = vi.spyOn(teachingModule, 'getCurriculumMoment').mockReturnValueOnce(null);
+
+    await engine.getMoment('plan_ready');
+    // Second call should be deduped (concept already shown)
+    spy.mockReturnValueOnce(null);
+    const second = await engine.getMoment('plan_ready');
+
+    expect(second).toBeNull();
+    spy.mockRestore();
+  });
+
+  // -- Hardware event tests --
+
+  it('hardware_compile returns a teaching moment', async () => {
+    const moment = await engine.getMoment('hardware_compile');
+    expect(moment).not.toBeNull();
+    expect(moment!.concept).toBe('hardware');
+  });
+
+  it('hardware_flash returns a teaching moment', async () => {
+    const moment = await engine.getMoment('hardware_flash');
+    expect(moment).not.toBeNull();
+    expect(moment!.concept).toBe('hardware');
+  });
+
+  it('hardware events are deduped by sub-concept', async () => {
+    await engine.getMoment('hardware_compile');
+    // Same concept:sub-concept (hardware:compilation) -- should be null
+    const second = await engine.getMoment('hardware_compile');
+    expect(second).toBeNull();
+  });
+
+  // -- All TRIGGER_MAP events coverage --
+
+  it('all TRIGGER_MAP events return valid moments on first call', async () => {
+    const triggerEvents = [
+      'plan_ready', 'test_result_pass', 'test_result_fail',
+      'coverage_update', 'tester_task_completed', 'reviewer_task_completed',
+      'hardware_compile', 'hardware_flash', 'hardware_led', 'hardware_lora',
+      'skill_used', 'rule_used', 'composite_skill_created', 'context_variable_used',
+    ];
+
+    for (const event of triggerEvents) {
+      const eng = new TeachingEngine();
+      const moment = await eng.getMoment(event);
+      expect(moment, `Expected moment for event '${event}'`).not.toBeNull();
+      expect(moment!.concept).toBeTruthy();
+      expect(moment!.headline).toBeTruthy();
+    }
   });
 });
