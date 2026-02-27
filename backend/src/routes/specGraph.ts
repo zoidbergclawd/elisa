@@ -17,6 +17,7 @@
 import { Router, type Request, type Response } from 'express';
 import type { SpecGraphService } from '../services/specGraph.js';
 import type { CompositionService } from '../services/compositionService.js';
+import type { EdgeRelationship } from '../models/specGraph.js';
 
 export interface SpecGraphRouterDeps {
   specGraphService: SpecGraphService;
@@ -47,10 +48,11 @@ export function createSpecGraphRouter(deps: SpecGraphRouterDeps): Router {
 
   // GET /:id — Get full graph
   router.get('/:id', (req: Request, res: Response) => {
+    const graphId = req.params.id as string;
     try {
-      const graph = specGraphService.getGraph(req.params.id);
+      const graph = specGraphService.getGraph(graphId);
       if (!graph) {
-        res.status(404).json({ detail: `Graph not found: ${req.params.id}` });
+        res.status(404).json({ detail: `Graph not found: ${graphId}` });
         return;
       }
       res.json({ graph });
@@ -62,10 +64,11 @@ export function createSpecGraphRouter(deps: SpecGraphRouterDeps): Router {
 
   // DELETE /:id — Delete graph
   router.delete('/:id', (req: Request, res: Response) => {
+    const graphId = req.params.id as string;
     try {
-      const deleted = specGraphService.deleteGraph(req.params.id);
+      const deleted = specGraphService.deleteGraph(graphId);
       if (!deleted) {
-        res.status(404).json({ detail: `Graph not found: ${req.params.id}` });
+        res.status(404).json({ detail: `Graph not found: ${graphId}` });
         return;
       }
       res.json({ status: 'deleted' });
@@ -77,6 +80,7 @@ export function createSpecGraphRouter(deps: SpecGraphRouterDeps): Router {
 
   // POST /:id/nodes — Add node
   router.post('/:id/nodes', (req: Request, res: Response) => {
+    const graphId = req.params.id as string;
     const { spec, label } = req.body;
 
     if (!spec || typeof spec !== 'object' || Array.isArray(spec)) {
@@ -90,7 +94,7 @@ export function createSpecGraphRouter(deps: SpecGraphRouterDeps): Router {
     }
 
     try {
-      const node_id = specGraphService.addNode(req.params.id, spec, label);
+      const node_id = specGraphService.addNode(graphId, spec, label);
       res.status(201).json({ node_id });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -104,8 +108,9 @@ export function createSpecGraphRouter(deps: SpecGraphRouterDeps): Router {
 
   // GET /:id/nodes — List all nodes
   router.get('/:id/nodes', (req: Request, res: Response) => {
+    const graphId = req.params.id as string;
     try {
-      const nodes = specGraphService.getNodes(req.params.id);
+      const nodes = specGraphService.getNodes(graphId);
       res.json({ nodes });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -119,10 +124,12 @@ export function createSpecGraphRouter(deps: SpecGraphRouterDeps): Router {
 
   // GET /:id/nodes/:nodeId — Get single node
   router.get('/:id/nodes/:nodeId', (req: Request, res: Response) => {
+    const graphId = req.params.id as string;
+    const nodeId = req.params.nodeId as string;
     try {
-      const node = specGraphService.getNode(req.params.id, req.params.nodeId);
+      const node = specGraphService.getNode(graphId, nodeId);
       if (!node) {
-        res.status(404).json({ detail: `Node not found: ${req.params.nodeId}` });
+        res.status(404).json({ detail: `Node not found: ${nodeId}` });
         return;
       }
       res.json({ node });
@@ -138,10 +145,12 @@ export function createSpecGraphRouter(deps: SpecGraphRouterDeps): Router {
 
   // DELETE /:id/nodes/:nodeId — Remove node + its edges
   router.delete('/:id/nodes/:nodeId', (req: Request, res: Response) => {
+    const graphId = req.params.id as string;
+    const nodeId = req.params.nodeId as string;
     try {
-      const removed = specGraphService.removeNode(req.params.id, req.params.nodeId);
+      const removed = specGraphService.removeNode(graphId, nodeId);
       if (!removed) {
-        res.status(404).json({ detail: `Node not found: ${req.params.nodeId}` });
+        res.status(404).json({ detail: `Node not found: ${nodeId}` });
         return;
       }
       res.json({ status: 'removed' });
@@ -157,6 +166,7 @@ export function createSpecGraphRouter(deps: SpecGraphRouterDeps): Router {
 
   // POST /:id/edges — Add edge
   router.post('/:id/edges', (req: Request, res: Response) => {
+    const graphId = req.params.id as string;
     const { from_id, to_id, relationship, description } = req.body;
 
     if (!from_id || typeof from_id !== 'string') {
@@ -175,7 +185,7 @@ export function createSpecGraphRouter(deps: SpecGraphRouterDeps): Router {
     }
 
     try {
-      specGraphService.addEdge(req.params.id, { from_id, to_id, relationship, description });
+      specGraphService.addEdge(graphId, { from_id, to_id, relationship: relationship as EdgeRelationship, description });
       res.status(201).json({ status: 'added' });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -191,6 +201,7 @@ export function createSpecGraphRouter(deps: SpecGraphRouterDeps): Router {
 
   // DELETE /:id/edges — Remove edge
   router.delete('/:id/edges', (req: Request, res: Response) => {
+    const graphId = req.params.id as string;
     const { from_id, to_id } = req.body;
 
     if (!from_id || typeof from_id !== 'string') {
@@ -204,7 +215,7 @@ export function createSpecGraphRouter(deps: SpecGraphRouterDeps): Router {
     }
 
     try {
-      const removed = specGraphService.removeEdge(req.params.id, from_id, to_id);
+      const removed = specGraphService.removeEdge(graphId, from_id, to_id);
       if (!removed) {
         res.status(404).json({ detail: 'Edge not found' });
         return;
@@ -222,8 +233,10 @@ export function createSpecGraphRouter(deps: SpecGraphRouterDeps): Router {
 
   // GET /:id/neighbors/:nodeId — Get neighbors
   router.get('/:id/neighbors/:nodeId', (req: Request, res: Response) => {
+    const graphId = req.params.id as string;
+    const nodeId = req.params.nodeId as string;
     try {
-      const result = specGraphService.getNeighbors(req.params.id, req.params.nodeId);
+      const result = specGraphService.getNeighbors(graphId, nodeId);
       res.json({ incoming: result.incoming, outgoing: result.outgoing });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -244,6 +257,7 @@ export function createSpecGraphRouter(deps: SpecGraphRouterDeps): Router {
       return;
     }
 
+    const graphId = req.params.id as string;
     const { node_ids, system_level } = req.body;
 
     if (!Array.isArray(node_ids) || node_ids.length === 0) {
@@ -252,7 +266,7 @@ export function createSpecGraphRouter(deps: SpecGraphRouterDeps): Router {
     }
 
     try {
-      const result = compositionService.compose(req.params.id, node_ids, system_level);
+      const result = compositionService.compose(graphId, node_ids, system_level);
       res.json(result);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -273,6 +287,7 @@ export function createSpecGraphRouter(deps: SpecGraphRouterDeps): Router {
       return;
     }
 
+    const graphId = req.params.id as string;
     const { node_id } = req.body;
 
     if (!node_id || typeof node_id !== 'string') {
@@ -281,7 +296,7 @@ export function createSpecGraphRouter(deps: SpecGraphRouterDeps): Router {
     }
 
     try {
-      const result = compositionService.detectCrossNuggetImpact(req.params.id, node_id);
+      const result = compositionService.detectCrossNuggetImpact(graphId, node_id);
       res.json(result);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -300,6 +315,7 @@ export function createSpecGraphRouter(deps: SpecGraphRouterDeps): Router {
       return;
     }
 
+    const graphId = req.params.id as string;
     const nodeIdsParam = req.query.node_ids;
 
     if (!nodeIdsParam || typeof nodeIdsParam !== 'string') {
@@ -315,7 +331,7 @@ export function createSpecGraphRouter(deps: SpecGraphRouterDeps): Router {
     }
 
     try {
-      const contracts = compositionService.resolveInterfaces(req.params.id, nodeIds);
+      const contracts = compositionService.resolveInterfaces(graphId, nodeIds);
       res.json({ contracts });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);

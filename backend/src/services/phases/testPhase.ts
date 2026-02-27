@@ -42,7 +42,7 @@ export class TestPhase {
       await ctx.send({
         type: 'coverage_update',
         percentage: results.coverage_pct,
-        details: results.coverage_details ?? {},
+        details: results.coverage_details?.files,
       });
       await maybeTeach(this.teachingEngine, ctx, 'coverage_update', `${results.coverage_pct}% coverage`);
     }

@@ -781,30 +781,48 @@ describe('blockInterpreter', () => {
   });
 
   describe('behavioral_test block (#105)', () => {
-    it('produces workflow.behavioral_tests array', () => {
+    it('produces workflow.behavioral_tests when socketed into when_then', () => {
       const spec = interpretWorkspace(makeWorkspace([
-        goalBlock('Test', { type: 'behavioral_test', fields: { GIVEN_WHEN: 'the user clicks play', THEN: 'the game starts' } }),
+        goalBlock('Test', {
+          type: 'when_then',
+          fields: { TRIGGER_TEXT: 'click play', ACTION_TEXT: 'game starts' },
+          inputs: { TEST_SOCKET: { block: { type: 'behavioral_test', fields: { GIVEN_WHEN: 'the user clicks play', THEN: 'the game starts' } } } },
+        }),
       ]));
       expect(spec.workflow.behavioral_tests).toHaveLength(1);
-      expect(spec.workflow.behavioral_tests![0]).toEqual({
+      expect(spec.workflow.behavioral_tests![0]).toMatchObject({
         when: 'the user clicks play',
         then: 'the game starts',
+        id: 'test_0',
+        requirement_id: 'req_0',
       });
     });
 
-    it('enables testing when behavioral_test block is present', () => {
+    it('enables testing when behavioral_test is socketed', () => {
       const spec = interpretWorkspace(makeWorkspace([
-        goalBlock('Test', { type: 'behavioral_test', fields: { GIVEN_WHEN: 'click', THEN: 'response' } }),
+        goalBlock('Test', {
+          type: 'when_then',
+          fields: { TRIGGER_TEXT: 'click', ACTION_TEXT: 'response' },
+          inputs: { TEST_SOCKET: { block: { type: 'behavioral_test', fields: { GIVEN_WHEN: 'click', THEN: 'response' } } } },
+        }),
       ]));
       expect(spec.workflow.testing_enabled).toBe(true);
     });
 
-    it('accumulates multiple behavioral tests', () => {
+    it('accumulates multiple behavioral tests across when_then blocks', () => {
       const spec = interpretWorkspace(makeWorkspace([
         chainBlocks(
           { type: 'nugget_goal', fields: { GOAL_TEXT: 'test' } },
-          { type: 'behavioral_test', fields: { GIVEN_WHEN: 'click play', THEN: 'game starts' } },
-          { type: 'behavioral_test', fields: { GIVEN_WHEN: 'click stop', THEN: 'game pauses' } },
+          {
+            type: 'when_then',
+            fields: { TRIGGER_TEXT: 'click play', ACTION_TEXT: 'game starts' },
+            inputs: { TEST_SOCKET: { block: { type: 'behavioral_test', fields: { GIVEN_WHEN: 'click play', THEN: 'game starts' } } } },
+          },
+          {
+            type: 'when_then',
+            fields: { TRIGGER_TEXT: 'click stop', ACTION_TEXT: 'game pauses' },
+            inputs: { TEST_SOCKET: { block: { type: 'behavioral_test', fields: { GIVEN_WHEN: 'click stop', THEN: 'game pauses' } } } },
+          },
         ),
       ]));
       expect(spec.workflow.behavioral_tests).toHaveLength(2);
@@ -812,13 +830,37 @@ describe('blockInterpreter', () => {
 
     it('defaults to empty strings when fields are missing', () => {
       const spec = interpretWorkspace(makeWorkspace([
-        goalBlock('Test', { type: 'behavioral_test', fields: {} }),
+        goalBlock('Test', {
+          type: 'when_then',
+          fields: { TRIGGER_TEXT: 'x', ACTION_TEXT: 'y' },
+          inputs: { TEST_SOCKET: { block: { type: 'behavioral_test', fields: {} } } },
+        }),
       ]));
-      expect(spec.workflow.behavioral_tests![0]).toEqual({ when: '', then: '' });
+      expect(spec.workflow.behavioral_tests![0]).toMatchObject({ when: '', then: '' });
     });
 
     it('behavioral_tests is undefined when no behavioral_test blocks exist', () => {
       const spec = interpretWorkspace(makeWorkspace([goalBlock('Test')]));
+      expect(spec.workflow.behavioral_tests).toBeUndefined();
+    });
+
+    it('links test_id on requirement to socketed behavioral_test', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        goalBlock('Test', {
+          type: 'when_then',
+          fields: { TRIGGER_TEXT: 'click', ACTION_TEXT: 'jump' },
+          inputs: { TEST_SOCKET: { block: { type: 'behavioral_test', fields: { GIVEN_WHEN: 'click', THEN: 'jump' } } } },
+        }),
+      ]));
+      expect(spec.requirements[0].test_id).toBe('test_0');
+      expect(spec.workflow.behavioral_tests![0].requirement_id).toBe('req_0');
+    });
+
+    it('when_then without socketed test has no test_id', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        goalBlock('Test', { type: 'when_then', fields: { TRIGGER_TEXT: 'click', ACTION_TEXT: 'jump' } }),
+      ]));
+      expect(spec.requirements[0].test_id).toBeUndefined();
       expect(spec.workflow.behavioral_tests).toBeUndefined();
     });
   });
@@ -1303,18 +1345,18 @@ describe('blockInterpreter', () => {
           { type: 'feature', fields: { FEATURE_TEXT: 'quiz mode' } },
           { type: 'system_level', fields: { LEVEL: 'architect' } },
           { type: 'feedback_loop', fields: { LOOP_ID: 'loop-1', TRIGGER: 'test_failure', EXIT_CONDITION: 'all tests pass', MAX_ITERATIONS: 3, CONNECTS_FROM: 'r1', CONNECTS_TO: 't1' } },
+          { type: 'when_then', fields: { TRIGGER_TEXT: 'quiz starts', ACTION_TEXT: 'question shown' }, inputs: { TEST_SOCKET: { block: { type: 'behavioral_test', fields: { GIVEN_WHEN: 'quiz starts', THEN: 'question shown' } } } } },
           { type: 'runtime_config', fields: { AGENT_NAME: 'Study Coach', GREETING: 'Ready to learn?' } },
           { type: 'backpack_source', fields: { SOURCE_ID: 'src-1', SOURCE_TYPE: 'pdf', TITLE: 'Textbook' } },
           { type: 'study_mode', fields: { ENABLED: true, STYLE: 'socratic', DIFFICULTY: 'hard', QUIZ_FREQUENCY: 3 } },
           { type: 'deploy_runtime', fields: { RUNTIME_URL: 'https://rt.example.com' } },
-          { type: 'behavioral_test', fields: { GIVEN_WHEN: 'quiz starts', THEN: 'question shown' } },
           { type: 'agent_builder', fields: { AGENT_NAME: 'DevBot', AGENT_PERSONA: 'expert builder' } },
         ),
       ]));
 
       // Core fields still work
       expect(spec.nugget.goal).toBe('Build a study agent');
-      expect(spec.requirements).toHaveLength(1);
+      expect(spec.requirements).toHaveLength(2); // feature + when_then with socketed test
       expect(spec.agents).toHaveLength(1);
       expect(spec.workflow.testing_enabled).toBe(true);
 

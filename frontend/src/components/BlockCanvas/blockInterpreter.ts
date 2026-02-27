@@ -180,7 +180,24 @@ export function interpretWorkspace(
       case 'when_then': {
         const trigger = (block.fields?.TRIGGER_TEXT as string) ?? '';
         const action = (block.fields?.ACTION_TEXT as string) ?? '';
-        spec.requirements.push({ type: 'when_then', description: `When ${trigger} happens, ${action} should happen` });
+        const reqIndex = spec.requirements.length;
+        const reqId = `req_${reqIndex}`;
+        const testBlocks = walkInputChain(block, 'TEST_SOCKET');
+        let linkedTestId: string | undefined;
+        if (testBlocks.length > 0) {
+          for (const tb of testBlocks) {
+            if (tb.type === 'behavioral_test') {
+              const givenWhen = (tb.fields?.GIVEN_WHEN as string) ?? '';
+              const then = (tb.fields?.THEN as string) ?? '';
+              if (!spec.workflow.behavioral_tests) spec.workflow.behavioral_tests = [];
+              const testId = `test_${spec.workflow.behavioral_tests.length}`;
+              spec.workflow.behavioral_tests.push({ id: testId, when: givenWhen, then, requirement_id: reqId });
+              spec.workflow.testing_enabled = true;
+              if (!linkedTestId) linkedTestId = testId;
+            }
+          }
+        }
+        spec.requirements.push({ type: 'when_then', description: `When ${trigger} happens, ${action} should happen`, test_id: linkedTestId });
         break;
       }
       case 'has_data': {
@@ -188,14 +205,8 @@ export function interpretWorkspace(
         spec.requirements.push({ type: 'data', description: text });
         break;
       }
-      case 'behavioral_test': {
-        const givenWhen = (block.fields?.GIVEN_WHEN as string) ?? '';
-        const then = (block.fields?.THEN as string) ?? '';
-        if (!spec.workflow.behavioral_tests) spec.workflow.behavioral_tests = [];
-        spec.workflow.behavioral_tests.push({ when: givenWhen, then });
-        spec.workflow.testing_enabled = true;
-        break;
-      }
+      // behavioral_test blocks are now handled inside when_then via TEST_SOCKET input.
+      // They cannot appear in the main chain (typed connection: test_check).
       case 'look_like': {
         const preset = (block.fields?.STYLE_PRESET as string) ?? '';
         if (!spec.style) spec.style = { visual: null, personality: null };

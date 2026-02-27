@@ -118,7 +118,7 @@ export class MetaPlanner {
   }
 
   /** Validates the raw parsed JSON conforms to MetaPlannerPlan structure. Mutates in place. */
-  private validate(plan: Record<string, unknown>): asserts plan is MetaPlannerPlan {
+  private validate(plan: Record<string, unknown>): asserts plan is Record<string, unknown> & MetaPlannerPlan {
     if (typeof plan !== 'object' || plan === null) {
       throw new Error('Plan must be a JSON object');
     }

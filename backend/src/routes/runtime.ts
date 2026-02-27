@@ -39,7 +39,7 @@ export interface RuntimeRouterDeps {
  */
 function requireApiKey(agentStore: AgentStore) {
   return (req: Request, res: Response, next: NextFunction): void => {
-    const agentId = req.params.id;
+    const agentId = req.params.id as string;
     const apiKey = req.headers['x-api-key'];
 
     if (!agentId) {
@@ -90,6 +90,7 @@ export function createRuntimeRouter(deps: RuntimeRouterDeps): Router {
 
   // ── PUT /v1/agents/:id — Update agent config ─────────────────────
   router.put('/agents/:id', authMiddleware, (req: Request, res: Response) => {
+    const agentId = req.params.id as string;
     const spec = req.body;
 
     if (!spec || typeof spec !== 'object' || Array.isArray(spec)) {
@@ -98,8 +99,8 @@ export function createRuntimeRouter(deps: RuntimeRouterDeps): Router {
     }
 
     try {
-      agentStore.update(req.params.id, spec);
-      res.json({ status: 'updated', agent_id: req.params.id });
+      agentStore.update(agentId, spec);
+      res.json({ status: 'updated', agent_id: agentId });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       if (message.includes('not found')) {
@@ -112,7 +113,7 @@ export function createRuntimeRouter(deps: RuntimeRouterDeps): Router {
 
   // ── DELETE /v1/agents/:id — Deprovision agent ─────────────────────
   router.delete('/agents/:id', authMiddleware, (req: Request, res: Response) => {
-    const agentId = req.params.id;
+    const agentId = req.params.id as string;
 
     // Clean up conversation sessions
     conversationManager.deleteAgentSessions(agentId);
@@ -141,6 +142,7 @@ export function createRuntimeRouter(deps: RuntimeRouterDeps): Router {
 
   // ── POST /v1/agents/:id/turn/text — Text conversation turn ────────
   router.post('/agents/:id/turn/text', authMiddleware, async (req: Request, res: Response) => {
+    const agentId = req.params.id as string;
     const { text, session_id } = req.body;
 
     if (!text || typeof text !== 'string') {
@@ -149,7 +151,7 @@ export function createRuntimeRouter(deps: RuntimeRouterDeps): Router {
     }
 
     try {
-      const result = await turnPipeline.receiveTurn(req.params.id, {
+      const result = await turnPipeline.receiveTurn(agentId, {
         text,
         session_id,
       });
@@ -166,7 +168,7 @@ export function createRuntimeRouter(deps: RuntimeRouterDeps): Router {
 
   // ── GET /v1/agents/:id/history — Conversation history ─────────────
   router.get('/agents/:id/history', authMiddleware, (req: Request, res: Response) => {
-    const agentId = req.params.id;
+    const agentId = req.params.id as string;
     const sessionId = req.query.session_id as string | undefined;
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
 
@@ -204,7 +206,7 @@ export function createRuntimeRouter(deps: RuntimeRouterDeps): Router {
 
   // ── GET /v1/agents/:id/heartbeat — Agent health check ─────────────
   router.get('/agents/:id/heartbeat', (req: Request, res: Response) => {
-    const agentId = req.params.id;
+    const agentId = req.params.id as string;
     const agent = agentStore.get(agentId);
 
     if (!agent) {
@@ -232,8 +234,9 @@ export function createRuntimeRouter(deps: RuntimeRouterDeps): Router {
       return;
     }
 
-    const gaps = gapDetector.getGaps(req.params.id);
-    res.json({ agent_id: req.params.id, gaps });
+    const agentId = req.params.id as string;
+    const gaps = gapDetector.getGaps(agentId);
+    res.json({ agent_id: agentId, gaps });
   });
 
   // ── Knowledge Backpack Endpoints ─────────────────────────────────────
@@ -245,6 +248,7 @@ export function createRuntimeRouter(deps: RuntimeRouterDeps): Router {
       return;
     }
 
+    const agentId = req.params.id as string;
     const { title, content, source_type, uri } = req.body;
     if (!title || typeof title !== 'string') {
       res.status(400).json({ detail: 'title field is required' });
@@ -255,14 +259,14 @@ export function createRuntimeRouter(deps: RuntimeRouterDeps): Router {
       return;
     }
 
-    const sourceId = knowledgeBackpack.addSource(req.params.id, {
+    const sourceId = knowledgeBackpack.addSource(agentId, {
       title,
       content,
       source_type: source_type ?? 'manual',
       uri,
     });
 
-    res.status(201).json({ source_id: sourceId, agent_id: req.params.id });
+    res.status(201).json({ source_id: sourceId, agent_id: agentId });
   });
 
   // DELETE /v1/agents/:id/backpack/:sourceId — Remove source
@@ -272,13 +276,15 @@ export function createRuntimeRouter(deps: RuntimeRouterDeps): Router {
       return;
     }
 
-    const removed = knowledgeBackpack.removeSource(req.params.id, req.params.sourceId);
+    const agentId = req.params.id as string;
+    const sourceId = req.params.sourceId as string;
+    const removed = knowledgeBackpack.removeSource(agentId, sourceId);
     if (!removed) {
-      res.status(404).json({ detail: `Source not found: ${req.params.sourceId}` });
+      res.status(404).json({ detail: `Source not found: ${sourceId}` });
       return;
     }
 
-    res.json({ status: 'removed', source_id: req.params.sourceId });
+    res.json({ status: 'removed', source_id: sourceId });
   });
 
   // GET /v1/agents/:id/backpack — List sources
@@ -288,8 +294,9 @@ export function createRuntimeRouter(deps: RuntimeRouterDeps): Router {
       return;
     }
 
-    const sources = knowledgeBackpack.getSources(req.params.id);
-    res.json({ agent_id: req.params.id, sources });
+    const agentId = req.params.id as string;
+    const sources = knowledgeBackpack.getSources(agentId);
+    res.json({ agent_id: agentId, sources });
   });
 
   // POST /v1/agents/:id/backpack/search — Search backpack
@@ -299,14 +306,15 @@ export function createRuntimeRouter(deps: RuntimeRouterDeps): Router {
       return;
     }
 
+    const agentId = req.params.id as string;
     const { query, limit } = req.body;
     if (!query || typeof query !== 'string') {
       res.status(400).json({ detail: 'query field is required' });
       return;
     }
 
-    const results = knowledgeBackpack.search(req.params.id, query, limit);
-    res.json({ agent_id: req.params.id, results });
+    const results = knowledgeBackpack.search(agentId, query, limit);
+    res.json({ agent_id: agentId, results });
   });
 
   // ── Study Mode Endpoints ───────────────────────────────────────────
@@ -318,22 +326,23 @@ export function createRuntimeRouter(deps: RuntimeRouterDeps): Router {
       return;
     }
 
+    const agentId = req.params.id as string;
     const { enabled, style, difficulty, quiz_frequency } = req.body;
 
     if (enabled === false) {
-      studyMode.disable(req.params.id);
-      res.json({ status: 'disabled', agent_id: req.params.id });
+      studyMode.disable(agentId);
+      res.json({ status: 'disabled', agent_id: agentId });
       return;
     }
 
-    studyMode.enable(req.params.id, {
+    studyMode.enable(agentId, {
       enabled: true,
       style: style ?? 'quiz',
       difficulty: difficulty ?? 'medium',
       quiz_frequency: quiz_frequency ?? 5,
     });
 
-    res.json({ status: 'enabled', agent_id: req.params.id });
+    res.json({ status: 'enabled', agent_id: agentId });
   });
 
   // GET /v1/agents/:id/study — Get study config + progress
@@ -343,11 +352,12 @@ export function createRuntimeRouter(deps: RuntimeRouterDeps): Router {
       return;
     }
 
-    const config = studyMode.getConfig(req.params.id);
-    const progress = studyMode.getProgress(req.params.id);
+    const agentId = req.params.id as string;
+    const config = studyMode.getConfig(agentId);
+    const progress = studyMode.getProgress(agentId);
 
     res.json({
-      agent_id: req.params.id,
+      agent_id: agentId,
       config,
       progress,
     });
@@ -360,7 +370,8 @@ export function createRuntimeRouter(deps: RuntimeRouterDeps): Router {
       return;
     }
 
-    const question = studyMode.generateQuiz(req.params.id);
+    const agentId = req.params.id as string;
+    const question = studyMode.generateQuiz(agentId);
     if (!question) {
       res.status(404).json({ detail: 'No quiz available. Is study mode enabled and backpack non-empty?' });
       return;
@@ -376,6 +387,7 @@ export function createRuntimeRouter(deps: RuntimeRouterDeps): Router {
       return;
     }
 
+    const agentId = req.params.id as string;
     const { question_id, answer } = req.body;
     if (!question_id || typeof question_id !== 'string') {
       res.status(400).json({ detail: 'question_id field is required' });
@@ -387,7 +399,7 @@ export function createRuntimeRouter(deps: RuntimeRouterDeps): Router {
     }
 
     try {
-      const correct = studyMode.submitAnswer(req.params.id, question_id, answer);
+      const correct = studyMode.submitAnswer(agentId, question_id, answer);
       res.json({ correct, question_id });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -404,8 +416,9 @@ export function createRuntimeRouter(deps: RuntimeRouterDeps): Router {
       return;
     }
 
-    const gaps = gapDetector.getGaps(req.params.id);
-    res.json({ agent_id: req.params.id, gaps });
+    const agentId = req.params.id as string;
+    const gaps = gapDetector.getGaps(agentId);
+    res.json({ agent_id: agentId, gaps });
   });
 
   return router;

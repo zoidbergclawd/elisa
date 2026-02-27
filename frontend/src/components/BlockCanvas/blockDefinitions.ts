@@ -136,7 +136,7 @@ const blockDefs = [
   },
   {
     type: 'when_then',
-    message0: 'When %1 happens, %2 should happen',
+    message0: 'When %1 happens, %2 should happen %3',
     args0: [
       {
         type: 'field_input',
@@ -148,11 +148,16 @@ const blockDefs = [
         name: 'ACTION_TEXT',
         text: 'something else',
       },
+      {
+        type: 'input_statement',
+        name: 'TEST_SOCKET',
+        check: 'test_check',
+      },
     ],
     previousStatement: null,
     nextStatement: null,
     colour: 135,
-    tooltip: 'Add a when/then rule',
+    tooltip: 'Add a when/then rule — attach a behavioral test to verify it',
     helpUrl: '',
   },
   {
@@ -179,10 +184,10 @@ const blockDefs = [
       { type: 'field_input', name: 'GIVEN_WHEN', text: 'the user clicks play' },
       { type: 'field_input', name: 'THEN', text: 'the game starts' },
     ],
-    previousStatement: null,
-    nextStatement: null,
+    previousStatement: 'test_check',
+    nextStatement: 'test_check',
     colour: 30,
-    tooltip: 'Add a behavioral test — the tester will verify this works',
+    tooltip: 'Add a behavioral test — attach to a When/Then block to verify it',
     helpUrl: '',
   },
   // Style category (NEW - colour 270)

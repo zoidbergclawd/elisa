@@ -178,7 +178,7 @@ export class SkillRunner {
             });
 
             // Store the answer -- use header as key, fall back to storeAs key, then first value
-            const answer = answers[step.header] ?? answers[step.storeAs] ?? Object.values(answers)[0] ?? '';
+            const answer = (answers[step.header] ?? answers[step.storeAs] ?? Object.values(answers)[0] ?? '') as string;
             context.entries[step.storeAs] = answer;
             break;
           }

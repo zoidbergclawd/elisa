@@ -21,7 +21,7 @@ export function createMeetingRouter({ store, meetingService, sendEvent }: Meetin
 
   // List all meetings for a session
   router.get('/', (req, res) => {
-    const sessionId = req.params.sessionId;
+    const sessionId = (req.params as Record<string, string>).sessionId;
     if (!store.has(sessionId)) {
       res.status(404).json({ detail: 'Session not found' });
       return;
@@ -32,7 +32,7 @@ export function createMeetingRouter({ store, meetingService, sendEvent }: Meetin
 
   // Get meeting details
   router.get('/:meetingId', (req, res) => {
-    const sessionId = req.params.sessionId;
+    const sessionId = (req.params as Record<string, string>).sessionId;
     if (!store.has(sessionId)) {
       res.status(404).json({ detail: 'Session not found' });
       return;
@@ -47,7 +47,7 @@ export function createMeetingRouter({ store, meetingService, sendEvent }: Meetin
 
   // Accept a meeting invite
   router.post('/:meetingId/accept', async (req, res) => {
-    const sessionId = req.params.sessionId;
+    const sessionId = (req.params as Record<string, string>).sessionId;
     if (!store.has(sessionId)) {
       res.status(404).json({ detail: 'Session not found' });
       return;
@@ -67,7 +67,7 @@ export function createMeetingRouter({ store, meetingService, sendEvent }: Meetin
 
   // Decline a meeting invite
   router.post('/:meetingId/decline', (req, res) => {
-    const sessionId = req.params.sessionId;
+    const sessionId = (req.params as Record<string, string>).sessionId;
     if (!store.has(sessionId)) {
       res.status(404).json({ detail: 'Session not found' });
       return;
@@ -87,7 +87,7 @@ export function createMeetingRouter({ store, meetingService, sendEvent }: Meetin
 
   // Send a message from the kid
   router.post('/:meetingId/message', async (req, res) => {
-    const sessionId = req.params.sessionId;
+    const sessionId = (req.params as Record<string, string>).sessionId;
     if (!store.has(sessionId)) {
       res.status(404).json({ detail: 'Session not found' });
       return;
@@ -117,7 +117,7 @@ export function createMeetingRouter({ store, meetingService, sendEvent }: Meetin
 
   // End a meeting
   router.post('/:meetingId/end', async (req, res) => {
-    const sessionId = req.params.sessionId;
+    const sessionId = (req.params as Record<string, string>).sessionId;
     if (!store.has(sessionId)) {
       res.status(404).json({ detail: 'Session not found' });
       return;
