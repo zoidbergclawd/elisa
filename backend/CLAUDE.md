@@ -23,11 +23,14 @@ src/
     devices.ts           /api/devices endpoint (list device plugin manifests)
     meetings.ts          /api/sessions/:id/meetings/* endpoints (accept, decline, message, end)
     runtime.ts           /v1/agents/* endpoints (provision, update, delete, turn, history, heartbeat)
+    specGraph.ts         /api/spec-graph/* endpoints (CRUD, compose, impact, interfaces)
   models/
     session.ts           Type definitions: Session, Task, Agent, BuildPhase, WSEvent
     meeting.ts           Meeting framework types: MeetingType, MeetingSession, CanvasState, etc.
     display.ts           BOX-3 display protocol types: DisplayCommand, TouchEvent, DisplayTheme, constraints
     runtime.ts           Agent Runtime types: AgentIdentity, ConversationTurn, UsageRecord, ProvisionResult, StudyModeConfig, QuizQuestion, BackpackSource
+    specGraph.ts         Spec Graph types: SpecGraphNode, SpecGraphEdge, SpecGraph, SpecGraphPersistence
+    composition.ts       Composition types: ComposeResult, EmergentBehavior, InterfaceContract, ImpactResult
     parentDashboard.ts   Parent Dashboard types: ParentDashboardData, UsageSummary, SafetyReport (Phase 2)
   services/
     orchestrator.ts      Thin coordinator: delegates to phase handlers in sequence
@@ -65,7 +68,10 @@ src/
     healthTracker.ts     System health vital signs during and after execution (score 0-100, grades)
     flashStrategy.ts     FlashStrategy interface + MpremoteFlashStrategy + EsptoolFlashStrategy
     redeployClassifier.ts  Redeploy decision matrix: classifyChanges(oldSpec, newSpec) -> action + reasons
+    specGraph.ts         Spec Graph service: directed graph of NuggetSpecs with persistence
+    compositionService.ts  Nugget composition orchestrator with emergence detection
     artAgentMeeting.ts   Art Agent meeting type for BOX-3 display theme customization
+    integrationAgentMeeting.ts  Integration meeting type for nugget composition
     runtimeProvisioner.ts Interface + Stub/Local implementations for agent provisioning
     runtime/
       agentStore.ts      In-memory agent identity store (NuggetSpec -> AgentIdentity)
@@ -137,9 +143,22 @@ src/
 | GET | /v1/agents/:id/gaps | Knowledge gap list (x-api-key auth) |
 | GET | /v1/agents/:id/heartbeat | Agent health check (no auth) |
 | WS | /v1/agents/:id/stream?api_key= | Streaming conversation turn (WebSocket) |
+| POST | /api/spec-graph | Create new Spec Graph |
+| GET | /api/spec-graph/:id | Get full graph (nodes + edges) |
+| DELETE | /api/spec-graph/:id | Delete graph |
+| POST | /api/spec-graph/:id/nodes | Add nugget node to graph |
+| GET | /api/spec-graph/:id/nodes | List all nodes |
+| GET | /api/spec-graph/:id/nodes/:nid | Get single node |
+| DELETE | /api/spec-graph/:id/nodes/:nid | Remove node + its edges |
+| POST | /api/spec-graph/:id/edges | Add edge (dependency/interface) |
+| DELETE | /api/spec-graph/:id/edges | Remove edge |
+| GET | /api/spec-graph/:id/neighbors/:nid | Get incoming/outgoing neighbors |
+| POST | /api/spec-graph/:id/compose | Compose selected nodes into merged NuggetSpec |
+| POST | /api/spec-graph/:id/impact | Detect cross-nugget impact of node change |
+| GET | /api/spec-graph/:id/interfaces | Resolve interface contracts among nodes |
 
 ### WebSocket Events (server -> client)
-`planning_started`, `plan_ready`, `task_started`, `task_completed`, `task_failed`, `agent_output`, `commit_created`, `token_usage`, `budget_warning`, `test_result`, `coverage_update`, `deploy_started`, `deploy_progress`, `deploy_checklist`, `deploy_complete` (includes `url?` for web deploys), `serial_data`, `human_gate`, `user_question`, `skill_*`, `teaching_moment`, `narrator_message`, `permission_auto_resolved`, `minion_state_change`, `workspace_created`, `flash_prompt`, `flash_progress`, `flash_complete`, `context_flow` (from_task_id, to_task_ids, summary_preview), `documentation_ready`, `meeting_invite`, `meeting_started`, `meeting_message`, `meeting_canvas_update`, `meeting_outcome`, `meeting_ended`, `traceability_update`, `traceability_summary`, `correction_cycle_started`, `correction_cycle_progress`, `convergence_update`, `decomposition_narrated`, `impact_estimate`, `boundary_analysis`, `system_health_update`, `system_health_summary`, `error`, `session_complete`
+`planning_started`, `plan_ready`, `task_started`, `task_completed`, `task_failed`, `agent_output`, `commit_created`, `token_usage`, `budget_warning`, `test_result`, `coverage_update`, `deploy_started`, `deploy_progress`, `deploy_checklist`, `deploy_complete` (includes `url?` for web deploys), `serial_data`, `human_gate`, `user_question`, `skill_*`, `teaching_moment`, `narrator_message`, `permission_auto_resolved`, `minion_state_change`, `workspace_created`, `flash_prompt`, `flash_progress`, `flash_complete`, `context_flow` (from_task_id, to_task_ids, summary_preview), `documentation_ready`, `meeting_invite`, `meeting_started`, `meeting_message`, `meeting_canvas_update`, `meeting_outcome`, `meeting_ended`, `traceability_update`, `traceability_summary`, `correction_cycle_started`, `correction_cycle_progress`, `convergence_update`, `composition_impact` (graph_id, changed_node_id, affected_nodes, severity), `decomposition_narrated`, `impact_estimate`, `boundary_analysis`, `system_health_update`, `system_health_summary`, `error`, `session_complete`
 
 ## Key Patterns
 
@@ -158,6 +177,8 @@ src/
 - **Graceful shutdown**: SIGTERM/SIGINT handlers cancel orchestrators, close WS server, 10s force-exit. `SessionStore.onCleanup` invokes `ConnectionManager.cleanup()` for WS teardown.
 - **Graceful degradation**: Missing external tools (git, pytest, mpremote) produce warnings, not crashes.
 - **Timeouts**: Agent=300s, Tests=120s, Flash=60s. Task retry limit=2.
+- **Spec Graph**: Persistent directed graph of NuggetSpecs persisted to `.elisa/spec-graph.json`. Nodes=nuggets, edges=dependencies/interfaces. Graph context injected into MetaPlanner when `composition.parent_graph_id` is set.
+- **Nugget composition**: NuggetSpec `composition` field declares `provides`/`requires` interfaces. CompositionService merges selected nuggets, detects emergence (feedback loops, pipelines, hubs), resolves interface contracts. System level gates max nuggets (explorer=1, builder=3, architect=unlimited).
 
 ## Device Plugin Deploy Flow
 

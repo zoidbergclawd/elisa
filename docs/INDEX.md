@@ -12,7 +12,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/services/` | Core services: orchestrator, runners, hardware, portals |
 | `backend/src/services/phases/` | Pipeline stage handlers: plan, execute, test, deploy |
 | `backend/src/services/runtime/` | Agent Runtime: identity store, conversation, turn pipeline, safety, backpack, study, content filter, consent, usage limiter |
-| `backend/src/models/` | TypeScript type definitions (session, skillPlan, runtime, display, meeting, parentDashboard) |
+| `backend/src/models/` | TypeScript type definitions (session, skillPlan, runtime, display, meeting, specGraph, composition, parentDashboard) |
 | `backend/src/prompts/` | Agent role prompts + curriculum templates |
 | `backend/src/utils/` | DAG, validation, logging, tokens, context, timeout |
 | `backend/src/tests/` | Backend tests |
@@ -80,6 +80,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/routes/workspace.ts` | /api/workspace/* endpoints (save, load design files) |
 | `backend/src/routes/meetings.ts` | /api/sessions/:id/meetings/* endpoints (accept, decline, message, end) |
 | `backend/src/routes/runtime.ts` | /v1/agents/* endpoints (provision, update, delete, turn, history, heartbeat) |
+| `backend/src/routes/specGraph.ts` | /api/spec-graph/* endpoints (CRUD, compose, impact, interfaces) |
 
 ### Services
 
@@ -120,8 +121,13 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/services/runtimeProvisioner.ts` | Provisioner interface + Stub/Local implementations |
 | `backend/src/services/flashStrategy.ts` | FlashStrategy interface, MpremoteFlashStrategy, EsptoolFlashStrategy |
 | `backend/src/services/redeployClassifier.ts` | Redeploy decision matrix (config_only vs firmware_required) |
+| `backend/src/services/specGraph.ts` | Spec Graph service: directed graph of NuggetSpecs with persistence |
+| `backend/src/services/compositionService.ts` | Nugget composition orchestrator with emergence detection |
+| `backend/src/services/integrationAgentMeeting.ts` | Integration meeting type for nugget composition |
 | `backend/src/services/artAgentMeeting.ts` | Art Agent meeting type for BOX-3 theme customization |
 | `backend/src/models/runtime.ts` | Agent Runtime types: AgentIdentity, ConversationTurn, UsageRecord, StudyModeConfig, QuizQuestion, BackpackSource |
+| `backend/src/models/specGraph.ts` | Spec Graph types: SpecGraphNode, SpecGraphEdge, SpecGraph, SpecGraphPersistence |
+| `backend/src/models/composition.ts` | Composition types: ComposeResult, EmergentBehavior, InterfaceContract, ImpactResult |
 | `backend/src/models/display.ts` | BOX-3 display protocol types: DisplayCommand, TouchEvent, DisplayTheme, constraints |
 | `backend/src/utils/deviceManifestSchema.ts` | Zod schema for device.json manifest validation |
 
@@ -264,6 +270,23 @@ NuggetSpec (with esp32-s3-box3-agent device)
   -> Runtime config (agent_id, api_key, runtime_url) written as runtime_config.json
   -> Art Agent meeting triggered on deploy_started (ThemePickerCanvas for theme selection)
   -> On redeploy: redeployClassifier.classifyChanges() -> config_only or firmware_required
+```
+
+### Spec Graph & Composition Pipeline
+
+```
+POST /api/spec-graph -> SpecGraphService.create() -> graph_id
+POST /api/spec-graph/:id/nodes -> addNode(spec, label) -> node_id (with composition.provides/requires)
+POST /api/spec-graph/:id/edges -> addEdge(from, to, relationship)
+POST /api/spec-graph/:id/compose -> CompositionService.compose()
+  -> resolveInterfaces() -> match requires to provides
+  -> detectEmergence() -> feedback loops, pipelines, hubs
+  -> merge NuggetSpecs -> ComposeResult
+
+Build with graph context:
+  spec.composition.parent_graph_id -> SpecGraphService.buildGraphContext()
+  -> injected into MetaPlanner system prompt
+  -> agents aware of full application architecture
 ```
 
 ### Agent Runtime Pipeline (PRD-001)
