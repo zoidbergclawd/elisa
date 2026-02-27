@@ -82,10 +82,11 @@ export class AgentRunner {
         this.runQuery(prompt, systemPrompt, workingDir, taskId, onOutput, model, maxTurns, mcpConfig, abortController, allowedTools),
         timeout * 1000,
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Ensure the query is aborted on timeout or any error
       abortController.abort();
-      if (err.message === 'Timed out') {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message === 'Timed out') {
         return {
           success: false,
           summary: `Agent timed out after ${timeout} seconds`,
@@ -96,7 +97,7 @@ export class AgentRunner {
       }
       return {
         success: false,
-        summary: String(err.message || err),
+        summary: message,
         costUsd: 0,
         inputTokens: 0,
         outputTokens: 0,

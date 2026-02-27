@@ -96,8 +96,9 @@ export function createSessionRouter({ store, sendEvent, hardwareService, deviceR
             const result = await runner.execute(plan);
             skill.prompt = result;
             skill.category = 'agent';
-          } catch (err: any) {
-            console.warn(`Failed to pre-execute composite skill "${skill.name}":`, err.message);
+          } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : String(err);
+            console.warn(`Failed to pre-execute composite skill "${skill.name}":`, message);
           }
         }
       }
@@ -118,8 +119,9 @@ export function createSessionRouter({ store, sendEvent, hardwareService, deviceR
       }
       try {
         fs.mkdirSync(validation.resolved, { recursive: true });
-      } catch (err: any) {
-        res.status(400).json({ detail: `Cannot create workspace directory: ${err.message}` });
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        res.status(400).json({ detail: `Cannot create workspace directory: ${message}` });
         return;
       }
       workspacePath = validation.resolved;

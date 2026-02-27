@@ -244,9 +244,10 @@ export class TurnPipeline {
           responseText += block.text;
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       // On API error, use fallback response
-      console.error(`[TurnPipeline] Claude API error for agent ${agentId}:`, err.message);
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[TurnPipeline] Claude API error for agent ${agentId}:`, message);
       responseText = identity.fallback_response;
     }
 
@@ -360,18 +361,20 @@ export class TurnPipeline {
       const stream = client.messages.stream(apiParams);
 
       for await (const event of stream) {
-        if (event.type === 'content_block_delta' && (event.delta as any).type === 'text_delta') {
-          const text = (event.delta as any).text;
-          responseText += text;
-          yield { type: 'text_delta', text };
+        // Anthropic SDK streaming delta types vary; cast to access text_delta payload
+        const delta = event.type === 'content_block_delta' ? (event.delta as { type: string; text?: string }) : null;
+        if (delta?.type === 'text_delta' && delta.text) {
+          responseText += delta.text;
+          yield { type: 'text_delta', text: delta.text };
         }
       }
 
       const finalMessage = await stream.finalMessage();
       inputTokens = finalMessage.usage?.input_tokens ?? 0;
       outputTokens = finalMessage.usage?.output_tokens ?? 0;
-    } catch (err: any) {
-      console.error(`[TurnPipeline] Claude streaming error for agent ${agentId}:`, err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[TurnPipeline] Claude streaming error for agent ${agentId}:`, message);
       responseText = identity.fallback_response;
       yield { type: 'text_delta', text: responseText };
     }

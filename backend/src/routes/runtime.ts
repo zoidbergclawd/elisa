@@ -82,8 +82,9 @@ export function createRuntimeRouter(deps: RuntimeRouterDeps): Router {
     try {
       const result = agentStore.provision(spec);
       res.status(201).json(result);
-    } catch (err: any) {
-      res.status(500).json({ detail: `Provisioning failed: ${err.message}` });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      res.status(500).json({ detail: `Provisioning failed: ${message}` });
     }
   });
 
@@ -99,11 +100,12 @@ export function createRuntimeRouter(deps: RuntimeRouterDeps): Router {
     try {
       agentStore.update(req.params.id, spec);
       res.json({ status: 'updated', agent_id: req.params.id });
-    } catch (err: any) {
-      if (err.message.includes('not found')) {
-        res.status(404).json({ detail: err.message });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes('not found')) {
+        res.status(404).json({ detail: message });
       } else {
-        res.status(500).json({ detail: `Update failed: ${err.message}` });
+        res.status(500).json({ detail: `Update failed: ${message}` });
       }
     }
   });
@@ -152,11 +154,12 @@ export function createRuntimeRouter(deps: RuntimeRouterDeps): Router {
         session_id,
       });
       res.json(result);
-    } catch (err: any) {
-      if (err.message.includes('not found')) {
-        res.status(404).json({ detail: err.message });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes('not found')) {
+        res.status(404).json({ detail: message });
       } else {
-        res.status(500).json({ detail: `Turn failed: ${err.message}` });
+        res.status(500).json({ detail: `Turn failed: ${message}` });
       }
     }
   });
@@ -181,8 +184,9 @@ export function createRuntimeRouter(deps: RuntimeRouterDeps): Router {
         }
         const turns = conversationManager.getHistory(sessionId, limit);
         res.json({ session_id: sessionId, turns });
-      } catch (err: any) {
-        res.status(500).json({ detail: err.message });
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        res.status(500).json({ detail: message });
       }
     } else {
       // List all sessions for the agent
@@ -385,8 +389,9 @@ export function createRuntimeRouter(deps: RuntimeRouterDeps): Router {
     try {
       const correct = studyMode.submitAnswer(req.params.id, question_id, answer);
       res.json({ correct, question_id });
-    } catch (err: any) {
-      res.status(400).json({ detail: err.message });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      res.status(400).json({ detail: message });
     }
   });
 

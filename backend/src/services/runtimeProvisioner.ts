@@ -13,6 +13,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import type { NuggetSpec } from '../utils/specValidator.js';
 import type { DeviceManifest } from '../utils/deviceManifestSchema.js';
 import type { AgentStore } from './runtime/agentStore.js';
 import { classifyChanges as classifyNuggetChanges } from './redeployClassifier.js';
@@ -27,10 +28,10 @@ export interface ProvisionResult {
 
 export interface RuntimeProvisioner {
   /** Provision a new agent in the runtime. Returns credentials for device config. */
-  provision(spec: Record<string, any>): Promise<ProvisionResult>;
+  provision(spec: NuggetSpec): Promise<ProvisionResult>;
 
   /** Update an existing agent's config (no reflash needed). */
-  updateConfig(agentId: string, spec: Record<string, any>): Promise<void>;
+  updateConfig(agentId: string, spec: NuggetSpec): Promise<void>;
 
   /**
    * Check if changes require firmware reflash or just config update.
@@ -58,7 +59,7 @@ export class StubRuntimeProvisioner implements RuntimeProvisioner {
     this.runtimeUrl = runtimeUrl;
   }
 
-  async provision(spec: Record<string, any>): Promise<ProvisionResult> {
+  async provision(spec: NuggetSpec): Promise<ProvisionResult> {
     const agentId = randomUUID();
     const apiKey = `stub_key_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
 
@@ -74,7 +75,7 @@ export class StubRuntimeProvisioner implements RuntimeProvisioner {
     };
   }
 
-  async updateConfig(agentId: string, spec: Record<string, any>): Promise<void> {
+  async updateConfig(agentId: string, spec: NuggetSpec): Promise<void> {
     console.log(`[RuntimeProvisioner:stub] updateConfig called`, {
       agentId,
       specKeys: Object.keys(spec),
@@ -108,7 +109,8 @@ function classifyByManifestConfigFields(
   newSpec: Record<string, any>,
   manifest: DeviceManifest,
 ): 'config_only' | 'firmware_required' {
-  const deploy = manifest.deploy as any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- deploy schema varies per device plugin; runtime_provision is an optional extension
+  const deploy = manifest.deploy as Record<string, any>;
   if (!deploy.runtime_provision?.config_fields) return 'config_only';
 
   const configFields = new Set(deploy.runtime_provision.config_fields as string[]);
@@ -140,7 +142,7 @@ export class LocalRuntimeProvisioner implements RuntimeProvisioner {
     this.agentStore = agentStore;
   }
 
-  async provision(spec: Record<string, any>): Promise<ProvisionResult> {
+  async provision(spec: NuggetSpec): Promise<ProvisionResult> {
     const result = this.agentStore.provision(spec);
 
     console.log(`[RuntimeProvisioner:local] provision complete`, {
@@ -151,7 +153,7 @@ export class LocalRuntimeProvisioner implements RuntimeProvisioner {
     return result;
   }
 
-  async updateConfig(agentId: string, spec: Record<string, any>): Promise<void> {
+  async updateConfig(agentId: string, spec: NuggetSpec): Promise<void> {
     this.agentStore.update(agentId, spec);
 
     console.log(`[RuntimeProvisioner:local] updateConfig complete`, {

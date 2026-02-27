@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { ChildProcess } from 'node:child_process';
 import type { BuildSession, Task, Agent, CommitInfo } from '../models/session.js';
+import type { NuggetSpec } from '../utils/specValidator.js';
 import type { PhaseContext, SendEvent } from './phases/types.js';
 import { PlanPhase } from './phases/planPhase.js';
 import { ExecutePhase } from './phases/executePhase.js';
@@ -102,7 +103,7 @@ export class Orchestrator {
     };
   }
 
-  async run(spec: Record<string, any>): Promise<void> {
+  async run(spec: NuggetSpec): Promise<void> {
     try {
       const ctx = this.makeContext();
 
@@ -225,16 +226,18 @@ export class Orchestrator {
 
       // Complete
       await this.complete(planResult.tasks, planResult.agents);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Orchestrator error:', err);
+      const message = err instanceof Error ? err.message : String(err);
+      const stack = err instanceof Error ? err.stack : undefined;
       this.logger?.error('Orchestrator error', {
-        message: String(err.message || err),
-        stack: err.stack,
+        message,
+        stack,
       });
       this.session.state = 'done';
       await this.send({
         type: 'error',
-        message: String(err.message || err),
+        message,
         recoverable: false,
       });
     } finally {

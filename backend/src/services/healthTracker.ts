@@ -144,7 +144,7 @@ export class HealthTracker {
   async emitUpdate(send: SendEvent): Promise<void> {
     const update = this.getUpdate();
     await send({
-      type: 'system_health_update' as any,
+      type: 'system_health_update',
       ...update,
     });
   }
@@ -153,7 +153,7 @@ export class HealthTracker {
   async emitSummary(send: SendEvent): Promise<void> {
     const summary = this.getSummary();
     await send({
-      type: 'system_health_summary' as any,
+      type: 'system_health_summary',
       ...summary,
     });
   }

@@ -154,11 +154,12 @@ export class DeviceFileValidator {
           recoverable: true,
         });
       }
-    } catch (err: any) {
-      console.error(`[deviceFileValidator] Fixup agent error for ${file}:`, err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[deviceFileValidator] Fixup agent error for ${file}:`, message);
       await ctx.send({
         type: 'error',
-        message: `Fixup agent error for ${file}: ${err.message}`,
+        message: `Fixup agent error for ${file}: ${message}`,
         recoverable: true,
       });
     }

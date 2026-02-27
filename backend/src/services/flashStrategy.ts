@@ -355,7 +355,7 @@ export class EsptoolFlashStrategy implements FlashStrategy {
           (err, stdout, stderr) => {
             if (err) {
               // Check for timeout
-              if ((err as any).killed || err.message === 'Timed out') {
+              if ((err as NodeJS.ErrnoException & { killed?: boolean }).killed || err.message === 'Timed out') {
                 resolve({
                   success: false,
                   message: 'Firmware flash timed out after 120 seconds',
@@ -414,10 +414,11 @@ export class EsptoolFlashStrategy implements FlashStrategy {
         onProgress('Flash complete!', 100);
       }
       return result;
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
       return {
         success: false,
-        message: `esptool error: ${err.message}`,
+        message: `esptool error: ${message}`,
       };
     }
   }

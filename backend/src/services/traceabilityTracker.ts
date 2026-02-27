@@ -203,7 +203,7 @@ export class TraceabilityTracker {
 
     const summary = this.getSummary();
     await send({
-      type: 'traceability_summary' as any,
+      type: 'traceability_summary',
       coverage: summary.coverage,
       requirements: summary.requirements,
     });

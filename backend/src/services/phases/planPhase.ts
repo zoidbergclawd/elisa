@@ -10,6 +10,7 @@ import { TaskDAG } from '../../utils/dag.js';
 import type { DeviceRegistry } from '../deviceRegistry.js';
 import { resolveDeployOrder } from './deployOrder.js';
 import type { Task, Agent } from '../../models/session.js';
+import type { NuggetSpec } from '../../utils/specValidator.js';
 import { estimate as estimateImpact } from '../impactEstimator.js';
 import { analyze as analyzeBoundary } from '../boundaryAnalyzer.js';
 
@@ -33,7 +34,7 @@ export class PlanPhase {
     this.deviceRegistry = deviceRegistry;
   }
 
-  async execute(ctx: PhaseContext, spec: Record<string, any>): Promise<PlanResult> {
+  async execute(ctx: PhaseContext, spec: NuggetSpec): Promise<PlanResult> {
     ctx.session.state = 'planning';
     ctx.logger?.phase('planning');
     await ctx.send({ type: 'planning_started' });
@@ -89,6 +90,7 @@ export class PlanPhase {
         const manifest = this.deviceRegistry.getDevice(device.pluginId);
         if (manifest) manifests.set(device.pluginId, manifest);
       }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- manifests Map has local `any` values from heterogeneous device.json schemas
       const ordered = resolveDeployOrder(devices, manifests as any);
       deploySteps = ordered
         .map(d => {
@@ -145,7 +147,7 @@ export class PlanPhase {
         const depNames = task.dependencies
           .map((depId: string) => taskMap[depId]?.name ?? depId)
           .join(', ');
-        // Attach dependency explanation to the task object for frontend use
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- runtime augmentation for frontend display; Task type lacks why_blocked_by
         (task as any).why_blocked_by = `"${task.name}" needs ${depNames} to finish first.`;
       }
     }

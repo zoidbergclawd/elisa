@@ -116,9 +116,9 @@ async function validateStartupHealth(): Promise<void> {
   try {
     await new Anthropic().models.list({ limit: 1 });
     healthStatus.apiKey = 'valid';
-  } catch (err: any) {
+  } catch (err: unknown) {
     healthStatus.apiKey = 'invalid';
-    healthStatus.apiKeyError = err.message ?? String(err);
+    healthStatus.apiKeyError = err instanceof Error ? err.message : String(err);
   }
 }
 
@@ -202,9 +202,9 @@ function createApp(staticDir?: string, authToken?: string) {
         await new Anthropic().models.list({ limit: 1 });
         healthStatus.apiKey = 'valid';
         healthStatus.apiKeyError = undefined;
-      } catch (err: any) {
+      } catch (err: unknown) {
         healthStatus.apiKey = 'invalid';
-        healthStatus.apiKeyError = err.message ?? String(err);
+        healthStatus.apiKeyError = err instanceof Error ? err.message : String(err);
       }
     }
 
@@ -244,9 +244,9 @@ function createApp(staticDir?: string, authToken?: string) {
         await new Anthropic().models.list({ limit: 1 });
         healthStatus.apiKey = 'valid';
         healthStatus.apiKeyError = undefined;
-      } catch (err: any) {
+      } catch (err: unknown) {
         healthStatus.apiKey = 'invalid';
-        healthStatus.apiKeyError = err.message ?? String(err);
+        healthStatus.apiKeyError = err instanceof Error ? err.message : String(err);
       }
       res.json({ apiKey: healthStatus.apiKey });
     });
@@ -384,9 +384,10 @@ export function startServer(
                 ws.send(JSON.stringify(chunk));
               }
             }
-          } catch (err: any) {
+          } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : String(err);
             if (ws.readyState === WebSocket.OPEN) {
-              ws.send(JSON.stringify({ type: 'error', detail: err.message }));
+              ws.send(JSON.stringify({ type: 'error', detail: message }));
             }
           }
         });

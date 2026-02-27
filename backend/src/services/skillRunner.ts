@@ -105,11 +105,12 @@ export class SkillRunner {
         skill_id: plan.skillId,
         result,
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
       await this.send({
         type: 'skill_error',
         skill_id: plan.skillId,
-        message: String(err.message || err),
+        message,
       });
       throw err;
     } finally {
@@ -273,7 +274,7 @@ export class SkillRunner {
           step_type: step.type,
           status: 'completed',
         });
-      } catch (err: any) {
+      } catch (err: unknown) {
         await this.send({
           type: 'skill_step',
           skill_id: skillId,
@@ -291,6 +292,7 @@ export class SkillRunner {
   /** Interpret a composite skill's workspace JSON into a SkillPlan on the backend.
    *  This is a simplified version of the frontend's skillInterpreter -- same logic, no Blockly dependency. */
   interpretWorkspaceOnBackend(skill: SkillSpec): SkillPlan {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- workspace is untyped Blockly JSON; no schema exists
     const ws = skill.workspace as any;
     const topBlocks = ws?.blocks?.blocks ?? [];
     const startBlock = topBlocks.find((b: any) => b.type === 'skill_flow_start');

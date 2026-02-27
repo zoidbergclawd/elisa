@@ -82,6 +82,7 @@ export class DeployPhase {
     }
 
     // Resolve deploy order using provides/requires DAG
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- manifests Map has local `any` values from heterogeneous device.json schemas
     const order = resolveDeployOrder(devices, manifests as any);
     log('deployDevices: resolved order', { order: order.map(d => d.pluginId) });
     const outputs: Record<string, string> = {};
@@ -94,7 +95,8 @@ export class DeployPhase {
         const manifest = manifests.get(device.pluginId);
         if (!manifest) continue;
 
-        const deploy = manifest.deploy as any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- deploy schema varies per device plugin; runtime_provision is an optional extension
+        const deploy = manifest.deploy as Record<string, any>;
         if (deploy.runtime_provision?.required) {
           log(`  runtime provisioning for ${device.pluginId}...`);
           await ctx.send({
@@ -117,11 +119,12 @@ export class DeployPhase {
               agent_id: provisionResult.agent_id,
               runtime_url: provisionResult.runtime_url,
             });
-          } catch (err: any) {
-            log('  provisioning FAILED', { error: err.message });
+          } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : String(err);
+            log('  provisioning FAILED', { error: message });
             await ctx.send({
               type: 'error',
-              message: `Runtime provisioning failed for ${manifest.name}: ${err.message}`,
+              message: `Runtime provisioning failed for ${manifest.name}: ${message}`,
               recoverable: true,
             });
           }
@@ -193,11 +196,12 @@ export class DeployPhase {
       }
       log('  outputs after cloud deploy', outputs);
       await ctx.send({ type: 'deploy_complete', target: device.pluginId, url: result.url });
-    } catch (err: any) {
-      log('  cloud deploy FAILED', { error: err.message });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      log('  cloud deploy FAILED', { error: message });
       await ctx.send({
         type: 'error',
-        message: `Cloud deploy failed for ${manifest.name}: ${err.message}`,
+        message: `Cloud deploy failed for ${manifest.name}: ${message}`,
         recoverable: true,
       });
       await ctx.send({ type: 'deploy_complete', target: device.pluginId });
@@ -290,19 +294,21 @@ export class DeployPhase {
           ? `${manifest.name} flashed successfully`
           : (flashResult.message ?? 'Flash failed'),
       });
-    } catch (err: any) {
-      log(`  ${method} flash THREW`, { error: err.message, stack: err.stack });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      const stack = err instanceof Error ? err.stack : undefined;
+      log(`  ${method} flash THREW`, { error: message, stack });
       await ctx.send({
         type: 'flash_progress',
         device_role: device.pluginId,
-        step: `Error: ${err.message}`,
+        step: `Error: ${message}`,
         progress: 100,
       });
       await ctx.send({
         type: 'flash_complete',
         device_role: device.pluginId,
         success: false,
-        message: err.message,
+        message,
       });
     }
   }
@@ -363,9 +369,10 @@ export class DeployPhase {
             setTimeout(() => { buildProc.kill(); reject(new Error('Build timed out')); }, BUILD_TIMEOUT_MS);
           });
         }
-      } catch (err: any) {
-        log('deployWeb: build warning', { error: err.message });
-        await ctx.send({ type: 'deploy_progress', step: `Build warning: ${err.message}`, progress: 30 });
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        log('deployWeb: build warning', { error: message });
+        await ctx.send({ type: 'deploy_progress', step: `Build warning: ${message}`, progress: 30 });
       }
     }
 
@@ -431,8 +438,9 @@ export class DeployPhase {
         serverProcess = null;
       }
       finalUrl = result.url ?? (serverProcess ? fallbackUrl : null);
-    } catch (err: any) {
-      console.warn('Web preview server failed to start:', err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn('Web preview server failed to start:', message);
       serverProcess = null;
     }
     log('deployWeb: finished', { url: finalUrl });
@@ -447,11 +455,12 @@ export class DeployPhase {
 
   async initializePortals(ctx: PhaseContext): Promise<void> {
     const spec = ctx.session.spec ?? {};
-    const portalSpecs = spec.portals ?? [];
+    const portalSpecs = (spec.portals ?? []) as import('../portalService.js').PortalSpec[];
     try {
       await this.portalService.initializePortals(portalSpecs);
-    } catch (err: any) {
-      console.warn('Portal initialization warning:', err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn('Portal initialization warning:', message);
     }
   }
 
