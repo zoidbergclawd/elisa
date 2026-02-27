@@ -9,6 +9,7 @@ function makePlanReady(opts?: {
   tasks?: Task[];
   agents?: Agent[];
   deploymentTarget?: string;
+  deploySteps?: Array<{ id: string; name: string; method: string }>;
 }): WSEvent {
   return {
     type: 'plan_ready',
@@ -20,6 +21,7 @@ function makePlanReady(opts?: {
     ],
     explanation: 'Plan is ready',
     deployment_target: opts?.deploymentTarget,
+    deploy_steps: opts?.deploySteps,
   };
 }
 
@@ -61,7 +63,7 @@ describe('useBuildSession', () => {
       expect(result.current.serialLines).toEqual([]);
       expect(result.current.deployProgress).toBeNull();
       expect(result.current.deployChecklist).toBeNull();
-      expect(result.current.deployUrl).toBeNull();
+      expect(result.current.deployUrls).toEqual({});
       expect(result.current.gateRequest).toBeNull();
       expect(result.current.questionRequest).toBeNull();
       expect(result.current.nuggetDir).toBeNull();
@@ -117,6 +119,61 @@ describe('useBuildSession', () => {
       act(() => result.current.handleEvent(makePlanReady({ tasks: [], deploymentTarget: 'esp32' })));
       const deployTask = result.current.tasks.find(t => t.id === '__deploy__');
       expect(deployTask!.dependencies).toEqual([]);
+    });
+
+    it('creates per-device deploy nodes from deploy_steps', () => {
+      const { result } = renderHook(() => useBuildSession());
+      act(() => result.current.handleEvent(makePlanReady({
+        deploySteps: [
+          { id: 'cloud-dashboard', name: 'Cloud Dashboard', method: 'cloud' },
+          { id: 'heltec-gateway', name: 'Heltec Gateway', method: 'flash' },
+          { id: 'heltec-sensor', name: 'Heltec Sensor Node', method: 'flash' },
+        ],
+      })));
+      expect(result.current.tasks).toHaveLength(4); // 1 real + 3 deploy
+      expect(result.current.tasks.find(t => t.id === '__deploy_cloud-dashboard__')?.name).toBe('Deploy Cloud Dashboard');
+      expect(result.current.tasks.find(t => t.id === '__deploy_heltec-gateway__')?.name).toBe('Flash Heltec Gateway');
+      expect(result.current.tasks.find(t => t.id === '__deploy_heltec-sensor__')?.name).toBe('Flash Heltec Sensor Node');
+    });
+
+    it('per-device deploy nodes depend on last real task', () => {
+      const { result } = renderHook(() => useBuildSession());
+      act(() => result.current.handleEvent(makePlanReady({
+        deploySteps: [
+          { id: 'dev-a', name: 'Device A', method: 'flash' },
+        ],
+      })));
+      const node = result.current.tasks.find(t => t.id === '__deploy_dev-a__');
+      expect(node!.dependencies).toEqual(['t1']);
+    });
+
+    it('falls back to legacy __deploy__ when deploy_steps is empty', () => {
+      const { result } = renderHook(() => useBuildSession());
+      act(() => result.current.handleEvent(makePlanReady({ deploymentTarget: 'esp32', deploySteps: [] })));
+      expect(result.current.tasks.find(t => t.id === '__deploy__')).toBeDefined();
+    });
+
+    it('adds __deploy_web__ node when target is both and no cloud device', () => {
+      const { result } = renderHook(() => useBuildSession());
+      act(() => result.current.handleEvent(makePlanReady({
+        deploymentTarget: 'both',
+        deploySteps: [
+          { id: 'sensor', name: 'Sensor', method: 'flash' },
+        ],
+      })));
+      expect(result.current.tasks.find(t => t.id === '__deploy_web__')).toBeDefined();
+    });
+
+    it('does NOT add __deploy_web__ when a cloud device is present', () => {
+      const { result } = renderHook(() => useBuildSession());
+      act(() => result.current.handleEvent(makePlanReady({
+        deploymentTarget: 'both',
+        deploySteps: [
+          { id: 'cloud-dash', name: 'Dashboard', method: 'cloud' },
+          { id: 'sensor', name: 'Sensor', method: 'flash' },
+        ],
+      })));
+      expect(result.current.tasks.find(t => t.id === '__deploy_web__')).toBeUndefined();
     });
   });
 
@@ -229,6 +286,16 @@ describe('useBuildSession', () => {
       const deployTask = result.current.tasks.find(t => t.id === '__deploy__');
       expect(deployTask!.status).toBe('in_progress');
     });
+
+    it('marks per-device deploy node as in_progress', () => {
+      const { result } = renderHook(() => useBuildSession());
+      act(() => result.current.handleEvent(makePlanReady({
+        deploySteps: [{ id: 'cloud-dash', name: 'Dashboard', method: 'cloud' }],
+      })));
+      act(() => result.current.handleEvent({ type: 'deploy_started', target: 'cloud-dash' }));
+      const node = result.current.tasks.find(t => t.id === '__deploy_cloud-dash__');
+      expect(node!.status).toBe('in_progress');
+    });
   });
 
   describe('deploy_progress', () => {
@@ -267,16 +334,26 @@ describe('useBuildSession', () => {
       expect(result.current.deployChecklist).toBeNull();
     });
 
-    it('sets deployUrl when url is provided', () => {
+    it('accumulates deployUrls when url is provided', () => {
       const { result } = renderHook(() => useBuildSession());
       act(() => result.current.handleEvent({ type: 'deploy_complete', target: 'web', url: 'http://localhost:3000' }));
-      expect(result.current.deployUrl).toBe('http://localhost:3000');
+      expect(result.current.deployUrls).toEqual({ web: 'http://localhost:3000' });
     });
 
-    it('does not set deployUrl when url is absent', () => {
+    it('does not add to deployUrls when url is absent', () => {
       const { result } = renderHook(() => useBuildSession());
       act(() => result.current.handleEvent({ type: 'deploy_complete', target: 'esp32' }));
-      expect(result.current.deployUrl).toBeNull();
+      expect(result.current.deployUrls).toEqual({});
+    });
+
+    it('accumulates multiple deploy URLs from different targets', () => {
+      const { result } = renderHook(() => useBuildSession());
+      act(() => result.current.handleEvent({ type: 'deploy_complete', target: 'cloud-dash', url: 'https://dash.example.com' }));
+      act(() => result.current.handleEvent({ type: 'deploy_complete', target: 'web', url: 'http://localhost:3000' }));
+      expect(result.current.deployUrls).toEqual({
+        'cloud-dash': 'https://dash.example.com',
+        web: 'http://localhost:3000',
+      });
     });
 
     it('marks __deploy__ task as done', () => {
@@ -286,6 +363,18 @@ describe('useBuildSession', () => {
       act(() => result.current.handleEvent({ type: 'deploy_complete', target: 'esp32' }));
       const deployTask = result.current.tasks.find(t => t.id === '__deploy__');
       expect(deployTask!.status).toBe('done');
+    });
+
+    it('marks per-device deploy node as done', () => {
+      const { result } = renderHook(() => useBuildSession());
+      act(() => result.current.handleEvent(makePlanReady({
+        deploySteps: [{ id: 'cloud-dash', name: 'Dashboard', method: 'cloud' }],
+      })));
+      act(() => result.current.handleEvent({ type: 'deploy_started', target: 'cloud-dash' }));
+      act(() => result.current.handleEvent({ type: 'deploy_complete', target: 'cloud-dash', url: 'https://example.com' }));
+      const node = result.current.tasks.find(t => t.id === '__deploy_cloud-dash__');
+      expect(node!.status).toBe('done');
+      expect(result.current.deployUrls['cloud-dash']).toBe('https://example.com');
     });
   });
 
@@ -607,6 +696,79 @@ describe('useBuildSession', () => {
       const deployTask = result.current.tasks.find(t => t.id === '__deploy__');
       expect(deployTask!.status).toBe('pending');
     });
+
+    it('marks per-device deploy node as failed for flash errors', () => {
+      const { result } = renderHook(() => useBuildSession());
+      act(() => result.current.handleEvent(makePlanReady({
+        deploySteps: [{ id: 'sensor', name: 'Sensor', method: 'flash' }],
+      })));
+      // Start deploy on the per-device node
+      act(() => result.current.handleEvent({ type: 'deploy_started', target: 'sensor' }));
+      act(() => result.current.handleEvent({
+        type: 'error', message: 'flash failed: timeout', recoverable: false,
+      }));
+      const node = result.current.tasks.find(t => t.id === '__deploy_sensor__');
+      expect(node!.status).toBe('failed');
+    });
+  });
+
+  // === flash_prompt / flash_complete ===
+
+  describe('flash_prompt', () => {
+    it('marks per-device deploy node as in_progress', () => {
+      const { result } = renderHook(() => useBuildSession());
+      act(() => result.current.handleEvent(makePlanReady({
+        deploySteps: [{ id: 'sensor-node', name: 'Heltec Sensor', method: 'flash' }],
+      })));
+      act(() => result.current.handleEvent({
+        type: 'flash_prompt', device_role: 'sensor-node', message: 'Plug in sensor',
+      }));
+      const node = result.current.tasks.find(t => t.id === '__deploy_sensor-node__');
+      expect(node!.status).toBe('in_progress');
+    });
+
+    it('includes deviceName from deploy steps in flashWizardState', () => {
+      const { result } = renderHook(() => useBuildSession());
+      act(() => result.current.handleEvent(makePlanReady({
+        deploySteps: [{ id: 'sensor-node', name: 'Heltec Sensor', method: 'flash' }],
+      })));
+      act(() => result.current.handleEvent({
+        type: 'flash_prompt', device_role: 'sensor-node', message: 'Plug in sensor',
+      }));
+      expect(result.current.flashWizardState?.deviceName).toBe('Heltec Sensor');
+    });
+  });
+
+  describe('flash_complete', () => {
+    it('marks per-device deploy node as done on success', () => {
+      const { result } = renderHook(() => useBuildSession());
+      act(() => result.current.handleEvent(makePlanReady({
+        deploySteps: [{ id: 'sensor-node', name: 'Heltec Sensor', method: 'flash' }],
+      })));
+      act(() => result.current.handleEvent({
+        type: 'flash_prompt', device_role: 'sensor-node', message: 'Plug in sensor',
+      }));
+      act(() => result.current.handleEvent({
+        type: 'flash_complete', device_role: 'sensor-node', success: true,
+      }));
+      const node = result.current.tasks.find(t => t.id === '__deploy_sensor-node__');
+      expect(node!.status).toBe('done');
+    });
+
+    it('marks per-device deploy node as failed on failure', () => {
+      const { result } = renderHook(() => useBuildSession());
+      act(() => result.current.handleEvent(makePlanReady({
+        deploySteps: [{ id: 'sensor-node', name: 'Heltec Sensor', method: 'flash' }],
+      })));
+      act(() => result.current.handleEvent({
+        type: 'flash_prompt', device_role: 'sensor-node', message: 'Plug in sensor',
+      }));
+      act(() => result.current.handleEvent({
+        type: 'flash_complete', device_role: 'sensor-node', success: false, message: 'Flash failed',
+      }));
+      const node = result.current.tasks.find(t => t.id === '__deploy_sensor-node__');
+      expect(node!.status).toBe('failed');
+    });
   });
 
   // === workspace_created ===
@@ -837,7 +999,7 @@ describe('useBuildSession', () => {
       expect(result.current.serialLines).toEqual([]);
       expect(result.current.deployProgress).toBeNull();
       expect(result.current.deployChecklist).toBeNull();
-      expect(result.current.deployUrl).toBeNull();
+      expect(result.current.deployUrls).toEqual({});
       expect(result.current.gateRequest).toBeNull();
       expect(result.current.questionRequest).toBeNull();
       expect(result.current.nuggetDir).toBeNull();

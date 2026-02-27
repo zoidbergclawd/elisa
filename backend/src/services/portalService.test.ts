@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
-  SerialPortalAdapter,
   McpPortalAdapter,
   CliPortalAdapter,
   PortalService,
@@ -12,35 +11,6 @@ const sampleCapabilities: PortalCapability[] = [
   { id: 'cap-1', name: 'LED on', kind: 'action', description: 'Turn LED on' },
   { id: 'cap-2', name: 'Read temp', kind: 'query', description: 'Read temperature' },
 ];
-
-function makeMockHardwareService() {
-  return {} as any;
-}
-
-// ---------------------------------------------------------------------------
-// SerialPortalAdapter
-// ---------------------------------------------------------------------------
-describe('SerialPortalAdapter', () => {
-  it('returns capabilities passed at construction', () => {
-    const adapter = new SerialPortalAdapter(makeMockHardwareService(), sampleCapabilities);
-    expect(adapter.getCapabilities()).toEqual(sampleCapabilities);
-  });
-
-  it('initialize is a no-op (does not throw)', async () => {
-    const adapter = new SerialPortalAdapter(makeMockHardwareService(), sampleCapabilities);
-    await expect(adapter.initialize({})).resolves.toBeUndefined();
-  });
-
-  it('teardown is a no-op (does not throw)', async () => {
-    const adapter = new SerialPortalAdapter(makeMockHardwareService(), []);
-    await expect(adapter.teardown()).resolves.toBeUndefined();
-  });
-
-  it('handles empty capabilities', () => {
-    const adapter = new SerialPortalAdapter(makeMockHardwareService(), []);
-    expect(adapter.getCapabilities()).toEqual([]);
-  });
-});
 
 // ---------------------------------------------------------------------------
 // McpPortalAdapter
@@ -152,25 +122,11 @@ describe('PortalService', () => {
   let service: PortalService;
 
   beforeEach(() => {
-    service = new PortalService(makeMockHardwareService());
+    service = new PortalService();
   });
 
   // -- initializePortals ----------------------------------------------------
   describe('initializePortals', () => {
-    it('creates a serial adapter when mechanism is serial', async () => {
-      const spec: PortalSpec = {
-        id: 'p1', name: 'Board', description: 'ESP32', mechanism: 'serial',
-        capabilities: sampleCapabilities, interactions: [],
-        serialConfig: { baudRate: 115200 },
-      };
-      await service.initializePortals([spec]);
-      const rt = service.getRuntime('p1');
-      expect(rt).toBeDefined();
-      expect(rt!.mechanism).toBe('serial');
-      expect(rt!.status).toBe('ready');
-      expect(rt!.adapter).toBeInstanceOf(SerialPortalAdapter);
-    });
-
     it('creates an MCP adapter when mechanism is mcp', async () => {
       const spec: PortalSpec = {
         id: 'p2', name: 'FS', description: 'Files', mechanism: 'mcp',
@@ -218,11 +174,11 @@ describe('PortalService', () => {
       expect(service.getAllRuntimes()).toHaveLength(0);
     });
 
-    it('uses empty object when config is missing', async () => {
+    it('uses empty object when config is missing (defaults to CLI)', async () => {
       const spec: PortalSpec = {
-        id: 'p5', name: 'No-cfg', description: '', mechanism: 'serial',
+        id: 'p5', name: 'No-cfg', description: '', mechanism: 'cli',
         capabilities: [], interactions: [],
-        // no serialConfig
+        cliConfig: { command: 'python3' },
       };
       await service.initializePortals([spec]);
       expect(service.getRuntime('p5')!.status).toBe('ready');
@@ -231,16 +187,6 @@ describe('PortalService', () => {
 
   // -- auto-detection -------------------------------------------------------
   describe('auto-detection', () => {
-    it('detects serial when serialConfig present', async () => {
-      const spec: PortalSpec = {
-        id: 'auto-s', name: 'Auto', description: '', mechanism: 'auto',
-        capabilities: [], interactions: [],
-        serialConfig: { baudRate: 9600 },
-      };
-      await service.initializePortals([spec]);
-      expect(service.getRuntime('auto-s')!.mechanism).toBe('serial');
-    });
-
     it('detects mcp when mcpConfig present', async () => {
       const spec: PortalSpec = {
         id: 'auto-m', name: 'Auto', description: '', mechanism: 'auto',
@@ -270,16 +216,15 @@ describe('PortalService', () => {
       await expect(service.initializePortals([spec])).rejects.toThrow('Portal command must be a non-empty string');
     });
 
-    it('serial takes priority when multiple configs present', async () => {
+    it('mcp takes priority when multiple configs present', async () => {
       const spec: PortalSpec = {
         id: 'auto-p', name: 'Auto', description: '', mechanism: 'auto',
         capabilities: [], interactions: [],
-        serialConfig: { baudRate: 9600 },
         mcpConfig: { command: 'npx' },
         cliConfig: { command: 'python' },
       };
       await service.initializePortals([spec]);
-      expect(service.getRuntime('auto-p')!.mechanism).toBe('serial');
+      expect(service.getRuntime('auto-p')!.mechanism).toBe('mcp');
     });
   });
 
@@ -337,30 +282,6 @@ describe('PortalService', () => {
 
     it('returns empty when no portals', () => {
       expect(service.getMcpServers()).toEqual([]);
-    });
-  });
-
-  // -- hasSerialPortals -----------------------------------------------------
-  describe('hasSerialPortals', () => {
-    it('returns true when serial portal exists', async () => {
-      await service.initializePortals([{
-        id: 's1', name: 'Board', description: '', mechanism: 'serial',
-        capabilities: [], interactions: [],
-      }]);
-      expect(service.hasSerialPortals()).toBe(true);
-    });
-
-    it('returns false when no serial portals', async () => {
-      await service.initializePortals([{
-        id: 'c2', name: 'CLI', description: '', mechanism: 'cli',
-        capabilities: [], interactions: [],
-        cliConfig: { command: 'python3' },
-      }]);
-      expect(service.hasSerialPortals()).toBe(false);
-    });
-
-    it('returns false when empty', () => {
-      expect(service.hasSerialPortals()).toBe(false);
     });
   });
 

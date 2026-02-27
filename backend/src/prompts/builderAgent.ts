@@ -80,6 +80,7 @@ export function formatTaskPrompt(params: {
   spec: Record<string, any>;
   predecessors: string[];
   style?: Record<string, any> | null;
+  deviceRegistry?: { getAgentContext(id: string): string };
 }): string {
   const { agentName, role, persona, task, spec, predecessors, style } = params;
   const parts: string[] = [
@@ -112,6 +113,37 @@ export function formatTaskPrompt(params: {
     parts.push(`\n## Style Preferences\n${formatStyle(style)}`);
   }
 
+  // Device plugin context injection -- placed BEFORE predecessors so the agent
+  // sees hardware requirements prominently, not buried at the end of the prompt.
+  if (params.deviceRegistry && spec.devices?.length) {
+    const seen = new Set<string>();
+    const requiredFiles: string[] = [];
+    for (const device of spec.devices) {
+      if (!seen.has(device.pluginId)) {
+        seen.add(device.pluginId);
+        const ctx = params.deviceRegistry.getAgentContext(device.pluginId);
+        if (ctx) parts.push(`\n## Device: ${device.pluginId}\n${ctx}`);
+        // Collect required entry point files from agent-context
+        const fileMatch = ctx?.match(/Generate `([^`]+)` as the entry point/);
+        if (fileMatch) requiredFiles.push(fileMatch[1]);
+      }
+      // Inject per-instance fields so the agent knows user's pin/config selections
+      if (device.fields && Object.keys(device.fields).length > 0) {
+        const fieldLines = Object.entries(device.fields)
+          .map(([k, v]) => `${k}: ${v}`)
+          .join('\n');
+        parts.push(`\n## Device Instance: ${device.pluginId}\n${fieldLines}`);
+      }
+    }
+    if (requiredFiles.length > 0) {
+      parts.push('\n## MANDATORY OUTPUT FILES');
+      parts.push('You MUST create these files. The build will fail if any are missing:');
+      for (const f of requiredFiles) {
+        parts.push(`- **${f}** (device entry point -- required for deployment)`);
+      }
+    }
+  }
+
   if (predecessors.length) {
     parts.push('\n## WHAT HAPPENED BEFORE YOU');
     parts.push('Previous agents completed these tasks. Use their output as context:');
@@ -123,49 +155,6 @@ export function formatTaskPrompt(params: {
   const deployment = spec.deployment ?? {};
   if (deployment.target) {
     parts.push(`\n## Deployment Target: ${deployment.target}`);
-  }
-
-  if (deployment.target === 'esp32' || deployment.target === 'both') {
-    parts.push(`
-## Hardware Instructions (ESP32 / MicroPython)
-
-You MUST write MicroPython code (not JavaScript, not CPython). The entry point MUST be \`src/main.py\`.
-
-An \`elisa_hardware.py\` library is pre-installed in the workspace. Import and use the \`ElisaBoard\` class:
-
-\`\`\`python
-from elisa_hardware import ElisaBoard
-import time
-
-board = ElisaBoard()
-
-# LED control
-board.led_on()
-board.led_off()
-board.led_blink(times=3, speed="normal")  # speed: "slow", "normal", "fast"
-
-# Button (GPIO 0)
-board.on_button_press(lambda: print("pressed!"))
-
-# LoRa messaging (SX1262, 915 MHz)
-board.send_message("hello", channel=1)
-board.on_message(lambda msg, ch: print(f"got: {msg}"), channel=1)
-
-# Buzzer
-board.play_tone(freq=1000, duration=0.5)
-
-# Sensors
-temp = board.read_sensor("temperature")  # also: "light", "motion"
-\`\`\`
-
-Key constraints:
-- Only use MicroPython-compatible imports (machine, time, etc.). No pip packages.
-- The board is a Heltec WiFi LoRa 32 (ESP32-S3 + SX1262).
-- Use \`print()\` for serial output -- it streams to the user's dashboard.
-- Keep the main loop alive with \`while True:\` and \`time.sleep()\`.
-- Do NOT attempt to flash, deploy, or upload code to the board. Do NOT run mpremote, esptool, ampy, pyserial, or any serial/deployment tools. Do NOT write deployment scripts. Just write the \`.py\` source files using the Write tool. A separate deploy phase handles flashing automatically after you finish.
-- NEVER use emoji or unicode characters beyond ASCII in any Python code. MicroPython on ESP32 has limited encoding support and emoji will cause runtime errors. Use plain ASCII text only in all strings and comments.
-`);
   }
 
   const featureSkills = (spec.skills ?? []).filter(

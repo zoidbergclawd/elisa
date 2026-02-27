@@ -22,10 +22,11 @@ import { useBoardDetect } from './hooks/useBoardDetect';
 import ReadinessBadge from './components/shared/ReadinessBadge';
 import DirectoryPickerModal from './components/shared/DirectoryPickerModal';
 import BoardDetectedModal from './components/shared/BoardDetectedModal';
-import { portalTemplates } from './components/Portals/portalTemplates';
+import FlashWizardModal from './components/shared/FlashWizardModal';
 import { playChime } from './lib/playChime';
 import { saveNuggetFile, loadNuggetFile, downloadBlob } from './lib/nuggetFile';
 import { setAuthToken, authFetch } from './lib/apiClient';
+import { registerDeviceBlocks, type DeviceManifest } from './lib/deviceBlocks';
 import type { TeachingMoment } from './types';
 import elisaLogo from '../assets/elisa.svg';
 import type { Skill, Rule } from './components/Skills/types';
@@ -52,28 +53,48 @@ export default function App() {
   const {
     uiState, tasks, agents, commits, events, sessionId,
     teachingMoments, testResults, coveragePct, tokenUsage,
-    serialLines, deployProgress, deployChecklist, deployUrl, gateRequest, questionRequest,
+    serialLines, deployProgress, deployChecklist, deployUrls, gateRequest, questionRequest,
     nuggetDir, errorNotification, narratorMessages, isPlanning,
+    flashWizardState,
     handleEvent, startBuild, stopBuild, clearGateRequest, clearQuestionRequest,
     clearErrorNotification, resetToDesign,
   } = useBuildSession();
   const { waitForOpen } = useWebSocket({ sessionId, onEvent: handleEvent });
   const { health, loading: healthLoading } = useHealthCheck(uiState === 'design');
-  const { boardInfo, justConnected, acknowledgeConnection } = useBoardDetect(uiState === 'design');
 
   // Fetch auth token on mount
+  const [authReady, setAuthReady] = useState(false);
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const api = (window as unknown as Record<string, any>).elisaAPI;
     if (api?.getAuthToken) {
       api.getAuthToken().then((token: string | null) => {
         if (token) setAuthToken(token);
+        setAuthReady(true);
       });
     } else {
       // Dev mode without Electron: use dev default
       setAuthToken('dev-token');
+      setAuthReady(true);
     }
   }, []);
+
+  const { boardInfo, justConnected, acknowledgeConnection } = useBoardDetect(uiState === 'design' && authReady);
+
+  // Device manifests from backend plugin registry
+  const [deviceManifests, setDeviceManifests] = useState<DeviceManifest[]>([]);
+
+  // Fetch device manifests after auth token is ready
+  useEffect(() => {
+    if (!authReady) return;
+    authFetch('/api/devices')
+      .then(r => r.ok ? r.json() : [])
+      .then((data: DeviceManifest[]) => {
+        registerDeviceBlocks(data);
+        setDeviceManifests(data);
+      })
+      .catch(() => { /* device plugins unavailable -- not critical */ });
+  }, [authReady]);
 
   // Main tab state
   const [activeMainTab, setActiveMainTab] = useState<MainTab>('workspace');
@@ -145,9 +166,9 @@ export default function App() {
   // Re-interpret workspace when skills/rules/portals change (without Blockly interaction)
   useEffect(() => {
     if (workspaceJson) {
-      setSpec(interpretWorkspace(workspaceJson, skills, rules, portals)); // eslint-disable-line react-hooks/set-state-in-effect
+      setSpec(interpretWorkspace(workspaceJson, skills, rules, portals, deviceManifests)); // eslint-disable-line react-hooks/set-state-in-effect
     }
-  }, [skills, rules, portals]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [skills, rules, portals, deviceManifests]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-switch to agents tab when build starts
   useEffect(() => {
@@ -183,14 +204,14 @@ export default function App() {
   }, [activeMainTab]);
 
   const handleWorkspaceChange = useCallback((json: Record<string, unknown>) => {
-    setSpec(interpretWorkspace(json, skills, rules, portals));
+    setSpec(interpretWorkspace(json, skills, rules, portals, deviceManifests));
     setWorkspaceJson(json);
     try {
       localStorage.setItem(LS_WORKSPACE, JSON.stringify(json));
     } catch {
       // localStorage full or unavailable -- ignore
     }
-  }, [skills, rules, portals]);
+  }, [skills, rules, portals, deviceManifests]);
 
   const pickDirectory = async (): Promise<string | null> => {
     // Try Electron native dialog first
@@ -365,32 +386,6 @@ export default function App() {
     setExamplePickerOpen(false);
   }, []);
 
-  const handleBoardCreatePortal = useCallback(() => {
-    if (!boardInfo) return;
-
-    // Only create a new portal if one doesn't already exist for this port
-    const hasPortal = portals.some(
-      p => p.mechanism === 'serial' && p.serialConfig?.port === boardInfo.port
-    );
-    if (!hasPortal) {
-      const tmpl = portalTemplates.find(t => t.templateId === 'esp32');
-      if (!tmpl) return;
-
-      const newPortal: Portal = {
-        ...tmpl,
-        id: crypto.randomUUID(),
-        name: boardInfo.boardType,
-        status: 'ready' as const,
-        serialConfig: { ...tmpl.serialConfig, port: boardInfo.port, boardType: boardInfo.boardType },
-      };
-
-      setPortals(prev => [...prev, newPortal]);
-    }
-
-    setBoardDetectedModalOpen(false);
-    setPortalsModalOpen(true);
-  }, [boardInfo, portals]);
-
   const handleBoardDismiss = useCallback(() => {
     if (boardInfo) boardDismissedPortsRef.current.add(boardInfo.port);
     setBoardDetectedModalOpen(false);
@@ -457,6 +452,7 @@ export default function App() {
               rules={rules}
               portals={portals}
               initialWorkspace={initialWorkspace}
+              deviceManifests={deviceManifests}
             />
           </div>
         </div>
@@ -514,6 +510,26 @@ export default function App() {
         />
       )}
 
+      {/* Flash wizard modal */}
+      {flashWizardState?.visible && sessionId && (
+        <FlashWizardModal
+          deviceRole={flashWizardState.deviceRole}
+          message={flashWizardState.message}
+          isFlashing={flashWizardState.isFlashing}
+          progress={flashWizardState.progress}
+          deviceName={flashWizardState.deviceName}
+          onReady={() => {
+            authFetch(`/api/sessions/${sessionId}/gate`, {
+              method: 'POST',
+              body: JSON.stringify({ approved: true }),
+            });
+          }}
+          onCancel={() => {
+            authFetch(`/api/sessions/${sessionId}/stop`, { method: 'POST' });
+          }}
+        />
+      )}
+
       {/* Skills modal */}
       {skillsModalOpen && (
         <SkillsModal
@@ -538,7 +554,6 @@ export default function App() {
           portals={portals}
           onPortalsChange={setPortals}
           onClose={() => setPortalsModalOpen(false)}
-          boardInfo={boardInfo}
         />
       )}
 
@@ -554,8 +569,19 @@ export default function App() {
       {boardDetectedModalOpen && boardInfo && (
         <BoardDetectedModal
           boardInfo={boardInfo}
-          hasExistingPortal={portals.some(p => p.mechanism === 'serial' && p.serialConfig?.port === boardInfo.port)}
-          onCreatePortal={handleBoardCreatePortal}
+          matchingPlugins={deviceManifests.filter(m => {
+            if (!m.board) return false;
+            // Match by USB VID when both sides have detection info.
+            // PIDs vary across firmware versions and board manufacturers under the
+            // same VID, so matching on VID alone is sufficient for board family.
+            const det = m.board.detection;
+            if (det?.usb_vid && boardInfo.vendorId) {
+              const manifestVid = det.usb_vid.replace(/^0x/i, '').toUpperCase();
+              return manifestVid === boardInfo.vendorId.toUpperCase();
+            }
+            // Fallback: check if detected board type contains the plugin board type
+            return boardInfo.boardType.toLowerCase().includes(m.board.type.toLowerCase());
+          })}
           onDismiss={handleBoardDismiss}
         />
       )}
@@ -656,16 +682,17 @@ export default function App() {
               </div>
             )}
             <div className="flex flex-col items-center gap-2">
-              {deployUrl && (
+              {Object.entries(deployUrls).map(([target, url]) => (
                 <a
-                  href={deployUrl}
+                  key={target}
+                  href={url}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="go-btn px-6 py-2.5 rounded-xl text-sm inline-block"
                 >
-                  Open in Browser
+                  {Object.keys(deployUrls).length > 1 ? `Open ${target}` : 'Open in Browser'}
                 </a>
-              )}
+              ))}
               <button
                 onClick={() => {
                   if (sessionId) {

@@ -11,7 +11,8 @@ Delegates to phase handlers in sequence: plan -> execute -> test -> deploy. Owns
 - **planPhase.ts** -- MetaPlanner invocation, DAG setup, teaching moments
 - **executePhase.ts** -- Streaming-parallel task execution (Promise.race pool, up to 3 concurrent), workspace setup (cleans stale `.elisa/` artifacts on re-builds), git mutex, context chain, token budget enforcement
 - **testPhase.ts** -- Test runner invocation, result reporting
-- **deployPhase.ts** -- Web preview (local HTTP server), hardware flash, serial portal deployment, CLI portal execution, serial monitor
+- **deployPhase.ts** -- Web preview (local HTTP server), device flash (via plugin manifests), CLI portal execution
+- **deployOrder.ts** -- Device deploy ordering via provides/requires dependency DAG
 - **types.ts** -- Shared `PhaseContext` and `SendEvent` types
 
 ### agentRunner.ts (SDK agent runner)
@@ -36,7 +37,10 @@ Executes SkillPlans step-by-step with user interaction. 6 step types: `ask_user`
 Consolidates all session state into a single `Map<string, SessionEntry>`. Optional JSON persistence via `SessionPersistence` for checkpoint/recovery. Methods: `create()`, `get()`, `getOrThrow()`, `has()`, `checkpoint()`, `recover()`, `scheduleCleanup()`, `pruneStale()`, `cancelAll()`.
 
 ### portalService.ts (portal adapters)
-Manages portal adapters per session (MCP, CLI, Serial). Command allowlist validation (`ALLOWED_COMMANDS`) prevents shell injection. `CliPortalAdapter.execute()` runs CLI tools via `execFile` (no shell). `getMcpServers()` collects MCP configs for agent context. `getCliPortals()` collects CLI adapters for deploy phase.
+Manages portal adapters per session (MCP, CLI). Command allowlist validation (`ALLOWED_COMMANDS`) prevents shell injection. `CliPortalAdapter.execute()` runs CLI tools via `execFile` (no shell). `getMcpServers()` collects MCP configs for agent context. `getCliPortals()` collects CLI adapters for deploy phase.
+
+### deviceRegistry.ts (device plugins)
+Loads device plugin manifests from `devices/` directory at startup. Validates each `device.json` against `DeviceManifestSchema`. Provides: `getAllDevices()` for REST API, `getBlockDefinitions()` for frontend block registration, `getAgentContext()` for builder prompt injection (reads `prompts/agent-context.md` from plugin dir). Caches agent context per plugin. Skips `_shared/` and invalid plugins.
 
 ### teachingEngine.ts (educational moments)
 Fast-path curriculum lookup maps events to concepts. Deduplicates per concept per session. Falls back to Claude Sonnet API for dynamic generation. Targets ages 8-14.
@@ -59,5 +63,5 @@ Orchestrator.run(spec)
   |       TeachingEngine.check()        returns teaching moment (if any)
   |       ContextManager.update()       writes summary + structural digest
   |-> TestPhase.execute(ctx)            returns test results + coverage
-  |-> DeployPhase.deploy*(ctx)          web preview, hardware flash, or portal deploy
+  |-> DeployPhase.deploy*(ctx)          web preview, device flash, or portal deploy
 ```

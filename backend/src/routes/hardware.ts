@@ -16,7 +16,13 @@ export function createHardwareRouter({ store, hardwareService }: HardwareRouterD
   router.get('/detect', async (_req, res) => {
     const board = await hardwareService.detectBoardFast();
     if (board) {
-      res.json({ detected: true, port: board.port, board_type: board.boardType });
+      res.json({
+        detected: true,
+        port: board.port,
+        board_type: board.boardType,
+        vendor_id: board.vendorId,
+        product_id: board.productId,
+      });
     } else {
       res.json({ detected: false });
     }

@@ -22,6 +22,7 @@ import { PermissionPolicy } from './permissionPolicy.js';
 import { ContextManager } from '../utils/contextManager.js';
 import { SessionLogger } from '../utils/sessionLogger.js';
 import { TokenTracker } from '../utils/tokenTracker.js';
+import { DeviceRegistry } from './deviceRegistry.js';
 
 type SendEvent = (event: Record<string, any>) => Promise<void>;
 
@@ -33,7 +34,6 @@ export class Orchestrator {
   private nuggetType = 'software';
   private testResults: Record<string, any> = {};
   private commits: CommitInfo[] = [];
-  private serialHandle: { close: () => void } | null = null;
   private webServerProcess: ChildProcess | null = null;
   private userWorkspace: boolean;
 
@@ -57,26 +57,29 @@ export class Orchestrator {
   private portalService: PortalService;
   private narratorService = new NarratorService();
   private permissionPolicy: PermissionPolicy | null = null;
+  private deviceRegistry: DeviceRegistry;
 
   // Phase handlers
   private planPhase: PlanPhase;
   private testPhase: TestPhase;
   private deployPhase: DeployPhase;
 
-  constructor(session: BuildSession, sendEvent: SendEvent, hardwareService?: HardwareService, workspacePath?: string) {
+  constructor(session: BuildSession, sendEvent: SendEvent, hardwareService?: HardwareService, workspacePath?: string, deviceRegistry?: DeviceRegistry) {
     this.session = session;
     this.send = sendEvent;
     this.nuggetDir = workspacePath || path.join(os.tmpdir(), `elisa-nugget-${session.id}`);
     this.userWorkspace = !!workspacePath;
     this.hardwareService = hardwareService ?? new HardwareService();
-    this.portalService = new PortalService(this.hardwareService);
+    this.portalService = new PortalService();
+    this.deviceRegistry = deviceRegistry ?? new DeviceRegistry(path.resolve(import.meta.dirname, '../../devices'));
 
-    this.planPhase = new PlanPhase(new MetaPlanner(), this.teachingEngine);
+    this.planPhase = new PlanPhase(new MetaPlanner(), this.teachingEngine, this.deviceRegistry);
     this.testPhase = new TestPhase(this.testRunner, this.teachingEngine);
     this.deployPhase = new DeployPhase(
       this.hardwareService,
       this.portalService,
       this.teachingEngine,
+      this.deviceRegistry,
     );
   }
 
@@ -128,6 +131,7 @@ export class Orchestrator {
         gateResolver: this.gateResolver,
         narratorService: this.narratorService,
         permissionPolicy: this.permissionPolicy,
+        deviceRegistry: this.deviceRegistry,
       });
 
       // Initialize logger before execute so plan and execute phases get logging
@@ -140,17 +144,24 @@ export class Orchestrator {
       await this.testPhase.execute(this.makeContext());
 
       // Deploy
+      console.log('[orchestrator] entering deploy phase');
+      console.log('[orchestrator] session.spec.devices:', JSON.stringify(this.session.spec?.devices ?? null));
+      console.log('[orchestrator] session.spec.deployment:', JSON.stringify(this.session.spec?.deployment ?? null));
       const deployCtx = this.makeContext();
+      if (this.deployPhase.shouldDeployDevices(deployCtx)) {
+        console.log('[orchestrator] deploying devices...');
+        await this.deployPhase.deployDevices(deployCtx, this.gateResolver);
+        console.log('[orchestrator] device deploy finished');
+      }
       if (this.deployPhase.shouldDeployWeb(deployCtx)) {
+        console.log('[orchestrator] deploying web...');
         const { process: webProc } = await this.deployPhase.deployWeb(deployCtx);
         this.webServerProcess = webProc;
-      }
-      if (this.deployPhase.shouldDeployPortals(deployCtx)) {
-        const { serialHandle } = await this.deployPhase.deployPortals(deployCtx);
-        this.serialHandle = serialHandle;
-      } else if (this.deployPhase.shouldDeployHardware(deployCtx)) {
-        const { serialHandle } = await this.deployPhase.deployHardware(deployCtx);
-        this.serialHandle = serialHandle;
+        console.log('[orchestrator] web deploy finished, process:', webProc ? 'running' : 'null');
+      } else if (this.deployPhase.shouldDeployPortals(deployCtx)) {
+        console.log('[orchestrator] deploying portals...');
+        await this.deployPhase.deployPortals(deployCtx);
+        console.log('[orchestrator] portal deploy finished');
       }
 
       // Complete
@@ -179,12 +190,6 @@ export class Orchestrator {
     tasks: Record<string, any>[],
     agents: Record<string, any>[],
   ): Promise<void> {
-    // Close serial monitor immediately so the COM port is free for the next session
-    if (this.serialHandle) {
-      try { this.serialHandle.close(); } catch { /* ignore */ }
-      this.serialHandle = null;
-    }
-
     this.session.state = 'done';
     this.logger?.phase('done');
     for (const agent of agents) agent.status = 'done';
@@ -222,11 +227,6 @@ export class Orchestrator {
     if (this.webServerProcess) {
       try { this.webServerProcess.kill(); } catch { /* ignore */ }
       this.webServerProcess = null;
-    }
-    // Close serial monitor so the COM port is released for the next flash
-    if (this.serialHandle) {
-      try { this.serialHandle.close(); } catch { /* ignore */ }
-      this.serialHandle = null;
     }
     // Skip directory cleanup for user-chosen workspaces
     if (this.userWorkspace) return;

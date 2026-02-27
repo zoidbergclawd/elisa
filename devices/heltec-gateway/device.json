@@ -1,0 +1,52 @@
+{
+  "id": "heltec-gateway",
+  "name": "Heltec Gateway",
+  "version": "1.0.0",
+  "description": "ESP32 gateway that receives LoRa data and relays to cloud via WiFi",
+  "icon": "radio",
+  "colour": 45,
+
+  "board": {
+    "type": "esp32",
+    "variant": "heltec_lora_v3",
+    "connection": "serial",
+    "detection": {
+      "usb_vid": "0x303A",
+      "usb_pid": "0x1001"
+    }
+  },
+
+  "capabilities": [
+    { "id": "lora_rx", "name": "LoRa Receive", "kind": "radio", "params": [{ "name": "channel", "type": "number", "default": 1, "min": 0, "max": 255 }] },
+    { "id": "wifi", "name": "WiFi Connection", "kind": "network" },
+    { "id": "http_post", "name": "HTTP POST to Cloud", "kind": "network" }
+  ],
+
+  "blocks": [
+    {
+      "type": "heltec_gateway",
+      "message": "Gateway Node %1 LoRa Channel %2 WiFi SSID %3 WiFi Password %4",
+      "args": [
+        { "type": "input_dummy" },
+        { "type": "field_number", "name": "LORA_CHANNEL", "value": 1, "min": 0, "max": 255 },
+        { "type": "field_input", "name": "WIFI_SSID", "text": "" },
+        { "type": "field_input", "name": "WIFI_PASS", "text": "" }
+      ],
+      "previousStatement": true,
+      "nextStatement": true,
+      "tooltip": "Configure a gateway that relays LoRa data to cloud over WiFi"
+    }
+  ],
+
+  "deploy": {
+    "method": "flash",
+    "provides": [],
+    "requires": ["cloud_url", "api_key"],
+    "flash": {
+      "files": ["gateway_main.py"],
+      "lib": ["nodes.py", "oled.py", "ssd1306.py"],
+      "shared_lib": ["elisa_hardware.py", "_sx126x.py", "sx126x.py", "sx1262.py"],
+      "prompt_message": "Plug in your Gateway Node and click Ready"
+    }
+  }
+}

@@ -6,8 +6,6 @@ import { portalTemplates } from './portalTemplates';
 describe('portalTemplates', () => {
   it('contains all expected templates', () => {
     const ids = portalTemplates.map((t) => t.templateId);
-    expect(ids).toContain('esp32');
-    expect(ids).toContain('lora');
     expect(ids).toContain('filesystem');
     expect(ids).toContain('github');
     expect(ids).toContain('brave-search');

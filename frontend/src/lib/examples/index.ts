@@ -6,6 +6,7 @@ import { teamBuild } from './teamBuild';
 import { spaceDodge } from './spaceDodge';
 import { skillShowcase } from './skillShowcase';
 import { rulesShowcase } from './rulesShowcase';
+import { iotSensorNetwork } from './iotSensorNetwork';
 
 export interface ExampleNugget {
   id: string;
@@ -23,6 +24,7 @@ export interface ExampleNugget {
 export const EXAMPLE_NUGGETS: ExampleNugget[] = [
   simpleWebApp,
   hardwareBlink,
+  iotSensorNetwork,
   teamBuild,
   spaceDodge,
   skillShowcase,

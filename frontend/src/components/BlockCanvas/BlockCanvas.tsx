@@ -1,11 +1,12 @@
 import { useRef, useEffect, useCallback, useImperativeHandle, forwardRef } from 'react';
 import * as Blockly from 'blockly';
 import { registerBlocks } from './blockDefinitions';
-import { toolbox } from './toolbox';
+import { toolbox, buildDeviceCategories } from './toolbox';
 import { updateSkillOptions, updateRuleOptions } from '../Skills/skillsRegistry';
 import { updatePortalOptions } from '../Portals/portalRegistry';
 import type { Skill, Rule } from '../Skills/types';
 import type { Portal } from '../Portals/types';
+import type { DeviceManifest } from '../../lib/deviceBlocks';
 
 registerBlocks();
 
@@ -21,10 +22,11 @@ interface BlockCanvasProps {
   rules?: Rule[];
   portals?: Portal[];
   initialWorkspace?: Record<string, unknown> | null;
+  deviceManifests?: DeviceManifest[];
 }
 
 const BlockCanvas = forwardRef<BlockCanvasHandle, BlockCanvasProps>(
-  function BlockCanvas({ onWorkspaceChange, readOnly = false, skills = [], rules = [], portals = [], initialWorkspace }, ref) {
+  function BlockCanvas({ onWorkspaceChange, readOnly = false, skills = [], rules = [], portals = [], initialWorkspace, deviceManifests = [] }, ref) {
     const containerRef = useRef<HTMLDivElement>(null);
     const workspaceRef = useRef<Blockly.WorkspaceSvg | null>(null);
     const initialWorkspaceRef = useRef(initialWorkspace);
@@ -56,8 +58,13 @@ const BlockCanvas = forwardRef<BlockCanvasHandle, BlockCanvasProps>(
     useEffect(() => {
       if (!containerRef.current || workspaceRef.current) return;
 
+      const dynamicToolbox = {
+        ...toolbox,
+        contents: [...toolbox.contents, ...buildDeviceCategories(deviceManifests)],
+      };
+
       const workspace = Blockly.inject(containerRef.current, {
-        toolbox,
+        toolbox: dynamicToolbox,
         grid: {
           spacing: 20,
           length: 3,
@@ -101,6 +108,16 @@ const BlockCanvas = forwardRef<BlockCanvasHandle, BlockCanvasProps>(
       updateRuleOptions(rules);
       updatePortalOptions(portals);
     }, [skills, rules, portals]);
+
+    // Update toolbox when device manifests load after initial render
+    useEffect(() => {
+      if (!workspaceRef.current || !deviceManifests.length) return;
+      const updated = {
+        ...toolbox,
+        contents: [...toolbox.contents, ...buildDeviceCategories(deviceManifests)],
+      };
+      workspaceRef.current.updateToolbox(updated);
+    }, [deviceManifests]);
 
     useEffect(() => {
       if (!workspaceRef.current) return;

@@ -470,6 +470,27 @@ const blockDefs = [
     helpUrl: '',
     extensions: ['portal_ask_extension'],
   },
+  // Goals category addition
+  {
+    type: 'write_guide',
+    message0: 'Write me a guide about %1',
+    args0: [
+      {
+        type: 'field_dropdown',
+        name: 'GUIDE_FOCUS',
+        options: [
+          ['how everything works', 'how_it_works'],
+          ['how to set it up', 'setup'],
+          ['what each part does', 'parts'],
+          ['all of the above', 'all'],
+        ],
+      },
+    ],
+    previousStatement: null,
+    nextStatement: null,
+    colour: 210,
+    tooltip: 'Generate a kid-friendly guide about your project',
+  },
 ];
 
 let registered = false;

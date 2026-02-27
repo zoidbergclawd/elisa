@@ -295,15 +295,15 @@ describe('blockInterpreter', () => {
       expect(spec.deployment.target).toBe('both');
     });
 
-    it('timer_every alone implies esp32 deployment', () => {
+    it('timer_every adds timer requirement without implying esp32', () => {
       const spec = interpretWorkspace(makeWorkspace([
         goalBlock('Test', { type: 'timer_every', fields: { INTERVAL: 10 } }),
       ]));
-      expect(spec.deployment.target).toBe('esp32');
-      expect(spec.deployment.auto_flash).toBe(true);
+      expect(spec.deployment.target).toBe('preview');
+      expect(spec.requirements).toContainEqual({ type: 'timer', description: 'Repeat every 10 seconds' });
     });
 
-    it('timer_every + deploy_web results in both', () => {
+    it('timer_every + deploy_web results in web', () => {
       const spec = interpretWorkspace(makeWorkspace([
         chainBlocks(
           { type: 'nugget_goal', fields: { GOAL_TEXT: 'test' } },
@@ -311,7 +311,7 @@ describe('blockInterpreter', () => {
           { type: 'deploy_web' },
         ),
       ]));
-      expect(spec.deployment.target).toBe('both');
+      expect(spec.deployment.target).toBe('web');
     });
   });
 
@@ -415,20 +415,18 @@ describe('blockInterpreter', () => {
       expect(spec.workflow.review_enabled).toBe(true);
     });
 
-    it('timer_every adds hardware timer component', () => {
+    it('timer_every adds timer requirement', () => {
       const spec = interpretWorkspace(makeWorkspace([
         goalBlock('Test', { type: 'timer_every', fields: { INTERVAL: 10 } }),
       ]));
-      expect(spec.hardware).toBeDefined();
-      expect(spec.hardware!.target).toBe('esp32');
-      expect(spec.hardware!.components).toEqual([{ type: 'timer', interval: 10 }]);
+      expect(spec.requirements).toContainEqual({ type: 'timer', description: 'Repeat every 10 seconds' });
     });
 
     it('timer_every defaults interval to 5 when field is missing', () => {
       const spec = interpretWorkspace(makeWorkspace([
         goalBlock('Test', { type: 'timer_every', fields: {} }),
       ]));
-      expect(spec.hardware!.components[0]).toEqual({ type: 'timer', interval: 5 });
+      expect(spec.requirements).toContainEqual({ type: 'timer', description: 'Repeat every 5 seconds' });
     });
   });
 
@@ -548,16 +546,16 @@ describe('blockInterpreter', () => {
     const portals: Portal[] = [
       {
         id: 'portal-1',
-        name: 'My ESP32',
-        description: 'An ESP32 board',
-        mechanism: 'serial',
+        name: 'My CLI Tool',
+        description: 'A CLI tool',
+        mechanism: 'cli',
         status: 'unconfigured',
         capabilities: [
           { id: 'led-on', name: 'LED on', kind: 'action', description: 'Turn LED on' },
           { id: 'btn-press', name: 'Button pressed', kind: 'event', description: 'Button event' },
           { id: 'read-temp', name: 'Read temperature', kind: 'query', description: 'Read temp sensor' },
         ],
-        serialConfig: { baudRate: 115200, boardType: 'esp32' },
+        cliConfig: { command: 'my-tool', args: ['--verbose'] },
       },
       {
         id: 'portal-2',
@@ -578,8 +576,8 @@ describe('blockInterpreter', () => {
         undefined, undefined, portals,
       );
       expect(spec.portals).toHaveLength(1);
-      expect(spec.portals![0].name).toBe('My ESP32');
-      expect(spec.portals![0].mechanism).toBe('serial');
+      expect(spec.portals![0].name).toBe('My CLI Tool');
+      expect(spec.portals![0].mechanism).toBe('cli');
       expect(spec.portals![0].interactions).toContainEqual({ type: 'tell', capabilityId: 'led-on' });
     });
 
@@ -630,22 +628,12 @@ describe('blockInterpreter', () => {
       expect(spec.portals![1].id).toBe('portal-2');
     });
 
-    it('includes serialConfig in portal entry', () => {
-      const spec = interpretWorkspace(
-        makeWorkspace([goalBlock('Test', { type: 'portal_tell', fields: { PORTAL_ID: 'portal-1', CAPABILITY_ID: 'led-on' } })]),
-        undefined, undefined, portals,
-      );
-      expect(spec.portals![0].serialConfig).toEqual({ baudRate: 115200, boardType: 'esp32' });
-      expect(spec.portals![0].mcpConfig).toBeUndefined();
-    });
-
     it('includes mcpConfig in portal entry', () => {
       const spec = interpretWorkspace(
         makeWorkspace([goalBlock('Test', { type: 'portal_tell', fields: { PORTAL_ID: 'portal-2', CAPABILITY_ID: 'get-forecast' } })]),
         undefined, undefined, portals,
       );
       expect(spec.portals![0].mcpConfig).toEqual({ command: 'weather-mcp', args: ['--api'] });
-      expect(spec.portals![0].serialConfig).toBeUndefined();
     });
 
     it('ignores portal block with unknown portal ID', () => {
@@ -927,7 +915,7 @@ describe('blockInterpreter', () => {
 
       expect(spec.nugget.goal).toBe('LED blinker');
       expect(spec.nugget.type).toBe('hardware');
-      expect(spec.hardware!.components).toEqual([{ type: 'timer', interval: 2 }]);
+      expect(spec.requirements).toContainEqual({ type: 'timer', description: 'Repeat every 2 seconds' });
       expect(spec.deployment.target).toBe('esp32');
       expect(spec.deployment.auto_flash).toBe(true);
       expect(spec.agents).toHaveLength(1);

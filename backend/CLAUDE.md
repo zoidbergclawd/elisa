@@ -30,7 +30,8 @@ src/
       planPhase.ts       MetaPlanner invocation, DAG setup
       executePhase.ts    Task execution loop (parallel, git mutex, context chain)
       testPhase.ts       Test runner invocation, result reporting
-      deployPhase.ts     Hardware flash, portal deployment
+      deployPhase.ts     Device flash, portal deployment, web preview
+      deployOrder.ts     Device deploy ordering (provides/requires DAG)
     agentRunner.ts       Runs agents via SDK query() API, streams output
     metaPlanner.ts       Calls Claude API to decompose NuggetSpec into task DAG
     gitService.ts        Git init, commit per task, diff tracking
@@ -40,6 +41,7 @@ src/
     teachingEngine.ts    Generates contextual learning moments (curriculum + API fallback)
     narratorService.ts   Generates narrator messages for build events (Claude Haiku)
     permissionPolicy.ts  Auto-resolves agent permission requests based on policy rules
+    deviceRegistry.ts    Loads device plugin manifests, provides block defs + agent context
   prompts/
     metaPlanner.ts       System prompt for task decomposition
     builderAgent.ts      Builder role prompt template
@@ -51,6 +53,7 @@ src/
     dag.ts               Task DAG with Kahn's topological sort, cycle detection
     contextManager.ts    Builds file manifests, nugget context, structural digests, state snapshots
     specValidator.ts     Zod schema for NuggetSpec validation (string caps, array limits)
+    deviceManifestSchema.ts  Zod schema for device.json manifest validation
     sessionLogger.ts     Per-session structured logging to .elisa/logs/
     sessionPersistence.ts Atomic JSON persistence for session checkpoint/recovery
     tokenTracker.ts      Tracks input/output tokens, cost per agent, budget limits
@@ -82,11 +85,12 @@ src/
 | POST | /api/workspace/load | Load design files from workspace directory |
 | POST | /api/skills/run | Start standalone skill execution |
 | POST | /api/skills/:id/answer | Answer skill question |
+| GET | /api/devices | List device plugin manifests |
 | GET | /api/hardware/detect | Detect ESP32 (fast VID:PID only) |
 | POST | /api/hardware/flash/:id | Flash to board |
 
 ### WebSocket Events (server -> client)
-`planning_started`, `plan_ready`, `task_started`, `task_completed`, `task_failed`, `agent_output`, `commit_created`, `token_usage`, `budget_warning`, `test_result`, `coverage_update`, `deploy_started`, `deploy_progress`, `deploy_checklist`, `deploy_complete` (includes `url?` for web deploys), `serial_data`, `human_gate`, `user_question`, `skill_*`, `teaching_moment`, `narrator_message`, `permission_auto_resolved`, `minion_state_change`, `workspace_created`, `error`, `session_complete`
+`planning_started`, `plan_ready`, `task_started`, `task_completed`, `task_failed`, `agent_output`, `commit_created`, `token_usage`, `budget_warning`, `test_result`, `coverage_update`, `deploy_started`, `deploy_progress`, `deploy_checklist`, `deploy_complete` (includes `url?` for web deploys), `serial_data`, `human_gate`, `user_question`, `skill_*`, `teaching_moment`, `narrator_message`, `permission_auto_resolved`, `minion_state_change`, `workspace_created`, `flash_prompt`, `flash_progress`, `flash_complete`, `documentation_ready`, `error`, `session_complete`
 
 ## Key Patterns
 
@@ -105,6 +109,17 @@ src/
 - **Graceful shutdown**: SIGTERM/SIGINT handlers cancel orchestrators, close WS server, 10s force-exit. `SessionStore.onCleanup` invokes `ConnectionManager.cleanup()` for WS teardown.
 - **Graceful degradation**: Missing external tools (git, pytest, mpremote) produce warnings, not crashes.
 - **Timeouts**: Agent=300s, Tests=120s, Flash=60s. Task retry limit=2.
+
+## Device Plugin Deploy Flow
+
+Multi-device builds use the device plugin system:
+1. Deploy phase checks `shouldDeployDevices()` (spec has `devices` array)
+2. `resolveDeployOrder()` sorts devices by provides/requires DAG
+3. Emits `flash_prompt` for each device -- frontend shows FlashWizardModal
+4. User connects each device; `flash_progress` streams per-file flash status
+5. `flash_complete` confirms each device is done
+6. Files flashed from plugin manifest's `deploy.flash.files` + `deploy.flash.lib`
+7. Shared libraries from `devices/_shared/` included via `deploy.flash.shared_lib`
 
 ## Server Modes
 

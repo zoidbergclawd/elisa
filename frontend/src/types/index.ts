@@ -82,10 +82,16 @@ export interface NarratorMessage {
   timestamp: number;
 }
 
+export interface DeviceInstance {
+  pluginId: string;
+  instanceId: string;
+  fields: Record<string, unknown>;
+}
+
 export type WSEvent =
   | { type: 'session_started'; session_id: string }
   | { type: 'planning_started' }
-  | { type: 'plan_ready'; tasks: Task[]; agents: Agent[]; explanation: string; deployment_target?: string }
+  | { type: 'plan_ready'; tasks: Task[]; agents: Agent[]; explanation: string; deployment_target?: string; deploy_steps?: Array<{ id: string; name: string; method: string }> }
   | { type: 'task_started'; task_id: string; agent_name: string }
   | { type: 'task_completed'; task_id: string; summary: string }
   | { type: 'task_failed'; task_id: string; error: string; retry_count: number }
@@ -116,4 +122,8 @@ export type WSEvent =
   | { type: 'narrator_message'; from: string; text: string; mood: 'excited' | 'encouraging' | 'concerned' | 'celebrating'; related_task_id?: string }
   | { type: 'permission_auto_resolved'; task_id: string; permission_type: string; decision: 'approved' | 'denied'; reason: string }
   | { type: 'minion_state_change'; agent_name: string; old_status: string; new_status: string }
-  | { type: 'session_complete'; summary: string };
+  | { type: 'session_complete'; summary: string }
+  | { type: 'flash_prompt'; device_role: string; message: string }
+  | { type: 'flash_progress'; device_role: string; step: string; progress: number }
+  | { type: 'flash_complete'; device_role: string; success: boolean; message?: string }
+  | { type: 'documentation_ready'; file_path: string };

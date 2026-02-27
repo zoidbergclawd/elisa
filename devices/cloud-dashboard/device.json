@@ -1,0 +1,43 @@
+{
+  "id": "cloud-dashboard",
+  "name": "Cloud Dashboard",
+  "version": "1.0.0",
+  "description": "Real-time IoT dashboard deployed to Google Cloud Run",
+  "icon": "cloud",
+  "colour": 210,
+
+  "board": null,
+
+  "capabilities": [
+    { "id": "ingest", "name": "Data Ingest Endpoint", "kind": "network" },
+    { "id": "sse", "name": "Server-Sent Events Stream", "kind": "network" }
+  ],
+
+  "blocks": [
+    {
+      "type": "cloud_dashboard",
+      "message": "Cloud Dashboard %1 GCP Project %2",
+      "args": [
+        { "type": "input_dummy" },
+        { "type": "field_input", "name": "GCP_PROJECT", "text": "" }
+      ],
+      "previousStatement": true,
+      "nextStatement": true,
+      "tooltip": "Deploy a real-time dashboard to Google Cloud Run"
+    }
+  ],
+
+  "deploy": {
+    "method": "cloud",
+    "provides": ["cloud_url", "api_key"],
+    "requires": [],
+    "cloud": {
+      "platform": "cloud_run",
+      "scaffold_dir": "scaffold",
+      "params": [
+        { "name": "project", "field": "GCP_PROJECT" },
+        { "name": "region", "field": "GCP_REGION", "default": "us-central1" }
+      ]
+    }
+  }
+}

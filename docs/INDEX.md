@@ -31,9 +31,12 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/hooks/` | React hooks (session state, health, WebSocket, board detect, skills) |
 | `frontend/src/lib/` | Utility functions (nugget files, skill templates, terminology) |
 | `frontend/src/types/` | TypeScript definitions |
-| `hardware/` | MicroPython ESP32 templates + shared lib |
-| `hardware/lib/` | Shared MicroPython library (`elisa_hardware.py`) |
-| `hardware/templates/` | ESP32 project templates (blink, LoRa) |
+| `devices/` | Device plugins (manifest-driven, `device.json` per plugin) |
+| `devices/_shared/` | Shared MicroPython library (`elisa_hardware.py`) |
+| `devices/heltec-sensor-node/` | Heltec ESP32 sensor node plugin (DHT22, reed, PIR, OLED) |
+| `devices/heltec-gateway/` | Heltec ESP32 gateway plugin (LoRa aggregation) |
+| `devices/heltec-blink/` | Simple LED blink plugin |
+| `devices/cloud-dashboard/` | Cloud Run dashboard scaffold plugin |
 | `scripts/` | Build tooling (esbuild backend bundler, port killer, subdirectory installer) |
 | `docs/` | Product + technical documentation |
 | `support/` | ESP32 firmware binaries |
@@ -56,6 +59,8 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `docs/api-reference.md` | API | REST endpoints, WebSocket events, NuggetSpec schema |
 | `docs/block-reference.md` | User | Block categories with descriptions |
 | `docs/elisa-prd.md` | Product | PRD: vision, features, target audience |
+| `docs/device-plugins.md` | User | Device plugins guide: using shipped hardware plugins |
+| `docs/creating-device-plugins.md` | Dev | Developer guide for creating new device plugins |
 
 ## Key Source Files
 
@@ -84,6 +89,8 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/services/portalService.ts` | MCP + CLI portal adapters with command allowlist |
 | `backend/src/services/narratorService.ts` | Generates narrator messages for build events (Claude Haiku) |
 | `backend/src/services/permissionPolicy.ts` | Auto-resolves agent permission requests based on policy rules |
+| `backend/src/services/deviceRegistry.ts` | Loads device plugin manifests, provides block defs + agent context |
+| `backend/src/utils/deviceManifestSchema.ts` | Zod schema for device.json manifest validation |
 
 ### Phases
 
@@ -92,7 +99,8 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/services/phases/planPhase.ts` | MetaPlanner invocation, DAG setup, early teaching moments |
 | `backend/src/services/phases/executePhase.ts` | Streaming-parallel task execution (3 concurrent, Promise.race) |
 | `backend/src/services/phases/testPhase.ts` | Test runner invocation and result reporting |
-| `backend/src/services/phases/deployPhase.ts` | Web preview, hardware flash, portal deploy, serial monitor |
+| `backend/src/services/phases/deployPhase.ts` | Web preview, device flash, portal deploy |
+| `backend/src/services/phases/deployOrder.ts` | Device deploy ordering via provides/requires DAG |
 | `backend/src/services/phases/types.ts` | Shared PhaseContext and SendEvent types |
 
 ### Utils
@@ -137,6 +145,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/components/AgentTeam/AgentTeamPanel.tsx` | Full-width agent cards + comms feed |
 | `frontend/src/components/TaskMap/TaskMapPanel.tsx` | Full-width interactive task DAG |
 | `frontend/src/components/shared/MinionAvatar.tsx` | Animated avatar for narrator/minion characters |
+| `frontend/src/components/shared/FlashWizardModal.tsx` | Multi-device flash wizard modal for IoT deploy |
 | `frontend/src/components/MissionControl/MissionControlPanel.tsx` | Main mission control layout with narrator feed + minion squad |
 | `frontend/src/components/MissionControl/MinionSquadPanel.tsx` | Minion cards with status badges and task assignments |
 | `frontend/src/components/MissionControl/NarratorFeed.tsx` | Scrolling narrator message feed with mood indicators |
@@ -158,6 +167,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/lib/nuggetFile.ts` | .elisa nugget file save/load (JSZip-based) |
 | `frontend/src/lib/skillTemplates.ts` | Pre-built skill and rule templates |
 | `frontend/src/lib/terminology.ts` | Kid-friendly term mappings (technical -> friendly labels) |
+| `frontend/src/lib/deviceBlocks.ts` | Dynamic Blockly block registration from device plugin manifests |
 
 ### Electron
 
@@ -177,4 +187,14 @@ Blockly workspace
   -> agent output streamed via SDK -> WebSocket events
   -> useBuildSession -> React UI state updates
   -> (optional) "Keep working" -> design phase -> re-build with existing workspace + git history
+```
+
+### Device Plugin Pipeline
+
+```
+Blockly workspace (dynamic device blocks from plugin manifests)
+  -> blockInterpreter -> NuggetSpec JSON (with devices array)
+  -> orchestrator -> agents receive plugin context via DeviceRegistry.getAgentContext()
+  -> deployPhase: resolveDeployOrder() -> FlashWizardModal per device
+  -> flash files + shared libs from plugin manifest
 ```

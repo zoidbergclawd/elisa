@@ -34,6 +34,7 @@ App.tsx
   shared/ExamplePickerModal.tsx      Card grid to choose bundled example nuggets
   shared/DirectoryPickerModal.tsx   Text input fallback for non-Electron workspace directory selection
   shared/BoardDetectedModal.tsx    Celebrates ESP32 connection, offers one-click Portal creation
+  shared/FlashWizardModal.tsx     Multi-device flash wizard with progress bar for IoT deploy
   Skills/SkillsModal.tsx             CRUD editor for custom skills + template library
   Skills/SkillFlowEditor.tsx         Visual flow editor for composite skill steps
   Rules/RulesModal.tsx               CRUD editor for rules + template library
@@ -42,9 +43,10 @@ App.tsx
 
 ## BlockCanvas Subsystem
 
-- `blockDefinitions.ts`: 20+ custom block types across 10 categories (Goals, Requirements, Tests, Style, Minions, Skills, Rules, Portals, Flow, Deploy)
-- `blockInterpreter.ts`: Walks Blockly workspace JSON, extracts fields, builds NuggetSpec.
-- `toolbox.ts`: Defines Blockly sidebar categories and their block contents.
+- `blockDefinitions.ts`: Custom block types across 8 categories (Goal, Requirements, Style, Agents, Flow, Deploy, Skills, Portals)
+- `blockInterpreter.ts`: Walks Blockly workspace JSON, extracts fields, builds NuggetSpec. Device plugin blocks handled generically.
+- `toolbox.ts`: Defines Blockly sidebar categories. Device plugin blocks dynamically added via `buildDeviceCategories()`.
+- Device blocks: Loaded from `GET /api/devices` at startup and registered via `deviceBlocks.ts`.
 
 ## Key Patterns
 

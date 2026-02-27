@@ -24,6 +24,7 @@ vi.mock('./blockDefinitions', () => ({
 
 vi.mock('./toolbox', () => ({
   toolbox: { kind: 'categoryToolbox', contents: [] },
+  buildDeviceCategories: vi.fn(() => []),
 }));
 
 vi.mock('../Skills/skillsRegistry', () => ({

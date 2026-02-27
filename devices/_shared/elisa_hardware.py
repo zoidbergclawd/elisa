@@ -1,15 +1,16 @@
-"""Elisa hardware abstraction library for MicroPython on Heltec WiFi LoRa 32 V3."""
+"""Elisa hardware abstraction library for MicroPython on Heltec WiFi LoRa 32 V3/V4."""
 
 from machine import Pin, PWM
 import time
 
 
 class ElisaBoard:
-    """Hardware abstraction for the Heltec WiFi LoRa 32 V3 board."""
+    """Hardware abstraction for the Heltec WiFi LoRa 32 V3/V4 board."""
 
-    # Pin assignments for Heltec WiFi LoRa 32 V3
+    # Pin assignments for Heltec WiFi LoRa 32 V3/V4
     LED_PIN = 35
     BUTTON_PIN = 0
+    VEXT_PIN = 36  # Controls power to OLED and peripherals (LOW = on)
 
     SPEED_MAP = {
         "slow": 1000,
@@ -70,7 +71,8 @@ class ElisaBoard:
                 self._lora = SX1262(spi_bus=1, clk=9, mosi=10, miso=11,
                                     cs=8, irq=14, rst=12, gpio=13)
                 self._lora.begin(freq=915.0, bw=125.0, sf=7, cr=5,
-                                 syncWord=0x12, power=14)
+                                 syncWord=0x12, power=14,
+                                 tcxoVoltage=1.7)
             self._lora.send(bytes(f"[ch{channel}]{msg}", "utf-8"))
         except ImportError:
             print(f"[LoRa TX ch{channel}] {msg}")
@@ -90,10 +92,13 @@ class ElisaBoard:
                 self._lora = SX1262(spi_bus=1, clk=9, mosi=10, miso=11,
                                     cs=8, irq=14, rst=12, gpio=13)
                 self._lora.begin(freq=915.0, bw=125.0, sf=7, cr=5,
-                                 syncWord=0x12, power=14)
-            self._lora.setBlockingCallback(False, lambda: callback(
-                self._lora.recv().decode("utf-8"), channel
-            ))
+                                 syncWord=0x12, power=14,
+                                 tcxoVoltage=1.7)
+            def _rx_handler(events):
+                data, state = self._lora.recv()
+                if data:
+                    callback(data.decode("utf-8"), channel)
+            self._lora.setBlockingCallback(False, _rx_handler)
         except ImportError:
             print(f"[LoRa RX ch{channel}] Listening (stub mode)")
 
@@ -142,3 +147,12 @@ class ElisaBoard:
         except Exception:
             print(f"[Sensor] Reading {sensor_type} (stub mode)")
             return None
+
+
+# IoT sensor network classes
+try:
+    from sensors import DHT22Sensor, ReedSwitch, PIRSensor
+    from oled import OLEDDisplay
+    from nodes import SensorNode, GatewayNode
+except ImportError:
+    pass  # These modules are optional

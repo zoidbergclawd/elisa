@@ -14,6 +14,7 @@ import { TeachingEngine } from '../teachingEngine.js';
 import { PortalService } from '../portalService.js';
 import { NarratorService } from '../narratorService.js';
 import { PermissionPolicy } from '../permissionPolicy.js';
+import type { DeviceRegistry } from '../deviceRegistry.js';
 import { ContextManager } from '../../utils/contextManager.js';
 import { TokenTracker, DEFAULT_RESERVED_PER_TASK } from '../../utils/tokenTracker.js';
 import { TaskDAG } from '../../utils/dag.js';
@@ -29,6 +30,7 @@ interface PromptModule {
     spec: Record<string, any>;
     predecessors: string[];
     style?: Record<string, any> | null;
+    deviceRegistry?: { getAgentContext(id: string): string };
   }) => string;
 }
 
@@ -69,6 +71,7 @@ export interface ExecuteDeps {
   gateResolver: { current: ((value: Record<string, any>) => void) | null };
   narratorService?: NarratorService;
   permissionPolicy?: PermissionPolicy;
+  deviceRegistry?: DeviceRegistry;
 }
 
 export class ExecutePhase {
@@ -197,7 +200,117 @@ export class ExecutePhase {
       await Promise.all(inFlight.values());
     }
 
+    // Post-execution: validate required device entry point files exist
+    await this.validateDeviceFiles(ctx);
+
     return { commits: this.commits, taskSummaries: this.taskSummaries };
+  }
+
+  /**
+   * After all tasks complete, check that required device entry point files
+   * were generated. If any are missing, run a targeted fixup agent to create them.
+   */
+  private async validateDeviceFiles(ctx: PhaseContext): Promise<void> {
+    const spec = ctx.session.spec ?? {};
+    const devices = spec.devices ?? [];
+    if (!devices.length || !this.deps.deviceRegistry) return;
+
+    const missing: Array<{ pluginId: string; file: string }> = [];
+    for (const device of devices) {
+      const manifest = this.deps.deviceRegistry.getDevice(device.pluginId);
+      if (!manifest || manifest.deploy.method !== 'flash') continue;
+      for (const file of manifest.deploy.flash.files) {
+        const filePath = path.join(ctx.nuggetDir, file);
+        if (!fs.existsSync(filePath)) {
+          missing.push({ pluginId: device.pluginId, file });
+        }
+      }
+    }
+
+    if (missing.length === 0) return;
+
+    console.log(`[executePhase] Missing device files after execution: ${missing.map(m => m.file).join(', ')}`);
+
+    // Run a targeted fixup agent for each missing file
+    for (const { pluginId, file } of missing) {
+      const agentContext = this.deps.deviceRegistry.getAgentContext(pluginId);
+      const device = devices.find((d: any) => d.pluginId === pluginId);
+      const fieldLines = device?.fields
+        ? Object.entries(device.fields).map(([k, v]: [string, any]) => `${k}: ${v}`).join('\n')
+        : '';
+
+      const fixupPrompt = [
+        `# URGENT: Generate missing device entry point file`,
+        ``,
+        `The build completed but the required file \`${file}\` was not created.`,
+        `You MUST create this file now. The device cannot be deployed without it.`,
+        ``,
+        agentContext ? `## Device Context\n${agentContext}` : '',
+        fieldLines ? `## Device Instance: ${pluginId}\n${fieldLines}` : '',
+        ``,
+        `## Instructions`,
+        `1. Read the existing files in the workspace to understand what was already built.`,
+        `2. Create \`${file}\` following the device context above.`,
+        `3. Use the pin numbers and configuration from the Device Instance fields.`,
+        `4. Write a summary to .elisa/comms/fixup_${pluginId}_summary.md`,
+      ].filter(Boolean).join('\n');
+
+      const fixupSystemPrompt = builderAgent.SYSTEM_PROMPT
+        .replaceAll('{agent_name}', 'Fixup Agent')
+        .replaceAll('{persona}', 'A focused builder that generates missing device files.')
+        .replaceAll('{allowed_paths}', '.')
+        .replaceAll('{restricted_paths}', '.elisa/')
+        .replaceAll('{task_id}', `fixup-${pluginId}`)
+        .replaceAll('{nugget_goal}', sanitizePlaceholder((spec.nugget ?? {}).goal ?? 'Not specified'))
+        .replaceAll('{nugget_type}', sanitizePlaceholder((spec.nugget ?? {}).type ?? 'software'))
+        .replaceAll('{nugget_description}', sanitizePlaceholder((spec.nugget ?? {}).description ?? 'Not specified'));
+
+      const fixupTaskId = `fixup-${pluginId}`;
+      console.log(`[executePhase] Running fixup agent for ${file}...`);
+      await ctx.send({
+        type: 'agent_output',
+        task_id: fixupTaskId,
+        agent_name: 'Fixup Agent',
+        content: `Generating missing file: ${file}`,
+      });
+
+      try {
+        await this.deps.agentRunner.execute({
+          taskId: fixupTaskId,
+          systemPrompt: fixupSystemPrompt,
+          prompt: fixupPrompt,
+          workingDir: ctx.nuggetDir,
+          model: DEFAULT_MODEL,
+          maxTurns: 10,
+          abortSignal: ctx.abortSignal,
+          onOutput: async (_tid: string, content: string) => {
+            await ctx.send({
+              type: 'agent_output',
+              task_id: fixupTaskId,
+              agent_name: 'Fixup Agent',
+              content,
+            });
+          },
+        });
+
+        const created = fs.existsSync(path.join(ctx.nuggetDir, file));
+        console.log(`[executePhase] Fixup for ${file}: ${created ? 'SUCCESS' : 'STILL MISSING'}`);
+        if (!created) {
+          await ctx.send({
+            type: 'error',
+            message: `Fixup agent failed to create ${file} for ${pluginId}`,
+            recoverable: true,
+          });
+        }
+      } catch (err: any) {
+        console.error(`[executePhase] Fixup agent error for ${file}:`, err.message);
+        await ctx.send({
+          type: 'error',
+          message: `Fixup agent error for ${file}: ${err.message}`,
+          recoverable: true,
+        });
+      }
+    }
   }
 
   private async executeOneTask(
@@ -299,6 +412,7 @@ export class ExecutePhase {
       spec: ctx.session.spec ?? {},
       predecessors: predecessorSummaries,
       style: ctx.session.spec?.style ?? null,
+      deviceRegistry: this.deps.deviceRegistry,
     });
 
     // Inject agent-category skills and always-on rules into user prompt

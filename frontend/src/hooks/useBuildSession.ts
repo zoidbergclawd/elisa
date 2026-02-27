@@ -52,8 +52,18 @@ export function useBuildSession() {
   const [errorNotification, setErrorNotification] = useState<ErrorNotification | null>(null);
   const [narratorMessages, setNarratorMessages] = useState<NarratorMessage[]>([]);
   const [deployChecklist, setDeployChecklist] = useState<Array<{ name: string; prompt: string }> | null>(null);
-  const [deployUrl, setDeployUrl] = useState<string | null>(null);
+  const [deployUrls, setDeployUrls] = useState<Record<string, string>>({});
   const [isPlanning, setIsPlanning] = useState(false);
+  const deployStepsRef = useRef<Array<{ id: string; name: string; method: string }>>([]);
+  const [flashWizardState, setFlashWizardState] = useState<{
+    visible: boolean;
+    deviceRole: string;
+    message: string;
+    isFlashing: boolean;
+    progress: number;
+    deviceName?: string;
+  } | null>(null);
+  const [documentationPath, setDocumentationPath] = useState<string | null>(null);
   const tasksRef = useRef<Task[]>([]);
 
   const handleEvent = useCallback((event: WSEvent) => {
@@ -69,10 +79,38 @@ export function useBuildSession() {
       case 'plan_ready': {
         setIsPlanning(false);
         const planTasks: Task[] = event.tasks;
-        // Inject a synthetic deploy node for hardware targets
         const lastTaskId = planTasks.length > 0 ? planTasks[planTasks.length - 1].id : undefined;
         const deployTarget = event.deployment_target ?? '';
-        if (deployTarget === 'esp32' || deployTarget === 'both') {
+        const steps = event.deploy_steps;
+
+        if (steps && steps.length > 0) {
+          // Per-device deploy nodes from backend deploy_steps
+          deployStepsRef.current = steps;
+          for (const step of steps) {
+            const label = step.method === 'cloud' ? `Deploy ${step.name}` : `Flash ${step.name}`;
+            planTasks.push({
+              id: `__deploy_${step.id}__`,
+              name: label,
+              description: `${label} via ${step.method}`,
+              status: 'pending',
+              agent_name: '',
+              dependencies: lastTaskId ? [lastTaskId] : [],
+            });
+          }
+          // Add web preview node if target is 'both' and no cloud device provides a web preview
+          const hasCloud = steps.some(s => s.method === 'cloud');
+          if (deployTarget === 'both' && !hasCloud) {
+            planTasks.push({
+              id: '__deploy_web__',
+              name: 'Web Preview',
+              description: 'Start local web preview server',
+              status: 'pending',
+              agent_name: '',
+              dependencies: lastTaskId ? [lastTaskId] : [],
+            });
+          }
+        } else if (deployTarget === 'esp32' || deployTarget === 'both') {
+          // Legacy fallback: single deploy node
           planTasks.push({
             id: '__deploy__',
             name: 'Flash to Board',
@@ -141,35 +179,41 @@ export function useBuildSession() {
           files_changed: event.files_changed,
         }]);
         break;
-      case 'deploy_started':
+      case 'deploy_started': {
         setUiState('building');
         setDeployProgress({ step: 'Starting deployment...', progress: 0 });
+        const deployNodeId = `__deploy_${event.target}__`;
         setTasks(prev => {
           const next = prev.map(t =>
-            t.id === '__deploy__' ? { ...t, status: 'in_progress' as const } : t
+            (t.id === deployNodeId || t.id === '__deploy__') ? { ...t, status: 'in_progress' as const } : t
           );
           tasksRef.current = next;
           return next;
         });
         break;
+      }
       case 'deploy_progress':
         setDeployProgress({ step: event.step, progress: event.progress });
         break;
       case 'deploy_checklist':
         setDeployChecklist(event.rules);
         break;
-      case 'deploy_complete':
+      case 'deploy_complete': {
         setDeployProgress(null);
         setDeployChecklist(null);
-        if (event.url) setDeployUrl(event.url);
+        if (event.url) {
+          setDeployUrls(prev => ({ ...prev, [event.target]: event.url! }));
+        }
+        const completeNodeId = `__deploy_${event.target}__`;
         setTasks(prev => {
           const next = prev.map(t =>
-            t.id === '__deploy__' ? { ...t, status: 'done' as const } : t
+            (t.id === completeNodeId || t.id === '__deploy__') ? { ...t, status: 'done' as const } : t
           );
           tasksRef.current = next;
           return next;
         });
         break;
+      }
       case 'serial_data':
         setSerialLines(prev => {
           const next = [...prev, { line: event.line, timestamp: event.timestamp }];
@@ -267,13 +311,62 @@ export function useBuildSession() {
           a.name === event.agent_name ? { ...a, status: event.new_status as Agent['status'] } : a
         ));
         break;
+      case 'flash_prompt': {
+        const stepInfo = deployStepsRef.current.find(s => s.id === event.device_role);
+        setFlashWizardState({
+          visible: true,
+          deviceRole: event.device_role,
+          message: event.message,
+          isFlashing: false,
+          progress: 0,
+          deviceName: stepInfo?.name,
+        });
+        // Mark per-device deploy node as in_progress
+        const flashNodeId = `__deploy_${event.device_role}__`;
+        setTasks(prev => {
+          const next = prev.map(t =>
+            t.id === flashNodeId ? { ...t, status: 'in_progress' as const } : t
+          );
+          tasksRef.current = next;
+          return next;
+        });
+        break;
+      }
+      case 'flash_progress':
+        setFlashWizardState(prev => prev ? ({
+          ...prev,
+          isFlashing: true,
+          progress: event.progress,
+        }) : prev);
+        break;
+      case 'flash_complete': {
+        setFlashWizardState(prev => prev ? ({
+          ...prev,
+          isFlashing: false,
+          progress: 100,
+          visible: false,
+        }) : prev);
+        const flashDoneId = `__deploy_${event.device_role}__`;
+        const flashStatus = event.success ? 'done' as const : 'failed' as const;
+        setTasks(prev => {
+          const next = prev.map(t =>
+            t.id === flashDoneId ? { ...t, status: flashStatus } : t
+          );
+          tasksRef.current = next;
+          return next;
+        });
+        break;
+      }
+      case 'documentation_ready':
+        setDocumentationPath(event.file_path);
+        break;
       case 'workspace_created':
         setNuggetDir(event.nugget_dir);
         break;
       case 'error': {
         // Replace technical auth/key errors with kid-friendly messages
         let errorMsg = event.message;
-        if (/auth|api.key|401|invalid.*key|invalid.*x-api-key/i.test(errorMsg)) {
+        if (/auth|api.key|401|invalid.*key|invalid.*x-api-key/i.test(errorMsg) && !/deploy|gcloud|cloud.run/i.test(errorMsg)) {
           errorMsg = 'Elisa can\'t connect to her AI brain. Ask your parent to check the API key!';
         }
         setErrorNotification({
@@ -281,12 +374,12 @@ export function useBuildSession() {
           recoverable: event.recoverable,
           timestamp: Date.now(),
         });
-        // Mark synthetic deploy node as failed if deploy-related error
+        // Mark synthetic deploy node(s) as failed if deploy-related error
         if (event.message.includes('flash') || event.message.includes('mpremote') ||
             event.message.includes('Compilation failed') || event.message.includes('board detected')) {
           setTasks(prev => {
             const next = prev.map(t =>
-              t.id === '__deploy__' && t.status === 'in_progress' ? { ...t, status: 'failed' as const } : t
+              t.id.startsWith('__deploy') && t.status === 'in_progress' ? { ...t, status: 'failed' as const } : t
             );
             tasksRef.current = next;
             return next;
@@ -316,13 +409,16 @@ export function useBuildSession() {
     setSerialLines([]);
     setDeployProgress(null);
     setDeployChecklist(null);
-    setDeployUrl(null);
+    setDeployUrls({});
     setIsPlanning(false);
+    deployStepsRef.current = [];
     setGateRequest(null);
     setQuestionRequest(null);
     setNuggetDir(null);
     setErrorNotification(null);
     setNarratorMessages([]);
+    setFlashWizardState(null);
+    setDocumentationPath(null);
 
     const res = await authFetch('/api/sessions', { method: 'POST' });
     if (!res.ok) {
@@ -397,20 +493,24 @@ export function useBuildSession() {
     setSerialLines([]);
     setDeployProgress(null);
     setDeployChecklist(null);
-    setDeployUrl(null);
+    setDeployUrls({});
     setIsPlanning(false);
+    deployStepsRef.current = [];
     setGateRequest(null);
     setQuestionRequest(null);
     setErrorNotification(null);
     setNarratorMessages([]);
+    setFlashWizardState(null);
+    setDocumentationPath(null);
     setTokenUsage({ input: 0, output: 0, total: 0, costUsd: 0, maxBudget: 500_000, perAgent: {} });
   }, []);
 
   return {
     uiState, tasks, agents, commits, events, sessionId,
     teachingMoments, testResults, coveragePct, tokenUsage,
-    serialLines, deployProgress, deployChecklist, deployUrl, gateRequest, questionRequest,
+    serialLines, deployProgress, deployChecklist, deployUrls, gateRequest, questionRequest,
     nuggetDir, errorNotification, narratorMessages, isPlanning,
+    flashWizardState, documentationPath,
     handleEvent, startBuild, stopBuild, clearGateRequest, clearQuestionRequest,
     clearErrorNotification, resetToDesign,
   };

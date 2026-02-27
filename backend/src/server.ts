@@ -14,11 +14,14 @@ import { createSessionRouter } from './routes/sessions.js';
 import { createHardwareRouter } from './routes/hardware.js';
 import { createSkillRouter } from './routes/skills.js';
 import { createWorkspaceRouter } from './routes/workspace.js';
+import { DeviceRegistry } from './services/deviceRegistry.js';
+import { createDeviceRouter } from './routes/devices.js';
 
 // -- State --
 
 const store = new SessionStore();
 const hardwareService = new HardwareService();
+const deviceRegistry = new DeviceRegistry(path.resolve(import.meta.dirname, '../../devices'));
 
 // -- Health --
 
@@ -188,10 +191,11 @@ function createApp(staticDir?: string, authToken?: string) {
   const sendEvent = (sessionId: string, event: Record<string, any>) =>
     manager.sendEvent(sessionId, event);
 
-  app.use('/api/sessions', createSessionRouter({ store, sendEvent, hardwareService }));
+  app.use('/api/sessions', createSessionRouter({ store, sendEvent, hardwareService, deviceRegistry }));
   app.use('/api/skills', createSkillRouter({ store, sendEvent }));
   app.use('/api/hardware', createHardwareRouter({ store, hardwareService }));
   app.use('/api/workspace', createWorkspaceRouter());
+  app.use('/api/devices', createDeviceRouter({ registry: deviceRegistry }));
 
   // Templates
   app.get('/api/templates', (_req, res) => {
@@ -216,17 +220,7 @@ function createApp(staticDir?: string, authToken?: string) {
 
   // Portal test: test a portal connection
   app.post('/api/portals/:id/test', async (req, res) => {
-    const { mechanism, serialConfig } = req.body;
-    if (mechanism === 'serial') {
-      const board = await hardwareService.detectBoard();
-      if (board) {
-        res.json({ success: true, message: `Board detected: ${board.boardType} on ${board.port}` });
-      } else {
-        res.json({ success: false, message: 'No board detected. Connect via USB and try again.' });
-      }
-    } else {
-      res.json({ success: true, message: 'Connection test not yet implemented for this mechanism.' });
-    }
+    res.json({ success: true, message: 'Connection test not yet implemented for this mechanism.' });
   });
 
   // -- Static file serving (production: Electron serves frontend) --

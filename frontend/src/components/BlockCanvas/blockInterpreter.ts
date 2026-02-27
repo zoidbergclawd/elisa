@@ -1,6 +1,7 @@
 import type { Skill, Rule } from '../Skills/types';
 import type { Portal } from '../Portals/types';
 import type { BehavioralTest } from '../../types';
+import type { DeviceManifest } from '../../lib/deviceBlocks';
 
 export interface NuggetSpec {
   nugget: {
@@ -21,10 +22,6 @@ export interface NuggetSpec {
     role: string;
     persona: string;
   }>;
-  hardware?: {
-    target: string;
-    components: Array<{ type: string; [key: string]: unknown }>;
-  };
   deployment: {
     target: string;
     auto_flash: boolean;
@@ -48,7 +45,11 @@ export interface NuggetSpec {
     interactions: Array<{ type: 'tell' | 'when' | 'ask'; capabilityId: string; params?: Record<string, string | number | boolean> }>;
     mcpConfig?: Record<string, unknown>;
     cliConfig?: Record<string, unknown>;
-    serialConfig?: Record<string, unknown>;
+  }>;
+  devices?: Array<{
+    pluginId: string;
+    instanceId: string;
+    fields: Record<string, unknown>;
   }>;
 }
 
@@ -115,6 +116,7 @@ export function interpretWorkspace(
   skills?: Skill[],
   rules?: Rule[],
   portals?: Portal[],
+  deviceManifests?: DeviceManifest[],
 ): NuggetSpec {
   const ws = json as unknown as WorkspaceJson;
   const topBlocks = ws.blocks?.blocks ?? [];
@@ -248,9 +250,7 @@ export function interpretWorkspace(
       }
       case 'timer_every': {
         const interval = (block.fields?.INTERVAL as number) ?? 5;
-        if (!spec.hardware) spec.hardware = { target: 'esp32', components: [] };
-        spec.hardware.components.push({ type: 'timer', interval });
-        hasEsp32 = true;
+        spec.requirements.push({ type: 'timer', description: `Repeat every ${interval} seconds` });
         break;
       }
       case 'use_skill': {
@@ -303,7 +303,6 @@ export function interpretWorkspace(
                 interactions: [],
                 ...(portal.mcpConfig ? { mcpConfig: portal.mcpConfig as Record<string, unknown> } : {}),
                 ...(portal.cliConfig ? { cliConfig: portal.cliConfig as Record<string, unknown> } : {}),
-                ...(portal.serialConfig ? { serialConfig: portal.serialConfig as Record<string, unknown> } : {}),
               };
               spec.portals.push(portalEntry);
             }
@@ -340,6 +339,13 @@ export function interpretWorkspace(
         }
         break;
       }
+      case 'write_guide': {
+        (spec as any).documentation = {
+          generate: true,
+          focus: String(block.fields?.GUIDE_FOCUS ?? 'all'),
+        };
+        break;
+      }
       case 'deploy_web':
         hasWeb = true;
         break;
@@ -351,6 +357,27 @@ export function interpretWorkspace(
         hasWeb = true;
         hasEsp32 = true;
         break;
+      default: {
+        // Generic device plugin handler
+        if (deviceManifests?.length) {
+          const manifest = deviceManifests.find(m => m.blocks.some(b => b.type === block.type));
+          if (manifest) {
+            if (!spec.devices) spec.devices = [];
+            const blockDef = manifest.blocks.find(b => b.type === block.type)!;
+            const fields: Record<string, unknown> = {};
+            for (const arg of blockDef.args) {
+              if ('name' in arg && arg.name) {
+                fields[arg.name as string] = block.fields?.[arg.name as string];
+              }
+            }
+            spec.devices.push({ pluginId: manifest.id, instanceId: block.id ?? block.type, fields });
+            // Infer deployment target from device manifest deploy method
+            if ((manifest.deploy as any)?.method === 'flash') hasEsp32 = true;
+            if ((manifest.deploy as any)?.method === 'cloud') hasWeb = true;
+          }
+        }
+        break;
+      }
     }
   }
 

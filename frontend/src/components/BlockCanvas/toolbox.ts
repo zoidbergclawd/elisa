@@ -1,3 +1,17 @@
+import type { DeviceManifest } from '../../lib/deviceBlocks';
+
+export function buildDeviceCategories(manifests: DeviceManifest[]): any[] {
+  if (!manifests.length) return [];
+  return [{
+    kind: 'category',
+    name: 'Devices',
+    colour: '45',
+    contents: manifests.flatMap(m =>
+      m.blocks.map(b => ({ kind: 'block', type: b.type }))
+    ),
+  }];
+}
+
 export const toolbox = {
   kind: 'categoryToolbox',
   contents: [
@@ -8,6 +22,7 @@ export const toolbox = {
       contents: [
         { kind: 'block', type: 'nugget_goal' },
         { kind: 'block', type: 'nugget_template' },
+        { kind: 'block', type: 'write_guide' },
       ],
     },
     {

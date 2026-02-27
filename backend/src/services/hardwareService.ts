@@ -501,10 +501,10 @@ print('FLASH_OK')
           const key = `${vid}:${pid}`;
           const boardType = KNOWN_BOARDS.get(key);
           if (boardType) {
-            return { port: portInfo.path, boardType };
+            return { port: portInfo.path, boardType, vendorId: vid, productId: pid };
           }
           if (vid === ESPRESSIF_VID) {
-            return { port: portInfo.path, boardType: 'ESP32 Native USB' };
+            return { port: portInfo.path, boardType: 'ESP32 Native USB', vendorId: vid, productId: pid };
           }
         }
       }
@@ -592,6 +592,110 @@ print('FLASH_OK')
         });
       } catch { /* ignore */ }
       return false;
+    }
+  }
+
+  /**
+   * Flash specific files to a MicroPython board via mpremote cp.
+   * Unlike flash() which copies all .py files and runs main.py,
+   * this method copies only the specified files (used for IoT multi-device deploys).
+   */
+  async flashFiles(
+    workDir: string,
+    files: string[],
+    onProgress?: (flashed: number, total: number, fileName: string) => void,
+  ): Promise<{ success: boolean; message?: string }> {
+    console.log(`[flashFiles] called with workDir=${workDir}, files=[${files.join(', ')}]`);
+    if (files.length === 0) return { success: true };
+    const mpremote = findMpremote();
+    console.log(`[flashFiles] using mpremote: ${mpremote}`);
+    const missing: string[] = [];
+    let flashed = 0;
+    for (const file of files) {
+      const filePath = path.join(workDir, file);
+      const exists = fs.existsSync(filePath);
+      console.log(`[flashFiles] file: ${file} -> ${filePath} (exists: ${exists})`);
+      if (!exists) {
+        missing.push(file);
+        continue;
+      }
+      try {
+        console.log(`[flashFiles] running: mpremote cp ${filePath} :${file}`);
+        const { stdout, stderr } = await execFileAsync(mpremote, ['cp', filePath, `:${file}`], { timeout: 30000 });
+        if (stdout) console.log(`[flashFiles] stdout for ${file}: ${stdout.trim()}`);
+        if (stderr) console.log(`[flashFiles] stderr for ${file}: ${stderr.trim()}`);
+        flashed++;
+        console.log(`[flashFiles] ${file} flashed OK (${flashed}/${files.length})`);
+        onProgress?.(flashed, files.length, file);
+      } catch (err: any) {
+        console.error(`[flashFiles] FAILED to flash ${file}:`, err.message);
+        return { success: false, message: `Failed to flash ${file}: ${err.message}` };
+      }
+    }
+    if (flashed === 0) {
+      const msg = `No files found to flash (missing: ${missing.join(', ')})`;
+      console.log(`[flashFiles] ${msg}`);
+      return { success: false, message: msg };
+    }
+    if (missing.length > 0) {
+      const msg = `Flashed ${flashed} file(s); skipped missing: ${missing.join(', ')}`;
+      console.log(`[flashFiles] ${msg}`);
+      return { success: true, message: msg };
+    }
+    console.log(`[flashFiles] all ${flashed} files flashed successfully`);
+    return { success: true };
+  }
+
+  /**
+   * Wipe all user files from the connected MicroPython board's filesystem.
+   * Preserves boot.py (required by MicroPython).
+   */
+  async wipeBoard(): Promise<{ success: boolean; removed: string[] }> {
+    const mpremote = findMpremote();
+    console.log('[wipeBoard] listing files on board...');
+    try {
+      const { stdout } = await execFileAsync(
+        mpremote,
+        ['exec', "import os; print('\\n'.join(os.listdir('/')))"],
+        { timeout: 15000 },
+      );
+      const files = stdout.trim().split('\n').map(f => f.trim()).filter(Boolean);
+      console.log(`[wipeBoard] found ${files.length} files: ${files.join(', ')}`);
+
+      const preserve = new Set(['boot.py']);
+      const toRemove = files.filter(f => !preserve.has(f));
+      const removed: string[] = [];
+
+      for (const file of toRemove) {
+        try {
+          await execFileAsync(mpremote, ['rm', `:${file}`], { timeout: 10000 });
+          removed.push(file);
+          console.log(`[wipeBoard] removed ${file}`);
+        } catch (err: any) {
+          console.log(`[wipeBoard] failed to remove ${file}: ${err.message}`);
+        }
+      }
+
+      console.log(`[wipeBoard] removed ${removed.length}/${toRemove.length} files`);
+      return { success: true, removed };
+    } catch (err: any) {
+      console.error(`[wipeBoard] failed to list files: ${err.message}`);
+      return { success: false, removed: [] };
+    }
+  }
+
+  /**
+   * Soft-reset the connected MicroPython board so it reboots and runs main.py.
+   */
+  async resetBoard(): Promise<void> {
+    const mpremote = findMpremote();
+    console.log('[resetBoard] executing mpremote reset');
+    try {
+      await execFileAsync(mpremote, ['reset'], { timeout: 10000 });
+      console.log('[resetBoard] reset command sent');
+    } catch (err: any) {
+      // Non-fatal: board may disconnect during reset causing an error
+      console.log(`[resetBoard] reset returned (may be expected): ${err.message}`);
     }
   }
 

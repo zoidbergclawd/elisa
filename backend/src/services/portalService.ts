@@ -3,7 +3,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { safeEnv } from '../utils/safeEnv.js';
-import type { HardwareService } from './hardwareService.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -29,7 +28,6 @@ export interface PortalSpec {
   interactions: Array<{ type: 'tell' | 'when' | 'ask'; capabilityId: string; params?: Record<string, string | number | boolean> }>;
   mcpConfig?: Record<string, unknown>;
   cliConfig?: Record<string, unknown>;
-  serialConfig?: Record<string, unknown>;
 }
 
 // ── Security: command injection prevention ──────────────────────────
@@ -125,29 +123,6 @@ export interface PortalAdapter {
   teardown(): Promise<void>;
 }
 
-/** Wraps existing HardwareService for serial-connected boards. */
-export class SerialPortalAdapter implements PortalAdapter {
-  private capabilities: PortalCapability[] = [];
-  private hardwareService: HardwareService;
-
-  constructor(hardwareService: HardwareService, capabilities: PortalCapability[]) {
-    this.hardwareService = hardwareService;
-    this.capabilities = capabilities;
-  }
-
-  async initialize(_config: Record<string, unknown>): Promise<void> {
-    // Board detection delegated to orchestrator deploy phase
-  }
-
-  getCapabilities(): PortalCapability[] {
-    return this.capabilities;
-  }
-
-  async teardown(): Promise<void> {
-    // Serial port cleanup handled by orchestrator
-  }
-}
-
 /** Generates MCP server config for injection into Claude CLI. */
 export class McpPortalAdapter implements PortalAdapter {
   private capabilities: PortalCapability[] = [];
@@ -236,11 +211,6 @@ export class CliPortalAdapter implements PortalAdapter {
 /** Manages adapter lifecycle per session. */
 export class PortalService {
   private runtimes = new Map<string, PortalRuntime>();
-  private hardwareService: HardwareService;
-
-  constructor(hardwareService: HardwareService) {
-    this.hardwareService = hardwareService;
-  }
 
   async initializePortals(portalSpecs: PortalSpec[]): Promise<void> {
     for (const spec of portalSpecs) {
@@ -248,10 +218,6 @@ export class PortalService {
       const mechanism = spec.mechanism === 'auto' ? this.detectMechanism(spec) : spec.mechanism;
 
       switch (mechanism) {
-        case 'serial':
-          adapter = new SerialPortalAdapter(this.hardwareService, spec.capabilities);
-          await adapter.initialize(spec.serialConfig ?? {});
-          break;
         case 'mcp':
           adapter = new McpPortalAdapter(spec.capabilities);
           await adapter.initialize(spec.mcpConfig ?? {});
@@ -308,14 +274,6 @@ export class PortalService {
     return portals;
   }
 
-  /** Check if any portals use serial mechanism. */
-  hasSerialPortals(): boolean {
-    for (const runtime of this.runtimes.values()) {
-      if (runtime.mechanism === 'serial') return true;
-    }
-    return false;
-  }
-
   async teardownAll(): Promise<void> {
     for (const runtime of this.runtimes.values()) {
       try {
@@ -328,7 +286,6 @@ export class PortalService {
   }
 
   private detectMechanism(spec: PortalSpec): string {
-    if (spec.serialConfig) return 'serial';
     if (spec.mcpConfig) return 'mcp';
     if (spec.cliConfig) return 'cli';
     return 'cli';

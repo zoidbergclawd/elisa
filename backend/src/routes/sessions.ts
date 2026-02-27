@@ -13,15 +13,17 @@ import { NuggetSpecSchema } from '../utils/specValidator.js';
 import { validateWorkspacePath } from '../utils/pathValidator.js';
 import type { HardwareService } from '../services/hardwareService.js';
 import type { SessionStore } from '../services/sessionStore.js';
+import type { DeviceRegistry } from '../services/deviceRegistry.js';
 import type { SkillSpec } from '../models/skillPlan.js';
 
 interface SessionRouterDeps {
   store: SessionStore;
   sendEvent: (sessionId: string, event: Record<string, any>) => Promise<void>;
   hardwareService?: HardwareService;
+  deviceRegistry?: DeviceRegistry;
 }
 
-export function createSessionRouter({ store, sendEvent, hardwareService }: SessionRouterDeps): Router {
+export function createSessionRouter({ store, sendEvent, hardwareService, deviceRegistry }: SessionRouterDeps): Router {
   const router = Router();
 
   // Create session
@@ -139,6 +141,7 @@ export function createSessionRouter({ store, sendEvent, hardwareService }: Sessi
       (evt) => sendEvent(req.params.id, evt),
       hardwareService,
       workspacePath,
+      deviceRegistry,
     );
     entry.orchestrator = orchestrator;
 

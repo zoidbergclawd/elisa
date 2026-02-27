@@ -27,7 +27,6 @@ function makeMockHardwareService() {
 }
 
 function makeMockPortalService(options: {
-  hasSerial?: boolean;
   cliPortals?: Array<{
     name: string;
     executeResult: CliExecResult;
@@ -46,7 +45,6 @@ function makeMockPortalService(options: {
   }));
 
   return {
-    hasSerialPortals: vi.fn().mockReturnValue(options.hasSerial ?? false),
     getCliPortals: vi.fn().mockReturnValue(cliPortals),
     getMcpServers: vi.fn().mockReturnValue([]),
     teardownAll: vi.fn().mockResolvedValue(undefined),
@@ -70,37 +68,6 @@ describe('DeployPhase - before_deploy rules', () => {
   beforeEach(() => {
     hw = makeMockHardwareService();
     teachingEngine = makeMockTeachingEngine();
-  });
-
-  it('deployHardware sends deploy_checklist for before_deploy rules', async () => {
-    const portalService = makeMockPortalService();
-    const phase = new DeployPhase(hw, portalService, teachingEngine);
-
-    hw.compile.mockResolvedValue({ success: true, errors: [] });
-    hw.flash.mockResolvedValue({ success: true, message: 'ok' });
-    hw.detectBoard.mockResolvedValue(null);
-
-    const ctx = makeCtx({
-      session: {
-        id: 'test', state: 'executing',
-        spec: {
-          rules: [
-            { name: 'Must compile', prompt: 'No errors allowed', trigger: 'before_deploy' },
-            { name: 'Always on', prompt: 'Always applies', trigger: 'always' },
-          ],
-        },
-      } as any,
-    });
-
-    await phase.deployHardware(ctx);
-
-    const send = ctx.send as ReturnType<typeof vi.fn>;
-    const calls = send.mock.calls.map((c: any[]) => c[0]);
-
-    const checklist = calls.find((c: any) => c.type === 'deploy_checklist');
-    expect(checklist).toBeDefined();
-    expect(checklist.rules).toHaveLength(1);
-    expect(checklist.rules[0]).toEqual({ name: 'Must compile', prompt: 'No errors allowed' });
   });
 
   it('deployPortals sends deploy_checklist for before_deploy rules', async () => {

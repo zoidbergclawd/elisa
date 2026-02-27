@@ -33,12 +33,6 @@ const CliConfigSchema = z.object({
   args: z.array(noShellMeta).max(50).optional(),
 }).strict();
 
-const SerialConfigSchema = z.object({
-  port: z.string().max(200).optional(),
-  baudRate: z.number().int().positive().optional(),
-  boardType: z.string().max(100).optional(),
-}).strict();
-
 const PortalSchema = z.object({
   id: z.string().max(200).optional(),
   name: z.string().max(200).optional(),
@@ -48,7 +42,6 @@ const PortalSchema = z.object({
   interactions: z.array(InteractionSchema).max(50).optional(),
   mcpConfig: McpConfigSchema.optional(),
   cliConfig: CliConfigSchema.optional(),
-  serialConfig: SerialConfigSchema.optional(),
 }).strict();
 
 const SkillSchema = z.object({
@@ -84,6 +77,14 @@ const AgentSchema = z.object({
   restricted_paths: z.array(z.string().max(200)).max(50).optional(),
 }).strict();
 
+// --- Device plugin instance schema ---
+
+export const DeviceInstanceSchema = z.object({
+  pluginId: z.string().max(60),
+  instanceId: z.string().max(100),
+  fields: z.record(z.string(), z.unknown()),
+});
+
 export const NuggetSpecSchema = z.object({
   nugget: z.object({
     goal: z.string().max(2000).optional(),
@@ -115,6 +116,7 @@ export const NuggetSpecSchema = z.object({
   skills: z.array(SkillSchema).max(50).optional(),
   rules: z.array(RuleSchema).max(50).optional(),
   portals: z.array(PortalSchema).max(20).optional(),
+  devices: z.array(DeviceInstanceSchema).max(20).optional(),
   permissions: z.object({
     auto_approve_workspace_writes: z.boolean().optional(),
     auto_approve_safe_commands: z.boolean().optional(),

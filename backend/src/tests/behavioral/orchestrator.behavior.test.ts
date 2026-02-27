@@ -246,7 +246,7 @@ describe('session state transitions', () => {
     expect(states).toEqual(['planning', 'executing', 'testing', 'deploying', 'done']);
   });
 
-  it('includes deploying phase for hardware specs', async () => {
+  it('skips deploying phase for hardware specs without devices array', async () => {
     const { orchestrator, session } = setup(hardwareBlinkSpec);
     configurePlan(hardwareBlinkPlan);
     configureAgentSuccess();
@@ -265,10 +265,9 @@ describe('session state transitions', () => {
 
     await orchestrator.run(hardwareBlinkSpec);
 
-    expect(states).toContain('deploying');
-    const testIdx = states.indexOf('testing');
-    const deployIdx = states.indexOf('deploying');
-    expect(deployIdx).toBeGreaterThan(testIdx);
+    // Old esp32 target without devices array no longer triggers deploy phase
+    // Deploy is driven by the devices plugin system now
+    expect(states).not.toContain('deploying');
   });
 
   it('ends in done state after successful run', async () => {
@@ -428,7 +427,7 @@ describe('spec-driven behavior', () => {
     expect(covEvents[0].percentage).toBe(85);
   });
 
-  it('triggers hardware compile and flash for esp32 target', async () => {
+  it('does not trigger old hardware deploy for esp32 target without devices array', async () => {
     const { orchestrator, events } = setup(hardwareBlinkSpec);
     configurePlan(hardwareBlinkPlan);
     configureAgentSuccess();
@@ -436,12 +435,10 @@ describe('spec-driven behavior', () => {
 
     await orchestrator.run(hardwareBlinkSpec);
 
+    // Old esp32 target without devices array no longer triggers deploy
     const deployStart = eventsOfType(events, 'deploy_started');
-    expect(deployStart.length).toBe(1);
-    expect(deployStart[0].target).toBe('esp32');
-
-    const deployComplete = eventsOfType(events, 'deploy_complete');
-    expect(deployComplete.length).toBe(1);
+    const esp32Deploy = deployStart.filter((e: any) => e.target === 'esp32');
+    expect(esp32Deploy.length).toBe(0);
   });
 
   it('triggers web deploy (not hardware) for web-only target', async () => {
@@ -460,22 +457,17 @@ describe('spec-driven behavior', () => {
     expect(hwDeploy.length).toBe(0);
   });
 
-  it('emits deploy error when compilation fails', async () => {
+  it('completes without deploy errors for esp32 target without devices array', async () => {
     const { orchestrator, events } = setup(hardwareBlinkSpec);
     configurePlan(hardwareBlinkPlan);
     configureAgentSuccess();
 
-    const { HardwareService } = await import('../../services/hardwareService.js');
-    vi.mocked(HardwareService.prototype.compile).mockResolvedValue({
-      success: false,
-      errors: ['SyntaxError on line 5'],
-      outputPath: '',
-    });
-
     await orchestrator.run(hardwareBlinkSpec);
 
-    const errors = eventsOfType(events, 'error');
-    expect(errors.some((e) => e.message.includes('Compilation failed'))).toBe(true);
+    // Old compilation-failure deploy errors no longer apply without devices array
+    // The orchestrator should complete normally
+    const last = events[events.length - 1];
+    expect(last.type).toBe('session_complete');
   });
 
   it('fires human gate when human_gates are configured', async () => {
