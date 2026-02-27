@@ -51,6 +51,11 @@ const DeployParamSchema = z.object({
   default: z.union([z.string(), z.number()]).optional(),
 });
 
+const RuntimeProvisionSchema = z.object({
+  required: z.boolean().default(false),
+  config_fields: z.array(z.string().max(50)).max(20).default([]),
+});
+
 const FlashDeploySchema = z.object({
   method: z.literal('flash'),
   provides: z.array(z.string().max(50)).max(10).default([]),
@@ -61,6 +66,7 @@ const FlashDeploySchema = z.object({
     shared_lib: z.array(z.string().max(100)).max(10).default([]),
     prompt_message: z.string().max(200),
   }),
+  runtime_provision: RuntimeProvisionSchema.optional(),
 });
 
 const CloudDeploySchema = z.object({
@@ -74,6 +80,20 @@ const CloudDeploySchema = z.object({
   }),
 });
 
+const EsptoolDeploySchema = z.object({
+  method: z.literal('esptool'),
+  provides: z.array(z.string().max(50)).max(10).default([]),
+  requires: z.array(z.string().max(50)).max(10).default([]),
+  esptool: z.object({
+    firmware_file: z.string().max(200),
+    flash_offset: z.string().max(20).default('0x0'),
+    baud_rate: z.number().int().default(460800),
+    chip: z.string().max(30).default('esp32s3'),
+    prompt_message: z.string().max(200),
+  }),
+  runtime_provision: RuntimeProvisionSchema.optional(),
+});
+
 export const DeviceManifestSchema = z.object({
   id: z.string().regex(/^[a-z][a-z0-9-]*$/).max(60),
   name: z.string().max(100),
@@ -85,7 +105,7 @@ export const DeviceManifestSchema = z.object({
   board: BoardSchema,
   capabilities: z.array(CapabilitySchema).max(30).default([]),
   blocks: z.array(BlockDefinitionSchema).min(1).max(10),
-  deploy: z.union([FlashDeploySchema, CloudDeploySchema]),
+  deploy: z.union([FlashDeploySchema, CloudDeploySchema, EsptoolDeploySchema]),
 
   spec_mapping: z.object({
     role: z.string().max(50),
