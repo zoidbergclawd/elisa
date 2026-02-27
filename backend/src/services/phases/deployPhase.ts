@@ -13,6 +13,7 @@ import { PortalService } from '../portalService.js';
 import { TeachingEngine } from '../teachingEngine.js';
 import type { DeviceRegistry } from '../deviceRegistry.js';
 import { resolveDeployOrder } from './deployOrder.js';
+import { sanitizePythonValue, sanitizeReplacements, escapePythonString } from '../../utils/sanitizePythonValue.js';
 
 function log(msg: string, data?: Record<string, unknown>): void {
   const ts = new Date().toISOString();
@@ -214,14 +215,16 @@ export class DeployPhase {
             const templateFile = path.join(pluginDir, 'templates', entryFileName);
             if (fs.existsSync(templateFile)) {
               let content = fs.readFileSync(templateFile, 'utf-8');
-              // Replace __PLACEHOLDER__ patterns with device fields + injections
-              const replacements: Record<string, string> = { ...injections };
+              // Replace __PLACEHOLDER__ patterns with device fields + injections.
+              // Values are sanitized to prevent Python code injection.
+              const rawReplacements: Record<string, unknown> = { ...injections };
               if (device.fields) {
                 for (const [k, v] of Object.entries(device.fields)) {
-                  replacements[k] = String(v);
+                  rawReplacements[k] = v;
                 }
               }
-              for (const [key, value] of Object.entries(replacements)) {
+              const safeReplacements = sanitizeReplacements(content, rawReplacements);
+              for (const [key, value] of Object.entries(safeReplacements)) {
                 content = content.replace(new RegExp(`__${key.toUpperCase()}__`, 'g'), value);
               }
               fs.writeFileSync(workspaceFile, content, 'utf-8');
@@ -252,10 +255,11 @@ export class DeployPhase {
         const wipeResult = await this.hardwareService.wipeBoard();
         log('  wipe result', { success: wipeResult.success, removedCount: wipeResult.removed.length });
 
-        // Write injected config values (e.g., cloud_url, api_key) as config.py
+        // Write injected config values (e.g., cloud_url, api_key) as config.py.
+        // Values are escaped to produce safe Python string literals.
         if (Object.keys(injections).length > 0) {
           const configLines = Object.entries(injections)
-            .map(([k, v]) => `${k.toUpperCase()} = "${v}"`);
+            .map(([k, v]) => `${k.toUpperCase()} = "${escapePythonString(v)}"`);
           const configContent = configLines.join('\n') + '\n';
           const configPath = path.join(ctx.nuggetDir, 'config.py');
           fs.writeFileSync(configPath, configContent, 'utf-8');
