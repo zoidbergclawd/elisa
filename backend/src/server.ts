@@ -22,6 +22,9 @@ import { createMeetingRouter } from './routes/meetings.js';
 import { AgentStore } from './services/runtime/agentStore.js';
 import { ConversationManager } from './services/runtime/conversationManager.js';
 import { TurnPipeline } from './services/runtime/turnPipeline.js';
+import { KnowledgeBackpack } from './services/runtime/knowledgeBackpack.js';
+import { StudyMode } from './services/runtime/studyMode.js';
+import { LocalRuntimeProvisioner } from './services/runtimeProvisioner.js';
 import { createRuntimeRouter } from './routes/runtime.js';
 import { getAnthropicClient } from './utils/anthropicClient.js';
 
@@ -46,10 +49,14 @@ meetingRegistry.register({
 // Agent Runtime (PRD-001)
 const agentStore = new AgentStore();
 const conversationManager = new ConversationManager();
+const knowledgeBackpack = new KnowledgeBackpack();
+const studyMode = new StudyMode(knowledgeBackpack);
+const runtimeProvisioner = new LocalRuntimeProvisioner(agentStore);
 const turnPipeline = new TurnPipeline({
   agentStore,
   conversationManager,
   getClient: getAnthropicClient,
+  knowledgeBackpack,
 });
 
 // -- Health --
@@ -223,7 +230,7 @@ function createApp(staticDir?: string, authToken?: string) {
   const sendEvent = (sessionId: string, event: Record<string, any>) =>
     manager.sendEvent(sessionId, event);
 
-  app.use('/api/sessions', createSessionRouter({ store, sendEvent, hardwareService, deviceRegistry, meetingRegistry }));
+  app.use('/api/sessions', createSessionRouter({ store, sendEvent, hardwareService, deviceRegistry, meetingRegistry, runtimeProvisioner }));
   app.use('/api/skills', createSkillRouter({ store, sendEvent }));
   app.use('/api/hardware', createHardwareRouter({ store, hardwareService }));
   app.use('/api/workspace', createWorkspaceRouter());
@@ -231,7 +238,7 @@ function createApp(staticDir?: string, authToken?: string) {
   app.use('/api/sessions/:sessionId/meetings', createMeetingRouter({ store, meetingService, sendEvent }));
 
   // Agent Runtime (PRD-001) — mounted at /v1/* with its own api-key auth
-  app.use('/v1', createRuntimeRouter({ agentStore, conversationManager, turnPipeline }));
+  app.use('/v1', createRuntimeRouter({ agentStore, conversationManager, turnPipeline, knowledgeBackpack, studyMode }));
 
   // Templates
   app.get('/api/templates', (_req, res) => {

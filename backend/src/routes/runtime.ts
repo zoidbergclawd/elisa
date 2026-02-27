@@ -16,6 +16,8 @@ import { Router, type Request, type Response, type NextFunction } from 'express'
 import type { AgentStore } from '../services/runtime/agentStore.js';
 import type { ConversationManager } from '../services/runtime/conversationManager.js';
 import type { TurnPipeline } from '../services/runtime/turnPipeline.js';
+import type { KnowledgeBackpack } from '../services/runtime/knowledgeBackpack.js';
+import type { StudyMode } from '../services/runtime/studyMode.js';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -23,6 +25,8 @@ export interface RuntimeRouterDeps {
   agentStore: AgentStore;
   conversationManager: ConversationManager;
   turnPipeline: TurnPipeline;
+  knowledgeBackpack?: KnowledgeBackpack;
+  studyMode?: StudyMode;
 }
 
 // ── Auth Middleware ────────────────────────────────────────────────────
@@ -58,7 +62,7 @@ function requireApiKey(agentStore: AgentStore) {
 // ── Router ────────────────────────────────────────────────────────────
 
 export function createRuntimeRouter(deps: RuntimeRouterDeps): Router {
-  const { agentStore, conversationManager, turnPipeline } = deps;
+  const { agentStore, conversationManager, turnPipeline, knowledgeBackpack, studyMode } = deps;
   const router = Router();
 
   const authMiddleware = requireApiKey(agentStore);
@@ -111,6 +115,12 @@ export function createRuntimeRouter(deps: RuntimeRouterDeps): Router {
 
     // Clean up usage records
     turnPipeline.getUsageTracker().clear(agentId);
+
+    // Clean up knowledge backpack
+    knowledgeBackpack?.deleteAgent(agentId);
+
+    // Clean up study mode
+    studyMode?.deleteAgent(agentId);
 
     // Remove agent
     const deleted = agentStore.delete(agentId);
@@ -204,6 +214,164 @@ export function createRuntimeRouter(deps: RuntimeRouterDeps): Router {
       total_input_tokens: usage.input_tokens,
       total_output_tokens: usage.output_tokens,
     });
+  });
+
+  // ── Knowledge Backpack Endpoints ─────────────────────────────────────
+
+  // POST /v1/agents/:id/backpack — Add source
+  router.post('/agents/:id/backpack', authMiddleware, (req: Request, res: Response) => {
+    if (!knowledgeBackpack) {
+      res.status(501).json({ detail: 'Knowledge backpack not available' });
+      return;
+    }
+
+    const { title, content, source_type, uri } = req.body;
+    if (!title || typeof title !== 'string') {
+      res.status(400).json({ detail: 'title field is required' });
+      return;
+    }
+    if (!content || typeof content !== 'string') {
+      res.status(400).json({ detail: 'content field is required' });
+      return;
+    }
+
+    const sourceId = knowledgeBackpack.addSource(req.params.id, {
+      title,
+      content,
+      source_type: source_type ?? 'manual',
+      uri,
+    });
+
+    res.status(201).json({ source_id: sourceId, agent_id: req.params.id });
+  });
+
+  // DELETE /v1/agents/:id/backpack/:sourceId — Remove source
+  router.delete('/agents/:id/backpack/:sourceId', authMiddleware, (req: Request, res: Response) => {
+    if (!knowledgeBackpack) {
+      res.status(501).json({ detail: 'Knowledge backpack not available' });
+      return;
+    }
+
+    const removed = knowledgeBackpack.removeSource(req.params.id, req.params.sourceId);
+    if (!removed) {
+      res.status(404).json({ detail: `Source not found: ${req.params.sourceId}` });
+      return;
+    }
+
+    res.json({ status: 'removed', source_id: req.params.sourceId });
+  });
+
+  // GET /v1/agents/:id/backpack — List sources
+  router.get('/agents/:id/backpack', authMiddleware, (req: Request, res: Response) => {
+    if (!knowledgeBackpack) {
+      res.status(501).json({ detail: 'Knowledge backpack not available' });
+      return;
+    }
+
+    const sources = knowledgeBackpack.getSources(req.params.id);
+    res.json({ agent_id: req.params.id, sources });
+  });
+
+  // POST /v1/agents/:id/backpack/search — Search backpack
+  router.post('/agents/:id/backpack/search', authMiddleware, (req: Request, res: Response) => {
+    if (!knowledgeBackpack) {
+      res.status(501).json({ detail: 'Knowledge backpack not available' });
+      return;
+    }
+
+    const { query, limit } = req.body;
+    if (!query || typeof query !== 'string') {
+      res.status(400).json({ detail: 'query field is required' });
+      return;
+    }
+
+    const results = knowledgeBackpack.search(req.params.id, query, limit);
+    res.json({ agent_id: req.params.id, results });
+  });
+
+  // ── Study Mode Endpoints ───────────────────────────────────────────
+
+  // PUT /v1/agents/:id/study — Enable/disable study mode
+  router.put('/agents/:id/study', authMiddleware, (req: Request, res: Response) => {
+    if (!studyMode) {
+      res.status(501).json({ detail: 'Study mode not available' });
+      return;
+    }
+
+    const { enabled, style, difficulty, quiz_frequency } = req.body;
+
+    if (enabled === false) {
+      studyMode.disable(req.params.id);
+      res.json({ status: 'disabled', agent_id: req.params.id });
+      return;
+    }
+
+    studyMode.enable(req.params.id, {
+      enabled: true,
+      style: style ?? 'quiz',
+      difficulty: difficulty ?? 'medium',
+      quiz_frequency: quiz_frequency ?? 5,
+    });
+
+    res.json({ status: 'enabled', agent_id: req.params.id });
+  });
+
+  // GET /v1/agents/:id/study — Get study config + progress
+  router.get('/agents/:id/study', authMiddleware, (req: Request, res: Response) => {
+    if (!studyMode) {
+      res.status(501).json({ detail: 'Study mode not available' });
+      return;
+    }
+
+    const config = studyMode.getConfig(req.params.id);
+    const progress = studyMode.getProgress(req.params.id);
+
+    res.json({
+      agent_id: req.params.id,
+      config,
+      progress,
+    });
+  });
+
+  // POST /v1/agents/:id/study/quiz — Generate quiz question
+  router.post('/agents/:id/study/quiz', authMiddleware, (req: Request, res: Response) => {
+    if (!studyMode) {
+      res.status(501).json({ detail: 'Study mode not available' });
+      return;
+    }
+
+    const question = studyMode.generateQuiz(req.params.id);
+    if (!question) {
+      res.status(404).json({ detail: 'No quiz available. Is study mode enabled and backpack non-empty?' });
+      return;
+    }
+
+    res.json(question);
+  });
+
+  // POST /v1/agents/:id/study/answer — Submit answer
+  router.post('/agents/:id/study/answer', authMiddleware, (req: Request, res: Response) => {
+    if (!studyMode) {
+      res.status(501).json({ detail: 'Study mode not available' });
+      return;
+    }
+
+    const { question_id, answer } = req.body;
+    if (!question_id || typeof question_id !== 'string') {
+      res.status(400).json({ detail: 'question_id field is required' });
+      return;
+    }
+    if (answer === undefined || typeof answer !== 'number') {
+      res.status(400).json({ detail: 'answer field (number) is required' });
+      return;
+    }
+
+    try {
+      const correct = studyMode.submitAnswer(req.params.id, question_id, answer);
+      res.json({ correct, question_id });
+    } catch (err: any) {
+      res.status(400).json({ detail: err.message });
+    }
   });
 
   return router;

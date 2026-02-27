@@ -27,6 +27,7 @@ import { TraceabilityTracker } from './traceabilityTracker.js';
 import { FeedbackLoopTracker } from './feedbackLoopTracker.js';
 import { HealthTracker } from './healthTracker.js';
 import { autoMatchTests } from './autoTestMatcher.js';
+import type { RuntimeProvisioner } from './runtimeProvisioner.js';
 
 export class Orchestrator {
   private session: BuildSession;
@@ -69,7 +70,7 @@ export class Orchestrator {
   private testPhase: TestPhase;
   private deployPhase: DeployPhase;
 
-  constructor(session: BuildSession, sendEvent: SendEvent, hardwareService?: HardwareService, workspacePath?: string, deviceRegistry?: DeviceRegistry, meetingRegistry?: import('./meetingRegistry.js').MeetingRegistry) {
+  constructor(session: BuildSession, sendEvent: SendEvent, hardwareService?: HardwareService, workspacePath?: string, deviceRegistry?: DeviceRegistry, meetingRegistry?: import('./meetingRegistry.js').MeetingRegistry, runtimeProvisioner?: RuntimeProvisioner) {
     this.session = session;
     this.send = sendEvent;
     this.nuggetDir = workspacePath || path.join(os.tmpdir(), `elisa-nugget-${session.id}`);
@@ -86,6 +87,7 @@ export class Orchestrator {
       this.portalService,
       this.teachingEngine,
       this.deviceRegistry,
+      runtimeProvisioner,
     );
   }
 

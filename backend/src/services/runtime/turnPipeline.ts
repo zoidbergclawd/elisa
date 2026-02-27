@@ -18,7 +18,10 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { AgentStore } from './agentStore.js';
 import type { ConversationManager } from './conversationManager.js';
+import type { KnowledgeBackpack } from './knowledgeBackpack.js';
 import type { UsageRecord } from '../../models/runtime.js';
+import { filterAgentResponse } from './contentFilter.js';
+import { UsageLimiter } from './usageLimiter.js';
 import { DEFAULT_MODEL } from '../../utils/constants.js';
 
 // ── Types ─────────────────────────────────────────────────────────────
@@ -39,6 +42,7 @@ export interface TurnPipelineDeps {
   agentStore: AgentStore;
   conversationManager: ConversationManager;
   getClient: () => Anthropic;
+  knowledgeBackpack?: KnowledgeBackpack;
 }
 
 // ── Usage Tracking ────────────────────────────────────────────────────
@@ -81,13 +85,17 @@ export class TurnPipeline {
   private conversationManager: ConversationManager;
   private getClient: () => Anthropic;
   private usageTracker: UsageTracker;
+  private usageLimiter: UsageLimiter;
+  private knowledgeBackpack?: KnowledgeBackpack;
   private model: string;
 
-  constructor(deps: TurnPipelineDeps, usageTracker?: UsageTracker) {
+  constructor(deps: TurnPipelineDeps, usageTracker?: UsageTracker, usageLimiter?: UsageLimiter) {
     this.agentStore = deps.agentStore;
     this.conversationManager = deps.conversationManager;
     this.getClient = deps.getClient;
+    this.knowledgeBackpack = deps.knowledgeBackpack;
     this.usageTracker = usageTracker ?? new UsageTracker();
+    this.usageLimiter = usageLimiter ?? new UsageLimiter();
     this.model = process.env.CLAUDE_MODEL ?? DEFAULT_MODEL;
   }
 
@@ -102,6 +110,12 @@ export class TurnPipeline {
     const identity = this.agentStore.get(agentId);
     if (!identity) {
       throw new Error(`Agent not found: ${agentId}`);
+    }
+
+    // 1b. Usage limiter pre-check
+    const limitCheck = this.usageLimiter.checkLimit(agentId);
+    if (!limitCheck.allowed) {
+      throw new Error(limitCheck.message ?? 'Usage limit reached');
     }
 
     // 2. Get or create session
@@ -126,6 +140,15 @@ export class TurnPipeline {
     // 4. Load conversation history and assemble context
     const history = this.conversationManager.formatForClaude(sessionId);
 
+    // 4b. Knowledge Backpack context injection
+    let systemPrompt = identity.system_prompt;
+    if (this.knowledgeBackpack) {
+      const backpackContext = this.knowledgeBackpack.buildContext(agentId, input.text);
+      if (backpackContext) {
+        systemPrompt = systemPrompt + '\n\n' + backpackContext;
+      }
+    }
+
     // 5. Call Claude API
     let responseText = '';
     let inputTokens = 0;
@@ -136,7 +159,7 @@ export class TurnPipeline {
       const response = await client.messages.create({
         model: this.model,
         max_tokens: 4096,
-        system: identity.system_prompt,
+        system: systemPrompt,
         messages: history,
       });
 
@@ -156,11 +179,19 @@ export class TurnPipeline {
       responseText = identity.fallback_response;
     }
 
+    // 5b. Content filter post-processing
+    const filterResult = filterAgentResponse(responseText);
+    responseText = filterResult.content;
+    if (filterResult.flagged) {
+      console.warn(`[TurnPipeline] Content filter flagged agent ${agentId}:`, filterResult.flags);
+    }
+
     // 6. Store assistant turn in history
     this.conversationManager.addTurn(sessionId, 'assistant', responseText, outputTokens);
 
     // 7. Track usage
     this.usageTracker.record(agentId, inputTokens, outputTokens);
+    this.usageLimiter.recordUsage(agentId, inputTokens + outputTokens);
 
     return {
       response: responseText,
