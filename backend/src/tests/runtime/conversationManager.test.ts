@@ -1,7 +1,8 @@
-/** Tests for ConversationManager: session lifecycle, history retrieval, window management. */
+/** Tests for ConversationManager: session lifecycle, history retrieval, window management, summarization. */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { ConversationManager } from '../../services/runtime/conversationManager.js';
+import { ConversationManager, summarizeTurns } from '../../services/runtime/conversationManager.js';
+import type { ConversationTurn } from '../../models/runtime.js';
 
 describe('ConversationManager', () => {
   let manager: ConversationManager;
@@ -223,10 +224,10 @@ describe('ConversationManager', () => {
     });
   });
 
-  describe('window management', () => {
-    it('truncates older turns when window exceeds maxWindow', () => {
-      // Use a small maxWindow for testing
-      const smallManager = new ConversationManager(10);
+  describe('window management (truncation)', () => {
+    it('truncates older turns when window exceeds maxWindow and summarization is disabled', () => {
+      // Explicitly disable summarization to test the truncation path
+      const smallManager = new ConversationManager(10, undefined, false);
       const session = smallManager.createSession('agent-1');
 
       // Add 15 turns (exceeds maxWindow of 10)
@@ -251,6 +252,143 @@ describe('ConversationManager', () => {
 
       const history = manager.getHistory(session.session_id);
       expect(history).toHaveLength(10);
+    });
+  });
+
+  describe('window management (summarization)', () => {
+    it('summarizes older turns when window overflows (default behavior)', () => {
+      // Default: summarization enabled, maxWindow=10
+      const sumManager = new ConversationManager(10);
+      const session = sumManager.createSession('agent-1');
+
+      // Add 11 turns to trigger overflow (> maxWindow of 10)
+      for (let i = 0; i < 11; i++) {
+        sumManager.addTurn(session.session_id, 'user', `Tell me about dinosaurs turn ${i}`);
+      }
+
+      const history = sumManager.getHistory(session.session_id);
+
+      // Turn count should be reduced: 10 oldest summarized into 1, plus 1 remaining = 2
+      expect(history.length).toBeLessThan(11);
+
+      // First turn should be a summary
+      expect(history[0].content).toContain('[Summary of earlier conversation]');
+      expect(history[0].role).toBe('assistant');
+
+      // Most recent turn should still be present
+      expect(history[history.length - 1].content).toBe('Tell me about dinosaurs turn 10');
+    });
+
+    it('preserves key context in summary (topics)', () => {
+      const sumManager = new ConversationManager(10);
+      const session = sumManager.createSession('agent-1');
+
+      // Add turns with specific topics
+      sumManager.addTurn(session.session_id, 'user', 'What is photosynthesis?');
+      sumManager.addTurn(session.session_id, 'assistant', 'Photosynthesis is how plants make food from sunlight.');
+      sumManager.addTurn(session.session_id, 'user', 'How does photosynthesis work in chloroplasts?');
+      sumManager.addTurn(session.session_id, 'assistant', 'Chloroplasts contain chlorophyll which captures light energy.');
+      for (let i = 0; i < 7; i++) {
+        sumManager.addTurn(session.session_id, i % 2 === 0 ? 'user' : 'assistant', `More about plants turn ${i}`);
+      }
+
+      const history = sumManager.getHistory(session.session_id);
+      const summary = history[0].content;
+
+      // Summary should mention the topic discussed
+      expect(summary).toContain('Topics discussed:');
+      expect(summary).toMatch(/photosynthesis|plants|chloroplasts|chlorophyll/i);
+    });
+
+    it('preserves names mentioned in summary', () => {
+      const sumManager = new ConversationManager(10);
+      const session = sumManager.createSession('agent-1');
+
+      // Add turns mentioning names
+      sumManager.addTurn(session.session_id, 'user', 'I talked to Alice yesterday');
+      sumManager.addTurn(session.session_id, 'assistant', 'Tell me more about Alice');
+      sumManager.addTurn(session.session_id, 'user', 'She mentioned that Bob was helping');
+      sumManager.addTurn(session.session_id, 'assistant', 'So Alice and Bob are working together');
+      for (let i = 0; i < 7; i++) {
+        sumManager.addTurn(session.session_id, i % 2 === 0 ? 'user' : 'assistant', `More conversation ${i}`);
+      }
+
+      const history = sumManager.getHistory(session.session_id);
+      const summary = history[0].content;
+
+      expect(summary).toContain('Names mentioned:');
+      expect(summary).toMatch(/Alice|Bob/);
+    });
+
+    it('reduces turn count after summarization', () => {
+      const sumManager = new ConversationManager(10);
+      const session = sumManager.createSession('agent-1');
+
+      // Add exactly 11 turns to trigger one summarization (batch of 10 -> 1 summary)
+      for (let i = 0; i < 11; i++) {
+        sumManager.addTurn(session.session_id, 'user', `Turn ${i}`);
+      }
+
+      const history = sumManager.getHistory(session.session_id);
+      // 10 turns summarized into 1, plus 1 remaining = 2
+      expect(history.length).toBe(2);
+    });
+
+    it('counts questions in the summary', () => {
+      const sumManager = new ConversationManager(10);
+      const session = sumManager.createSession('agent-1');
+
+      sumManager.addTurn(session.session_id, 'user', 'What is gravity?');
+      sumManager.addTurn(session.session_id, 'assistant', 'Gravity is a force that pulls objects together.');
+      sumManager.addTurn(session.session_id, 'user', 'Why do things fall down?');
+      sumManager.addTurn(session.session_id, 'assistant', 'Because gravity pulls them toward Earth.');
+      for (let i = 0; i < 7; i++) {
+        sumManager.addTurn(session.session_id, i % 2 === 0 ? 'user' : 'assistant', `More physics ${i}`);
+      }
+
+      const history = sumManager.getHistory(session.session_id);
+      const summary = history[0].content;
+
+      expect(summary).toContain('question');
+    });
+
+    it('falls back to truncation when summarization is disabled', () => {
+      const truncManager = new ConversationManager(10, undefined, false);
+      const session = truncManager.createSession('agent-1');
+
+      for (let i = 0; i < 15; i++) {
+        truncManager.addTurn(session.session_id, 'user', `Turn ${i}`);
+      }
+
+      const history = truncManager.getHistory(session.session_id);
+
+      // After 15 turns with maxWindow=10: first overflow at 11 truncates to 6,
+      // then 4 more turns are added (total 10, within window). Final count = 10.
+      expect(history.length).toBeLessThanOrEqual(10);
+
+      // Should NOT contain a summary turn
+      expect(history[0].content).not.toContain('[Summary of earlier conversation]');
+
+      // Most recent turn preserved
+      expect(history[history.length - 1].content).toBe('Turn 14');
+    });
+
+    it('handles repeated summarizations as window keeps overflowing', () => {
+      const sumManager = new ConversationManager(10);
+      const session = sumManager.createSession('agent-1');
+
+      // Add 25 turns — should trigger summarization multiple times
+      for (let i = 0; i < 25; i++) {
+        sumManager.addTurn(session.session_id, 'user', `Conversation turn number ${i}`);
+      }
+
+      const history = sumManager.getHistory(session.session_id);
+
+      // Should always stay within maxWindow
+      expect(history.length).toBeLessThanOrEqual(10);
+
+      // Most recent turn should be present
+      expect(history[history.length - 1].content).toBe('Conversation turn number 24');
     });
   });
 
@@ -281,5 +419,64 @@ describe('ConversationManager', () => {
       expect((messages[0] as any).tokens_used).toBeUndefined();
       expect((messages[0] as any).timestamp).toBeUndefined();
     });
+  });
+});
+
+describe('summarizeTurns', () => {
+  function makeTurn(role: 'user' | 'assistant', content: string): ConversationTurn {
+    return { role, content, timestamp: Date.now() };
+  }
+
+  it('returns empty string for empty input', () => {
+    expect(summarizeTurns([])).toBe('');
+  });
+
+  it('includes summary header', () => {
+    const turns = [makeTurn('user', 'Hello'), makeTurn('assistant', 'Hi there')];
+    const result = summarizeTurns(turns);
+    expect(result).toContain('[Summary of earlier conversation]');
+  });
+
+  it('extracts topics from turn content', () => {
+    const turns = [
+      makeTurn('user', 'Tell me about dinosaurs'),
+      makeTurn('assistant', 'Dinosaurs were ancient reptiles that lived millions of years ago'),
+      makeTurn('user', 'What about the biggest dinosaurs?'),
+      makeTurn('assistant', 'The biggest dinosaurs were sauropods like Brachiosaurus'),
+    ];
+    const result = summarizeTurns(turns);
+    expect(result).toContain('Topics discussed:');
+    expect(result).toMatch(/dinosaurs/i);
+  });
+
+  it('counts questions correctly', () => {
+    const turns = [
+      makeTurn('user', 'What is a star?'),
+      makeTurn('assistant', 'A star is a ball of gas'),
+      makeTurn('user', 'How hot is the sun? Is it the biggest star?'),
+    ];
+    const result = summarizeTurns(turns);
+    // 3 questions total
+    expect(result).toContain('3 questions asked');
+  });
+
+  it('counts user and assistant turns', () => {
+    const turns = [
+      makeTurn('user', 'Hello'),
+      makeTurn('assistant', 'Hi'),
+      makeTurn('user', 'Bye'),
+    ];
+    const result = summarizeTurns(turns);
+    expect(result).toContain('2 user turns');
+    expect(result).toContain('1 assistant turn');
+  });
+
+  it('uses singular form for single question and turn', () => {
+    const turns = [
+      makeTurn('user', 'What is this?'),
+    ];
+    const result = summarizeTurns(turns);
+    expect(result).toContain('1 question asked');
+    expect(result).toContain('1 user turn');
   });
 });
