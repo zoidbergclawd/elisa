@@ -21,6 +21,7 @@ import { MeetingService } from './services/meetingService.js';
 import { createMeetingRouter } from './routes/meetings.js';
 import { AgentStore } from './services/runtime/agentStore.js';
 import { ConversationManager } from './services/runtime/conversationManager.js';
+import { ConsentManager } from './services/runtime/consentManager.js';
 import { TurnPipeline } from './services/runtime/turnPipeline.js';
 import { KnowledgeBackpack } from './services/runtime/knowledgeBackpack.js';
 import { StudyMode } from './services/runtime/studyMode.js';
@@ -50,9 +51,26 @@ meetingRegistry.register({
 import { registerArtAgentMeeting } from './services/artAgentMeeting.js';
 registerArtAgentMeeting(meetingRegistry);
 
+// Register Documentation Agent meeting type (post-build documentation)
+import { registerDocAgentMeeting } from './services/docAgentMeeting.js';
+registerDocAgentMeeting(meetingRegistry);
+
+// Register Web Designer Agent meeting type (web deploy launch pages)
+import { registerWebDesignAgentMeeting } from './services/webDesignAgentMeeting.js';
+registerWebDesignAgentMeeting(meetingRegistry);
+
+// Register Media Agent meeting type (visual assets and marketing)
+import { registerMediaAgentMeeting } from './services/mediaAgentMeeting.js';
+registerMediaAgentMeeting(meetingRegistry);
+
+// Register Architecture Agent meeting type (system understanding capstone)
+import { registerArchitectureAgentMeeting } from './services/architectureAgentMeeting.js';
+registerArchitectureAgentMeeting(meetingRegistry);
+
 // Agent Runtime (PRD-001)
 const agentStore = new AgentStore();
-const conversationManager = new ConversationManager();
+const consentManager = new ConsentManager();
+const conversationManager = new ConversationManager(undefined, consentManager);
 const knowledgeBackpack = new KnowledgeBackpack();
 const studyMode = new StudyMode(knowledgeBackpack);
 const runtimeProvisioner = new LocalRuntimeProvisioner(agentStore);
@@ -61,6 +79,7 @@ const turnPipeline = new TurnPipeline({
   conversationManager,
   getClient: getAnthropicClient,
   knowledgeBackpack,
+  consentManager,
 });
 
 // -- Health --
