@@ -31,7 +31,7 @@ export default function App() {
     teachingMoments, testResults, coveragePct, tokenUsage,
     serialLines, deployProgress, deployChecklist, deployUrls, gateRequest, questionRequest,
     nuggetDir, errorNotification, narratorMessages, isPlanning,
-    flashWizardState, contextFlows, traceability,
+    flashWizardState, contextFlows, traceability, correctionCycles,
     decomposition, impactEstimate, healthUpdate, healthSummary, boundaryAnalysis,
     handleEvent, startBuild, stopBuild, clearGateRequest, clearQuestionRequest,
     clearErrorNotification, resetToDesign,
@@ -253,6 +253,7 @@ export default function App() {
               uiState={uiState}
               isPlanning={isPlanning}
               contextFlows={contextFlows}
+              correctionCycles={correctionCycles}
             />
           </div>
         )}
@@ -276,6 +277,7 @@ export default function App() {
         boundaryAnalysis={boundaryAnalysis}
         healthUpdate={healthUpdate}
         healthSummary={healthSummary}
+        correctionCycles={correctionCycles}
       />
 
       {/* All modals */}

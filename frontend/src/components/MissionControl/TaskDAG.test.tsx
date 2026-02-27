@@ -271,6 +271,71 @@ describe('TaskDAG', () => {
     expect(screen.queryByTestId('edge-tooltip')).not.toBeInTheDocument();
   });
 
+  it('shows why_blocked_by text in edge tooltip when available', async () => {
+    const tasks: Task[] = [
+      { id: '1', name: 'Plan', description: '', status: 'done', agent_name: 'Planner', dependencies: [] },
+      { id: '2', name: 'Build', description: '', status: 'pending', agent_name: 'Builder', dependencies: ['1'], why_blocked_by: '"Build" needs Plan to finish first.' },
+    ];
+    render(<TaskDAG tasks={tasks} />);
+    await waitFor(() => {
+      expect(lastReactFlowProps.onEdgeClick).toBeDefined();
+    });
+
+    const mockEvent = {
+      clientX: 100,
+      clientY: 200,
+      currentTarget: {
+        closest: () => ({ getBoundingClientRect: () => ({ left: 0, top: 0 }) }),
+      },
+    };
+    act(() => {
+      (lastReactFlowProps.onEdgeClick as (event: unknown, edge: { source: string; target: string }) => void)(
+        mockEvent,
+        { source: '1', target: '2' },
+      );
+    });
+
+    expect(screen.getByTestId('edge-tooltip')).toBeInTheDocument();
+    expect(screen.getByText('"Build" needs Plan to finish first.')).toBeInTheDocument();
+  });
+
+  it('auto-dismisses edge tooltip after timeout', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const tasks: Task[] = [
+        { id: '1', name: 'Plan', description: '', status: 'done', agent_name: 'Planner', dependencies: [] },
+        { id: '2', name: 'Build', description: '', status: 'pending', agent_name: 'Builder', dependencies: ['1'] },
+      ];
+      render(<TaskDAG tasks={tasks} />);
+
+      // Wait for layout to settle with real-time-advancing fake timers
+      await vi.waitFor(() => {
+        expect(lastReactFlowProps.onEdgeClick).toBeDefined();
+      });
+
+      const mockEvent = {
+        clientX: 100,
+        clientY: 200,
+        currentTarget: {
+          closest: () => ({ getBoundingClientRect: () => ({ left: 0, top: 0 }) }),
+        },
+      };
+      act(() => {
+        (lastReactFlowProps.onEdgeClick as (event: unknown, edge: { source: string; target: string }) => void)(
+          mockEvent,
+          { source: '1', target: '2' },
+        );
+      });
+      expect(screen.getByTestId('edge-tooltip')).toBeInTheDocument();
+
+      // Advance timer past 5s auto-dismiss
+      act(() => { vi.advanceTimersByTime(5100); });
+      expect(screen.queryByTestId('edge-tooltip')).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('hides edge tooltip on pane click', async () => {
     const tasks: Task[] = [
       { id: '1', name: 'Plan', description: '', status: 'done', agent_name: 'Planner', dependencies: [] },

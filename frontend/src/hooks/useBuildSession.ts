@@ -94,6 +94,8 @@ export interface BuildSessionState {
   healthUpdate: { tasks_done: number; tasks_total: number; tests_passing: number; tests_total: number; tokens_used: number; health_score: number } | null;
   healthSummary: { health_score: number; grade: 'A' | 'B' | 'C' | 'D' | 'F'; breakdown: { tasks_score: number; tests_score: number; corrections_score: number; budget_score: number } } | null;
   boundaryAnalysis: { inputs: Array<{ name: string; type: string; source?: string }>; outputs: Array<{ name: string; type: string; source?: string }>; boundary_portals: string[] } | null;
+  compositionStarted: { graph_id: string; node_ids: string[] } | null;
+  compositionImpacts: Array<{ graph_id: string; changed_node_id: string; affected_nodes: Array<{ node_id: string; label: string; reason: string }>; severity: string }>;
 }
 
 const INITIAL_TOKEN_USAGE: TokenUsage = { input: 0, output: 0, total: 0, costUsd: 0, maxBudget: 500_000, perAgent: {} };
@@ -129,6 +131,8 @@ export const initialState: BuildSessionState = {
   healthUpdate: null,
   healthSummary: null,
   boundaryAnalysis: null,
+  compositionStarted: null,
+  compositionImpacts: [],
 };
 
 // -- Actions --
@@ -653,6 +657,26 @@ function handleWSEvent(state: BuildSessionState, event: WSEvent, deploySteps: Ar
         },
       };
 
+    case 'composition_started':
+      return {
+        ...state,
+        events,
+        compositionStarted: { graph_id: event.graph_id, node_ids: event.node_ids },
+        compositionImpacts: [],
+      };
+
+    case 'composition_impact':
+      return {
+        ...state,
+        events,
+        compositionImpacts: [...state.compositionImpacts, {
+          graph_id: event.graph_id,
+          changed_node_id: event.changed_node_id,
+          affected_nodes: event.affected_nodes,
+          severity: event.severity,
+        }],
+      };
+
     case 'workspace_created':
       return { ...state, events, nuggetDir: event.nugget_dir };
 
@@ -843,6 +867,8 @@ export function useBuildSession() {
     healthUpdate: state.healthUpdate,
     healthSummary: state.healthSummary,
     boundaryAnalysis: state.boundaryAnalysis,
+    compositionStarted: state.compositionStarted,
+    compositionImpacts: state.compositionImpacts,
     handleEvent,
     startBuild,
     stopBuild,

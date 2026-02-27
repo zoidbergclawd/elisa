@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { Commit, TestResult, TeachingMoment, UIState, Task, Agent, TokenUsage, TraceabilitySummary } from '../../types';
+import type { Commit, TestResult, TeachingMoment, UIState, Task, Agent, TokenUsage, TraceabilitySummary, CorrectionCycleState } from '../../types';
 import type { SerialLine, DeployProgress } from '../../hooks/useBuildSession';
 import type { BoardInfo } from '../../hooks/useBoardDetect';
 import GitTimeline from './GitTimeline';
@@ -11,6 +11,7 @@ import TraceabilityView from './TraceabilityView';
 import SystemBoundaryView from './SystemBoundaryView';
 import HealthDashboard from './HealthDashboard';
 import MetricsPanel from '../MissionControl/MetricsPanel';
+import ConvergencePanel from '../MissionControl/ConvergencePanel';
 
 interface Props {
   commits: Commit[];
@@ -29,6 +30,7 @@ interface Props {
   boundaryAnalysis: { inputs: Array<{ name: string; type: string; source?: string }>; outputs: Array<{ name: string; type: string; source?: string }>; boundary_portals: string[] } | null;
   healthUpdate: { tasks_done: number; tasks_total: number; tests_passing: number; tests_total: number; tokens_used: number; health_score: number } | null;
   healthSummary: { health_score: number; grade: 'A' | 'B' | 'C' | 'D' | 'F'; breakdown: { tasks_score: number; tests_score: number; corrections_score: number; budget_score: number } } | null;
+  correctionCycles?: Record<string, CorrectionCycleState>;
 }
 
 type Tab = 'Timeline' | 'Tests' | 'Trace' | 'Board' | 'Learn' | 'Progress' | 'System' | 'Health' | 'Tokens';
@@ -36,7 +38,7 @@ type Tab = 'Timeline' | 'Tests' | 'Trace' | 'Board' | 'Learn' | 'Progress' | 'Sy
 export default function BottomBar({
   commits, testResults, coveragePct, teachingMoments, serialLines,
   uiState, tasks, agents, deployProgress, deployChecklist, tokenUsage, boardInfo,
-  traceability, boundaryAnalysis, healthUpdate, healthSummary,
+  traceability, boundaryAnalysis, healthUpdate, healthSummary, correctionCycles = {},
 }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('Timeline');
 
@@ -86,7 +88,12 @@ export default function BottomBar({
         {activeTab === 'Trace' && <TraceabilityView traceability={traceability} />}
         {activeTab === 'Board' && <BoardOutput serialLines={serialLines} boardInfo={boardInfo} />}
         {activeTab === 'Learn' && <TeachingSidebar moments={teachingMoments} />}
-        {activeTab === 'Progress' && <ProgressPanel uiState={uiState} tasks={tasks} deployProgress={deployProgress} deployChecklist={deployChecklist} />}
+        {activeTab === 'Progress' && (
+          <>
+            <ProgressPanel uiState={uiState} tasks={tasks} deployProgress={deployProgress} deployChecklist={deployChecklist} />
+            <ConvergencePanel cycles={correctionCycles} />
+          </>
+        )}
         {activeTab === 'System' && (
           boundaryAnalysis
             ? <SystemBoundaryView inputs={boundaryAnalysis.inputs} outputs={boundaryAnalysis.outputs} boundary_portals={boundaryAnalysis.boundary_portals} />

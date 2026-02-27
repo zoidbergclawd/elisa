@@ -197,7 +197,11 @@ function TaskDAGInner({
 
   /** Generate a human-readable explanation for why targetTask depends on sourceTask */
   const buildEdgeExplanation = useCallback((sourceTask: Task, targetTask: Task): string => {
-    // Check if target has acceptance criteria mentioning the source
+    // Use backend-provided why_blocked_by if available
+    if (targetTask.why_blocked_by) {
+      return targetTask.why_blocked_by;
+    }
+    // Fallback: generate a simple explanation
     const criteria = targetTask.acceptance_criteria;
     if (criteria && criteria.length > 0) {
       return `"${targetTask.name}" needs "${sourceTask.name}" to finish first because it depends on its output.`;
@@ -220,6 +224,13 @@ function TaskDAGInner({
         : { x, y, sourceTask, targetTask }
     );
   }, [displayTasks]);
+
+  // Auto-dismiss edge tooltip after 5 seconds
+  useEffect(() => {
+    if (!edgeTooltip) return;
+    const timer = setTimeout(() => setEdgeTooltip(null), 5000);
+    return () => clearTimeout(timer);
+  }, [edgeTooltip]);
 
   const elkGraph = useMemo(() => ({
     id: 'root',

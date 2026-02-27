@@ -100,6 +100,7 @@ export const toolbox = {
         { kind: 'block', type: 'first_then' },
         { kind: 'block', type: 'at_same_time' },
         { kind: 'block', type: 'keep_improving' },
+        { kind: 'block', type: 'feedback_loop' },
         { kind: 'block', type: 'check_with_me' },
         { kind: 'block', type: 'timer_every' },
       ],

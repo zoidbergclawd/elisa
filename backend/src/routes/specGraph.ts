@@ -18,14 +18,16 @@ import { Router, type Request, type Response } from 'express';
 import type { SpecGraphService } from '../services/specGraph.js';
 import type { CompositionService } from '../services/compositionService.js';
 import type { EdgeRelationship } from '../models/specGraph.js';
+import type { WSEvent } from '../services/phases/types.js';
 
 export interface SpecGraphRouterDeps {
   specGraphService: SpecGraphService;
   compositionService?: CompositionService;
+  sendEvent?: (sessionId: string, event: WSEvent) => Promise<void>;
 }
 
 export function createSpecGraphRouter(deps: SpecGraphRouterDeps): Router {
-  const { specGraphService, compositionService } = deps;
+  const { specGraphService, compositionService, sendEvent } = deps;
   const router = Router();
 
   // POST / — Create new graph
@@ -251,14 +253,14 @@ export function createSpecGraphRouter(deps: SpecGraphRouterDeps): Router {
   // ── Composition endpoints (require compositionService) ──────────────
 
   // POST /:id/compose — Compose multiple nodes into a merged NuggetSpec
-  router.post('/:id/compose', (req: Request, res: Response) => {
+  router.post('/:id/compose', async (req: Request, res: Response) => {
     if (!compositionService) {
       res.status(501).json({ detail: 'CompositionService not available' });
       return;
     }
 
     const graphId = req.params.id as string;
-    const { node_ids, system_level } = req.body;
+    const { node_ids, system_level, session_id } = req.body;
 
     if (!Array.isArray(node_ids) || node_ids.length === 0) {
       res.status(400).json({ detail: 'node_ids must be a non-empty array' });
@@ -266,7 +268,31 @@ export function createSpecGraphRouter(deps: SpecGraphRouterDeps): Router {
     }
 
     try {
+      // Emit composition_started event
+      if (sendEvent && session_id) {
+        await sendEvent(session_id, { type: 'composition_started', graph_id: graphId, node_ids });
+      }
+
       const result = compositionService.compose(graphId, node_ids, system_level);
+
+      // Emit composition_impact for each composed node
+      if (sendEvent && session_id) {
+        for (const nodeId of node_ids) {
+          try {
+            const impact = compositionService.detectCrossNuggetImpact(graphId, nodeId);
+            await sendEvent(session_id, {
+              type: 'composition_impact',
+              graph_id: graphId,
+              changed_node_id: nodeId,
+              affected_nodes: impact.affected_nodes,
+              severity: impact.severity,
+            });
+          } catch {
+            // Skip impact detection if node lookup fails
+          }
+        }
+      }
+
       res.json(result);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);

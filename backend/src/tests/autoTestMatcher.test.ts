@@ -24,16 +24,17 @@ describe('autoTestMatcher', () => {
 
     const count = await autoMatchTests(spec, send);
 
-    expect(count).toBe(2);
+    expect(count).toBe(3); // when_then + feature + when_then
     const workflow = spec.workflow as Record<string, unknown>;
     const tests = workflow.behavioral_tests as Array<Record<string, unknown>>;
-    expect(tests).toHaveLength(2);
+    expect(tests).toHaveLength(3);
     expect(tests[0].requirement_id).toBe('req_0');
-    expect(tests[1].requirement_id).toBe('req_2');
+    expect(tests[1].requirement_id).toBe('req_1'); // feature now matched
+    expect(tests[2].requirement_id).toBe('req_2');
     expect(workflow.testing_enabled).toBe(true);
 
     // Check narrator events were sent
-    expect(events).toHaveLength(2);
+    expect(events).toHaveLength(3);
     expect(events[0].type).toBe('narrator_message');
     expect(events[0].mood).toBe('encouraging');
   });
@@ -96,13 +97,11 @@ describe('autoTestMatcher', () => {
     expect(count).toBe(0);
   });
 
-  it('skips non-when_then requirements', async () => {
+  it('skips non-testable requirement types', async () => {
     const spec: Record<string, unknown> = {
       workflow: { system_level: 'explorer' },
       requirements: [
-        { type: 'feature', description: 'It should be fast' },
         { type: 'constraint', description: 'No errors on click' },
-        { type: 'data', description: 'User info' },
       ],
     };
     const { send } = makeSend();
