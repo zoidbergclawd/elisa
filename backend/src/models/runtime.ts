@@ -58,6 +58,24 @@ export interface UsageRecord {
   timestamp: number;
 }
 
+// ── Knowledge Backpack ────────────────────────────────────────────────
+
+export interface BackpackSource {
+  id: string;
+  title: string;
+  content: string;
+  source_type: 'file' | 'url' | 'manual';
+  uri?: string;
+  added_at: number;
+}
+
+export interface SearchResult {
+  source_id: string;
+  title: string;
+  snippet: string;
+  score: number;
+}
+
 // ── Provisioning ──────────────────────────────────────────────────────
 
 export interface ProvisionResult {
