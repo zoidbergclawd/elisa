@@ -78,3 +78,162 @@ export function getMaxNuggets(level: SystemLevel): number {
     case 'architect': return Infinity;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Level Progression
+// ---------------------------------------------------------------------------
+
+/** Tunable thresholds for level progression. */
+export const LEVEL_PROGRESSION_CRITERIA = {
+  explorer_to_builder: {
+    min_builds: 3,
+    min_builds_with_tests: 1,
+    min_meeting_interactions: 1,
+  },
+  builder_to_architect: {
+    min_builds: 5,
+    min_builds_with_custom_feedback: 1,
+    min_high_health_builds: 2,
+    high_health_threshold: 80,
+  },
+} as const;
+
+/** A single completed build in the kid's history. */
+export interface BuildRecord {
+  used_behavioral_tests: boolean;
+  used_custom_feedback_loops: boolean;
+  meeting_interactions: number;
+  health_score: number | null;
+}
+
+/** A single criterion in the progression progress report. */
+export interface ProgressionCriterion {
+  name: string;
+  met: boolean;
+  progress: string;
+}
+
+/** Progression progress report for UI display. */
+export interface ProgressionProgress {
+  current_level: SystemLevel;
+  next_level: SystemLevel | null;
+  criteria: ProgressionCriterion[];
+}
+
+/** Event type suggestion for when a kid levels up. */
+export interface LevelUpEvent {
+  type: 'level_up';
+  from_level: SystemLevel;
+  to_level: SystemLevel;
+}
+
+/**
+ * Check whether the kid should level up based on build history.
+ * Pure function: takes current level and build history, returns the new level
+ * (or the same level if no progression is warranted).
+ */
+export function checkProgression(currentLevel: SystemLevel, history: BuildRecord[]): SystemLevel {
+  if (currentLevel === 'architect') return 'architect';
+
+  if (currentLevel === 'explorer') {
+    const c = LEVEL_PROGRESSION_CRITERIA.explorer_to_builder;
+    const totalBuilds = history.length;
+    const buildsWithTests = history.filter(b => b.used_behavioral_tests).length;
+    const totalMeetingInteractions = history.reduce((sum, b) => sum + b.meeting_interactions, 0);
+
+    if (
+      totalBuilds >= c.min_builds &&
+      buildsWithTests >= c.min_builds_with_tests &&
+      totalMeetingInteractions >= c.min_meeting_interactions
+    ) {
+      return 'builder';
+    }
+    return 'explorer';
+  }
+
+  // builder -> architect
+  const c = LEVEL_PROGRESSION_CRITERIA.builder_to_architect;
+  const totalBuilds = history.length;
+  const buildsWithCustomFeedback = history.filter(b => b.used_custom_feedback_loops).length;
+  const highHealthBuilds = history.filter(
+    b => b.health_score !== null && b.health_score >= c.high_health_threshold
+  ).length;
+
+  if (
+    totalBuilds >= c.min_builds &&
+    buildsWithCustomFeedback >= c.min_builds_with_custom_feedback &&
+    highHealthBuilds >= c.min_high_health_builds
+  ) {
+    return 'architect';
+  }
+  return 'builder';
+}
+
+/**
+ * Get current progress toward the next level for UI display.
+ * Pure function: takes current level and build history, returns progress report.
+ */
+export function getProgressionProgress(currentLevel: SystemLevel, history: BuildRecord[]): ProgressionProgress {
+  if (currentLevel === 'architect') {
+    return { current_level: 'architect', next_level: null, criteria: [] };
+  }
+
+  if (currentLevel === 'explorer') {
+    const c = LEVEL_PROGRESSION_CRITERIA.explorer_to_builder;
+    const totalBuilds = history.length;
+    const buildsWithTests = history.filter(b => b.used_behavioral_tests).length;
+    const totalMeetingInteractions = history.reduce((sum, b) => sum + b.meeting_interactions, 0);
+
+    return {
+      current_level: 'explorer',
+      next_level: 'builder',
+      criteria: [
+        {
+          name: 'Complete builds',
+          met: totalBuilds >= c.min_builds,
+          progress: `${totalBuilds}/${c.min_builds}`,
+        },
+        {
+          name: 'Use behavioral tests',
+          met: buildsWithTests >= c.min_builds_with_tests,
+          progress: `${buildsWithTests}/${c.min_builds_with_tests}`,
+        },
+        {
+          name: 'Interact with Agent Meetings',
+          met: totalMeetingInteractions >= c.min_meeting_interactions,
+          progress: `${totalMeetingInteractions}/${c.min_meeting_interactions}`,
+        },
+      ],
+    };
+  }
+
+  // builder -> architect
+  const c = LEVEL_PROGRESSION_CRITERIA.builder_to_architect;
+  const totalBuilds = history.length;
+  const buildsWithCustomFeedback = history.filter(b => b.used_custom_feedback_loops).length;
+  const highHealthBuilds = history.filter(
+    b => b.health_score !== null && b.health_score >= c.high_health_threshold
+  ).length;
+
+  return {
+    current_level: 'builder',
+    next_level: 'architect',
+    criteria: [
+      {
+        name: 'Complete builds',
+        met: totalBuilds >= c.min_builds,
+        progress: `${totalBuilds}/${c.min_builds}`,
+      },
+      {
+        name: 'Use custom feedback loops',
+        met: buildsWithCustomFeedback >= c.min_builds_with_custom_feedback,
+        progress: `${buildsWithCustomFeedback}/${c.min_builds_with_custom_feedback}`,
+      },
+      {
+        name: 'Achieve 80%+ health scores',
+        met: highHealthBuilds >= c.min_high_health_builds,
+        progress: `${highHealthBuilds}/${c.min_high_health_builds}`,
+      },
+    ],
+  };
+}
