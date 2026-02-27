@@ -90,6 +90,47 @@ export const DEFAULT_THEMES: DisplayTheme[] = [
     accent_color: '#ff00ff',
     avatar_style: 'pixel',
   },
+  // PRD-002 Section 8.3 themes
+  {
+    id: 'space',
+    name: 'Space',
+    background_color: '#0a0a2e',
+    text_color: '#ffffff',
+    accent_color: '#7b68ee',
+    avatar_style: 'expressive',
+  },
+  {
+    id: 'nature',
+    name: 'Nature',
+    background_color: '#1a4d1a',
+    text_color: '#ffffff',
+    accent_color: '#4caf50',
+    avatar_style: 'expressive',
+  },
+  {
+    id: 'tech',
+    name: 'Tech',
+    background_color: '#0d1b2a',
+    text_color: '#ffffff',
+    accent_color: '#00bcd4',
+    avatar_style: 'minimal',
+  },
+  {
+    id: 'candy',
+    name: 'Candy',
+    background_color: '#fff0f5',
+    text_color: '#333333',
+    accent_color: '#ff69b4',
+    avatar_style: 'expressive',
+  },
+  {
+    id: 'plain',
+    name: 'Plain',
+    background_color: '#ffffff',
+    text_color: '#333333',
+    accent_color: '#333333',
+    avatar_style: 'minimal',
+  },
 ];
 
 // ── Display Constraints ──────────────────────────────────────────────

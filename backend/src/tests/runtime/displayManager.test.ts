@@ -61,13 +61,67 @@ describe('DisplayManager', () => {
     it('getAllThemes returns all predefined themes', () => {
       const themes = DisplayManager.getAllThemes();
       expect(themes).toHaveLength(DEFAULT_THEMES.length);
-      expect(themes.map((t) => t.id)).toEqual(['default', 'forest', 'sunset', 'pixel']);
+      expect(themes.map((t) => t.id)).toEqual([
+        'default', 'forest', 'sunset', 'pixel',
+        'space', 'nature', 'tech', 'candy', 'plain',
+      ]);
     });
 
     it('getAllThemes returns a copy (not the original array)', () => {
       const themes = DisplayManager.getAllThemes();
       themes.pop();
       expect(DisplayManager.getAllThemes()).toHaveLength(DEFAULT_THEMES.length);
+    });
+
+    // PRD-002 themes
+    it('includes Space theme with correct colors', () => {
+      const theme = DisplayManager.getThemeById('space');
+      expect(theme).toBeDefined();
+      expect(theme!.name).toBe('Space');
+      expect(theme!.background_color).toBe('#0a0a2e');
+      expect(theme!.accent_color).toBe('#7b68ee');
+      expect(theme!.avatar_style).toBe('expressive');
+    });
+
+    it('includes Nature theme with correct colors', () => {
+      const theme = DisplayManager.getThemeById('nature');
+      expect(theme).toBeDefined();
+      expect(theme!.name).toBe('Nature');
+      expect(theme!.background_color).toBe('#1a4d1a');
+      expect(theme!.accent_color).toBe('#4caf50');
+    });
+
+    it('includes Tech theme with correct colors', () => {
+      const theme = DisplayManager.getThemeById('tech');
+      expect(theme).toBeDefined();
+      expect(theme!.name).toBe('Tech');
+      expect(theme!.background_color).toBe('#0d1b2a');
+      expect(theme!.accent_color).toBe('#00bcd4');
+      expect(theme!.avatar_style).toBe('minimal');
+    });
+
+    it('includes Candy theme with correct colors', () => {
+      const theme = DisplayManager.getThemeById('candy');
+      expect(theme).toBeDefined();
+      expect(theme!.name).toBe('Candy');
+      expect(theme!.background_color).toBe('#fff0f5');
+      expect(theme!.accent_color).toBe('#ff69b4');
+    });
+
+    it('includes Plain theme with correct colors', () => {
+      const theme = DisplayManager.getThemeById('plain');
+      expect(theme).toBeDefined();
+      expect(theme!.name).toBe('Plain');
+      expect(theme!.background_color).toBe('#ffffff');
+      expect(theme!.text_color).toBe('#333333');
+      expect(theme!.avatar_style).toBe('minimal');
+    });
+
+    it('can construct DisplayManager with each PRD theme', () => {
+      for (const id of ['space', 'nature', 'tech', 'candy', 'plain']) {
+        const manager = new DisplayManager(id);
+        expect(manager.getTheme().id).toBe(id);
+      }
     });
   });
 
