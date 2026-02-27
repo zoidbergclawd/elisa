@@ -23,6 +23,7 @@ App.tsx
   MissionControl/MetricsPanel.tsx    Token usage bars per agent, cost display, budget percentage
   MissionControl/FeedbackLoopIndicator.tsx  Correction cycle animation + attempt counter for retrying tasks
   MissionControl/ConvergencePanel.tsx       Convergence tracking: attempt history, trends, teaching moments
+  MissionControl/ContextFlowAnimation.tsx   Animated context flow dots between DAG nodes on task completion
   BottomBar/BottomBar.tsx            Tabbed panel (9 tabs: Timeline/Tests/Trace/Board/Learn/Progress/System/Health/Tokens)
     GitTimeline.tsx                  Commit list with file diffs
     TestResults.tsx                  Pass/fail indicators + coverage bar (build-state aware)
@@ -47,9 +48,11 @@ App.tsx
   shared/LevelBadge.tsx             System level badge (Explorer/Builder/Architect) in header
   shared/ImpactPreview.tsx          Pre-execution impact preview card (task estimate, complexity, heaviest reqs)
   shared/DisplayThemePreview.tsx    BOX-3 display theme preview (320x240 ratio, theme colors, avatar style)
+  shared/EsptoolFlashStep.tsx       Esptool flash progress UI (port detection, manual override, progress bar)
   Meeting/MeetingModal.tsx           Full-screen meeting modal: agent chat panel (left) + canvas area (right)
   Meeting/canvasRegistry.ts          Registry for pluggable canvas components (Map<canvasType, Component>)
   Meeting/DefaultCanvas.tsx          Placeholder canvas shown when no specialized canvas is registered
+  Meeting/ThemePickerCanvas.tsx      BOX-3 display theme picker canvas for Art Agent meetings
   Skills/SkillsModal.tsx             CRUD editor for custom skills + template library
   Skills/SkillFlowEditor.tsx         Visual flow editor for composite skill steps
   Skills/SkillQuestionModal.tsx      Modal for skill questions during execution

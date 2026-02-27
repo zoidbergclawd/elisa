@@ -147,12 +147,29 @@ Note: `reviewing` is a transient state during human gate pauses within execution
 - **Nugget files**: `.elisa` zip format for export/import (workspace + skills + rules + generated code)
 - **No database**
 
+## Agent Runtime (PRD-001)
+
+After a build deploys an agent to a target device (BOX-3, web, etc.), the Agent Runtime manages live conversations. Services live in `backend/src/services/runtime/`:
+
+- **AgentStore** — Provisions agent identities from NuggetSpec (system prompt, greeting, tools, API key)
+- **ConversationManager** — Per-agent conversation sessions with windowed turn history
+- **TurnPipeline** — Core text loop: load identity + history -> Claude API -> store turn -> track usage
+- **SafetyGuardrails** — Safety prompt injected into every agent system prompt
+- **KnowledgeBackpack** — Per-agent document store with TF-IDF search for context injection
+- **StudyMode** — Spaced-repetition quiz generation from backpack sources
+- **ContentFilter** — PII redaction and inappropriate topic flagging (regex-based)
+- **UsageLimiter** — Tiered usage limits (free/basic/unlimited) with daily turn and monthly token caps
+- **ConsentManager** — COPPA parental consent tracking (full_transcripts / session_summaries / no_history)
+- **DisplayManager** — BOX-3 display command generator (idle, conversation, thinking, error, status, menu screens)
+
+REST API: `POST /v1/agents` (provision), `PUT /v1/agents/:id` (update), `DELETE /v1/agents/:id`, `POST /v1/agents/:id/turn/text`, `GET /v1/agents/:id/history`, `GET /v1/agents/:id/heartbeat`.
+
 ## Hardware Path
 
 ESP32 support via serialport library:
 1. Detect boards by USB VID:PID (Heltec LoRa, ESP32-S3, CH9102)
 2. Compile MicroPython via `py_compile`
-3. Flash via `mpremote`
+3. Flash via `mpremote` or `esptool` (selected by `FlashStrategy`)
 4. Serial monitor at 115200 baud, streamed to frontend via WebSocket
 
 ### Device Plugin Deploy
@@ -160,9 +177,20 @@ ESP32 support via serialport library:
 Multi-device builds use the device plugin system:
 1. `DeployPhase.shouldDeployDevices()` checks if spec has `devices` array
 2. `resolveDeployOrder()` sorts devices by provides/requires dependency DAG
-3. `FlashWizardModal` prompts the user to connect each device sequentially (`flash_prompt` event)
-4. Each device is flashed with files from its plugin manifest (`flash_progress` / `flash_complete` events)
-5. Shared libraries from `devices/_shared/` are included automatically
+3. `selectFlashStrategy(method)` dispatches to `MpremoteFlashStrategy` or `EsptoolFlashStrategy`
+4. `FlashWizardModal` prompts the user to connect each device sequentially (`flash_prompt` event)
+5. Each device is flashed with files from its plugin manifest (`flash_progress` / `flash_complete` events)
+6. Shared libraries from `devices/_shared/` are included automatically
+
+### BOX-3 Deploy (PRD-002)
+
+The ESP32-S3-BOX-3 voice agent plugin uses `esptool` for binary firmware flash:
+1. Device manifest declares `deploy.method: "esptool"` and `deploy.requires: ["agent_id", "api_key", "runtime_url"]`
+2. If `runtime_provision.required: true`, `RuntimeProvisioner.provision()` creates an agent identity and returns credentials
+3. `EsptoolFlashStrategy` resolves esptool, detects serial port, and flashes the pre-built firmware binary
+4. Runtime config (agent_id, api_key, runtime_url) written as `runtime_config.json` alongside firmware
+5. On redeploy, `redeployClassifier.classifyChanges()` determines whether to reflash or just update config
+6. Art Agent meeting (`art-agent` type) triggers on deploy for BOX-3 theme customization
 
 ## Module-Level Documentation
 

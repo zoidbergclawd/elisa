@@ -27,7 +27,7 @@ src/
     session.ts           Type definitions: Session, Task, Agent, BuildPhase, WSEvent
     meeting.ts           Meeting framework types: MeetingType, MeetingSession, CanvasState, etc.
     display.ts           BOX-3 display protocol types: DisplayCommand, TouchEvent, DisplayTheme, constraints
-    runtime.ts           Agent Runtime types: AgentIdentity, ConversationTurn, UsageRecord, ProvisionResult
+    runtime.ts           Agent Runtime types: AgentIdentity, ConversationTurn, UsageRecord, ProvisionResult, StudyModeConfig, QuizQuestion, BackpackSource
   services/
     orchestrator.ts      Thin coordinator: delegates to phase handlers in sequence
     sessionStore.ts      Consolidated session state (replaces 4 parallel Maps)
@@ -55,16 +55,24 @@ src/
     cloudDeployService.ts Google Cloud Run deployment (scaffold, gcloud CLI)
     portalService.ts     Portal adapters (MCP, CLI) with command allowlist
     traceabilityTracker.ts  Requirement-to-test traceability map with coverage tracking
+    feedbackLoopTracker.ts Passive feedback loop observer with convergence tracking
     impactEstimator.ts   Pre-execution complexity analysis (task count, complexity, heaviest requirements)
     boundaryAnalyzer.ts  System boundary analysis (inputs, outputs, boundary portals)
     healthTracker.ts     System health vital signs during and after execution (score 0-100, grades)
+    flashStrategy.ts     FlashStrategy interface + MpremoteFlashStrategy + EsptoolFlashStrategy
     redeployClassifier.ts  Redeploy decision matrix: classifyChanges(oldSpec, newSpec) -> action + reasons
+    artAgentMeeting.ts   Art Agent meeting type for BOX-3 display theme customization
     runtimeProvisioner.ts Interface + Stub/Local implementations for agent provisioning
     runtime/
       agentStore.ts      In-memory agent identity store (NuggetSpec -> AgentIdentity)
       conversationManager.ts  Per-agent conversation session and turn history
       turnPipeline.ts    Core conversation loop: input -> Claude API -> response
       safetyGuardrails.ts  Safety prompt generator (PRD-001 Section 6.3)
+      knowledgeBackpack.ts  In-memory TF-IDF keyword search, per-agent document store
+      studyMode.ts       Quiz generation from backpack sources, progress tracking
+      contentFilter.ts   PII detection/redaction, inappropriate topic flagging
+      usageLimiter.ts    Token/turn rate limiting with tiered usage
+      consentManager.ts  Parental consent tracking (COPPA compliance)
   prompts/
     metaPlanner.ts       System prompt for task decomposition
     builderAgent.ts      Builder role prompt template

@@ -11,7 +11,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/routes/` | REST endpoint handlers (sessions, hardware, skills, workspace, meetings) |
 | `backend/src/services/` | Core services: orchestrator, runners, hardware, portals |
 | `backend/src/services/phases/` | Pipeline stage handlers: plan, execute, test, deploy |
-| `backend/src/services/runtime/` | Agent Runtime: identity store, conversation manager, turn pipeline, safety |
+| `backend/src/services/runtime/` | Agent Runtime: identity store, conversation, turn pipeline, safety, backpack, study, content filter, consent, usage limiter |
 | `backend/src/models/` | TypeScript type definitions (session, skillPlan, runtime, display) |
 | `backend/src/prompts/` | Agent role prompts + curriculum templates |
 | `backend/src/utils/` | DAG, validation, logging, tokens, context, timeout |
@@ -105,13 +105,25 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/services/autoTestMatcher.ts` | Explorer-level auto-generation of behavioral tests for when_then requirements |
 | `backend/src/services/traceabilityTracker.ts` | Requirement-to-test traceability map with coverage tracking |
 | `backend/src/services/feedbackLoopTracker.ts` | Passive observer tracking correction cycles, convergence trends, and debug meeting triggers |
+| `backend/src/services/impactEstimator.ts` | Pre-execution complexity analysis (task count, complexity, heaviest requirements) |
+| `backend/src/services/boundaryAnalyzer.ts` | System boundary analysis (inputs, outputs, boundary portals) |
+| `backend/src/services/healthTracker.ts` | System health vital signs during and after execution (score 0-100, grades A-F) |
 | `backend/src/services/runtime/displayManager.ts` | BOX-3 display command generator (screen layouts, themes, truncation) |
 | `backend/src/services/runtime/agentStore.ts` | In-memory agent identity store (NuggetSpec -> AgentIdentity) |
 | `backend/src/services/runtime/conversationManager.ts` | Per-agent conversation session and turn history management |
 | `backend/src/services/runtime/turnPipeline.ts` | Core text conversation loop: input -> Claude API -> response |
 | `backend/src/services/runtime/safetyGuardrails.ts` | Safety prompt generator for all agent system prompts (PRD-001 Section 6.3) |
+| `backend/src/services/runtime/knowledgeBackpack.ts` | In-memory TF-IDF keyword search, per-agent document store |
+| `backend/src/services/runtime/studyMode.ts` | Quiz generation from backpack sources, spaced-repetition progress tracking |
+| `backend/src/services/runtime/contentFilter.ts` | PII detection/redaction, inappropriate topic flagging |
+| `backend/src/services/runtime/consentManager.ts` | Parental consent tracking (COPPA compliance) |
+| `backend/src/services/runtime/usageLimiter.ts` | Token/turn rate limiting with tiered usage (free/basic/unlimited) |
 | `backend/src/services/runtimeProvisioner.ts` | Provisioner interface + Stub/Local implementations |
-| `backend/src/models/runtime.ts` | Agent Runtime types: AgentIdentity, ConversationTurn, UsageRecord |
+| `backend/src/services/flashStrategy.ts` | FlashStrategy interface, MpremoteFlashStrategy, EsptoolFlashStrategy |
+| `backend/src/services/redeployClassifier.ts` | Redeploy decision matrix (config_only vs firmware_required) |
+| `backend/src/services/artAgentMeeting.ts` | Art Agent meeting type for BOX-3 theme customization |
+| `backend/src/models/runtime.ts` | Agent Runtime types: AgentIdentity, ConversationTurn, UsageRecord, StudyModeConfig, QuizQuestion, BackpackSource |
+| `backend/src/models/display.ts` | BOX-3 display protocol types: DisplayCommand, TouchEvent, DisplayTheme, constraints |
 | `backend/src/utils/deviceManifestSchema.ts` | Zod schema for device.json manifest validation |
 
 ### Phases
@@ -178,6 +190,15 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/components/MissionControl/NarratorFeed.tsx` | Scrolling narrator message feed with mood indicators |
 | `frontend/src/components/MissionControl/FeedbackLoopIndicator.tsx` | Correction cycle animation and attempt counter for retrying tasks |
 | `frontend/src/components/MissionControl/ConvergencePanel.tsx` | Convergence tracking panel showing attempt history, trends, and teaching moments |
+| `frontend/src/components/MissionControl/ContextFlowAnimation.tsx` | Animated context flow dots between DAG nodes when tasks complete |
+| `frontend/src/components/MissionControl/PlanningIndicator.tsx` | Planning phase status indicator |
+| `frontend/src/components/BottomBar/SystemBoundaryView.tsx` | System boundary visualization (inputs/outputs/portals columns) |
+| `frontend/src/components/BottomBar/HealthDashboard.tsx` | System health vital signs (live score + post-build grade + breakdown) |
+| `frontend/src/components/BottomBar/TraceabilityView.tsx` | Requirement-to-test traceability table with status badges |
+| `frontend/src/components/shared/ProofMeter.tsx` | Segmented progress bar for requirement verification (green/red/amber) |
+| `frontend/src/components/shared/EsptoolFlashStep.tsx` | Esptool flash progress UI with port detection and manual override |
+| `frontend/src/components/Meeting/ThemePickerCanvas.tsx` | BOX-3 display theme picker canvas for Art Agent meetings |
+| `frontend/src/components/shared/ImpactPreview.tsx` | Pre-execution impact preview card (task estimate, complexity, heaviest reqs) |
 
 ### Hooks
 
@@ -227,7 +248,20 @@ Blockly workspace (dynamic device blocks from plugin manifests)
   -> blockInterpreter -> NuggetSpec JSON (with devices array)
   -> orchestrator -> agents receive plugin context via DeviceRegistry.getAgentContext()
   -> deployPhase: resolveDeployOrder() -> FlashWizardModal per device
+  -> selectFlashStrategy(method) dispatches to MpremoteFlashStrategy or EsptoolFlashStrategy
   -> flash files + shared libs from plugin manifest
+```
+
+### BOX-3 Deploy Flow
+
+```
+NuggetSpec (with esp32-s3-box3-agent device)
+  -> deployPhase detects runtime_provision.required=true
+  -> RuntimeProvisioner.provision() -> agent_id, api_key, runtime_url
+  -> EsptoolFlashStrategy: resolve esptool, detect serial port, flash firmware binary
+  -> Runtime config (agent_id, api_key, runtime_url) written as runtime_config.json
+  -> Art Agent meeting triggered on deploy_started (ThemePickerCanvas for theme selection)
+  -> On redeploy: redeployClassifier.classifyChanges() -> config_only or firmware_required
 ```
 
 ### Agent Runtime Pipeline (PRD-001)

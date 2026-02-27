@@ -93,8 +93,29 @@ Core text conversation pipeline: load agent identity, load conversation history,
 ### runtime/safetyGuardrails.ts (safety prompt)
 Generates the safety prompt section injected into every agent's system prompt at the runtime level (PRD-001 Section 6.3). Single source of truth for safety rules: age-appropriate content, no PII, medical/legal redirects, no impersonation, no harmful content, no dangerous activities, encourage learning. Exports `generateSafetyPrompt()` and `hasSafetyGuardrails()` for validation.
 
+### runtime/knowledgeBackpack.ts (knowledge backpack)
+In-memory per-agent document store with TF-IDF keyword search. Stores `BackpackSource` documents (title, content, metadata). `addSource()`, `removeSource()`, `search(query)` returns ranked `SearchResult[]`. `buildContext(query)` assembles relevant sources into a prompt-injectable context string. No vector DB, no embeddings — simple tokenization and term frequency/inverse document frequency scoring.
+
+### runtime/studyMode.ts (study mode)
+Spaced-repetition tutoring from Knowledge Backpack content. Generates `QuizQuestion` objects programmatically from backpack sources (fill-in-the-blank from key sentences). Tracks `StudyProgress` per agent: correct/total answers, source coverage. Ensures all sources are quizzed before repeating. Methods: `generateQuiz()`, `submitAnswer()`, `getProgress()`, `resetProgress()`.
+
+### runtime/contentFilter.ts (content filter)
+Post-processing regex-based filter for agent responses. Detects and redacts PII patterns (email, phone, physical address). Flags inappropriate topic indicators. Returns `FilterResult` with filtered content, flagged boolean, and descriptive flags array. No AI-powered filtering — lightweight regex patterns only.
+
+### runtime/usageLimiter.ts (usage limiter)
+Per-agent usage limit enforcement with tiered usage (free/basic/unlimited). Tracks daily turn counts and monthly token budgets. `checkLimit(agentId)` returns `LimitCheckResult` with allowed boolean and remaining turns. `recordUsage(agentId, tokens)` updates counters. Auto-resets daily/monthly counters.
+
+### runtime/consentManager.ts (consent manager)
+Parental consent tracking for COPPA compliance. Three consent levels: `full_transcripts` (full history retained), `session_summaries` (only summaries), `no_history` (nothing retained). `ConsentRecord` tracks kid_id, parent_email, consent_level, granted_at, expires_at. Methods: `setConsent()`, `getConsent()`, `hasConsent()`, `revokeConsent()`. Default level: `session_summaries`.
+
+### flashStrategy.ts (flash strategy abstraction)
+Defines `FlashStrategy` interface with `checkPrerequisites()` and `flash()` methods. Two implementations: `MpremoteFlashStrategy` for MicroPython file-by-file flash via mpremote, and `EsptoolFlashStrategy` for binary firmware flash via esptool. Factory function `selectFlashStrategy(method, hw)` dispatches based on the device manifest's `deploy.method` field. `EsptoolFlashStrategy` resolves the esptool command (tries `esptool.py`, `esptool`, then `python3 -m esptool`), detects serial port via USB VID:PID, writes runtime config as JSON, and streams flash progress. 120s timeout.
+
 ### redeployClassifier.ts (redeploy decision matrix)
 Pure function `classifyChanges(oldSpec, newSpec)` compares two NuggetSpec objects and returns `{ action: 'config_only' | 'firmware_required' | 'no_change', reasons: string[] }`. Compares `devices` array (plugin IDs, field values), `deployment` section, and `runtime` config. Firmware fields (WiFi SSID/password, wake word, LoRa, device name) trigger `firmware_required`. Runtime config changes (agent name, voice, display theme, greeting) are `config_only`. Used by `RuntimeProvisioner.classifyChanges()`.
+
+### artAgentMeeting.ts (art agent meeting type)
+Registers the `art-agent` meeting type with `canvasType: 'theme-picker'`. Triggers on `deploy_started` when a BOX-3 device is present. Agent persona is "Pixel" (Art Director). Frontend canvas: `ThemePickerCanvas.tsx`. `registerArtAgentMeeting(registry)` called at startup.
 
 ### runtimeProvisioner.ts (provisioner interface)
 Interface for agent provisioning during deploy. `StubRuntimeProvisioner`: returns mock values for dev/tests. `LocalRuntimeProvisioner`: delegates to the in-process `AgentStore` for real provisioning. Both implement `classifyChanges()` which delegates to `redeployClassifier` for firmware field detection, then checks manifest `config_fields` whitelist.
