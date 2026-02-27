@@ -1,5 +1,7 @@
 /** Impact estimator: pre-execution complexity analysis of a NuggetSpec. */
 
+import type { NuggetSpec } from '../utils/specValidator.js';
+
 export type Complexity = 'simple' | 'moderate' | 'complex';
 
 export interface RequirementDetail {
@@ -21,7 +23,7 @@ export interface ImpactEstimate {
  * Estimates the impact of building a NuggetSpec before execution.
  * Uses count-based heuristics (not ML).
  */
-export function estimate(spec: Record<string, unknown>): ImpactEstimate {
+export function estimate(spec: NuggetSpec): ImpactEstimate {
   const requirements = Array.isArray(spec.requirements) ? spec.requirements : [];
   const behavioralTests = (spec.workflow as Record<string, unknown> | undefined)?.behavioral_tests;
   const testCount = Array.isArray(behavioralTests) ? behavioralTests.length : 0;

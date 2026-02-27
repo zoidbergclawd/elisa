@@ -8,6 +8,8 @@
  *   Architect -- "Design Systems": nothing automatic, minimal narration
  */
 
+import type { NuggetSpec } from '../utils/specValidator.js';
+
 export type SystemLevel = 'explorer' | 'builder' | 'architect';
 
 export type DAGDetailLevel = 'agent' | 'task';
@@ -15,9 +17,8 @@ export type DAGDetailLevel = 'agent' | 'task';
 export type NarrationLevel = 'full' | 'selective' | 'minimal';
 
 /** Extract the system level from a NuggetSpec, defaulting to 'explorer'. */
-export function getLevel(spec: Record<string, unknown>): SystemLevel {
-  const workflow = spec.workflow as Record<string, unknown> | undefined;
-  const level = workflow?.system_level;
+export function getLevel(spec: NuggetSpec): SystemLevel {
+  const level = spec.workflow?.system_level;
   if (level === 'builder' || level === 'architect') return level;
   return 'explorer';
 }

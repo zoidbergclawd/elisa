@@ -1,5 +1,7 @@
 /** Boundary analyzer: identifies inputs, outputs, and system boundaries of a NuggetSpec. */
 
+import type { NuggetSpec } from '../utils/specValidator.js';
+
 export interface BoundaryItem {
   name: string;
   type: 'user_input' | 'portal_data' | 'hardware_signal' | 'display' | 'hardware_command' | 'data_output';
@@ -18,7 +20,7 @@ export interface BoundaryAnalysis {
  * - Outputs: display, hardware commands, data
  * - Boundary portals: portals sit on the boundary between inside and outside
  */
-export function analyze(spec: Record<string, unknown>): BoundaryAnalysis {
+export function analyze(spec: NuggetSpec): BoundaryAnalysis {
   const inputs: BoundaryItem[] = [];
   const outputs: BoundaryItem[] = [];
   const boundary_portals: string[] = [];

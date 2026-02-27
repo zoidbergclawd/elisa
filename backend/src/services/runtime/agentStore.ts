@@ -13,6 +13,7 @@ import type {
   StudyConfig,
   ProvisionResult,
 } from '../../models/runtime.js';
+import type { NuggetSpec } from '../../utils/specValidator.js';
 import { generateSafetyPrompt } from './safetyGuardrails.js';
 
 // ── Safety Guardrails (PRD-001 Section 6.3) ──────────────────────────
@@ -32,7 +33,7 @@ function generateApiKey(): string {
  * Synthesize a system prompt from NuggetSpec fields.
  * Safety guardrails are always appended and cannot be overridden.
  */
-function synthesizeSystemPrompt(spec: Record<string, any>): string {
+function synthesizeSystemPrompt(spec: NuggetSpec): string {
   const parts: string[] = [];
 
   // Agent identity
@@ -67,9 +68,10 @@ function synthesizeSystemPrompt(spec: Record<string, any>): string {
   }
 
   // Behavioral tests (inform the agent about expected behaviors)
-  if (spec.workflow?.behavioral_tests?.length > 0) {
-    const tests = spec.workflow.behavioral_tests
-      .map((t: any) => `- When: ${t.when} → Then: ${t.then}`)
+  const behavioralTests = spec.workflow?.behavioral_tests;
+  if (behavioralTests && behavioralTests.length > 0) {
+    const tests = behavioralTests
+      .map((t) => `- When: ${t.when} → Then: ${t.then}`)
       .join('\n');
     parts.push(`\nExpected behaviors:\n${tests}`);
   }
@@ -100,7 +102,7 @@ function synthesizeSystemPrompt(spec: Record<string, any>): string {
 /**
  * Extract tool configs from NuggetSpec portals.
  */
-function extractToolConfigs(spec: Record<string, any>): ToolConfig[] {
+function extractToolConfigs(spec: NuggetSpec): ToolConfig[] {
   if (!Array.isArray(spec.portals)) return [];
 
   return spec.portals
@@ -116,7 +118,7 @@ function extractToolConfigs(spec: Record<string, any>): ToolConfig[] {
 /**
  * Extract study config from NuggetSpec knowledge block.
  */
-function extractStudyConfig(spec: Record<string, any>): StudyConfig | null {
+function extractStudyConfig(spec: NuggetSpec): StudyConfig | null {
   const sm = spec.knowledge?.study_mode;
   if (!sm?.enabled) return null;
 
@@ -132,7 +134,7 @@ function extractStudyConfig(spec: Record<string, any>): StudyConfig | null {
  * Extract topic index from NuggetSpec.
  * Topics come from the goal, requirements, and backpack sources.
  */
-function extractTopicIndex(spec: Record<string, any>): string[] {
+function extractTopicIndex(spec: NuggetSpec): string[] {
   const topics: string[] = [];
 
   if (spec.nugget?.goal) {
@@ -172,7 +174,7 @@ export class AgentStore {
   /**
    * Compile NuggetSpec into an AgentIdentity, generate API key, store it.
    */
-  provision(spec: Record<string, any>): ProvisionResult {
+  provision(spec: NuggetSpec): ProvisionResult {
     const agentId = randomUUID();
     const apiKey = generateApiKey();
     const now = Date.now();
@@ -205,7 +207,7 @@ export class AgentStore {
    * Update an existing agent's identity from a new NuggetSpec.
    * Preserves agent_id and created_at.
    */
-  update(agentId: string, spec: Record<string, any>): void {
+  update(agentId: string, spec: NuggetSpec): void {
     const stored = this.agents.get(agentId);
     if (!stored) throw new Error(`Agent not found: ${agentId}`);
 

@@ -5,6 +5,7 @@ import { buildMetaPlannerSystem, META_PLANNER_SYSTEM, metaPlannerUser } from '..
 import { DEFAULT_MODEL } from '../utils/constants.js';
 import { getAnthropicClient } from '../utils/anthropicClient.js';
 import type { MetaPlannerPlan, Task, Agent } from '../models/session.js';
+import type { NuggetSpec } from '../utils/specValidator.js';
 
 const DEFAULT_AGENTS = [
   {
@@ -31,7 +32,7 @@ export class MetaPlanner {
     this.client = getAnthropicClient();
   }
 
-  async plan(spec: Record<string, any>): Promise<MetaPlannerPlan> {
+  async plan(spec: NuggetSpec): Promise<MetaPlannerPlan> {
     if (!spec.agents) {
       spec = { ...spec, agents: DEFAULT_AGENTS };
     }

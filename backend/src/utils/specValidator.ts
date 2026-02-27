@@ -180,3 +180,6 @@ export const NuggetSpecSchema = z.object({
   runtime: RuntimeConfigSchema.optional(),
   knowledge: KnowledgeConfigSchema.optional(),
 }).strict();
+
+/** Inferred TypeScript type from the NuggetSpec Zod schema. */
+export type NuggetSpec = z.infer<typeof NuggetSpecSchema>;

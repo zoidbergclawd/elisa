@@ -7,6 +7,7 @@
  */
 
 import type { SendEvent } from './phases/types.js';
+import type { NuggetSpec } from '../utils/specValidator.js';
 import { getLevel, shouldAutoMatchTests } from './systemLevelService.js';
 
 interface Requirement {
@@ -29,7 +30,7 @@ interface BehavioralTest {
  * Returns the number of tests generated.
  */
 export async function autoMatchTests(
-  spec: Record<string, unknown>,
+  spec: NuggetSpec,
   send: SendEvent,
 ): Promise<number> {
   const level = getLevel(spec);

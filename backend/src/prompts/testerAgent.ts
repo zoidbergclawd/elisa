@@ -1,5 +1,7 @@
 /** Prompt templates for tester agents. */
 
+import type { NuggetSpec } from '../utils/specValidator.js';
+
 export const SYSTEM_PROMPT = `\
 You are {agent_name}, a tester agent working on a kid's nugget in Elisa.
 
@@ -83,9 +85,9 @@ export function formatTaskPrompt(params: {
   role: string;
   persona: string;
   task: Record<string, any>;
-  spec: Record<string, any>;
+  spec: NuggetSpec;
   predecessors: string[];
-  style?: Record<string, any> | null;
+  style?: NuggetSpec['style'];
 }): string {
   const { task, spec, predecessors } = params;
   const parts: string[] = [

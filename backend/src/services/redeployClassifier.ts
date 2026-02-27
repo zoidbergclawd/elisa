@@ -11,6 +11,8 @@
  *   - no_change: specs are identical for device-related fields
  */
 
+import type { NuggetSpec } from '../utils/specValidator.js';
+
 // ── Types ───────────────────────────────────────────────────────────────
 
 export type RedeployAction = 'config_only' | 'firmware_required' | 'no_change';
@@ -78,8 +80,8 @@ const FIRMWARE_DEVICE_FIELDS = new Set([
  * @returns RedeployDecision with action and human-readable reasons
  */
 export function classifyChanges(
-  oldSpec: Record<string, any>,
-  newSpec: Record<string, any>,
+  oldSpec: NuggetSpec,
+  newSpec: NuggetSpec,
 ): RedeployDecision {
   const reasons: string[] = [];
   let needsFirmware = false;

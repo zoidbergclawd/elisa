@@ -1,5 +1,7 @@
 /** Prompt templates for builder agents. */
 
+import type { NuggetSpec } from '../utils/specValidator.js';
+
 export const SYSTEM_PROMPT = `\
 You are {agent_name}, a builder agent working on a kid's nugget in Elisa.
 
@@ -77,9 +79,9 @@ export function formatTaskPrompt(params: {
   role: string;
   persona: string;
   task: Record<string, any>;
-  spec: Record<string, any>;
+  spec: NuggetSpec;
   predecessors: string[];
-  style?: Record<string, any> | null;
+  style?: NuggetSpec['style'];
   deviceRegistry?: { getAgentContext(id: string): string };
 }): string {
   const { agentName, role, persona, task, spec, predecessors, style } = params;
@@ -219,7 +221,7 @@ export function formatTaskPrompt(params: {
   return parts.join('\n');
 }
 
-export function formatStyle(style: Record<string, any>): string {
+export function formatStyle(style: NonNullable<NuggetSpec['style']>): string {
   const parts: string[] = [];
   // Current frontend fields
   if (style.visual) parts.push(`Visual Style: ${style.visual}`);

@@ -8,6 +8,7 @@
  */
 
 import type { Task, Agent } from '../../models/session.js';
+import type { NuggetSpec } from '../../utils/specValidator.js';
 import type { DeviceRegistry } from '../deviceRegistry.js';
 import { ContextManager as ContextManagerClass } from '../../utils/contextManager.js';
 import { PREDECESSOR_WORD_CAP as PRED_WORD_CAP } from '../../utils/constants.js';
@@ -26,9 +27,9 @@ export interface PromptModule {
     role: string;
     persona: string;
     task: Task;
-    spec: Record<string, any>;
+    spec: NuggetSpec;
     predecessors: string[];
-    style?: Record<string, any> | null;
+    style?: NuggetSpec['style'];
     deviceRegistry?: { getAgentContext(id: string): string };
   }) => string;
 }
@@ -36,7 +37,7 @@ export interface PromptModule {
 export interface BuildTaskPromptParams {
   task: Task;
   agent: Agent;
-  spec: Record<string, any>;
+  spec: NuggetSpec;
   taskSummaries: Record<string, string>;
   taskMap: Record<string, Task>;
   nuggetDir: string;
@@ -190,7 +191,7 @@ export class PromptBuilder {
   }
 
   /** Inject agent-category skills and always-on rules into user prompt. */
-  private injectSkillsAndRules(userPrompt: string, spec: Record<string, any>): string {
+  private injectSkillsAndRules(userPrompt: string, spec: NuggetSpec): string {
     const agentSkills = (spec.skills ?? []).filter(
       (s: any) => s.category === 'agent',
     );
