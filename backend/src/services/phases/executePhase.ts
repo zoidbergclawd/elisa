@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { PhaseContext } from './types.js';
 import { maybeTeach } from './types.js';
-import type { CommitInfo } from '../../models/session.js';
+import type { CommitInfo, Task, Agent, AgentResult } from '../../models/session.js';
 import * as builderAgent from '../../prompts/builderAgent.js';
 import * as testerAgent from '../../prompts/testerAgent.js';
 import * as reviewerAgent from '../../prompts/reviewerAgent.js';
@@ -26,7 +26,7 @@ interface PromptModule {
     agentName: string;
     role: string;
     persona: string;
-    task: Record<string, any>;
+    task: Task;
     spec: Record<string, any>;
     predecessors: string[];
     style?: Record<string, any> | null;
@@ -62,10 +62,10 @@ export interface ExecuteDeps {
   tokenTracker: TokenTracker;
   portalService: PortalService;
   context: ContextManager;
-  tasks: Record<string, any>[];
-  agents: Record<string, any>[];
-  taskMap: Record<string, Record<string, any>>;
-  agentMap: Record<string, Record<string, any>>;
+  tasks: Task[];
+  agents: Agent[];
+  taskMap: Record<string, Task>;
+  agentMap: Record<string, Agent>;
   dag: TaskDAG;
   questionResolvers: Map<string, (answers: Record<string, any>) => void>;
   gateResolver: { current: ((value: Record<string, any>) => void) | null };
@@ -106,8 +106,8 @@ export class ExecutePhase {
       const task = this.deps.taskMap[taskId];
       const agentName: string = task?.agent_name ?? '';
       task.status = 'failed';
-      const agent = this.deps.agentMap[agentName] ?? {};
-      if (agent.status !== undefined) agent.status = 'idle';
+      const agent = this.deps.agentMap[agentName];
+      if (agent) agent.status = 'idle';
       this.taskSummaries[taskId] = reason;
       await ctx.send({
         type: 'agent_output',
@@ -319,13 +319,13 @@ export class ExecutePhase {
     completed: Set<string>,
   ): Promise<boolean> {
     const task = this.deps.taskMap[taskId];
-    const agentName: string = task.agent_name ?? '';
-    const agent = this.deps.agentMap[agentName] ?? {};
-    const agentRole: string = agent.role ?? 'builder';
+    const agentName: string = task?.agent_name ?? '';
+    const agent = this.deps.agentMap[agentName];
+    const agentRole: string = agent?.role ?? 'builder';
 
     if (this.isUndeployableTask(ctx, task)) {
       task.status = 'done';
-      if (agent.status !== undefined) agent.status = 'idle';
+      if (agent) agent.status = 'idle';
       this.taskSummaries[taskId] = 'Skipped: no deployment target configured. Add a deployment portal to enable this.';
       await ctx.send({ type: 'task_started', task_id: taskId, agent_name: agentName });
       await ctx.send({
@@ -334,12 +334,12 @@ export class ExecutePhase {
         agent_name: agentName,
         content: 'No deployment target configured. Skipping deploy task. You can add a deployment portal later.',
       });
-      await ctx.send({ type: 'task_completed', task_id: taskId, agent_name: agentName });
+      await ctx.send({ type: 'task_completed', task_id: taskId, summary: this.taskSummaries[taskId] ?? '', agent_name: agentName });
       return true;
     }
 
     task.status = 'in_progress';
-    if (agent.status !== undefined) agent.status = 'working';
+    if (agent) agent.status = 'working';
 
     await ctx.send({ type: 'task_started', task_id: taskId, agent_name: agentName });
 
@@ -360,9 +360,9 @@ export class ExecutePhase {
     // from being double-interpolated
     const placeholders: Record<string, string> = {
       '{agent_name}': sanitizePlaceholder(agentName),
-      '{persona}': sanitizePlaceholder(agent.persona ?? ''),
-      '{allowed_paths}': (agent.allowed_paths ?? ['src/', 'tests/']).join(', '),
-      '{restricted_paths}': (agent.restricted_paths ?? ['.elisa/']).join(', '),
+      '{persona}': sanitizePlaceholder(agent?.persona ?? ''),
+      '{allowed_paths}': (agent?.allowed_paths ?? ['src/', 'tests/']).join(', '),
+      '{restricted_paths}': (agent?.restricted_paths ?? ['.elisa/']).join(', '),
       '{task_id}': taskId,
       '{nugget_goal}': sanitizePlaceholder(nuggetData.goal ?? 'Not specified'),
       '{nugget_type}': sanitizePlaceholder(nuggetData.type ?? 'software'),
@@ -407,7 +407,7 @@ export class ExecutePhase {
     let userPrompt = promptModule.formatTaskPrompt({
       agentName,
       role: agentRole,
-      persona: agent.persona ?? '',
+      persona: agent?.persona ?? '',
       task,
       spec: ctx.session.spec ?? {},
       predecessors: predecessorSummaries,
@@ -452,7 +452,7 @@ export class ExecutePhase {
     let retryCount = 0;
     const maxRetries = 2;
     let success = false;
-    let result: any = null;
+    let result: AgentResult | null = null;
     const taskStartTime = Date.now();
     const logTaskDone = ctx.logger?.taskStart(taskId, task.name ?? taskId, agentName);
 
@@ -473,7 +473,7 @@ export class ExecutePhase {
       const total = this.deps.tokenTracker.total;
       const max = this.deps.tokenTracker.maxBudget;
       task.status = 'failed';
-      if (agent.status !== undefined) agent.status = 'idle';
+      if (agent) agent.status = 'idle';
       const msg = `Token budget exceeded (${total} / ${max}). Skipping remaining tasks.`;
       this.taskSummaries[taskId] = msg;
       await ctx.send({
@@ -568,7 +568,7 @@ export class ExecutePhase {
     if (success) {
       logTaskDone?.();
       task.status = 'done';
-      if (agent.status !== undefined) agent.status = 'idle';
+      if (agent) agent.status = 'idle';
 
       // Read comms file
       const commsPath = path.join(
@@ -685,7 +685,7 @@ export class ExecutePhase {
       const elapsed = Date.now() - taskStartTime;
       ctx.logger?.taskFailed(taskId, task.name ?? taskId, result?.summary ?? 'Unknown error', elapsed);
       task.status = 'failed';
-      if (agent.status !== undefined) agent.status = 'error';
+      if (agent) agent.status = 'error';
       await ctx.send({
         type: 'task_failed',
         task_id: taskId,
@@ -722,7 +722,7 @@ export class ExecutePhase {
 
   // -- Human Gate --
 
-  private shouldFireGate(ctx: PhaseContext, task: Record<string, any>, completed: Set<string>): boolean {
+  private shouldFireGate(ctx: PhaseContext, task: Task, completed: Set<string>): boolean {
     const spec = ctx.session.spec ?? {};
     const humanGates = spec.workflow?.human_gates ?? [];
     if (humanGates.length === 0) return false;
@@ -733,7 +733,7 @@ export class ExecutePhase {
 
   private async fireHumanGate(
     ctx: PhaseContext,
-    task: Record<string, any>,
+    task: Task,
     opts: { question?: string; context?: string } = {},
   ): Promise<void> {
     ctx.session.state = 'reviewing';
@@ -766,7 +766,7 @@ export class ExecutePhase {
 
     if (!response.approved) {
       const feedback = response.feedback ?? '';
-      const revisionTask: Record<string, any> = {
+      const revisionTask: Task = {
         id: `task-revision-${task.id}`,
         name: `Revise: ${task.name ?? task.id}`,
         description: `Revise based on feedback: ${feedback}`,
@@ -785,7 +785,7 @@ export class ExecutePhase {
 
   // -- Deploy task filtering --
 
-  private isUndeployableTask(ctx: PhaseContext, task: Record<string, any>): boolean {
+  private isUndeployableTask(ctx: PhaseContext, task: Task): boolean {
     const name = (task.name ?? '').toLowerCase();
     const desc = (task.description ?? '').toLowerCase();
     const isDeployTask = name.includes('deploy') || name.includes('flash') ||
