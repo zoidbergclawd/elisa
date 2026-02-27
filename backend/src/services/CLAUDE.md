@@ -10,10 +10,13 @@ Delegates to phase handlers in sequence: plan -> execute -> test -> deploy. Owns
 ### phases/ (pipeline stages)
 - **planPhase.ts** -- MetaPlanner invocation, DAG setup, teaching moments
 - **executePhase.ts** -- Streaming-parallel task execution (Promise.race pool, up to 3 concurrent), workspace setup (cleans stale `.elisa/` artifacts on re-builds), git mutex, context chain, token budget enforcement
+- **promptBuilder.ts** -- Prompt construction for agent tasks. Assembles system prompt (role template, NuggetSpec, skills, digests), predecessor summaries, device plugin context, and MCP server config. Extracted from executePhase.ts for single-responsibility.
+- **taskExecutor.ts** -- Single-task execution pipeline. Owns the retry loop (up to 2 retries), agent execution call (via AgentRunner), post-execution processing (comms file reading, summary validation, git commit, context chain update), token budget pre-check, narrator/teaching calls, human gate logic, and question handler factory. Extracted from executePhase.ts.
+- **deviceFileValidator.ts** -- Post-build device file validation and fixup. After task execution, validates that required device files exist and conform to expected patterns. Runs a fixup agent to repair missing/malformed files. Extracted from executePhase.ts.
 - **testPhase.ts** -- Test runner invocation, result reporting
 - **deployPhase.ts** -- Web preview (local HTTP server), device flash (via plugin manifests), CLI portal execution
 - **deployOrder.ts** -- Device deploy ordering via provides/requires dependency DAG
-- **types.ts** -- Shared `PhaseContext` and `SendEvent` types
+- **types.ts** -- Shared `PhaseContext`, `SendEvent`, `WSEvent` discriminated union, `GateResponse`, `QuestionAnswers` types
 
 ### agentRunner.ts (SDK agent runner)
 Calls `query()` from `@anthropic-ai/claude-agent-sdk` to run agents programmatically. Streams `assistant` messages and extracts `result` metadata (tokens, cost). 300s timeout, default `maxTurns=25` (`MAX_TURNS_DEFAULT`), 2 retries with increasing turn budgets (25→35→45 via `MAX_TURNS_RETRY_INCREMENT`).

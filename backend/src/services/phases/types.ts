@@ -4,6 +4,15 @@ import type { BuildSession, Agent, Task, CommitInfo, QuestionPayload } from '../
 import type { SessionLogger } from '../../utils/sessionLogger.js';
 import type { TeachingEngine } from '../teachingEngine.js';
 
+/** Response from a human gate prompt (approve/reject with optional feedback). */
+export interface GateResponse {
+  approved: boolean;
+  feedback?: string;
+}
+
+/** User-provided answers to an agent question. Keys are question IDs or headers. */
+export type QuestionAnswers = Record<string, unknown>;
+
 /** Discriminated union for all WebSocket events sent from backend to frontend. */
 export type WSEvent =
   | { type: 'session_started'; session_id: string }
@@ -27,7 +36,7 @@ export type WSEvent =
   | { type: 'budget_warning'; total_tokens: number; max_budget: number; cost_usd: number }
   | { type: 'serial_data'; line: string; timestamp: string }
   | { type: 'human_gate'; task_id: string; question: string; context: string }
-  | { type: 'user_question'; task_id: string; questions: QuestionPayload[] | Record<string, any> }
+  | { type: 'user_question'; task_id: string; questions: QuestionPayload[] | Record<string, unknown> }
   | { type: 'skill_started'; skill_id: string; skill_name: string }
   | { type: 'skill_step'; skill_id: string; step_id: string; step_type: string; status: 'started' | 'completed' | 'failed' }
   | { type: 'skill_question'; skill_id: string; step_id: string; questions: QuestionPayload[] }

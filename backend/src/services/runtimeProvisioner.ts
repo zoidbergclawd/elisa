@@ -39,8 +39,8 @@ export interface RuntimeProvisioner {
    * Firmware-required changes: WiFi credentials, wake word.
    */
   classifyChanges(
-    oldSpec: Record<string, any>,
-    newSpec: Record<string, any>,
+    oldSpec: Record<string, unknown>,
+    newSpec: Record<string, unknown>,
     manifest: DeviceManifest,
   ): 'config_only' | 'firmware_required';
 }
@@ -84,13 +84,15 @@ export class StubRuntimeProvisioner implements RuntimeProvisioner {
   }
 
   classifyChanges(
-    oldSpec: Record<string, any>,
-    newSpec: Record<string, any>,
+    oldSpec: Record<string, unknown>,
+    newSpec: Record<string, unknown>,
     manifest: DeviceManifest,
   ): 'config_only' | 'firmware_required' {
     // Use NuggetSpec-level classifier for firmware field detection
-    const oldNugget = { devices: [{ pluginId: 'device', instanceId: 'i', fields: oldSpec.fields ?? {} }] };
-    const newNugget = { devices: [{ pluginId: 'device', instanceId: 'i', fields: newSpec.fields ?? {} }] };
+    const oldFields = (oldSpec.fields ?? {}) as Record<string, unknown>;
+    const newFields = (newSpec.fields ?? {}) as Record<string, unknown>;
+    const oldNugget = { devices: [{ pluginId: 'device', instanceId: 'i', fields: oldFields }] };
+    const newNugget = { devices: [{ pluginId: 'device', instanceId: 'i', fields: newFields }] };
     const decision = classifyNuggetChanges(oldNugget, newNugget);
     if (decision.action === 'firmware_required') return 'firmware_required';
 
@@ -105,8 +107,8 @@ export class StubRuntimeProvisioner implements RuntimeProvisioner {
  * Any changed field that is not in the whitelist requires firmware.
  */
 function classifyByManifestConfigFields(
-  oldSpec: Record<string, any>,
-  newSpec: Record<string, any>,
+  oldSpec: Record<string, unknown>,
+  newSpec: Record<string, unknown>,
   manifest: DeviceManifest,
 ): 'config_only' | 'firmware_required' {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- deploy schema varies per device plugin; runtime_provision is an optional extension
@@ -114,8 +116,8 @@ function classifyByManifestConfigFields(
   if (!deploy.runtime_provision?.config_fields) return 'config_only';
 
   const configFields = new Set(deploy.runtime_provision.config_fields as string[]);
-  const oldFields = oldSpec.fields ?? {};
-  const newFields = newSpec.fields ?? {};
+  const oldFields = (oldSpec.fields ?? {}) as Record<string, unknown>;
+  const newFields = (newSpec.fields ?? {}) as Record<string, unknown>;
 
   for (const key of Object.keys({ ...oldFields, ...newFields })) {
     if (configFields.has(key)) continue;
@@ -163,13 +165,15 @@ export class LocalRuntimeProvisioner implements RuntimeProvisioner {
   }
 
   classifyChanges(
-    oldSpec: Record<string, any>,
-    newSpec: Record<string, any>,
+    oldSpec: Record<string, unknown>,
+    newSpec: Record<string, unknown>,
     manifest: DeviceManifest,
   ): 'config_only' | 'firmware_required' {
     // Use NuggetSpec-level classifier for firmware field detection
-    const oldNugget = { devices: [{ pluginId: 'device', instanceId: 'i', fields: oldSpec.fields ?? {} }] };
-    const newNugget = { devices: [{ pluginId: 'device', instanceId: 'i', fields: newSpec.fields ?? {} }] };
+    const oldFields = (oldSpec.fields ?? {}) as Record<string, unknown>;
+    const newFields = (newSpec.fields ?? {}) as Record<string, unknown>;
+    const oldNugget = { devices: [{ pluginId: 'device', instanceId: 'i', fields: oldFields }] };
+    const newNugget = { devices: [{ pluginId: 'device', instanceId: 'i', fields: newFields }] };
     const decision = classifyNuggetChanges(oldNugget, newNugget);
     if (decision.action === 'firmware_required') return 'firmware_required';
 

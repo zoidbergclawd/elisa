@@ -11,8 +11,7 @@ import type {
   SkillSpec,
 } from '../models/skillPlan.js';
 import type { AgentRunner } from './agentRunner.js';
-
-type SendEvent = (event: Record<string, any>) => Promise<void>;
+import type { SendEvent } from './phases/types.js';
 
 const MAX_DEPTH = 10;
 
@@ -54,7 +53,7 @@ export class SkillRunner {
   private allSkills: SkillSpec[];
   private agentRunner: AgentRunner;
   private workingDir: string;
-  private questionResolvers = new Map<string, (answers: Record<string, any>) => void>();
+  private questionResolvers = new Map<string, (answers: Record<string, unknown>) => void>();
   private callStack: string[] = [];
 
   constructor(
@@ -120,7 +119,7 @@ export class SkillRunner {
     return result;
   }
 
-  respondToQuestion(stepId: string, answers: Record<string, any>): void {
+  respondToQuestion(stepId: string, answers: Record<string, unknown>): void {
     const resolver = this.questionResolvers.get(stepId);
     if (resolver) {
       resolver(answers);
@@ -167,7 +166,7 @@ export class SkillRunner {
             });
 
             // Block until answer arrives (5-minute timeout)
-            const answers = await new Promise<Record<string, any>>((resolve, reject) => {
+            const answers = await new Promise<Record<string, unknown>>((resolve, reject) => {
               const timeout = setTimeout(() => {
                 this.questionResolvers.delete(step.id);
                 reject(new Error(`ask_user step "${step.id}" timed out after 5 minutes waiting for a response`));

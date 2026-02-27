@@ -6,7 +6,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { safeEnv } from '../../utils/safeEnv.js';
 import { BUILD_TIMEOUT_MS } from '../../utils/constants.js';
 import { findFreePort } from '../../utils/findFreePort.js';
-import type { PhaseContext } from './types.js';
+import type { PhaseContext, GateResponse } from './types.js';
 import { maybeTeach } from './types.js';
 import { HardwareService } from '../hardwareService.js';
 import { PortalService } from '../portalService.js';
@@ -56,7 +56,7 @@ export class DeployPhase {
 
   async deployDevices(
     ctx: PhaseContext,
-    gateResolver: { current: ((value: Record<string, any>) => void) | null },
+    gateResolver: { current: ((value: GateResponse) => void) | null },
   ): Promise<void> {
     const spec = ctx.session.spec ?? {};
     const devices = spec.devices ?? [];
@@ -214,7 +214,7 @@ export class DeployPhase {
     device: any,
     manifest: any,
     outputs: Record<string, string>,
-    gateResolver: { current: ((value: Record<string, any>) => void) | null },
+    gateResolver: { current: ((value: GateResponse) => void) | null },
   ): Promise<void> {
     const method = manifest.deploy.method;
     const flashConfig = method === 'flash' ? manifest.deploy.flash : manifest.deploy.esptool;

@@ -66,7 +66,7 @@ export class MetaPlanner {
     systemPrompt: string,
     originalUserMsg: string,
     badResponse: string,
-  ): Promise<Record<string, any>> {
+  ): Promise<Record<string, unknown>> {
     const model = process.env.CLAUDE_MODEL || DEFAULT_MODEL;
     const response = await this.client.messages.create({
       model,
@@ -100,7 +100,7 @@ export class MetaPlanner {
     throw new Error('No text content in meta-planner response');
   }
 
-  private parseJson(text: string): Record<string, any> | null {
+  private parseJson(text: string): Record<string, unknown> | null {
     let cleaned = text.trim();
     const fenceMatch = cleaned.match(/```(?:json)?\s*\n?(.*?)```/s);
     if (fenceMatch) {
@@ -114,7 +114,7 @@ export class MetaPlanner {
   }
 
   /** Validates the raw parsed JSON conforms to MetaPlannerPlan structure. Mutates in place. */
-  private validate(plan: Record<string, any>): asserts plan is MetaPlannerPlan {
+  private validate(plan: Record<string, unknown>): asserts plan is MetaPlannerPlan {
     if (typeof plan !== 'object' || plan === null) {
       throw new Error('Plan must be a JSON object');
     }
@@ -128,10 +128,13 @@ export class MetaPlanner {
       throw new Error('Plan must have at least one task');
     }
 
-    const taskIds = new Set(plan.tasks.map((t: Record<string, any>) => t.id));
-    const agentNames = new Set(plan.agents.map((a: Record<string, any>) => a.name));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- progressive validation: raw JSON being narrowed to MetaPlannerPlan
+    const tasks = plan.tasks as Record<string, any>[];
+    const agents = plan.agents as Record<string, any>[];
+    const taskIds = new Set(tasks.map((t) => t.id));
+    const agentNames = new Set(agents.map((a) => a.name));
 
-    for (const task of plan.tasks as Record<string, any>[]) {
+    for (const task of tasks) {
       if (!task.id) throw new Error(`Task missing 'id': ${JSON.stringify(task)}`);
       if (!task.dependencies) throw new Error(`Task missing 'dependencies': ${task.id}`);
       for (const dep of task.dependencies) {
@@ -149,7 +152,7 @@ export class MetaPlanner {
     }
 
     // Content validation for agents
-    for (const agent of plan.agents as Record<string, any>[]) {
+    for (const agent of agents) {
       // Filter allowed_paths: must be relative, no '..'
       if (agent.allowed_paths) {
         agent.allowed_paths = agent.allowed_paths.filter(

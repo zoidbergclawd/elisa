@@ -13,7 +13,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import type { PhaseContext } from './types.js';
+import type { PhaseContext, GateResponse, QuestionAnswers } from './types.js';
 import { maybeTeach } from './types.js';
 import type { CommitInfo, Task, Agent, AgentResult } from '../../models/session.js';
 import type { AgentRunner } from '../agentRunner.js';
@@ -63,8 +63,8 @@ export interface TaskExecutionOptions {
   agents: Agent[];
   nuggetDir: string;
   gitMutex: (fn: () => Promise<void>) => Promise<void>;
-  questionResolvers: Map<string, (answers: Record<string, any>) => void>;
-  gateResolver: { current: ((value: Record<string, any>) => void) | null };
+  questionResolvers: Map<string, (answers: QuestionAnswers) => void>;
+  gateResolver: { current: ((value: GateResponse) => void) | null };
   dag: TaskDAG;
   completed: Set<string>;
   commits: CommitInfo[];
@@ -504,10 +504,10 @@ export class TaskExecutor {
     });
 
     const response = await Promise.race([
-      new Promise<Record<string, any>>((resolve) => {
+      new Promise<GateResponse>((resolve) => {
         options.gateResolver.current = resolve;
       }),
-      new Promise<Record<string, any>>((_, reject) => {
+      new Promise<GateResponse>((_, reject) => {
         if (ctx.abortSignal.aborted) {
           reject(new Error('Build cancelled'));
           return;
@@ -562,8 +562,10 @@ export class TaskExecutor {
   makeQuestionHandler(
     ctx: PhaseContext,
     taskId: string,
-    questionResolvers: Map<string, (answers: Record<string, any>) => void>,
-  ): (taskId: string, payload: Record<string, any>) => Promise<Record<string, any>> {
+    questionResolvers: Map<string, (answers: QuestionAnswers) => void>,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- payload shape depends on SDK tool_use events; no stable schema
+  ): (taskId: string, payload: Record<string, any>) => Promise<Record<string, unknown>> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK passes heterogeneous tool_use payloads
     return async (_taskId: string, payload: Record<string, any>) => {
       if (this.deps.permissionPolicy && payload) {
         // Try to detect permission-type requests
@@ -612,10 +614,10 @@ export class TaskExecutor {
         questions: payload,
       });
       return Promise.race([
-        new Promise<Record<string, any>>((resolve) => {
+        new Promise<QuestionAnswers>((resolve) => {
           questionResolvers.set(taskId, resolve);
         }),
-        new Promise<Record<string, any>>((_, reject) => {
+        new Promise<QuestionAnswers>((_, reject) => {
           if (ctx.abortSignal.aborted) {
             reject(new Error('Build cancelled'));
             return;

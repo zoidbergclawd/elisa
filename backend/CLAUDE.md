@@ -33,12 +33,15 @@ src/
     orchestrator.ts      Thin coordinator: delegates to phase handlers in sequence
     sessionStore.ts      Consolidated session state (replaces 4 parallel Maps)
     phases/
-      types.ts           Shared PhaseContext and SendEvent types
+      types.ts           Shared PhaseContext, SendEvent, GateResponse, QuestionAnswers types
       planPhase.ts       MetaPlanner invocation, DAG setup
       executePhase.ts    Task execution loop (parallel, git mutex, context chain)
       testPhase.ts       Test runner invocation, result reporting
       deployPhase.ts     Device flash, portal deployment, web preview
       deployOrder.ts     Device deploy ordering (provides/requires DAG)
+      promptBuilder.ts   Prompt construction for agent tasks (system prompt, predecessors, skills, digests)
+      taskExecutor.ts    Single-task execution pipeline (retry, agent run, git, context chain)
+      deviceFileValidator.ts  Post-build device file validation and fixup agent
     agentRunner.ts       Runs agents via SDK query() API, streams output
     metaPlanner.ts       Calls Claude API to decompose NuggetSpec into task DAG
     gitService.ts        Git init, commit per task, diff tracking

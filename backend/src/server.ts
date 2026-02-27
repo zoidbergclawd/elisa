@@ -29,6 +29,7 @@ import { GapDetector } from './services/runtime/gapDetector.js';
 import { LocalRuntimeProvisioner } from './services/runtimeProvisioner.js';
 import { createRuntimeRouter } from './routes/runtime.js';
 import { getAnthropicClient } from './utils/anthropicClient.js';
+import type { WSEvent } from './services/phases/types.js';
 
 // -- State --
 
@@ -138,7 +139,7 @@ class ConnectionManager {
     this.connections.get(sessionId)?.delete(ws);
   }
 
-  async sendEvent(sessionId: string, event: Record<string, any>): Promise<void> {
+  async sendEvent(sessionId: string, event: WSEvent): Promise<void> {
     const conns = this.connections.get(sessionId);
     if (!conns) return;
     const data = JSON.stringify(event);
@@ -253,7 +254,7 @@ function createApp(staticDir?: string, authToken?: string) {
   }
 
   // Route modules
-  const sendEvent = (sessionId: string, event: Record<string, any>) =>
+  const sendEvent = (sessionId: string, event: WSEvent) =>
     manager.sendEvent(sessionId, event);
 
   app.use('/api/sessions', createSessionRouter({ store, sendEvent, hardwareService, deviceRegistry, meetingRegistry, runtimeProvisioner }));
@@ -278,11 +279,11 @@ function createApp(staticDir?: string, authToken?: string) {
       res.status(400).json({ detail: 'description is required' });
       return;
     }
-    const suggested: Record<string, any> = {
-      name: description.slice(0, 40),
+    const suggested = {
+      name: (description as string).slice(0, 40),
       description,
       mechanism: mechanism ?? 'auto',
-      capabilities: [],
+      capabilities: [] as string[],
     };
     res.json(suggested);
   });

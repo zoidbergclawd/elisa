@@ -251,7 +251,8 @@ export class TestRunner {
         const covData = JSON.parse(fs.readFileSync(covJsonPath, 'utf-8'));
         const totals = covData.totals ?? {};
         coveragePct = totals.percent_covered ?? null;
-        const filesReport: Record<string, any> = {};
+        const filesReport: CoverageDetails['files'] = {};
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- covData.files is untyped JSON from pytest coverage output
         for (const [filepath, fileData] of Object.entries<any>(covData.files ?? {})) {
           const summary = fileData.summary ?? {};
           filesReport[filepath] = {

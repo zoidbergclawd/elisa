@@ -33,8 +33,9 @@ export interface AgentRunnerParams {
   onOutput: (taskId: string, content: string) => Promise<void>;
   onQuestion?: (
     taskId: string,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- payload shape depends on SDK tool_use events; no stable schema
     payload: Record<string, any>,
-  ) => Promise<Record<string, any>>;
+  ) => Promise<Record<string, unknown>>;
   workingDir: string;
   timeout?: number;
   model?: string;
@@ -113,6 +114,7 @@ export class AgentRunner {
     onOutput: (taskId: string, content: string) => Promise<void>,
     model: string,
     maxTurns: number,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- MCP server config shape varies; passed directly to SDK query()
     mcpConfig?: Record<string, any>,
     abortController?: AbortController,
     allowedTools?: string[],

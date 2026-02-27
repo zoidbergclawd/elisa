@@ -131,10 +131,13 @@ Block-based visual programming IDE where kids build software by snapping togethe
 |------|------|
 | `backend/src/services/phases/planPhase.ts` | MetaPlanner invocation, DAG setup, early teaching moments |
 | `backend/src/services/phases/executePhase.ts` | Streaming-parallel task execution (3 concurrent, Promise.race) |
+| `backend/src/services/phases/promptBuilder.ts` | Prompt construction for agent tasks (system prompt, predecessors, skills, digests) |
+| `backend/src/services/phases/taskExecutor.ts` | Single-task execution pipeline (retry, agent run, git, context chain) |
+| `backend/src/services/phases/deviceFileValidator.ts` | Post-build device file validation and fixup agent |
 | `backend/src/services/phases/testPhase.ts` | Test runner invocation and result reporting |
 | `backend/src/services/phases/deployPhase.ts` | Web preview, device flash, portal deploy |
 | `backend/src/services/phases/deployOrder.ts` | Device deploy ordering via provides/requires DAG |
-| `backend/src/services/phases/types.ts` | Shared PhaseContext and SendEvent types |
+| `backend/src/services/phases/types.ts` | Shared PhaseContext, SendEvent, WSEvent, GateResponse, QuestionAnswers types |
 
 ### Utils
 

@@ -1,5 +1,6 @@
 /** Prompt templates for tester agents. */
 
+import type { Task } from '../models/session.js';
 import type { NuggetSpec } from '../utils/specValidator.js';
 
 export const SYSTEM_PROMPT = `\
@@ -84,7 +85,7 @@ export function formatTaskPrompt(params: {
   agentName: string;
   role: string;
   persona: string;
-  task: Record<string, any>;
+  task: Task;
   spec: NuggetSpec;
   predecessors: string[];
   style?: NuggetSpec['style'];

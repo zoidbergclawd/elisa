@@ -6,7 +6,8 @@ import path from 'node:path';
 import type { ChildProcess } from 'node:child_process';
 import type { BuildSession, Task, Agent, CommitInfo } from '../models/session.js';
 import type { NuggetSpec } from '../utils/specValidator.js';
-import type { PhaseContext, SendEvent } from './phases/types.js';
+import type { PhaseContext, SendEvent, GateResponse, QuestionAnswers } from './phases/types.js';
+import type { TestRunResult } from './testRunner.js';
 import { PlanPhase } from './phases/planPhase.js';
 import { ExecutePhase } from './phases/executePhase.js';
 import { TestPhase } from './phases/testPhase.js';
@@ -36,7 +37,7 @@ export class Orchestrator {
   private logger: SessionLogger | null = null;
   nuggetDir: string;
   private nuggetType = 'software';
-  private testResults: Record<string, any> = {};
+  private testResults: TestRunResult = { tests: [], passed: 0, failed: 0, total: 0, coverage_pct: null, coverage_details: null };
   private commits: CommitInfo[] = [];
   private webServerProcess: ChildProcess | null = null;
   private userWorkspace: boolean;
@@ -45,10 +46,10 @@ export class Orchestrator {
   private abortController = new AbortController();
 
   // Gate: Promise-based blocking
-  private gateResolver: { current: ((value: Record<string, any>) => void) | null } = { current: null };
+  private gateResolver: { current: ((value: GateResponse) => void) | null } = { current: null };
 
   // Question: Promise-based blocking for interactive questions
-  private questionResolvers = new Map<string, (answers: Record<string, any>) => void>();
+  private questionResolvers = new Map<string, (answers: QuestionAnswers) => void>();
 
   // Services
   private agentRunner = new AgentRunner();
@@ -308,7 +309,7 @@ export class Orchestrator {
     }
   }
 
-  respondToQuestion(taskId: string, answers: Record<string, any>): void {
+  respondToQuestion(taskId: string, answers: QuestionAnswers): void {
     const resolver = this.questionResolvers.get(taskId);
     if (resolver) {
       resolver(answers);
@@ -318,7 +319,16 @@ export class Orchestrator {
 
   // -- Public accessors --
 
-  getCommits(): Record<string, any>[] {
+  /** Returns commits serialized as snake_case for the REST API. */
+  getCommits(): Array<{
+    sha: string;
+    short_sha: string;
+    message: string;
+    agent_name: string;
+    task_id: string;
+    timestamp: string;
+    files_changed: string[];
+  }> {
     return this.commits.map((c) => ({
       sha: c.sha,
       short_sha: c.shortSha,
@@ -330,7 +340,7 @@ export class Orchestrator {
     }));
   }
 
-  getTestResults(): Record<string, any> {
+  getTestResults(): TestRunResult {
     return this.testResults;
   }
 }

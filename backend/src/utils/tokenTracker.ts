@@ -5,6 +5,18 @@ export const BUDGET_WARNING_THRESHOLD = 0.8;
 
 export const DEFAULT_RESERVED_PER_TASK = 50_000;
 
+export interface TokenSnapshot {
+  input_tokens: number;
+  output_tokens: number;
+  total: number;
+  reserved_tokens: number;
+  effective_total: number;
+  cost_usd: number;
+  max_budget: number;
+  budget_remaining: number;
+  per_agent: Record<string, { input: number; output: number }>;
+}
+
 export class TokenTracker {
   inputTokens = 0;
   outputTokens = 0;
@@ -83,7 +95,7 @@ export class TokenTracker {
     return Math.max(0, this.maxBudget - this.total);
   }
 
-  snapshot(): Record<string, any> {
+  snapshot(): TokenSnapshot {
     return {
       input_tokens: this.inputTokens,
       output_tokens: this.outputTokens,

@@ -3,12 +3,12 @@
 import { Router } from 'express';
 import type { MeetingService } from '../services/meetingService.js';
 import type { SessionStore } from '../services/sessionStore.js';
-import type { SendEvent } from '../services/phases/types.js';
+import type { SendEvent, WSEvent } from '../services/phases/types.js';
 
 interface MeetingRouterDeps {
   store: SessionStore;
   meetingService: MeetingService;
-  sendEvent: (sessionId: string, event: Record<string, any>) => Promise<void>;
+  sendEvent: (sessionId: string, event: WSEvent) => Promise<void>;
 }
 
 export function createMeetingRouter({ store, meetingService, sendEvent }: MeetingRouterDeps): Router {
@@ -16,7 +16,7 @@ export function createMeetingRouter({ store, meetingService, sendEvent }: Meetin
 
   /** Helper to create a SendEvent scoped to a session. */
   function makeSend(sessionId: string): SendEvent {
-    return (event) => sendEvent(sessionId, event as Record<string, any>);
+    return (event) => sendEvent(sessionId, event);
   }
 
   // List all meetings for a session

@@ -10,7 +10,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import type { PhaseContext } from './types.js';
+import type { PhaseContext, GateResponse, QuestionAnswers } from './types.js';
 import type { CommitInfo, Task, Agent } from '../../models/session.js';
 import { AgentRunner } from '../agentRunner.js';
 import { GitService } from '../gitService.js';
@@ -51,8 +51,8 @@ export interface ExecuteDeps {
   taskMap: Record<string, Task>;
   agentMap: Record<string, Agent>;
   dag: TaskDAG;
-  questionResolvers: Map<string, (answers: Record<string, any>) => void>;
-  gateResolver: { current: ((value: Record<string, any>) => void) | null };
+  questionResolvers: Map<string, (answers: QuestionAnswers) => void>;
+  gateResolver: { current: ((value: GateResponse) => void) | null };
   narratorService?: NarratorService;
   permissionPolicy?: PermissionPolicy;
   deviceRegistry?: DeviceRegistry;

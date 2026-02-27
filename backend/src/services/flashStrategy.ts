@@ -30,7 +30,7 @@ export interface FlashParams {
   injections: Record<string, string>;
   /** Device plugin ID */
   pluginId: string;
-  /** Flash configuration from the device manifest */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- device manifest flash config schema varies per plugin; no unified type exists
   flashConfig: Record<string, any>;
   /** Lib files resolved from the device registry */
   flashFiles: { lib: string[]; shared: string[] };

@@ -17,10 +17,11 @@ import type { DeviceRegistry } from '../services/deviceRegistry.js';
 import type { MeetingRegistry } from '../services/meetingRegistry.js';
 import type { RuntimeProvisioner } from '../services/runtimeProvisioner.js';
 import type { SkillSpec } from '../models/skillPlan.js';
+import type { WSEvent } from '../services/phases/types.js';
 
 interface SessionRouterDeps {
   store: SessionStore;
-  sendEvent: (sessionId: string, event: Record<string, any>) => Promise<void>;
+  sendEvent: (sessionId: string, event: WSEvent) => Promise<void>;
   hardwareService?: HardwareService;
   deviceRegistry?: DeviceRegistry;
   meetingRegistry?: MeetingRegistry;
