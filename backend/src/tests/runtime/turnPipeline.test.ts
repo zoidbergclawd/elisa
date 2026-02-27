@@ -39,6 +39,46 @@ function makeSpec(): Record<string, any> {
   };
 }
 
+function makeSpecWithTools(): Record<string, any> {
+  return {
+    ...makeSpec(),
+    portals: [
+      {
+        id: 'weather-portal',
+        name: 'get_weather',
+        description: 'Get current weather',
+        capabilities: { location: { type: 'string' } },
+      },
+    ],
+  };
+}
+
+/**
+ * Create a mock client that returns tool_use on the first call,
+ * then a final text response on the follow-up call.
+ */
+function createToolUseClient(finalText = 'The weather is sunny!') {
+  const client = {
+    messages: {
+      create: vi.fn()
+        .mockResolvedValueOnce({
+          content: [
+            { type: 'text', text: 'Let me check the weather.' },
+            { type: 'tool_use', id: 'toolu_abc', name: 'get_weather', input: { location: 'Paris' } },
+          ],
+          stop_reason: 'tool_use',
+          usage: { input_tokens: 80, output_tokens: 40 },
+        })
+        .mockResolvedValueOnce({
+          content: [{ type: 'text', text: finalText }],
+          stop_reason: 'end_turn',
+          usage: { input_tokens: 120, output_tokens: 60 },
+        }),
+    },
+  } as any;
+  return client;
+}
+
 // ── TurnPipeline ─────────────────────────────────────────────────────
 
 describe('TurnPipeline', () => {
@@ -214,6 +254,158 @@ describe('TurnPipeline', () => {
           session_id: session.session_id,
         }),
       ).rejects.toThrow('does not belong to agent');
+    });
+  });
+
+  describe('tool execution', () => {
+    it('handles tool_use blocks and makes follow-up API call', async () => {
+      const toolClient = createToolUseClient();
+      const toolPipeline = new TurnPipeline(
+        {
+          agentStore,
+          conversationManager,
+          getClient: () => toolClient,
+        },
+        usageTracker,
+      );
+
+      const { agent_id } = agentStore.provision(makeSpecWithTools());
+      const result = await toolPipeline.receiveTurn(agent_id, { text: 'What is the weather in Paris?' });
+
+      // Final response should include the text from the follow-up call
+      expect(result.response).toContain('The weather is sunny!');
+      // Should also include intermediate text
+      expect(result.response).toContain('Let me check the weather.');
+
+      // Two API calls: initial + follow-up with tool results
+      expect(toolClient.messages.create).toHaveBeenCalledTimes(2);
+    });
+
+    it('accumulates token usage across tool call round-trips', async () => {
+      const toolClient = createToolUseClient();
+      const toolPipeline = new TurnPipeline(
+        {
+          agentStore,
+          conversationManager,
+          getClient: () => toolClient,
+        },
+        usageTracker,
+      );
+
+      const { agent_id } = agentStore.provision(makeSpecWithTools());
+      const result = await toolPipeline.receiveTurn(agent_id, { text: 'Weather?' });
+
+      // 80 + 120 = 200 input, 40 + 60 = 100 output
+      expect(result.input_tokens).toBe(200);
+      expect(result.output_tokens).toBe(100);
+    });
+
+    it('sends tool results back to Claude in the follow-up call', async () => {
+      const toolClient = createToolUseClient();
+      const toolPipeline = new TurnPipeline(
+        {
+          agentStore,
+          conversationManager,
+          getClient: () => toolClient,
+        },
+        usageTracker,
+      );
+
+      const { agent_id } = agentStore.provision(makeSpecWithTools());
+      await toolPipeline.receiveTurn(agent_id, { text: 'Weather in Paris?' });
+
+      // Inspect the follow-up call
+      const followUpArgs = toolClient.messages.create.mock.calls[1][0];
+
+      // Should have: [user message, assistant (with tool_use), user (with tool_result)]
+      const messages = followUpArgs.messages;
+      expect(messages.length).toBeGreaterThanOrEqual(3);
+
+      // Last message should contain a tool_result block
+      const lastMsg = messages[messages.length - 1];
+      expect(lastMsg.role).toBe('user');
+      expect(lastMsg.content[0].type).toBe('tool_result');
+      expect(lastMsg.content[0].tool_use_id).toBe('toolu_abc');
+    });
+
+    it('includes tools in API call when agent has tool_configs', async () => {
+      const toolClient = createToolUseClient();
+      const toolPipeline = new TurnPipeline(
+        {
+          agentStore,
+          conversationManager,
+          getClient: () => toolClient,
+        },
+        usageTracker,
+      );
+
+      const { agent_id } = agentStore.provision(makeSpecWithTools());
+      await toolPipeline.receiveTurn(agent_id, { text: 'Hello!' });
+
+      const firstCallArgs = toolClient.messages.create.mock.calls[0][0];
+      expect(firstCallArgs.tools).toBeDefined();
+      expect(firstCallArgs.tools).toHaveLength(1);
+      expect(firstCallArgs.tools[0].name).toBe('get_weather');
+    });
+
+    it('does not include tools in API call when agent has no tool_configs', async () => {
+      const { agent_id } = agentStore.provision(makeSpec());
+      await pipeline.receiveTurn(agent_id, { text: 'Hello!' });
+
+      const callArgs = mockClient.messages.create.mock.calls[0][0];
+      expect(callArgs.tools).toBeUndefined();
+    });
+
+    it('returns error result for unknown tool and still completes the turn', async () => {
+      // Mock: Claude calls a tool not in the agent's config
+      const unknownToolClient = {
+        messages: {
+          create: vi.fn()
+            .mockResolvedValueOnce({
+              content: [
+                { type: 'tool_use', id: 'toolu_xyz', name: 'unknown_tool', input: {} },
+              ],
+              stop_reason: 'tool_use',
+              usage: { input_tokens: 50, output_tokens: 30 },
+            })
+            .mockResolvedValueOnce({
+              content: [{ type: 'text', text: 'I could not find that tool.' }],
+              stop_reason: 'end_turn',
+              usage: { input_tokens: 80, output_tokens: 40 },
+            }),
+        },
+      } as any;
+
+      const unknownPipeline = new TurnPipeline(
+        {
+          agentStore,
+          conversationManager,
+          getClient: () => unknownToolClient,
+        },
+        usageTracker,
+      );
+
+      const { agent_id } = agentStore.provision(makeSpecWithTools());
+      const result = await unknownPipeline.receiveTurn(agent_id, { text: 'Use unknown tool' });
+
+      // Should still complete with the final response
+      expect(result.response).toContain('I could not find that tool.');
+
+      // The tool result should have been sent as an error
+      const followUpArgs = unknownToolClient.messages.create.mock.calls[1][0];
+      const lastMsg = followUpArgs.messages[followUpArgs.messages.length - 1];
+      expect(lastMsg.content[0].is_error).toBe(true);
+      expect(lastMsg.content[0].content).toContain('Unknown tool');
+    });
+
+    it('handles no tool_use blocks as normal flow', async () => {
+      // Standard mock client returns only text blocks with stop_reason 'end_turn'
+      const { agent_id } = agentStore.provision(makeSpecWithTools());
+      const result = await pipeline.receiveTurn(agent_id, { text: 'Just chat, no tools' });
+
+      // Should work normally, only 1 API call
+      expect(result.response).toBe('Mock response from Claude');
+      expect(mockClient.messages.create).toHaveBeenCalledOnce();
     });
   });
 

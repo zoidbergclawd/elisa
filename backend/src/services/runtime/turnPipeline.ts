@@ -23,6 +23,8 @@ import type { KnowledgeBackpack } from './knowledgeBackpack.js';
 import type { UsageRecord } from '../../models/runtime.js';
 import { filterAgentResponse } from './contentFilter.js';
 import { UsageLimiter } from './usageLimiter.js';
+import { ToolExecutor } from './toolExecutor.js';
+import type { ToolUseBlock } from './toolExecutor.js';
 import { DEFAULT_MODEL } from '../../utils/constants.js';
 
 // ── Types ─────────────────────────────────────────────────────────────
@@ -153,30 +155,91 @@ export class TurnPipeline {
       }
     }
 
-    // 5. Call Claude API
+    // 5. Call Claude API (with tool execution loop)
     let responseText = '';
     let inputTokens = 0;
     let outputTokens = 0;
 
     try {
       const client = this.getClient();
-      const response = await client.messages.create({
+
+      // Build tools array from agent's tool_configs for the API call
+      const tools = identity.tool_configs.map((tc) => ({
+        name: tc.name,
+        description: tc.description,
+        input_schema: {
+          type: 'object' as const,
+          properties: tc.parameters,
+        },
+      }));
+
+      const apiParams: any = {
         model: this.model,
         max_tokens: 4096,
         system: systemPrompt,
         messages: history,
-      });
+      };
+      if (tools.length > 0) {
+        apiParams.tools = tools;
+      }
 
-      // Extract text from response content blocks
+      let response = await client.messages.create(apiParams);
+
+      inputTokens += response.usage?.input_tokens ?? 0;
+      outputTokens += response.usage?.output_tokens ?? 0;
+
+      // Tool execution loop: handle tool_use blocks with follow-up calls
+      const toolExecutor = new ToolExecutor(identity.tool_configs);
+
+      while (response.stop_reason === 'tool_use') {
+        // Extract text from any text blocks so far
+        for (const block of response.content) {
+          if (block.type === 'text') {
+            responseText += block.text;
+          }
+        }
+
+        // Collect tool_use blocks
+        const toolUseBlocks = response.content.filter(
+          (b: any): b is ToolUseBlock => b.type === 'tool_use',
+        );
+
+        // Execute all tool calls
+        const toolResults = await toolExecutor.executeAll(toolUseBlocks);
+
+        // Build follow-up messages: assistant response + tool results
+        const followUpMessages = [
+          ...history,
+          { role: 'assistant' as const, content: response.content },
+          ...toolResults.map((tr) => ({
+            role: 'user' as const,
+            content: [tr],
+          })),
+        ];
+
+        // Make follow-up API call with tool results
+        const followUpParams: any = {
+          model: this.model,
+          max_tokens: 4096,
+          system: systemPrompt,
+          messages: followUpMessages,
+        };
+        if (tools.length > 0) {
+          followUpParams.tools = tools;
+        }
+
+        response = await client.messages.create(followUpParams);
+
+        inputTokens += response.usage?.input_tokens ?? 0;
+        outputTokens += response.usage?.output_tokens ?? 0;
+      }
+
+      // Extract final text from response
       for (const block of response.content) {
         if (block.type === 'text') {
           responseText += block.text;
         }
-        // TODO: Handle tool_use blocks when Portal integration is added
       }
-
-      inputTokens = response.usage?.input_tokens ?? 0;
-      outputTokens = response.usage?.output_tokens ?? 0;
     } catch (err: any) {
       // On API error, use fallback response
       console.error(`[TurnPipeline] Claude API error for agent ${agentId}:`, err.message);
