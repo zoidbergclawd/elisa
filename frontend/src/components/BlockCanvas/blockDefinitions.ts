@@ -144,7 +144,7 @@ const blockDefs = [
   },
   {
     type: 'when_then',
-    message0: 'When %1 happens, %2 should happen %3',
+    message0: 'When %1 happens, %2 should happen',
     args0: [
       {
         type: 'field_input',
@@ -156,6 +156,9 @@ const blockDefs = [
         name: 'ACTION_TEXT',
         text: 'something else',
       },
+    ],
+    message1: '%1',
+    args1: [
       {
         type: 'input_statement',
         name: 'TEST_SOCKET',
