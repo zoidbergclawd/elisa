@@ -69,7 +69,8 @@ export type WSEvent =
   | { type: 'impact_estimate'; estimated_tasks: number; complexity: 'simple' | 'moderate' | 'complex'; heaviest_requirements: string[]; requirement_details: Array<{ description: string; estimated_task_count: number; test_linked: boolean; weight: number; dependents: number }> }
   | { type: 'system_health_update'; tasks_done: number; tasks_total: number; tests_passing: number; tests_total: number; tokens_used: number; health_score: number }
   | { type: 'system_health_summary'; health_score: number; grade: 'A' | 'B' | 'C' | 'D' | 'F'; breakdown: { tasks_score: number; tests_score: number; corrections_score: number; budget_score: number } }
-  | { type: 'boundary_analysis'; inputs: Array<{ name: string; type: string; source?: string }>; outputs: Array<{ name: string; type: string; source?: string }>; boundary_portals: string[] };
+  | { type: 'boundary_analysis'; inputs: Array<{ name: string; type: string; source?: string }>; outputs: Array<{ name: string; type: string; source?: string }>; boundary_portals: string[] }
+  | { type: 'composition_impact'; graph_id: string; changed_node_id: string; affected_nodes: Array<{ node_id: string; label: string; reason: string }>; severity: string };
 
 export type SendEvent = (event: WSEvent) => Promise<void>;
 

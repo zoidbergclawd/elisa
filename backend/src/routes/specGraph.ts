@@ -16,13 +16,15 @@
 
 import { Router, type Request, type Response } from 'express';
 import type { SpecGraphService } from '../services/specGraph.js';
+import type { CompositionService } from '../services/compositionService.js';
 
 export interface SpecGraphRouterDeps {
   specGraphService: SpecGraphService;
+  compositionService?: CompositionService;
 }
 
 export function createSpecGraphRouter(deps: SpecGraphRouterDeps): Router {
-  const { specGraphService } = deps;
+  const { specGraphService, compositionService } = deps;
   const router = Router();
 
   // POST / — Create new graph
@@ -223,6 +225,98 @@ export function createSpecGraphRouter(deps: SpecGraphRouterDeps): Router {
     try {
       const result = specGraphService.getNeighbors(req.params.id, req.params.nodeId);
       res.json({ incoming: result.incoming, outgoing: result.outgoing });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes('not found')) {
+        res.status(404).json({ detail: message });
+      } else {
+        res.status(500).json({ detail: message });
+      }
+    }
+  });
+
+  // ── Composition endpoints (require compositionService) ──────────────
+
+  // POST /:id/compose — Compose multiple nodes into a merged NuggetSpec
+  router.post('/:id/compose', (req: Request, res: Response) => {
+    if (!compositionService) {
+      res.status(501).json({ detail: 'CompositionService not available' });
+      return;
+    }
+
+    const { node_ids, system_level } = req.body;
+
+    if (!Array.isArray(node_ids) || node_ids.length === 0) {
+      res.status(400).json({ detail: 'node_ids must be a non-empty array' });
+      return;
+    }
+
+    try {
+      const result = compositionService.compose(req.params.id, node_ids, system_level);
+      res.json(result);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes('Invalid composition')) {
+        res.status(400).json({ detail: message });
+      } else if (message.includes('not found')) {
+        res.status(404).json({ detail: message });
+      } else {
+        res.status(500).json({ detail: message });
+      }
+    }
+  });
+
+  // POST /:id/impact — Detect cross-nugget impact of changing a node
+  router.post('/:id/impact', (req: Request, res: Response) => {
+    if (!compositionService) {
+      res.status(501).json({ detail: 'CompositionService not available' });
+      return;
+    }
+
+    const { node_id } = req.body;
+
+    if (!node_id || typeof node_id !== 'string') {
+      res.status(400).json({ detail: 'node_id field is required' });
+      return;
+    }
+
+    try {
+      const result = compositionService.detectCrossNuggetImpact(req.params.id, node_id);
+      res.json(result);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes('not found')) {
+        res.status(404).json({ detail: message });
+      } else {
+        res.status(500).json({ detail: message });
+      }
+    }
+  });
+
+  // GET /:id/interfaces — Resolve interface contracts among nodes
+  router.get('/:id/interfaces', (req: Request, res: Response) => {
+    if (!compositionService) {
+      res.status(501).json({ detail: 'CompositionService not available' });
+      return;
+    }
+
+    const nodeIdsParam = req.query.node_ids;
+
+    if (!nodeIdsParam || typeof nodeIdsParam !== 'string') {
+      res.status(400).json({ detail: 'node_ids query parameter is required' });
+      return;
+    }
+
+    const nodeIds = nodeIdsParam.split(',').map((s) => s.trim()).filter(Boolean);
+
+    if (nodeIds.length === 0) {
+      res.status(400).json({ detail: 'node_ids must contain at least one ID' });
+      return;
+    }
+
+    try {
+      const contracts = compositionService.resolveInterfaces(req.params.id, nodeIds);
+      res.json({ contracts });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       if (message.includes('not found')) {

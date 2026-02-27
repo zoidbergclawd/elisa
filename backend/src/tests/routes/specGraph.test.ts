@@ -4,6 +4,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import http from 'node:http';
 import express from 'express';
 import { SpecGraphService } from '../../services/specGraph.js';
+import { CompositionService } from '../../services/compositionService.js';
 import { createSpecGraphRouter } from '../../routes/specGraph.js';
 
 let server: http.Server | null = null;
@@ -12,9 +13,10 @@ let specGraphService: SpecGraphService;
 
 function createTestApp() {
   specGraphService = new SpecGraphService();
+  const compositionService = new CompositionService(specGraphService);
   const app = express();
   app.use(express.json());
-  app.use('/api/spec-graph', createSpecGraphRouter({ specGraphService }));
+  app.use('/api/spec-graph', createSpecGraphRouter({ specGraphService, compositionService }));
   return app;
 }
 
@@ -774,5 +776,251 @@ describe('Integration: full graph workflow', () => {
     // Verify it is gone
     const { status: goneStatus } = await fetchJSON(`/api/spec-graph/${gid}`);
     expect(goneStatus).toBe(404);
+  });
+});
+
+// ── POST /api/spec-graph/:id/compose (Compose Nodes) ────────────────
+
+function makeCompositionSpec(goal: string, provides?: Array<{ name: string; type: string }>, requires?: Array<{ name: string; type: string }>): Record<string, any> {
+  const spec: Record<string, any> = { nugget: { goal } };
+  if (provides || requires) {
+    spec.composition = {};
+    if (provides) spec.composition.provides = provides;
+    if (requires) spec.composition.requires = requires;
+  }
+  return spec;
+}
+
+describe('POST /api/spec-graph/:id/compose', () => {
+  it('composes valid nodes and returns 200 with ComposeResult', async () => {
+    const { body: created } = await fetchJSON('/api/spec-graph', {
+      method: 'POST',
+      body: JSON.stringify({ workspace_path: '/tmp/compose-test' }),
+    });
+    const gid = created.graph_id;
+
+    const { body: n1 } = await fetchJSON(`/api/spec-graph/${gid}/nodes`, {
+      method: 'POST',
+      body: JSON.stringify({
+        spec: makeCompositionSpec('Sensor', [{ name: 'temperature', type: 'number' }]),
+        label: 'Sensor Nugget',
+      }),
+    });
+    const { body: n2 } = await fetchJSON(`/api/spec-graph/${gid}/nodes`, {
+      method: 'POST',
+      body: JSON.stringify({
+        spec: makeCompositionSpec('Display', undefined, [{ name: 'temperature', type: 'number' }]),
+        label: 'Display Nugget',
+      }),
+    });
+
+    const { status, body } = await fetchJSON(`/api/spec-graph/${gid}/compose`, {
+      method: 'POST',
+      body: JSON.stringify({ node_ids: [n1.node_id, n2.node_id] }),
+    });
+
+    expect(status).toBe(200);
+    expect(body).toHaveProperty('composed_spec');
+    expect(body).toHaveProperty('emergent_behaviors');
+    expect(body).toHaveProperty('interface_contracts');
+    expect(body).toHaveProperty('warnings');
+    expect(body.composed_spec.nugget.goal).toContain('Sensor Nugget');
+    expect(body.composed_spec.nugget.goal).toContain('Display Nugget');
+  });
+
+  it('returns 400 when node_ids is empty', async () => {
+    const { body: created } = await fetchJSON('/api/spec-graph', {
+      method: 'POST',
+      body: JSON.stringify({ workspace_path: '/tmp/compose-test' }),
+    });
+
+    const { status, body } = await fetchJSON(`/api/spec-graph/${created.graph_id}/compose`, {
+      method: 'POST',
+      body: JSON.stringify({ node_ids: [] }),
+    });
+
+    expect(status).toBe(400);
+    expect(body.detail).toContain('node_ids');
+  });
+
+  it('returns 400 when node_ids is missing', async () => {
+    const { body: created } = await fetchJSON('/api/spec-graph', {
+      method: 'POST',
+      body: JSON.stringify({ workspace_path: '/tmp/compose-test' }),
+    });
+
+    const { status, body } = await fetchJSON(`/api/spec-graph/${created.graph_id}/compose`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+
+    expect(status).toBe(400);
+    expect(body.detail).toContain('node_ids');
+  });
+
+  it('returns 400 when node_ids contains nonexistent nodes', async () => {
+    const { body: created } = await fetchJSON('/api/spec-graph', {
+      method: 'POST',
+      body: JSON.stringify({ workspace_path: '/tmp/compose-test' }),
+    });
+
+    const { status, body } = await fetchJSON(`/api/spec-graph/${created.graph_id}/compose`, {
+      method: 'POST',
+      body: JSON.stringify({ node_ids: ['nonexistent-1', 'nonexistent-2'] }),
+    });
+
+    expect(status).toBe(400);
+    expect(body.detail).toContain('Invalid composition');
+  });
+});
+
+// ── POST /api/spec-graph/:id/impact (Detect Impact) ─────────────────
+
+describe('POST /api/spec-graph/:id/impact', () => {
+  it('detects impact of a valid node and returns 200', async () => {
+    const { body: created } = await fetchJSON('/api/spec-graph', {
+      method: 'POST',
+      body: JSON.stringify({ workspace_path: '/tmp/impact-test' }),
+    });
+    const gid = created.graph_id;
+
+    const { body: n1 } = await fetchJSON(`/api/spec-graph/${gid}/nodes`, {
+      method: 'POST',
+      body: JSON.stringify({
+        spec: makeCompositionSpec('Provider', [{ name: 'data', type: 'string' }]),
+        label: 'Provider',
+      }),
+    });
+    const { body: n2 } = await fetchJSON(`/api/spec-graph/${gid}/nodes`, {
+      method: 'POST',
+      body: JSON.stringify({
+        spec: makeCompositionSpec('Consumer', undefined, [{ name: 'data', type: 'string' }]),
+        label: 'Consumer',
+      }),
+    });
+
+    const { status, body } = await fetchJSON(`/api/spec-graph/${gid}/impact`, {
+      method: 'POST',
+      body: JSON.stringify({ node_id: n1.node_id }),
+    });
+
+    expect(status).toBe(200);
+    expect(body).toHaveProperty('affected_nodes');
+    expect(body).toHaveProperty('severity');
+    expect(Array.isArray(body.affected_nodes)).toBe(true);
+    // Consumer requires data provided by Provider, so it should be affected
+    expect(body.affected_nodes.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('returns 400 when node_id is missing', async () => {
+    const { body: created } = await fetchJSON('/api/spec-graph', {
+      method: 'POST',
+      body: JSON.stringify({ workspace_path: '/tmp/impact-test' }),
+    });
+
+    const { status, body } = await fetchJSON(`/api/spec-graph/${created.graph_id}/impact`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+
+    expect(status).toBe(400);
+    expect(body.detail).toContain('node_id');
+  });
+
+  it('returns 404 when node_id does not exist', async () => {
+    const { body: created } = await fetchJSON('/api/spec-graph', {
+      method: 'POST',
+      body: JSON.stringify({ workspace_path: '/tmp/impact-test' }),
+    });
+
+    const { status, body } = await fetchJSON(`/api/spec-graph/${created.graph_id}/impact`, {
+      method: 'POST',
+      body: JSON.stringify({ node_id: 'nonexistent' }),
+    });
+
+    expect(status).toBe(404);
+    expect(body.detail).toContain('not found');
+  });
+});
+
+// ── GET /api/spec-graph/:id/interfaces (Resolve Interfaces) ─────────
+
+describe('GET /api/spec-graph/:id/interfaces', () => {
+  it('resolves interfaces among nodes and returns 200 with contracts', async () => {
+    const { body: created } = await fetchJSON('/api/spec-graph', {
+      method: 'POST',
+      body: JSON.stringify({ workspace_path: '/tmp/interfaces-test' }),
+    });
+    const gid = created.graph_id;
+
+    const { body: n1 } = await fetchJSON(`/api/spec-graph/${gid}/nodes`, {
+      method: 'POST',
+      body: JSON.stringify({
+        spec: makeCompositionSpec('Sensor', [{ name: 'temperature', type: 'number' }]),
+        label: 'Sensor',
+      }),
+    });
+    const { body: n2 } = await fetchJSON(`/api/spec-graph/${gid}/nodes`, {
+      method: 'POST',
+      body: JSON.stringify({
+        spec: makeCompositionSpec('Display', undefined, [{ name: 'temperature', type: 'number' }]),
+        label: 'Display',
+      }),
+    });
+
+    const { status, body } = await fetchJSON(
+      `/api/spec-graph/${gid}/interfaces?node_ids=${n1.node_id},${n2.node_id}`,
+    );
+
+    expect(status).toBe(200);
+    expect(body).toHaveProperty('contracts');
+    expect(Array.isArray(body.contracts)).toBe(true);
+    expect(body.contracts.length).toBeGreaterThanOrEqual(1);
+    expect(body.contracts[0]).toHaveProperty('provider_node_id');
+    expect(body.contracts[0]).toHaveProperty('consumer_node_id');
+    expect(body.contracts[0]).toHaveProperty('interface_name');
+    expect(body.contracts[0]).toHaveProperty('type');
+  });
+
+  it('returns 400 when node_ids query parameter is missing', async () => {
+    const { body: created } = await fetchJSON('/api/spec-graph', {
+      method: 'POST',
+      body: JSON.stringify({ workspace_path: '/tmp/interfaces-test' }),
+    });
+
+    const { status, body } = await fetchJSON(`/api/spec-graph/${created.graph_id}/interfaces`);
+
+    expect(status).toBe(400);
+    expect(body.detail).toContain('node_ids');
+  });
+
+  it('returns empty contracts when no interfaces match', async () => {
+    const { body: created } = await fetchJSON('/api/spec-graph', {
+      method: 'POST',
+      body: JSON.stringify({ workspace_path: '/tmp/interfaces-test' }),
+    });
+    const gid = created.graph_id;
+
+    const { body: n1 } = await fetchJSON(`/api/spec-graph/${gid}/nodes`, {
+      method: 'POST',
+      body: JSON.stringify({
+        spec: makeSpec('Standalone A'),
+        label: 'Standalone A',
+      }),
+    });
+    const { body: n2 } = await fetchJSON(`/api/spec-graph/${gid}/nodes`, {
+      method: 'POST',
+      body: JSON.stringify({
+        spec: makeSpec('Standalone B'),
+        label: 'Standalone B',
+      }),
+    });
+
+    const { status, body } = await fetchJSON(
+      `/api/spec-graph/${gid}/interfaces?node_ids=${n1.node_id},${n2.node_id}`,
+    );
+
+    expect(status).toBe(200);
+    expect(body.contracts).toHaveLength(0);
   });
 });
