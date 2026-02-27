@@ -165,6 +165,15 @@ Orchestrates nugget composition and detects emergent behavior. `compose(graphId,
 ### integrationAgentMeeting.ts (integration meeting type)
 Registers the `integration-agent` meeting type with `canvasType: 'interface-designer'`. Triggers on `composition_started` when a composed build begins. Agent persona is "Interface Designer" — helps kids connect nuggets together. `registerIntegrationAgentMeeting(registry)` called at startup.
 
+### specGraph.ts (spec graph service)
+Manages a persistent directed graph of NuggetSpecs. In-memory `Map<string, SpecGraph>` with JSON persistence to `.elisa/spec-graph.json`. Nodes wrap NuggetSpecs with labels and timestamps. Edges represent `depends_on`, `provides_to`, `shares_interface`, or `composes_into` relationships. Validates no self-edges or duplicate edges. DFS cycle detection with 3-color marking. Atomic save (write .tmp, rename). `buildGraphContext(graphId, excludeNodeId?)` generates human-readable summary for MetaPlanner prompt injection. Methods: `create()`, `load()`, `save()`, `addNode()`, `removeNode()` (cascades edges), `updateNode()`, `addEdge()`, `removeEdge()`, `getNeighbors()`, `detectCycles()`, `buildGraphContext()`, `getGraph()`, `deleteGraph()`. Types in `models/specGraph.ts`.
+
+### compositionService.ts (nugget composition)
+Orchestrates nugget composition and detects emergent behavior. `compose(graphId, nodeIds, systemLevel?)` validates, resolves interfaces, detects emergence, merges NuggetSpec fields (requirements, tests, skills, rules, portals). `detectEmergence()` finds three patterns: feedback_loop (A↔B via provides/requires), pipeline (A→B→C chain of 3+), hub (one node provides to 3+ others). `resolveInterfaces()` matches requires to provides by name and type. `validateComposition()` checks level gating via `getMaxNuggets()`, node existence, no cycles. `detectCrossNuggetImpact(graphId, changedNodeId)` finds affected nodes via edges and provides/requires matching, returns severity (none/minor/breaking). Types in `models/composition.ts`.
+
+### integrationAgentMeeting.ts (integration meeting type)
+Registers the `integration-agent` meeting type with `canvasType: 'interface-designer'`. Triggers on `composition_started` when a composed build begins. Agent persona is "Interface Designer" — helps kids connect nuggets together. `registerIntegrationAgentMeeting(registry)` called at startup.
+
 ### runtimeProvisioner.ts (provisioner interface)
 Interface for agent provisioning during deploy. `StubRuntimeProvisioner`: returns mock values for dev/tests. `LocalRuntimeProvisioner`: delegates to the in-process `AgentStore` for real provisioning. Both implement `classifyChanges()` which delegates to `redeployClassifier` for firmware field detection, then checks manifest `config_fields` whitelist.
 
