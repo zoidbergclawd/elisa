@@ -1,0 +1,73 @@
+{
+  "id": "esp32-s3-box3-agent",
+  "name": "ESP32-S3-BOX-3 Voice Agent",
+  "version": "1.0.0",
+  "description": "AI voice agent on ESP32-S3-BOX-3 with touchscreen, microphone, and speaker",
+  "icon": "🗣️",
+  "colour": 280,
+
+  "board": {
+    "type": "esp32-s3",
+    "variant": "box-3",
+    "connection": "wifi",
+    "detection": {
+      "usb_vid": "0x303A",
+      "usb_pid": "0x1001"
+    }
+  },
+
+  "capabilities": [
+    { "id": "microphone", "name": "Dual MEMS Microphone", "kind": "sensor", "params": [] },
+    { "id": "speaker", "name": "1W Speaker", "kind": "actuator", "params": [] },
+    { "id": "touchscreen", "name": "2.4\" IPS Touchscreen", "kind": "display", "params": [
+      { "name": "width", "type": "number", "default": 320 },
+      { "name": "height", "type": "number", "default": 240 }
+    ]},
+    { "id": "wifi", "name": "WiFi", "kind": "network", "params": [] },
+    { "id": "gpio", "name": "GPIO Pins", "kind": "actuator", "params": [] }
+  ],
+
+  "blocks": [
+    {
+      "type": "box3_agent_config",
+      "message": "BOX-3 Voice Agent %1 WiFi Network %2 WiFi Password %3 Wake Word %4",
+      "args": [
+        { "type": "input_dummy" },
+        { "type": "field_input", "name": "WIFI_SSID", "text": "" },
+        { "type": "field_input", "name": "WIFI_PASSWORD", "text": "" },
+        { "type": "field_dropdown", "name": "WAKE_WORD", "options": [
+          ["Hey Elisa", "hey_elisa"],
+          ["Hi Agent", "hi_agent"],
+          ["Hello", "hello"]
+        ]}
+      ],
+      "tooltip": "Configure your BOX-3 voice agent with WiFi and wake word"
+    }
+  ],
+
+  "deploy": {
+    "method": "esptool",
+    "provides": [],
+    "requires": ["agent_id", "api_key", "runtime_url"],
+    "esptool": {
+      "firmware_file": "firmware/box3-agent.bin",
+      "flash_offset": "0x0",
+      "baud_rate": 460800,
+      "chip": "esp32s3",
+      "prompt_message": "Connect your ESP32-S3-BOX-3 via USB-C, then click Ready"
+    },
+    "runtime_provision": {
+      "required": true,
+      "config_fields": ["WIFI_SSID", "WIFI_PASSWORD", "WAKE_WORD"]
+    }
+  },
+
+  "spec_mapping": {
+    "role": "voice_agent",
+    "extract_fields": {
+      "wifi_ssid": "WIFI_SSID",
+      "wifi_password": "WIFI_PASSWORD",
+      "wake_word": "WAKE_WORD"
+    }
+  }
+}

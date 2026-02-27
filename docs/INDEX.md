@@ -38,6 +38,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `devices/heltec-gateway/` | Heltec ESP32 gateway plugin (LoRa aggregation) |
 | `devices/heltec-blink/` | Simple LED blink plugin |
 | `devices/cloud-dashboard/` | Cloud Run dashboard scaffold plugin |
+| `devices/esp32-s3-box3-agent/` | ESP32-S3-BOX-3 voice agent plugin (mic, speaker, touchscreen, esptool deploy) |
 | `scripts/` | Build tooling (esbuild backend bundler, port killer, subdirectory installer) |
 | `docs/` | Product + technical documentation |
 | `docs/plans/` | Design docs and implementation plans (dated, archival) |
