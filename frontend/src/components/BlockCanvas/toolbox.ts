@@ -1,6 +1,8 @@
 import type { DeviceManifest } from '../../lib/deviceBlocks';
 
-export function buildDeviceCategories(manifests: DeviceManifest[]): any[] {
+interface ToolboxItem { kind: string; name?: string; colour?: string; type?: string; contents?: ToolboxItem[] }
+
+export function buildDeviceCategories(manifests: DeviceManifest[]): ToolboxItem[] {
   if (!manifests.length) return [];
   return [{
     kind: 'category',

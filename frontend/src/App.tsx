@@ -63,7 +63,9 @@ export default function App() {
   const { health, loading: healthLoading } = useHealthCheck(uiState === 'design');
 
   // Fetch auth token on mount
-  const [authReady, setAuthReady] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const hasElectronAuth = !!(window as unknown as Record<string, any>).elisaAPI?.getAuthToken;
+  const [authReady, setAuthReady] = useState(!hasElectronAuth);
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const api = (window as unknown as Record<string, any>).elisaAPI;
@@ -75,7 +77,6 @@ export default function App() {
     } else {
       // Dev mode without Electron: use dev default
       setAuthToken('dev-token');
-      setAuthReady(true);
     }
   }, []);
 

@@ -101,6 +101,7 @@ const BlockCanvas = forwardRef<BlockCanvasHandle, BlockCanvasProps>(
         workspace.dispose();
         workspaceRef.current = null;
       };
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- deviceManifests used only at init; updates handled by separate effect
     }, [handleChange]);
 
     useEffect(() => {

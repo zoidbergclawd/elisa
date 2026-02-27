@@ -35,13 +35,15 @@ const mockManifests: DeviceManifest[] = [
   },
 ];
 
-function makeBlock(type: string, fields: Record<string, unknown> = {}, next?: any): any {
-  const b: any = { type, id: `b_${type}_${Math.random().toString(36).slice(2)}`, fields };
+interface TestBlock { type: string; id: string; fields: Record<string, unknown>; next?: { block: TestBlock } }
+
+function makeBlock(type: string, fields: Record<string, unknown> = {}, next?: TestBlock): TestBlock {
+  const b: TestBlock = { type, id: `b_${type}_${Math.random().toString(36).slice(2)}`, fields };
   if (next) b.next = { block: next };
   return b;
 }
 
-function makeWorkspace(blocks: any[]): any {
+function makeWorkspace(blocks: TestBlock[]): Record<string, unknown> {
   return { blocks: { blocks } };
 }
 

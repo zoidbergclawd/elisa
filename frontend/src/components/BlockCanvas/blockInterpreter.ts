@@ -51,6 +51,10 @@ export interface NuggetSpec {
     instanceId: string;
     fields: Record<string, unknown>;
   }>;
+  documentation?: {
+    generate: boolean;
+    focus: string;
+  };
 }
 
 interface BlockJson {
@@ -340,7 +344,7 @@ export function interpretWorkspace(
         break;
       }
       case 'write_guide': {
-        (spec as any).documentation = {
+        spec.documentation = {
           generate: true,
           focus: String(block.fields?.GUIDE_FOCUS ?? 'all'),
         };
@@ -372,8 +376,8 @@ export function interpretWorkspace(
             }
             spec.devices.push({ pluginId: manifest.id, instanceId: block.id ?? block.type, fields });
             // Infer deployment target from device manifest deploy method
-            if ((manifest.deploy as any)?.method === 'flash') hasEsp32 = true;
-            if ((manifest.deploy as any)?.method === 'cloud') hasWeb = true;
+            if (manifest.deploy?.method === 'flash') hasEsp32 = true;
+            if (manifest.deploy?.method === 'cloud') hasWeb = true;
           }
         }
         break;
