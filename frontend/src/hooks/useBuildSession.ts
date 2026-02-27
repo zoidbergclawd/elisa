@@ -1,6 +1,6 @@
 import { useReducer, useCallback, useRef } from 'react';
 import type { NuggetSpec } from '../components/BlockCanvas/blockInterpreter';
-import type { UIState, Task, Agent, Commit, WSEvent, TeachingMoment, TestResult, TokenUsage, QuestionPayload, NarratorMessage } from '../types';
+import type { UIState, Task, Agent, Commit, WSEvent, TeachingMoment, TestResult, TokenUsage, QuestionPayload, NarratorMessage, TraceabilityRequirement, TraceabilitySummary, CorrectionCycleState } from '../types';
 import { authFetch } from '../lib/apiClient';
 
 export const MAX_EVENTS = 500;
@@ -42,6 +42,13 @@ export interface FlashWizardState {
   deviceName?: string;
 }
 
+export interface ContextFlow {
+  from_task_id: string;
+  to_task_ids: string[];
+  summary_preview: string;
+  timestamp: number;
+}
+
 // -- State --
 
 export interface BuildSessionState {
@@ -67,6 +74,14 @@ export interface BuildSessionState {
   isPlanning: boolean;
   flashWizardState: FlashWizardState | null;
   documentationPath: string | null;
+  contextFlows: ContextFlow[];
+  traceability: TraceabilitySummary | null;
+  correctionCycles: Record<string, CorrectionCycleState>;
+  decomposition: { goal: string; subtasks: string[]; explanation: string } | null;
+  impactEstimate: { estimated_tasks: number; complexity: 'simple' | 'moderate' | 'complex'; heaviest_requirements: string[] } | null;
+  healthUpdate: { tasks_done: number; tasks_total: number; tests_passing: number; tests_total: number; tokens_used: number; health_score: number } | null;
+  healthSummary: { health_score: number; grade: 'A' | 'B' | 'C' | 'D' | 'F'; breakdown: { tasks_score: number; tests_score: number; corrections_score: number; budget_score: number } } | null;
+  boundaryAnalysis: { inputs: Array<{ name: string; type: string; source?: string }>; outputs: Array<{ name: string; type: string; source?: string }>; boundary_portals: string[] } | null;
 }
 
 const INITIAL_TOKEN_USAGE: TokenUsage = { input: 0, output: 0, total: 0, costUsd: 0, maxBudget: 500_000, perAgent: {} };
@@ -94,6 +109,14 @@ export const initialState: BuildSessionState = {
   isPlanning: false,
   flashWizardState: null,
   documentationPath: null,
+  contextFlows: [],
+  traceability: null,
+  correctionCycles: {},
+  decomposition: null,
+  impactEstimate: null,
+  healthUpdate: null,
+  healthSummary: null,
+  boundaryAnalysis: null,
 };
 
 // -- Actions --
@@ -450,8 +473,171 @@ function handleWSEvent(state: BuildSessionState, event: WSEvent, deploySteps: Ar
       };
     }
 
+    case 'context_flow':
+      return {
+        ...state,
+        events,
+        contextFlows: [...state.contextFlows, {
+          from_task_id: event.from_task_id,
+          to_task_ids: event.to_task_ids,
+          summary_preview: event.summary_preview,
+          timestamp: Date.now(),
+        }],
+      };
+
     case 'documentation_ready':
       return { ...state, events, documentationPath: event.file_path };
+
+    case 'traceability_update': {
+      if (!state.traceability) return { ...state, events };
+      const updatedReqs = state.traceability.requirements.map(r =>
+        r.requirement_id === event.requirement_id
+          ? { ...r, status: event.status }
+          : r
+      );
+      const passingCount = updatedReqs.filter(r => r.status === 'passing').length;
+      const newCoverage = updatedReqs.length > 0
+        ? Math.round((passingCount / updatedReqs.length) * 100)
+        : 0;
+      return {
+        ...state,
+        events,
+        traceability: {
+          coverage: newCoverage,
+          requirements: updatedReqs,
+        },
+      };
+    }
+
+    case 'traceability_summary':
+      return {
+        ...state,
+        events,
+        traceability: {
+          coverage: event.coverage,
+          requirements: event.requirements,
+        },
+      };
+
+    case 'correction_cycle_started': {
+      const existingCycle = state.correctionCycles[event.task_id];
+      return {
+        ...state,
+        events,
+        correctionCycles: {
+          ...state.correctionCycles,
+          [event.task_id]: {
+            task_id: event.task_id,
+            attempt_number: event.attempt_number,
+            max_attempts: event.max_attempts,
+            step: 'diagnosing',
+            failure_reason: event.failure_reason,
+            converged: false,
+            attempts: existingCycle?.attempts ?? [],
+            tests_passing: existingCycle?.tests_passing,
+            tests_total: existingCycle?.tests_total,
+          },
+        },
+      };
+    }
+
+    case 'correction_cycle_progress': {
+      const cycle = state.correctionCycles[event.task_id];
+      if (!cycle) return { ...state, events };
+      return {
+        ...state,
+        events,
+        correctionCycles: {
+          ...state.correctionCycles,
+          [event.task_id]: {
+            ...cycle,
+            step: event.step,
+            attempt_number: event.attempt_number,
+          },
+        },
+      };
+    }
+
+    case 'convergence_update': {
+      const prevCycle = state.correctionCycles[event.task_id];
+      return {
+        ...state,
+        events,
+        correctionCycles: {
+          ...state.correctionCycles,
+          [event.task_id]: {
+            task_id: event.task_id,
+            attempt_number: event.attempts_so_far - 1,
+            max_attempts: prevCycle?.max_attempts ?? 3,
+            step: prevCycle?.step,
+            failure_reason: prevCycle?.failure_reason,
+            trend: event.trend,
+            converged: event.converged,
+            attempts: event.attempts,
+            tests_passing: event.tests_passing,
+            tests_total: event.tests_total,
+          },
+        },
+      };
+    }
+
+    case 'decomposition_narrated':
+      return {
+        ...state,
+        events,
+        decomposition: {
+          goal: event.goal,
+          subtasks: event.subtasks,
+          explanation: event.explanation,
+        },
+      };
+
+    case 'impact_estimate':
+      return {
+        ...state,
+        events,
+        impactEstimate: {
+          estimated_tasks: event.estimated_tasks,
+          complexity: event.complexity,
+          heaviest_requirements: event.heaviest_requirements,
+        },
+      };
+
+    case 'system_health_update':
+      return {
+        ...state,
+        events,
+        healthUpdate: {
+          tasks_done: event.tasks_done,
+          tasks_total: event.tasks_total,
+          tests_passing: event.tests_passing,
+          tests_total: event.tests_total,
+          tokens_used: event.tokens_used,
+          health_score: event.health_score,
+        },
+      };
+
+    case 'system_health_summary':
+      return {
+        ...state,
+        events,
+        healthSummary: {
+          health_score: event.health_score,
+          grade: event.grade,
+          breakdown: event.breakdown,
+        },
+      };
+
+    case 'boundary_analysis':
+      return {
+        ...state,
+        events,
+        boundaryAnalysis: {
+          inputs: event.inputs,
+          outputs: event.outputs,
+          boundary_portals: event.boundary_portals,
+        },
+      };
 
     case 'workspace_created':
       return { ...state, events, nuggetDir: event.nugget_dir };
@@ -635,6 +821,14 @@ export function useBuildSession() {
     isPlanning: state.isPlanning,
     flashWizardState: state.flashWizardState,
     documentationPath: state.documentationPath,
+    contextFlows: state.contextFlows,
+    traceability: state.traceability,
+    correctionCycles: state.correctionCycles,
+    decomposition: state.decomposition,
+    impactEstimate: state.impactEstimate,
+    healthUpdate: state.healthUpdate,
+    healthSummary: state.healthSummary,
+    boundaryAnalysis: state.boundaryAnalysis,
     handleEvent,
     startBuild,
     stopBuild,

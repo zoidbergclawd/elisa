@@ -43,13 +43,24 @@ export type WSEvent =
   | { type: 'flash_prompt'; device_role: string; message: string }
   | { type: 'flash_progress'; device_role: string; step: string; progress: number }
   | { type: 'flash_complete'; device_role: string; success: boolean; message?: string }
+  | { type: 'context_flow'; from_task_id: string; to_task_ids: string[]; summary_preview: string }
   | { type: 'documentation_ready'; file_path: string }
   | { type: 'meeting_invite'; meetingTypeId: string; meetingId: string; agentName: string; title: string; description: string }
   | { type: 'meeting_started'; meetingId: string; meetingTypeId: string; agentName: string; canvasType: string }
   | { type: 'meeting_message'; meetingId: string; role: 'agent' | 'kid'; content: string }
   | { type: 'meeting_canvas_update'; meetingId: string; canvasType: string; data: Record<string, unknown> }
   | { type: 'meeting_outcome'; meetingId: string; outcomeType: string; data: Record<string, unknown> }
-  | { type: 'meeting_ended'; meetingId: string; outcomes: Array<{ type: string; data: Record<string, unknown> }> };
+  | { type: 'meeting_ended'; meetingId: string; outcomes: Array<{ type: string; data: Record<string, unknown> }> }
+  | { type: 'traceability_update'; requirement_id: string; test_id: string; status: 'untested' | 'passing' | 'failing' }
+  | { type: 'traceability_summary'; coverage: number; requirements: Array<{ requirement_id: string; description: string; test_id?: string; test_name?: string; status: 'untested' | 'passing' | 'failing' }> }
+  | { type: 'correction_cycle_started'; task_id: string; attempt_number: number; failure_reason: string; max_attempts: number }
+  | { type: 'correction_cycle_progress'; task_id: string; attempt_number: number; step: 'diagnosing' | 'fixing' | 'retesting' }
+  | { type: 'convergence_update'; task_id: string; attempts_so_far: number; tests_passing: number; tests_total: number; trend: 'improving' | 'stalled' | 'diverging'; converged: boolean; attempts: Array<{ attempt_number: number; status: string; tests_passing?: number; tests_total?: number }> }
+  | { type: 'decomposition_narrated'; goal: string; subtasks: string[]; explanation: string }
+  | { type: 'impact_estimate'; estimated_tasks: number; complexity: 'simple' | 'moderate' | 'complex'; heaviest_requirements: string[] }
+  | { type: 'system_health_update'; tasks_done: number; tasks_total: number; tests_passing: number; tests_total: number; tokens_used: number; health_score: number }
+  | { type: 'system_health_summary'; health_score: number; grade: 'A' | 'B' | 'C' | 'D' | 'F'; breakdown: { tasks_score: number; tests_score: number; corrections_score: number; budget_score: number } }
+  | { type: 'boundary_analysis'; inputs: Array<{ name: string; type: string; source?: string }>; outputs: Array<{ name: string; type: string; source?: string }>; boundary_portals: string[] };
 
 export type SendEvent = (event: WSEvent) => Promise<void>;
 

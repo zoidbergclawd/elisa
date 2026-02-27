@@ -49,7 +49,8 @@ All generated content (code, comments, text, file names) must be appropriate for
       "acceptance_criteria": ["Criterion 1", "Criterion 2"],
       "dependencies": [],
       "agent_name": "Builder Bot",
-      "complexity": "simple"
+      "complexity": "simple",
+      "requirement_ids": ["req-0"]
     }
   ],
   "agents": [
@@ -70,6 +71,7 @@ All generated content (code, comments, text, file names) must be appropriate for
 
 - task.id: "task-N" format, sequential from 1
 - task.complexity: "simple" (< 1 min), "medium" (1-3 min), "complex" (3-5 min)
+- task.requirement_ids: list of requirement indices (e.g. "req-0", "req-1") this task addresses, based on position in the requirements array. Omit or use empty array for tasks that don't directly map to a requirement (e.g. scaffolding, review).
 - task.dependencies: list of task IDs that must complete before this task starts
 - agents[].role: one of "builder", "tester", "reviewer"
 - agents[].allowed_paths: directories this agent may write to

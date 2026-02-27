@@ -15,6 +15,7 @@ import { PortalService } from '../portalService.js';
 import { NarratorService } from '../narratorService.js';
 import { PermissionPolicy } from '../permissionPolicy.js';
 import type { DeviceRegistry } from '../deviceRegistry.js';
+import type { FeedbackLoopTracker } from '../feedbackLoopTracker.js';
 import { ContextManager } from '../../utils/contextManager.js';
 import { TokenTracker, DEFAULT_RESERVED_PER_TASK } from '../../utils/tokenTracker.js';
 import { TaskDAG } from '../../utils/dag.js';
@@ -72,6 +73,7 @@ export interface ExecuteDeps {
   narratorService?: NarratorService;
   permissionPolicy?: PermissionPolicy;
   deviceRegistry?: DeviceRegistry;
+  feedbackLoopTracker?: FeedbackLoopTracker;
 }
 
 export class ExecutePhase {
@@ -487,9 +489,20 @@ export class ExecutePhase {
     }
 
     while (!success && retryCount <= maxRetries) {
+      // Notify feedback loop tracker of this attempt
+      if (this.deps.feedbackLoopTracker) {
+        const failReason = retryCount > 0 ? (result?.summary ?? 'Previous attempt failed') : undefined;
+        await this.deps.feedbackLoopTracker.startAttempt(taskId, task.name ?? taskId, retryCount, failReason);
+      }
+
       const mcpServers = this.deps.portalService.getMcpServers();
       let prompt = userPrompt;
       if (retryCount > 0) {
+        // Mark as "fixing" when entering a retry
+        if (this.deps.feedbackLoopTracker) {
+          await this.deps.feedbackLoopTracker.markFixing(taskId);
+        }
+
         const retryContext = [
           `## Retry Attempt ${retryCount}`,
           'A previous attempt at this task did not complete successfully.',
@@ -504,6 +517,12 @@ export class ExecutePhase {
       }
       const maxTurns = MAX_TURNS_DEFAULT + (retryCount * MAX_TURNS_RETRY_INCREMENT);
       const resolvedSystemPrompt = systemPrompt.replaceAll('{max_turns}', String(maxTurns));
+
+      // Mark as "retesting" just before agent execution on retries
+      if (retryCount > 0 && this.deps.feedbackLoopTracker) {
+        await this.deps.feedbackLoopTracker.markRetesting(taskId);
+      }
+
       result = await this.deps.agentRunner.execute({
         taskId,
         prompt,
@@ -526,7 +545,17 @@ export class ExecutePhase {
       if (result.success) {
         success = true;
         this.taskSummaries[taskId] = result.summary;
+
+        // Record successful attempt in feedback loop tracker
+        if (this.deps.feedbackLoopTracker) {
+          await this.deps.feedbackLoopTracker.recordAttemptResult(taskId, true);
+        }
       } else {
+        // Record failed attempt in feedback loop tracker
+        if (this.deps.feedbackLoopTracker) {
+          await this.deps.feedbackLoopTracker.recordAttemptResult(taskId, false);
+        }
+
         retryCount++;
         if (retryCount <= maxRetries) {
           await ctx.send({
@@ -616,6 +645,20 @@ export class ExecutePhase {
       const digest = ContextManager.buildStructuralDigest(ctx.nuggetDir);
       if (digest) contextText += '\n' + digest;
       fs.writeFileSync(contextPath, contextText, 'utf-8');
+
+      // Emit context_flow event to show data flowing from this task to its dependents
+      const dependentTaskIds = this.deps.tasks
+        .filter(t => t.dependencies.includes(taskId))
+        .map(t => t.id);
+      if (dependentTaskIds.length > 0) {
+        const summaryPreview = (this.taskSummaries[taskId] ?? '').slice(0, 120);
+        await ctx.send({
+          type: 'context_flow',
+          from_task_id: taskId,
+          to_task_ids: dependentTaskIds,
+          summary_preview: summaryPreview,
+        });
+      }
 
       // Update current_state.json
       const statePath = path.join(

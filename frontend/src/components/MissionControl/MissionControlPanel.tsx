@@ -1,5 +1,6 @@
 import type { Task, Agent, WSEvent, NarratorMessage, UIState } from '../../types';
 import type { NuggetSpec } from '../BlockCanvas/blockInterpreter';
+import type { ContextFlow } from '../../hooks/useBuildSession';
 import TaskDAG from './TaskDAG';
 import MinionSquadPanel from './MinionSquadPanel';
 import NarratorFeed from './NarratorFeed';
@@ -13,6 +14,7 @@ interface MissionControlPanelProps {
   spec: NuggetSpec | null;
   uiState: UIState;
   isPlanning?: boolean;
+  contextFlows?: ContextFlow[];
 }
 
 export default function MissionControlPanel({
@@ -20,17 +22,30 @@ export default function MissionControlPanel({
   agents,
   events,
   narratorMessages,
+  spec,
   uiState,
   isPlanning = false,
+  contextFlows,
 }: MissionControlPanelProps) {
   const hasContent = tasks.length > 0;
+  const isComplete = uiState === 'done';
+  const systemLevel = spec?.workflow?.system_level;
+  const requirements = spec?.requirements;
 
   return (
     <div className="flex flex-col lg:flex-row h-full overflow-hidden">
       {/* Left panel: Task DAG */}
       <div className="flex-1 lg:w-3/5 min-h-0 overflow-hidden p-4">
         {hasContent ? (
-          <TaskDAG tasks={tasks} agents={agents} className="h-full" />
+          <TaskDAG
+            tasks={tasks}
+            agents={agents}
+            className="h-full"
+            systemLevel={systemLevel}
+            contextFlows={contextFlows}
+            requirements={requirements}
+            isComplete={isComplete}
+          />
         ) : isPlanning ? (
           <PlanningIndicator />
         ) : (

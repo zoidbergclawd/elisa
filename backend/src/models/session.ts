@@ -19,6 +19,7 @@ export interface Task {
   agent_name: string;
   dependencies: string[];
   acceptance_criteria: string[];
+  requirement_ids?: string[];
 }
 
 export type AgentRole = 'builder' | 'tester' | 'reviewer' | 'custom';

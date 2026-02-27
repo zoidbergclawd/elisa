@@ -8,12 +8,14 @@ import WorkspaceSidebar from './components/BlockCanvas/WorkspaceSidebar';
 import MissionControlPanel from './components/MissionControl/MissionControlPanel';
 import TeachingToast from './components/shared/TeachingToast';
 import ReadinessBadge from './components/shared/ReadinessBadge';
+import LevelBadge from './components/shared/LevelBadge';
 import ModalHost from './components/shared/ModalHost';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useBuildSession } from './hooks/useBuildSession';
 import { useHealthCheck } from './hooks/useHealthCheck';
 import { useBoardDetect } from './hooks/useBoardDetect';
 import { useWorkspaceIO } from './hooks/useWorkspaceIO';
+import { useSystemLevel } from './hooks/useSystemLevel';
 import { setAuthToken, authFetch } from './lib/apiClient';
 import { registerDeviceBlocks, type DeviceManifest } from './lib/deviceBlocks';
 import { playChime } from './lib/playChime';
@@ -29,7 +31,8 @@ export default function App() {
     teachingMoments, testResults, coveragePct, tokenUsage,
     serialLines, deployProgress, deployChecklist, deployUrls, gateRequest, questionRequest,
     nuggetDir, errorNotification, narratorMessages, isPlanning,
-    flashWizardState,
+    flashWizardState, contextFlows, traceability,
+    decomposition, impactEstimate, healthUpdate, healthSummary, boundaryAnalysis,
     handleEvent, startBuild, stopBuild, clearGateRequest, clearQuestionRequest,
     clearErrorNotification, resetToDesign,
   } = useBuildSession();
@@ -79,6 +82,9 @@ export default function App() {
     handleDirPickerSelect, handleDirPickerCancel,
     ensureWorkspacePath, reinterpretWorkspace,
   } = useWorkspaceIO({ blockCanvasRef, sessionId, deviceManifests });
+
+  // System level from current spec
+  const systemLevel = useSystemLevel(spec);
 
   // Main tab state
   const [activeMainTab, setActiveMainTab] = useState<MainTab>('workspace');
@@ -185,6 +191,7 @@ export default function App() {
           />
         </div>
         <div className="flex items-center gap-3">
+          {spec && <LevelBadge level={systemLevel} />}
           <GoButton
             disabled={uiState !== 'design' || !spec?.nugget.goal || health.status !== 'ready'}
             onClick={handleGo}
@@ -245,6 +252,7 @@ export default function App() {
               spec={spec}
               uiState={uiState}
               isPlanning={isPlanning}
+              contextFlows={contextFlows}
             />
           </div>
         )}
@@ -264,6 +272,10 @@ export default function App() {
         deployChecklist={deployChecklist ?? null}
         tokenUsage={tokenUsage}
         boardInfo={boardInfo}
+        traceability={traceability}
+        boundaryAnalysis={boundaryAnalysis}
+        healthUpdate={healthUpdate}
+        healthSummary={healthSummary}
       />
 
       {/* All modals */}

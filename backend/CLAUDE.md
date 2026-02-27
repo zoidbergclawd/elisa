@@ -26,6 +26,7 @@ src/
     session.ts           Type definitions: Session, Task, Agent, BuildPhase, WSEvent
     meeting.ts           Meeting framework types: MeetingType, MeetingSession, CanvasState, etc.
     display.ts           BOX-3 display protocol types: DisplayCommand, TouchEvent, DisplayTheme, constraints
+    runtime.ts           Agent Runtime types: AgentIdentity, ConversationTurn, UsageRecord, ProvisionResult
   services/
     orchestrator.ts      Thin coordinator: delegates to phase handlers in sequence
     sessionStore.ts      Consolidated session state (replaces 4 parallel Maps)
@@ -50,6 +51,7 @@ src/
     meetingService.ts    In-memory meeting session lifecycle management
     cloudDeployService.ts Google Cloud Run deployment (scaffold, gcloud CLI)
     portalService.ts     Portal adapters (MCP, CLI) with command allowlist
+    traceabilityTracker.ts  Requirement-to-test traceability map with coverage tracking
   prompts/
     metaPlanner.ts       System prompt for task decomposition
     builderAgent.ts      Builder role prompt template
@@ -104,7 +106,7 @@ src/
 | POST | /api/sessions/:id/meetings/:mid/end | End active meeting |
 
 ### WebSocket Events (server -> client)
-`planning_started`, `plan_ready`, `task_started`, `task_completed`, `task_failed`, `agent_output`, `commit_created`, `token_usage`, `budget_warning`, `test_result`, `coverage_update`, `deploy_started`, `deploy_progress`, `deploy_checklist`, `deploy_complete` (includes `url?` for web deploys), `serial_data`, `human_gate`, `user_question`, `skill_*`, `teaching_moment`, `narrator_message`, `permission_auto_resolved`, `minion_state_change`, `workspace_created`, `flash_prompt`, `flash_progress`, `flash_complete`, `documentation_ready`, `meeting_invite`, `meeting_started`, `meeting_message`, `meeting_canvas_update`, `meeting_outcome`, `meeting_ended`, `traceability_update`, `traceability_summary`, `error`, `session_complete`
+`planning_started`, `plan_ready`, `task_started`, `task_completed`, `task_failed`, `agent_output`, `commit_created`, `token_usage`, `budget_warning`, `test_result`, `coverage_update`, `deploy_started`, `deploy_progress`, `deploy_checklist`, `deploy_complete` (includes `url?` for web deploys), `serial_data`, `human_gate`, `user_question`, `skill_*`, `teaching_moment`, `narrator_message`, `permission_auto_resolved`, `minion_state_change`, `workspace_created`, `flash_prompt`, `flash_progress`, `flash_complete`, `context_flow` (from_task_id, to_task_ids, summary_preview), `documentation_ready`, `meeting_invite`, `meeting_started`, `meeting_message`, `meeting_canvas_update`, `meeting_outcome`, `meeting_ended`, `traceability_update`, `traceability_summary`, `error`, `session_complete`
 
 ## Key Patterns
 
