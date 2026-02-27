@@ -57,6 +57,9 @@ Translates raw build events into kid-friendly commentary via Claude Haiku (`NARR
 ### permissionPolicy.ts (agent permissions)
 Auto-resolves agent permission requests (`file_write`, `file_edit`, `bash`, `command`) based on configurable policy rules. Three decision outcomes: `approved`, `denied`, `escalate`. Workspace-scoped writes are auto-approved when within the nugget directory. Read-only commands (`ls`, `cat`, `grep`, etc.) are always safe. Workspace-restricted commands (`mkdir`, `python`, `npm`, etc.) require cwd to be within the nugget dir. Network commands (`curl`, `wget`, etc.) denied by default. Package installs (`pip install`, `npm install`) escalate to user. Denial counter per task escalates to user after threshold (default 3).
 
+### runtime/displayManager.ts (BOX-3 display)
+Generates `DisplayCommand[]` sequences for the BOX-3 2.4" IPS touchscreen (320x240). Screen generators: `getIdleScreen`, `getConversationScreen`, `getThinkingScreen`, `getErrorScreen`, `getStatusScreen`, `getMenuScreen`. Text truncation with ellipsis. Theme management from predefined `DEFAULT_THEMES` (4 themes). Types defined in `models/display.ts`.
+
 ## Interaction Pattern
 
 ```

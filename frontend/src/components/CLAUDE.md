@@ -38,6 +38,7 @@ App.tsx
   shared/BoardDetectedModal.tsx      Celebrates ESP32 connection, offers one-click Portal creation
   shared/FlashWizardModal.tsx        Multi-device flash wizard with progress bar for IoT deploy
   shared/MeetingInviteToast.tsx      Floating meeting invite notification with accept/decline + 30s auto-dismiss
+  shared/DisplayThemePreview.tsx    BOX-3 display theme preview (320x240 ratio, theme colors, avatar style)
   Meeting/MeetingModal.tsx           Full-screen meeting modal: agent chat panel (left) + canvas area (right)
   Meeting/canvasRegistry.ts          Registry for pluggable canvas components (Map<canvasType, Component>)
   Meeting/DefaultCanvas.tsx          Placeholder canvas shown when no specialized canvas is registered

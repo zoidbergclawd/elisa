@@ -11,12 +11,13 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/routes/` | REST endpoint handlers (sessions, hardware, skills, workspace, meetings) |
 | `backend/src/services/` | Core services: orchestrator, runners, hardware, portals |
 | `backend/src/services/phases/` | Pipeline stage handlers: plan, execute, test, deploy |
-| `backend/src/models/` | TypeScript type definitions (session, skillPlan) |
+| `backend/src/models/` | TypeScript type definitions (session, skillPlan, runtime, display) |
 | `backend/src/prompts/` | Agent role prompts + curriculum templates |
 | `backend/src/utils/` | DAG, validation, logging, tokens, context, timeout |
 | `backend/src/tests/` | Backend tests |
 | `backend/src/tests/behavioral/` | Integration/behavioral tests for services and routes |
 | `backend/src/tests/fixtures/` | Test fixture data (plans, specs) |
+| `backend/src/tests/runtime/` | Agent Runtime service tests (displayManager, etc.) |
 | `frontend/` | React 19 + Vite SPA |
 | `frontend/src/components/` | UI component tree |
 | `frontend/src/components/BlockCanvas/` | Blockly editor, block definitions, interpreter |
@@ -97,6 +98,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/services/deviceRegistry.ts` | Loads device plugin manifests, provides block defs + agent context |
 | `backend/src/services/meetingRegistry.ts` | Meeting type registry + trigger engine for build events |
 | `backend/src/services/meetingService.ts` | In-memory meeting session lifecycle management |
+| `backend/src/services/runtime/displayManager.ts` | BOX-3 display command generator (screen layouts, themes, truncation) |
 | `backend/src/utils/deviceManifestSchema.ts` | Zod schema for device.json manifest validation |
 
 ### Phases
@@ -154,6 +156,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/components/shared/MinionAvatar.tsx` | Animated avatar for narrator/minion characters |
 | `frontend/src/components/shared/FlashWizardModal.tsx` | Multi-device flash wizard modal for IoT deploy |
 | `frontend/src/components/shared/MeetingInviteToast.tsx` | Floating meeting invite notification with accept/decline |
+| `frontend/src/components/shared/DisplayThemePreview.tsx` | BOX-3 display theme preview (320x240 ratio, theme colors, avatar style) |
 | `frontend/src/components/Meeting/MeetingModal.tsx` | Full-screen meeting modal with chat panel and canvas area |
 | `frontend/src/components/Meeting/canvasRegistry.ts` | Registry for pluggable meeting canvas components |
 | `frontend/src/components/MissionControl/MissionControlPanel.tsx` | Main mission control layout with narrator feed + minion squad |

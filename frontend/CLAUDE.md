@@ -25,7 +25,7 @@ src/
     Rules/                   Rules editor modal + template library
     Portals/                 Portals editor modal + registry
     Meeting/                 Agent Meeting framework: MeetingModal, canvasRegistry, DefaultCanvas
-    shared/                  MainTabBar, GoButton, ModalHost, HumanGateModal, QuestionModal, TeachingToast, AgentAvatar, ReadinessBadge, ExamplePickerModal, DirectoryPickerModal, FlashWizardModal, MeetingInviteToast
+    shared/                  MainTabBar, GoButton, ModalHost, HumanGateModal, QuestionModal, TeachingToast, AgentAvatar, ReadinessBadge, ExamplePickerModal, DirectoryPickerModal, FlashWizardModal, MeetingInviteToast, DisplayThemePreview
   hooks/
     useBuildSession.ts       Build session state via useReducer (typed actions + reducer)
     useWorkspaceIO.ts        Workspace file I/O: open/save/load nugget, open folder, select example, syncDesignToStorage

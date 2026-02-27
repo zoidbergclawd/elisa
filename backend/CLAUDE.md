@@ -25,6 +25,7 @@ src/
   models/
     session.ts           Type definitions: Session, Task, Agent, BuildPhase, WSEvent
     meeting.ts           Meeting framework types: MeetingType, MeetingSession, CanvasState, etc.
+    display.ts           BOX-3 display protocol types: DisplayCommand, TouchEvent, DisplayTheme, constraints
   services/
     orchestrator.ts      Thin coordinator: delegates to phase handlers in sequence
     sessionStore.ts      Consolidated session state (replaces 4 parallel Maps)
