@@ -135,6 +135,28 @@ const KnowledgeConfigSchema = z.object({
   study_mode: StudyModeSchema.optional(),
 }).strict();
 
+// --- Spec Graph: Composition schema ---
+
+const InterfaceProvideSchema = z.object({
+  name: z.string().max(200),
+  type: z.string().max(100),
+  description: z.string().max(500).optional(),
+}).strict();
+
+const InterfaceRequireSchema = z.object({
+  name: z.string().max(200),
+  type: z.string().max(100),
+  from_node_id: z.string().max(100).optional(),
+  description: z.string().max(500).optional(),
+}).strict();
+
+const CompositionSchema = z.object({
+  parent_graph_id: z.string().max(100).optional(),
+  node_id: z.string().max(100).optional(),
+  provides: z.array(InterfaceProvideSchema).max(20).optional(),
+  requires: z.array(InterfaceRequireSchema).max(20).optional(),
+}).strict();
+
 export const NuggetSpecSchema = z.object({
   nugget: z.object({
     goal: z.string().max(2000).optional(),
@@ -179,6 +201,7 @@ export const NuggetSpecSchema = z.object({
   }).strict().optional(),
   runtime: RuntimeConfigSchema.optional(),
   knowledge: KnowledgeConfigSchema.optional(),
+  composition: CompositionSchema.optional(),
 }).strict();
 
 /** Inferred TypeScript type from the NuggetSpec Zod schema. */

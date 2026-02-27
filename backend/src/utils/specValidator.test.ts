@@ -997,6 +997,213 @@ describe('deployment runtime fields (PRD-002)', () => {
   });
 });
 
+describe('composition fields (Spec Graph)', () => {
+  it('accepts composition with provides', () => {
+    const result = NuggetSpecSchema.safeParse({
+      composition: {
+        provides: [
+          { name: 'weather-data', type: 'data-stream' },
+          { name: 'location-api', type: 'rest-api', description: 'GPS coordinates' },
+        ],
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts composition with requires', () => {
+    const result = NuggetSpecSchema.safeParse({
+      composition: {
+        requires: [
+          { name: 'auth-token', type: 'credential' },
+          { name: 'user-profile', type: 'data-stream', from_node_id: 'node-auth', description: 'User info' },
+        ],
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts composition with both provides and requires', () => {
+    const result = NuggetSpecSchema.safeParse({
+      composition: {
+        provides: [{ name: 'output', type: 'data-stream' }],
+        requires: [{ name: 'input', type: 'data-stream' }],
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts composition with parent_graph_id and node_id', () => {
+    const result = NuggetSpecSchema.safeParse({
+      composition: {
+        parent_graph_id: 'graph-abc-123',
+        node_id: 'node-42',
+        provides: [{ name: 'api', type: 'rest-api' }],
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects provides name exceeding max length (200)', () => {
+    const result = NuggetSpecSchema.safeParse({
+      composition: {
+        provides: [{ name: 'x'.repeat(201), type: 'data-stream' }],
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects provides type exceeding max length (100)', () => {
+    const result = NuggetSpecSchema.safeParse({
+      composition: {
+        provides: [{ name: 'api', type: 'x'.repeat(101) }],
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects provides description exceeding max length (500)', () => {
+    const result = NuggetSpecSchema.safeParse({
+      composition: {
+        provides: [{ name: 'api', type: 'rest-api', description: 'x'.repeat(501) }],
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects requires array exceeding max size (20)', () => {
+    const items = Array.from({ length: 21 }, (_, i) => ({
+      name: `iface-${i}`,
+      type: 'data-stream',
+    }));
+    const result = NuggetSpecSchema.safeParse({
+      composition: { requires: items },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects provides array exceeding max size (20)', () => {
+    const items = Array.from({ length: 21 }, (_, i) => ({
+      name: `iface-${i}`,
+      type: 'data-stream',
+    }));
+    const result = NuggetSpecSchema.safeParse({
+      composition: { provides: items },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects unknown fields in composition (strict mode)', () => {
+    const result = NuggetSpecSchema.safeParse({
+      composition: {
+        provides: [{ name: 'api', type: 'rest-api' }],
+        evil: 'injection',
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects unknown fields in provides items (strict mode)', () => {
+    const result = NuggetSpecSchema.safeParse({
+      composition: {
+        provides: [{ name: 'api', type: 'rest-api', extra: 'bad' }],
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects unknown fields in requires items (strict mode)', () => {
+    const result = NuggetSpecSchema.safeParse({
+      composition: {
+        requires: [{ name: 'api', type: 'rest-api', extra: 'bad' }],
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects parent_graph_id exceeding max length (100)', () => {
+    const result = NuggetSpecSchema.safeParse({
+      composition: { parent_graph_id: 'x'.repeat(101) },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects node_id exceeding max length (100)', () => {
+    const result = NuggetSpecSchema.safeParse({
+      composition: { node_id: 'x'.repeat(101) },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects from_node_id exceeding max length (100)', () => {
+    const result = NuggetSpecSchema.safeParse({
+      composition: {
+        requires: [{ name: 'api', type: 'rest-api', from_node_id: 'x'.repeat(101) }],
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects requires description exceeding max length (500)', () => {
+    const result = NuggetSpecSchema.safeParse({
+      composition: {
+        requires: [{ name: 'api', type: 'rest-api', description: 'x'.repeat(501) }],
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts empty composition object', () => {
+    const result = NuggetSpecSchema.safeParse({
+      composition: {},
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts spec without composition (backward compat)', () => {
+    const result = NuggetSpecSchema.safeParse({
+      nugget: { goal: 'Build a game' },
+      requirements: [{ type: 'feature', description: 'fun gameplay' }],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts provides missing optional description', () => {
+    const result = NuggetSpecSchema.safeParse({
+      composition: {
+        provides: [{ name: 'api', type: 'rest-api' }],
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts requires missing optional from_node_id and description', () => {
+    const result = NuggetSpecSchema.safeParse({
+      composition: {
+        requires: [{ name: 'input', type: 'data-stream' }],
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects provides item missing required name', () => {
+    const result = NuggetSpecSchema.safeParse({
+      composition: {
+        provides: [{ type: 'rest-api' }],
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects requires item missing required type', () => {
+    const result = NuggetSpecSchema.safeParse({
+      composition: {
+        requires: [{ name: 'input' }],
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
 describe('combined new fields validation', () => {
   it('accepts a spec with all new fields present', () => {
     const result = NuggetSpecSchema.safeParse({
@@ -1045,6 +1252,16 @@ describe('combined new fields validation', () => {
           difficulty: 'hard',
           quiz_frequency: 3,
         },
+      },
+      composition: {
+        parent_graph_id: 'graph-main',
+        node_id: 'node-study',
+        provides: [
+          { name: 'quiz-results', type: 'data-stream', description: 'Quiz scores and progress' },
+        ],
+        requires: [
+          { name: 'curriculum', type: 'config', from_node_id: 'node-planner' },
+        ],
       },
     });
     expect(result.success).toBe(true);
