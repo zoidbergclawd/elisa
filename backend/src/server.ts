@@ -25,6 +25,7 @@ import { ConsentManager } from './services/runtime/consentManager.js';
 import { TurnPipeline } from './services/runtime/turnPipeline.js';
 import { KnowledgeBackpack } from './services/runtime/knowledgeBackpack.js';
 import { StudyMode } from './services/runtime/studyMode.js';
+import { GapDetector } from './services/runtime/gapDetector.js';
 import { LocalRuntimeProvisioner } from './services/runtimeProvisioner.js';
 import { createRuntimeRouter } from './routes/runtime.js';
 import { getAnthropicClient } from './utils/anthropicClient.js';
@@ -73,6 +74,7 @@ const consentManager = new ConsentManager();
 const conversationManager = new ConversationManager(undefined, consentManager);
 const knowledgeBackpack = new KnowledgeBackpack();
 const studyMode = new StudyMode(knowledgeBackpack);
+const gapDetector = new GapDetector();
 const runtimeProvisioner = new LocalRuntimeProvisioner(agentStore);
 const turnPipeline = new TurnPipeline({
   agentStore,
@@ -80,6 +82,7 @@ const turnPipeline = new TurnPipeline({
   getClient: getAnthropicClient,
   knowledgeBackpack,
   consentManager,
+  gapDetector,
 });
 
 // -- Health --
@@ -261,7 +264,7 @@ function createApp(staticDir?: string, authToken?: string) {
   app.use('/api/sessions/:sessionId/meetings', createMeetingRouter({ store, meetingService, sendEvent }));
 
   // Agent Runtime (PRD-001) — mounted at /v1/* with its own api-key auth
-  app.use('/v1', createRuntimeRouter({ agentStore, conversationManager, turnPipeline, knowledgeBackpack, studyMode }));
+  app.use('/v1', createRuntimeRouter({ agentStore, conversationManager, turnPipeline, knowledgeBackpack, studyMode, gapDetector }));
 
   // Templates
   app.get('/api/templates', (_req, res) => {
