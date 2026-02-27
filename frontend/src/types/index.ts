@@ -1,6 +1,52 @@
 export interface BehavioralTest {
+  id?: string;
   when: string;
   then: string;
+  requirement_id?: string;
+}
+
+export interface FeedbackLoop {
+  id: string;
+  trigger: 'test_failure' | 'review_rejection' | 'custom';
+  exit_condition: string;
+  max_iterations: number;
+  connects_from: string;
+  connects_to: string;
+}
+
+export type SystemLevel = 'explorer' | 'builder' | 'architect';
+
+export interface RuntimeConfig {
+  agent_name?: string;
+  greeting?: string;
+  fallback_response?: string;
+  voice?: string;
+  display_theme?: string;
+}
+
+export type BackpackSourceType = 'pdf' | 'url' | 'youtube' | 'drive' | 'topic_pack' | 'sports_feed' | 'news_feed' | 'custom_feed';
+
+export interface BackpackSource {
+  id: string;
+  type: BackpackSourceType;
+  title: string;
+  uri?: string;
+  config?: Record<string, unknown>;
+}
+
+export type StudyStyle = 'explain' | 'quiz_me' | 'flashcards' | 'socratic';
+export type StudyDifficulty = 'easy' | 'medium' | 'hard';
+
+export interface StudyMode {
+  enabled: boolean;
+  style: StudyStyle;
+  difficulty: StudyDifficulty;
+  quiz_frequency: number;
+}
+
+export interface KnowledgeConfig {
+  backpack_sources?: BackpackSource[];
+  study_mode?: StudyMode;
 }
 
 export type UIState = 'design' | 'building' | 'review' | 'deploy' | 'done';
@@ -126,4 +172,10 @@ export type WSEvent =
   | { type: 'flash_prompt'; device_role: string; message: string }
   | { type: 'flash_progress'; device_role: string; step: string; progress: number }
   | { type: 'flash_complete'; device_role: string; success: boolean; message?: string }
-  | { type: 'documentation_ready'; file_path: string };
+  | { type: 'documentation_ready'; file_path: string }
+  | { type: 'meeting_invite'; meetingTypeId: string; meetingId: string; agentName: string; title: string; description: string }
+  | { type: 'meeting_started'; meetingId: string; meetingTypeId: string; agentName: string; canvasType: string }
+  | { type: 'meeting_message'; meetingId: string; role: 'agent' | 'kid'; content: string }
+  | { type: 'meeting_canvas_update'; meetingId: string; canvasType: string; data: Record<string, unknown> }
+  | { type: 'meeting_outcome'; meetingId: string; outcomeType: string; data: Record<string, unknown> }
+  | { type: 'meeting_ended'; meetingId: string; outcomes: Array<{ type: string; data: Record<string, unknown> }> };

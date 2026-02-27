@@ -993,4 +993,346 @@ describe('blockInterpreter', () => {
       expect((ws as any).blocks.blocks[1].type).toBe('nugget_template');
     });
   });
+
+  // ============================================================
+  // New block type extraction tests (Systems Thinking / PRD-001 / PRD-002)
+  // ============================================================
+
+  describe('NuggetSpec new optional fields (backward compat)', () => {
+    it('existing workspace produces spec without new fields when blocks absent', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        chainBlocks(
+          { type: 'nugget_goal', fields: { GOAL_TEXT: 'Build a game' } },
+          { type: 'feature', fields: { FEATURE_TEXT: 'jump' } },
+          { type: 'deploy_web' },
+        ),
+      ]));
+      expect(spec.workflow.feedback_loops).toBeUndefined();
+      expect(spec.workflow.system_level).toBeUndefined();
+      expect(spec.runtime).toBeUndefined();
+      expect(spec.knowledge).toBeUndefined();
+      expect(spec.deployment.runtime_url).toBeUndefined();
+      expect(spec.deployment.provision_runtime).toBeUndefined();
+    });
+
+    it('requirements do not have test_id by default', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        goalBlock('Test', { type: 'feature', fields: { FEATURE_TEXT: 'login' } }),
+      ]));
+      expect(spec.requirements[0].test_id).toBeUndefined();
+    });
+  });
+
+  describe('feedback_loop block (Systems Thinking)', () => {
+    it('extracts feedback_loop fields', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        goalBlock('Test', {
+          type: 'feedback_loop',
+          fields: {
+            LOOP_ID: 'loop-1',
+            TRIGGER: 'test_failure',
+            EXIT_CONDITION: 'all tests pass',
+            MAX_ITERATIONS: 5,
+            CONNECTS_FROM: 'req-1',
+            CONNECTS_TO: 'task-1',
+          },
+        }),
+      ]));
+      expect(spec.workflow.feedback_loops).toHaveLength(1);
+      expect(spec.workflow.feedback_loops![0]).toEqual({
+        id: 'loop-1',
+        trigger: 'test_failure',
+        exit_condition: 'all tests pass',
+        max_iterations: 5,
+        connects_from: 'req-1',
+        connects_to: 'task-1',
+      });
+    });
+
+    it('accumulates multiple feedback loops', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        chainBlocks(
+          { type: 'nugget_goal', fields: { GOAL_TEXT: 'test' } },
+          {
+            type: 'feedback_loop',
+            fields: { LOOP_ID: 'loop-1', TRIGGER: 'test_failure', EXIT_CONDITION: 'pass', MAX_ITERATIONS: 3, CONNECTS_FROM: 'r1', CONNECTS_TO: 't1' },
+          },
+          {
+            type: 'feedback_loop',
+            fields: { LOOP_ID: 'loop-2', TRIGGER: 'review_rejection', EXIT_CONDITION: 'approved', MAX_ITERATIONS: 2, CONNECTS_FROM: 'r2', CONNECTS_TO: 't2' },
+          },
+        ),
+      ]));
+      expect(spec.workflow.feedback_loops).toHaveLength(2);
+      expect(spec.workflow.feedback_loops![1].trigger).toBe('review_rejection');
+    });
+
+    it('defaults fields when missing', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        goalBlock('Test', { type: 'feedback_loop', fields: {} }),
+      ]));
+      expect(spec.workflow.feedback_loops![0]).toEqual({
+        id: '',
+        trigger: 'test_failure',
+        exit_condition: '',
+        max_iterations: 3,
+        connects_from: '',
+        connects_to: '',
+      });
+    });
+  });
+
+  describe('system_level block (Systems Thinking)', () => {
+    it('extracts system_level from block', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        goalBlock('Test', { type: 'system_level', fields: { LEVEL: 'architect' } }),
+      ]));
+      expect(spec.workflow.system_level).toBe('architect');
+    });
+
+    it('defaults to explorer when field is missing', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        goalBlock('Test', { type: 'system_level', fields: {} }),
+      ]));
+      expect(spec.workflow.system_level).toBe('explorer');
+    });
+
+    it('accepts all valid levels', () => {
+      for (const level of ['explorer', 'builder', 'architect']) {
+        const spec = interpretWorkspace(makeWorkspace([
+          goalBlock('Test', { type: 'system_level', fields: { LEVEL: level } }),
+        ]));
+        expect(spec.workflow.system_level).toBe(level);
+      }
+    });
+  });
+
+  describe('runtime_config block (PRD-001)', () => {
+    it('extracts runtime config from block', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        goalBlock('Test', {
+          type: 'runtime_config',
+          fields: {
+            AGENT_NAME: 'Coach Bot',
+            GREETING: 'Welcome!',
+            FALLBACK_RESPONSE: 'Sorry, I cannot help.',
+            VOICE: 'alloy',
+            DISPLAY_THEME: 'sporty',
+          },
+        }),
+      ]));
+      expect(spec.runtime).toEqual({
+        agent_name: 'Coach Bot',
+        greeting: 'Welcome!',
+        fallback_response: 'Sorry, I cannot help.',
+        voice: 'alloy',
+        display_theme: 'sporty',
+      });
+    });
+
+    it('omits undefined fields for empty strings', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        goalBlock('Test', { type: 'runtime_config', fields: { AGENT_NAME: 'Bot' } }),
+      ]));
+      expect(spec.runtime!.agent_name).toBe('Bot');
+      expect(spec.runtime!.greeting).toBeUndefined();
+      expect(spec.runtime!.voice).toBeUndefined();
+    });
+
+    it('omits all fields when all empty', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        goalBlock('Test', { type: 'runtime_config', fields: {} }),
+      ]));
+      expect(spec.runtime).toBeDefined();
+      expect(spec.runtime!.agent_name).toBeUndefined();
+    });
+  });
+
+  describe('backpack_source block (PRD-001)', () => {
+    it('extracts backpack source from block', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        goalBlock('Test', {
+          type: 'backpack_source',
+          fields: {
+            SOURCE_ID: 'src-1',
+            SOURCE_TYPE: 'pdf',
+            TITLE: 'Physics Book',
+            URI: 'https://example.com/book.pdf',
+          },
+        }),
+      ]));
+      expect(spec.knowledge).toBeDefined();
+      expect(spec.knowledge!.backpack_sources).toHaveLength(1);
+      expect(spec.knowledge!.backpack_sources![0]).toEqual({
+        id: 'src-1',
+        type: 'pdf',
+        title: 'Physics Book',
+        uri: 'https://example.com/book.pdf',
+      });
+    });
+
+    it('accumulates multiple backpack sources', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        chainBlocks(
+          { type: 'nugget_goal', fields: { GOAL_TEXT: 'test' } },
+          { type: 'backpack_source', fields: { SOURCE_ID: 'src-1', SOURCE_TYPE: 'pdf', TITLE: 'Book' } },
+          { type: 'backpack_source', fields: { SOURCE_ID: 'src-2', SOURCE_TYPE: 'youtube', TITLE: 'Video', URI: 'https://youtube.com/watch?v=abc' } },
+        ),
+      ]));
+      expect(spec.knowledge!.backpack_sources).toHaveLength(2);
+      expect(spec.knowledge!.backpack_sources![1].type).toBe('youtube');
+    });
+
+    it('omits uri when empty', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        goalBlock('Test', {
+          type: 'backpack_source',
+          fields: { SOURCE_ID: 'src-1', SOURCE_TYPE: 'topic_pack', TITLE: 'Math' },
+        }),
+      ]));
+      expect(spec.knowledge!.backpack_sources![0].uri).toBeUndefined();
+    });
+
+    it('defaults fields when missing', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        goalBlock('Test', { type: 'backpack_source', fields: {} }),
+      ]));
+      expect(spec.knowledge!.backpack_sources![0]).toEqual({
+        id: '',
+        type: 'url',
+        title: '',
+        uri: undefined,
+      });
+    });
+  });
+
+  describe('study_mode block (PRD-001)', () => {
+    it('extracts study mode from block', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        goalBlock('Test', {
+          type: 'study_mode',
+          fields: {
+            ENABLED: true,
+            STYLE: 'quiz_me',
+            DIFFICULTY: 'hard',
+            QUIZ_FREQUENCY: 3,
+          },
+        }),
+      ]));
+      expect(spec.knowledge).toBeDefined();
+      expect(spec.knowledge!.study_mode).toEqual({
+        enabled: true,
+        style: 'quiz_me',
+        difficulty: 'hard',
+        quiz_frequency: 3,
+      });
+    });
+
+    it('defaults fields when missing', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        goalBlock('Test', { type: 'study_mode', fields: {} }),
+      ]));
+      expect(spec.knowledge!.study_mode).toEqual({
+        enabled: true,
+        style: 'explain',
+        difficulty: 'medium',
+        quiz_frequency: 5,
+      });
+    });
+
+    it('study_mode and backpack_source share knowledge object', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        chainBlocks(
+          { type: 'nugget_goal', fields: { GOAL_TEXT: 'test' } },
+          { type: 'backpack_source', fields: { SOURCE_ID: 'src-1', SOURCE_TYPE: 'pdf', TITLE: 'Book' } },
+          { type: 'study_mode', fields: { ENABLED: true, STYLE: 'flashcards', DIFFICULTY: 'easy', QUIZ_FREQUENCY: 10 } },
+        ),
+      ]));
+      expect(spec.knowledge!.backpack_sources).toHaveLength(1);
+      expect(spec.knowledge!.study_mode!.style).toBe('flashcards');
+    });
+  });
+
+  describe('deploy_runtime block (PRD-002)', () => {
+    it('sets provision_runtime and infers web deployment', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        goalBlock('Test', { type: 'deploy_runtime' }),
+      ]));
+      expect(spec.deployment.provision_runtime).toBe(true);
+      expect(spec.deployment.target).toBe('web');
+    });
+
+    it('extracts runtime_url when provided', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        goalBlock('Test', {
+          type: 'deploy_runtime',
+          fields: { RUNTIME_URL: 'https://runtime.example.com' },
+        }),
+      ]));
+      expect(spec.deployment.runtime_url).toBe('https://runtime.example.com');
+      expect(spec.deployment.provision_runtime).toBe(true);
+    });
+
+    it('does not set runtime_url when field is empty', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        goalBlock('Test', { type: 'deploy_runtime', fields: {} }),
+      ]));
+      expect(spec.deployment.runtime_url).toBeUndefined();
+      expect(spec.deployment.provision_runtime).toBe(true);
+    });
+
+    it('deploy_runtime + deploy_esp32 results in both target', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        chainBlocks(
+          { type: 'nugget_goal', fields: { GOAL_TEXT: 'test' } },
+          { type: 'deploy_runtime', fields: { RUNTIME_URL: 'https://rt.example.com' } },
+          { type: 'deploy_esp32' },
+        ),
+      ]));
+      expect(spec.deployment.target).toBe('both');
+      expect(spec.deployment.provision_runtime).toBe(true);
+      expect(spec.deployment.runtime_url).toBe('https://rt.example.com');
+    });
+  });
+
+  describe('full workspace with new block types', () => {
+    it('combines old and new blocks in a complete workspace', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        chainBlocks(
+          { type: 'nugget_goal', fields: { GOAL_TEXT: 'Build a study agent' } },
+          { type: 'feature', fields: { FEATURE_TEXT: 'quiz mode' } },
+          { type: 'system_level', fields: { LEVEL: 'architect' } },
+          { type: 'feedback_loop', fields: { LOOP_ID: 'loop-1', TRIGGER: 'test_failure', EXIT_CONDITION: 'all tests pass', MAX_ITERATIONS: 3, CONNECTS_FROM: 'r1', CONNECTS_TO: 't1' } },
+          { type: 'runtime_config', fields: { AGENT_NAME: 'Study Coach', GREETING: 'Ready to learn?' } },
+          { type: 'backpack_source', fields: { SOURCE_ID: 'src-1', SOURCE_TYPE: 'pdf', TITLE: 'Textbook' } },
+          { type: 'study_mode', fields: { ENABLED: true, STYLE: 'socratic', DIFFICULTY: 'hard', QUIZ_FREQUENCY: 3 } },
+          { type: 'deploy_runtime', fields: { RUNTIME_URL: 'https://rt.example.com' } },
+          { type: 'behavioral_test', fields: { GIVEN_WHEN: 'quiz starts', THEN: 'question shown' } },
+          { type: 'agent_builder', fields: { AGENT_NAME: 'DevBot', AGENT_PERSONA: 'expert builder' } },
+        ),
+      ]));
+
+      // Core fields still work
+      expect(spec.nugget.goal).toBe('Build a study agent');
+      expect(spec.requirements).toHaveLength(1);
+      expect(spec.agents).toHaveLength(1);
+      expect(spec.workflow.testing_enabled).toBe(true);
+
+      // New Systems Thinking fields
+      expect(spec.workflow.system_level).toBe('architect');
+      expect(spec.workflow.feedback_loops).toHaveLength(1);
+      expect(spec.workflow.feedback_loops![0].id).toBe('loop-1');
+
+      // New PRD-001 fields
+      expect(spec.runtime!.agent_name).toBe('Study Coach');
+      expect(spec.runtime!.greeting).toBe('Ready to learn?');
+      expect(spec.knowledge!.backpack_sources).toHaveLength(1);
+      expect(spec.knowledge!.study_mode!.style).toBe('socratic');
+
+      // New PRD-002 fields
+      expect(spec.deployment.provision_runtime).toBe(true);
+      expect(spec.deployment.runtime_url).toBe('https://rt.example.com');
+      expect(spec.deployment.target).toBe('web');
+    });
+  });
 });
