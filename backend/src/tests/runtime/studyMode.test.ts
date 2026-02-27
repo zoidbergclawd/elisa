@@ -408,6 +408,93 @@ describe('StudyMode', () => {
     });
   });
 
+  // ── spaced repetition (weighted source selection) ─────────────────
+
+  describe('spaced repetition', () => {
+    it('covers all sources before repeating even with spaced repetition', () => {
+      const sourceIds = populateBackpack(backpack, agentA, 4);
+      studyMode.enable(agentA, makeConfig());
+
+      const quizzedSourceIds = new Set<string>();
+      for (let i = 0; i < 4; i++) {
+        const q = studyMode.generateQuiz(agentA)!;
+        quizzedSourceIds.add(q.source_id);
+      }
+
+      // All 4 sources should have been covered in the first cycle
+      expect(quizzedSourceIds.size).toBe(4);
+      for (const id of sourceIds) {
+        expect(quizzedSourceIds.has(id)).toBe(true);
+      }
+    });
+
+    it('sources answered incorrectly appear more frequently', () => {
+      const sourceIds = populateBackpack(backpack, agentA, 4);
+      studyMode.enable(agentA, makeConfig());
+
+      // The source we will always answer incorrectly
+      const wrongSourceId = sourceIds[0];
+
+      // Run many cycles, always answering wrongSourceId incorrectly and others correctly
+      const counts = new Map<string, number>();
+      for (const id of sourceIds) counts.set(id, 0);
+
+      const totalRounds = 400;
+      for (let i = 0; i < totalRounds; i++) {
+        const q = studyMode.generateQuiz(agentA)!;
+        counts.set(q.source_id, (counts.get(q.source_id) ?? 0) + 1);
+        if (q.source_id === wrongSourceId) {
+          // Always answer incorrectly
+          studyMode.submitAnswer(agentA, q.id, (q.correct_index + 1) % q.options.length);
+        } else {
+          studyMode.submitAnswer(agentA, q.id, q.correct_index);
+        }
+      }
+
+      // The source that is always answered incorrectly should appear more often
+      // than the average of correctly-answered sources
+      const wrongCount = counts.get(wrongSourceId)!;
+      const correctCounts = sourceIds
+        .filter((id) => id !== wrongSourceId)
+        .map((id) => counts.get(id)!);
+      const avgCorrectCount = correctCounts.reduce((a, b) => a + b, 0) / correctCounts.length;
+
+      // The wrong source should appear meaningfully more than the average correct source
+      expect(wrongCount).toBeGreaterThan(avgCorrectCount * 1.2);
+    });
+
+    it('perfect scores lead to roughly even distribution', () => {
+      const sourceIds = populateBackpack(backpack, agentA, 4);
+      studyMode.enable(agentA, makeConfig());
+
+      // First cycle: answer all correctly
+      for (let i = 0; i < 4; i++) {
+        const q = studyMode.generateQuiz(agentA)!;
+        studyMode.submitAnswer(agentA, q.id, q.correct_index);
+      }
+
+      // Run many more cycles, always answering correctly
+      const counts = new Map<string, number>();
+      for (const id of sourceIds) counts.set(id, 0);
+
+      const totalRounds = 400;
+      for (let i = 0; i < totalRounds; i++) {
+        const q = studyMode.generateQuiz(agentA)!;
+        counts.set(q.source_id, (counts.get(q.source_id) ?? 0) + 1);
+        studyMode.submitAnswer(agentA, q.id, q.correct_index);
+      }
+
+      // All sources should be within a reasonable range (each ~25% of total)
+      const expected = totalRounds / sourceIds.length;
+      for (const id of sourceIds) {
+        const count = counts.get(id)!;
+        // Allow +/- 40% variance (generous for random, but proves even weighting)
+        expect(count).toBeGreaterThan(expected * 0.6);
+        expect(count).toBeLessThan(expected * 1.4);
+      }
+    });
+  });
+
   // ── deleteAgent ───────────────────────────────────────────────────
 
   describe('deleteAgent', () => {

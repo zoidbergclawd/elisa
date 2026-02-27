@@ -19,6 +19,11 @@ import type { KnowledgeBackpack } from './knowledgeBackpack.js';
 
 // ── Internal State ───────────────────────────────────────────────────
 
+interface SourceStats {
+  correct: number;
+  incorrect: number;
+}
+
 interface StudyState {
   config: StudyModeConfig;
   /** Questions generated so far, keyed by question ID. */
@@ -29,6 +34,8 @@ interface StudyState {
   correctAnswers: number;
   /** Set of question IDs that have been answered. */
   answeredQuestionIds: Set<string>;
+  /** Per-source correctness tracking for spaced repetition. */
+  sourceStats: Map<string, SourceStats>;
 }
 
 // ── Question Templates ───────────────────────────────────────────────
@@ -136,6 +143,7 @@ export class StudyMode {
         quizzedSourceIds: new Set(),
         correctAnswers: 0,
         answeredQuestionIds: new Set(),
+        sourceStats: new Map(),
       });
     }
   }
@@ -173,16 +181,17 @@ export class StudyMode {
     if (sources.length === 0) return null;
 
     // Find sources not yet quizzed in this cycle
-    let unquizzed = sources.filter((s) => !state.quizzedSourceIds.has(s.id));
+    const unquizzed = sources.filter((s) => !state.quizzedSourceIds.has(s.id));
 
-    // If all sources have been covered, reset the cycle
-    if (unquizzed.length === 0) {
-      state.quizzedSourceIds.clear();
-      unquizzed = sources;
+    let targetSource: { id: string; title: string; content: string };
+
+    if (unquizzed.length > 0) {
+      // First cycle: cover all sources before repeating (random among unquizzed)
+      targetSource = unquizzed[Math.floor(Math.random() * unquizzed.length)];
+    } else {
+      // All sources covered at least once — use weighted selection based on performance
+      targetSource = this.selectSource(sources, state);
     }
-
-    // Pick a random unquizzed source
-    const targetSource = unquizzed[Math.floor(Math.random() * unquizzed.length)];
 
     // Generate question text from template
     const difficulty = state.config.difficulty;
@@ -243,6 +252,15 @@ export class StudyMode {
       state.correctAnswers++;
     }
 
+    // Track per-source stats for spaced repetition
+    const stats = state.sourceStats.get(question.source_id) ?? { correct: 0, incorrect: 0 };
+    if (isCorrect) {
+      stats.correct++;
+    } else {
+      stats.incorrect++;
+    }
+    state.sourceStats.set(question.source_id, stats);
+
     return isCorrect;
   }
 
@@ -274,6 +292,45 @@ export class StudyMode {
       total_sources: totalSources,
       accuracy: totalQuestions > 0 ? correct / totalQuestions : 0,
     };
+  }
+
+  /**
+   * Select a source from candidates using weighted random selection.
+   *
+   * Sources with no stats (never answered) get weight 1 (uniform random).
+   * Sources with stats are weighted by inverse accuracy: lower accuracy = higher weight.
+   * A perfect source (100% accuracy) still gets a small base weight so it is not starved.
+   */
+  private selectSource(
+    candidates: { id: string; title: string; content: string }[],
+    state: StudyState,
+  ): { id: string; title: string; content: string } {
+    // If no source stats exist yet, use uniform random (first cycle)
+    if (state.sourceStats.size === 0) {
+      return candidates[Math.floor(Math.random() * candidates.length)];
+    }
+
+    // Compute weights: base weight 0.1, plus (1 - accuracy) for answered sources.
+    // Never-answered sources get weight 1 (highest priority).
+    const weights = candidates.map((source) => {
+      const stats = state.sourceStats.get(source.id);
+      if (!stats) return 1; // never answered — high priority
+      const total = stats.correct + stats.incorrect;
+      if (total === 0) return 1;
+      const accuracy = stats.correct / total;
+      return 0.1 + (1 - accuracy); // range: 0.1 (perfect) to 1.1 (all wrong)
+    });
+
+    const totalWeight = weights.reduce((a, b) => a + b, 0);
+    let roll = Math.random() * totalWeight;
+
+    for (let i = 0; i < candidates.length; i++) {
+      roll -= weights[i];
+      if (roll <= 0) return candidates[i];
+    }
+
+    // Fallback (floating-point edge case)
+    return candidates[candidates.length - 1];
   }
 
   /**
