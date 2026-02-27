@@ -46,6 +46,10 @@ meetingRegistry.register({
   persona: 'A friendly debugging expert who helps kids figure out why code is not working. Patient, curious, and encouraging.',
 });
 
+// Register Art Agent meeting type (BOX-3 theme customization)
+import { registerArtAgentMeeting } from './services/artAgentMeeting.js';
+registerArtAgentMeeting(meetingRegistry);
+
 // Agent Runtime (PRD-001)
 const agentStore = new AgentStore();
 const conversationManager = new ConversationManager();

@@ -12,14 +12,13 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/services/` | Core services: orchestrator, runners, hardware, portals |
 | `backend/src/services/phases/` | Pipeline stage handlers: plan, execute, test, deploy |
 | `backend/src/services/runtime/` | Agent Runtime: identity store, conversation, turn pipeline, safety, backpack, study, content filter, consent, usage limiter |
-| `backend/src/models/` | TypeScript type definitions (session, skillPlan, runtime, display) |
+| `backend/src/models/` | TypeScript type definitions (session, skillPlan, runtime, display, meeting, parentDashboard) |
 | `backend/src/prompts/` | Agent role prompts + curriculum templates |
 | `backend/src/utils/` | DAG, validation, logging, tokens, context, timeout |
 | `backend/src/tests/` | Backend tests |
 | `backend/src/tests/behavioral/` | Integration/behavioral tests for services and routes |
 | `backend/src/tests/fixtures/` | Test fixture data (plans, specs) |
-| `backend/src/tests/runtime/` | Agent Runtime unit/integration tests |
-| `backend/src/tests/runtime/` | Agent Runtime service tests (displayManager, etc.) |
+| `backend/src/tests/runtime/` | Agent Runtime unit/integration tests (agentStore, conversationManager, displayManager, etc.) |
 | `frontend/` | React 19 + Vite SPA |
 | `frontend/src/components/` | UI component tree |
 | `frontend/src/components/BlockCanvas/` | Blockly editor, block definitions, interpreter |

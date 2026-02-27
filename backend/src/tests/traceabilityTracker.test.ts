@@ -27,7 +27,7 @@ describe('TraceabilityTracker', () => {
       expect(tracker.hasRequirements()).toBe(true);
       const summary = tracker.getSummary();
       expect(summary.requirements).toHaveLength(2);
-      expect(summary.requirements[0].requirement_id).toBe('req-0');
+      expect(summary.requirements[0].requirement_id).toBe('req_0');
       expect(summary.requirements[0].description).toBe('Login should work');
       expect(summary.requirements[0].test_id).toBe('test-login');
       expect(summary.requirements[0].test_name).toBe('When user logs in then they see dashboard');
@@ -38,7 +38,7 @@ describe('TraceabilityTracker', () => {
       const tracker = new TraceabilityTracker();
       tracker.buildMap(
         [{ description: 'Must validate email' }],
-        [{ id: 'test-email', when: 'invalid email entered', then: 'error shown', requirement_id: 'req-0' }],
+        [{ id: 'test-email', when: 'invalid email entered', then: 'error shown', requirement_id: 'req_0' }],
       );
 
       const summary = tracker.getSummary();
@@ -79,7 +79,7 @@ describe('TraceabilityTracker', () => {
 
       const update = tracker.recordTestResult('test-login', true);
       expect(update).not.toBeNull();
-      expect(update!.requirement_id).toBe('req-0');
+      expect(update!.requirement_id).toBe('req_0');
       expect(update!.status).toBe('passing');
 
       const summary = tracker.getSummary();
@@ -118,7 +118,7 @@ describe('TraceabilityTracker', () => {
 
       const update = tracker.recordTestResult('tests/auth/test-login.py::test_login_pass', true);
       expect(update).not.toBeNull();
-      expect(update!.requirement_id).toBe('req-0');
+      expect(update!.requirement_id).toBe('req_0');
     });
   });
 

@@ -28,6 +28,7 @@ src/
     meeting.ts           Meeting framework types: MeetingType, MeetingSession, CanvasState, etc.
     display.ts           BOX-3 display protocol types: DisplayCommand, TouchEvent, DisplayTheme, constraints
     runtime.ts           Agent Runtime types: AgentIdentity, ConversationTurn, UsageRecord, ProvisionResult, StudyModeConfig, QuizQuestion, BackpackSource
+    parentDashboard.ts   Parent Dashboard types: ParentDashboardData, UsageSummary, SafetyReport (Phase 2)
   services/
     orchestrator.ts      Thin coordinator: delegates to phase handlers in sequence
     sessionStore.ts      Consolidated session state (replaces 4 parallel Maps)

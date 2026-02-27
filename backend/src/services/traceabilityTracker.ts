@@ -75,7 +75,7 @@ export class TraceabilityTracker {
     // Build requirement -> test links from both directions
     for (let i = 0; i < requirements.length; i++) {
       const req = requirements[i];
-      const reqId = `req-${i}`;
+      const reqId = `req_${i}`;
 
       const trace: RequirementTrace = {
         requirement_id: reqId,
@@ -214,8 +214,8 @@ export class TraceabilityTracker {
     const direct = this.requirementIndexById.get(requirementId);
     if (direct !== undefined) return direct;
 
-    // Try matching by index suffix (e.g., "req-0" matches requirement at index 0)
-    const match = requirementId.match(/^req-(\d+)$/);
+    // Try matching by index suffix (e.g., "req_0" matches requirement at index 0)
+    const match = requirementId.match(/^req_(\d+)$/);
     if (match) {
       const idx = parseInt(match[1], 10);
       if (idx >= 0 && idx < this.requirements.length) return idx;
