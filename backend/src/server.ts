@@ -270,13 +270,13 @@ function createApp(staticDir?: string, authToken?: string) {
   const sendEvent = (sessionId: string, event: WSEvent) =>
     manager.sendEvent(sessionId, event);
 
-  app.use('/api/sessions', createSessionRouter({ store, sendEvent, hardwareService, deviceRegistry, meetingRegistry, runtimeProvisioner }));
+  app.use('/api/sessions', createSessionRouter({ store, sendEvent, hardwareService, deviceRegistry, meetingRegistry, meetingService, runtimeProvisioner }));
   app.use('/api/skills', createSkillRouter({ store, sendEvent }));
   app.use('/api/hardware', createHardwareRouter({ store, hardwareService }));
   app.use('/api/workspace', createWorkspaceRouter());
   app.use('/api/devices', createDeviceRouter({ registry: deviceRegistry }));
   app.use('/api/sessions/:sessionId/meetings', createMeetingRouter({ store, meetingService, sendEvent }));
-  app.use('/api/spec-graph', createSpecGraphRouter({ specGraphService, compositionService }));
+  app.use('/api/spec-graph', createSpecGraphRouter({ specGraphService, compositionService, sendEvent }));
 
   // Agent Runtime (PRD-001) — mounted at /v1/* with its own api-key auth
   app.use('/v1', createRuntimeRouter({ agentStore, conversationManager, turnPipeline, knowledgeBackpack, studyMode, gapDetector }));

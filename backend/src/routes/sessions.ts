@@ -15,6 +15,7 @@ import type { HardwareService } from '../services/hardwareService.js';
 import type { SessionStore } from '../services/sessionStore.js';
 import type { DeviceRegistry } from '../services/deviceRegistry.js';
 import type { MeetingRegistry } from '../services/meetingRegistry.js';
+import type { MeetingService } from '../services/meetingService.js';
 import type { RuntimeProvisioner } from '../services/runtimeProvisioner.js';
 import type { SpecGraphService } from '../services/specGraph.js';
 import type { SkillSpec } from '../models/skillPlan.js';
@@ -26,11 +27,12 @@ interface SessionRouterDeps {
   hardwareService?: HardwareService;
   deviceRegistry?: DeviceRegistry;
   meetingRegistry?: MeetingRegistry;
+  meetingService?: MeetingService;
   runtimeProvisioner?: RuntimeProvisioner;
   specGraphService?: SpecGraphService;
 }
 
-export function createSessionRouter({ store, sendEvent, hardwareService, deviceRegistry, meetingRegistry, runtimeProvisioner, specGraphService }: SessionRouterDeps): Router {
+export function createSessionRouter({ store, sendEvent, hardwareService, deviceRegistry, meetingRegistry, meetingService, runtimeProvisioner, specGraphService }: SessionRouterDeps): Router {
   const router = Router();
 
   // Create session
@@ -154,6 +156,7 @@ export function createSessionRouter({ store, sendEvent, hardwareService, deviceR
       meetingRegistry,
       runtimeProvisioner,
       specGraphService,
+      meetingService,
     );
     entry.orchestrator = orchestrator;
 

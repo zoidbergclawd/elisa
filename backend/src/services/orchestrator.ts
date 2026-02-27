@@ -29,6 +29,9 @@ import { TraceabilityTracker } from './traceabilityTracker.js';
 import { FeedbackLoopTracker } from './feedbackLoopTracker.js';
 import { HealthTracker } from './healthTracker.js';
 import { autoMatchTests } from './autoTestMatcher.js';
+import { MeetingTriggerWiring } from './meetingTriggerWiring.js';
+import { getLevel } from './systemLevelService.js';
+import type { MeetingService } from './meetingService.js';
 import type { RuntimeProvisioner } from './runtimeProvisioner.js';
 import type { SpecGraphService } from './specGraph.js';
 
@@ -67,13 +70,14 @@ export class Orchestrator {
   private traceabilityTracker = new TraceabilityTracker();
   private healthTracker = new HealthTracker();
   private meetingRegistry?: import('./meetingRegistry.js').MeetingRegistry;
+  private meetingTriggerWiring?: MeetingTriggerWiring;
 
   // Phase handlers
   private planPhase: PlanPhase;
   private testPhase: TestPhase;
   private deployPhase: DeployPhase;
 
-  constructor(session: BuildSession, sendEvent: SendEvent, hardwareService?: HardwareService, workspacePath?: string, deviceRegistry?: DeviceRegistry, meetingRegistry?: import('./meetingRegistry.js').MeetingRegistry, runtimeProvisioner?: RuntimeProvisioner, specGraphService?: SpecGraphService) {
+  constructor(session: BuildSession, sendEvent: SendEvent, hardwareService?: HardwareService, workspacePath?: string, deviceRegistry?: DeviceRegistry, meetingRegistry?: import('./meetingRegistry.js').MeetingRegistry, runtimeProvisioner?: RuntimeProvisioner, specGraphService?: SpecGraphService, meetingService?: MeetingService) {
     this.session = session;
     this.send = sendEvent;
     this.nuggetDir = workspacePath || path.join(os.tmpdir(), `elisa-nugget-${session.id}`);
@@ -82,6 +86,9 @@ export class Orchestrator {
     this.portalService = new PortalService();
     this.deviceRegistry = deviceRegistry ?? new DeviceRegistry(path.resolve(import.meta.dirname, '../../devices'));
     this.meetingRegistry = meetingRegistry;
+    if (meetingRegistry && meetingService) {
+      this.meetingTriggerWiring = new MeetingTriggerWiring(meetingRegistry, meetingService);
+    }
 
     this.planPhase = new PlanPhase(new MetaPlanner(), this.teachingEngine, this.deviceRegistry, specGraphService);
     this.testPhase = new TestPhase(this.testRunner, this.teachingEngine);
@@ -210,13 +217,30 @@ export class Orchestrator {
       console.log('[orchestrator] session.spec.devices:', JSON.stringify(this.session.spec?.devices ?? null));
       console.log('[orchestrator] session.spec.deployment:', JSON.stringify(this.session.spec?.deployment ?? null));
       const deployCtx = this.makeContext();
+      const systemLevel = getLevel(spec);
       if (this.deployPhase.shouldDeployDevices(deployCtx)) {
         console.log('[orchestrator] deploying devices...');
+        // Evaluate meeting triggers for device deploy
+        await this.meetingTriggerWiring?.evaluateAndInvite(
+          'deploy_started',
+          { target: 'devices', devices: spec.devices ?? [] },
+          this.session.id,
+          this.send,
+          systemLevel,
+        );
         await this.deployPhase.deployDevices(deployCtx, this.gateResolver);
         console.log('[orchestrator] device deploy finished');
       }
       if (this.deployPhase.shouldDeployWeb(deployCtx)) {
         console.log('[orchestrator] deploying web...');
+        // Evaluate meeting triggers for web deploy
+        await this.meetingTriggerWiring?.evaluateAndInvite(
+          'deploy_started',
+          { target: 'web' },
+          this.session.id,
+          this.send,
+          systemLevel,
+        );
         const { process: webProc } = await this.deployPhase.deployWeb(deployCtx);
         this.webServerProcess = webProc;
         console.log('[orchestrator] web deploy finished, process:', webProc ? 'running' : 'null');
@@ -227,7 +251,7 @@ export class Orchestrator {
       }
 
       // Complete
-      await this.complete(planResult.tasks, planResult.agents);
+      await this.complete(planResult.tasks, planResult.agents, spec);
     } catch (err: unknown) {
       console.error('Orchestrator error:', err);
       const message = err instanceof Error ? err.message : String(err);
@@ -253,6 +277,7 @@ export class Orchestrator {
   private async complete(
     tasks: Task[],
     agents: Agent[],
+    spec?: NuggetSpec,
   ): Promise<void> {
     this.session.state = 'done';
     this.logger?.phase('done');
@@ -272,6 +297,18 @@ export class Orchestrator {
       const conceptNames = shown.map((c) => c.split(':')[0]);
       const unique = [...new Set(conceptNames)];
       summaryParts.push(`Concepts learned: ${unique.join(', ')}`);
+    }
+
+    // Evaluate meeting triggers for session_complete (before sending the event)
+    if (spec) {
+      const systemLevel = getLevel(spec);
+      await this.meetingTriggerWiring?.evaluateAndInvite(
+        'session_complete',
+        { tasks_done: doneCount, tasks_total: total, tasks_failed: failedCount },
+        this.session.id,
+        this.send,
+        systemLevel,
+      );
     }
 
     await this.send({
