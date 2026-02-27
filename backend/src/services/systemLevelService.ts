@@ -61,9 +61,9 @@ export function getDAGDetailLevel(level: SystemLevel): DAGDetailLevel {
   return level === 'explorer' ? 'agent' : 'task';
 }
 
-/** At Explorer level, Agent Meeting invites appear automatically. */
-export function shouldAutoInviteMeetings(level: SystemLevel): boolean {
-  return level === 'explorer';
+/** Agent Meeting invites appear automatically at all levels. */
+export function shouldAutoInviteMeetings(_level: SystemLevel): boolean {
+  return true;
 }
 
 /**

@@ -126,12 +126,12 @@ describe('systemLevelService', () => {
       expect(shouldAutoInviteMeetings('explorer')).toBe(true);
     });
 
-    it('returns false for builder', () => {
-      expect(shouldAutoInviteMeetings('builder')).toBe(false);
+    it('returns true for builder', () => {
+      expect(shouldAutoInviteMeetings('builder')).toBe(true);
     });
 
-    it('returns false for architect', () => {
-      expect(shouldAutoInviteMeetings('architect')).toBe(false);
+    it('returns true for architect', () => {
+      expect(shouldAutoInviteMeetings('architect')).toBe(true);
     });
   });
 
