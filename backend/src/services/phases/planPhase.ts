@@ -127,6 +127,7 @@ export class PlanPhase {
       estimated_tasks: impact.estimated_tasks,
       complexity: impact.complexity,
       heaviest_requirements: impact.heaviest_requirements,
+      requirement_details: impact.requirement_details,
     });
 
     // Emit boundary_analysis

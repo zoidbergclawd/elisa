@@ -5,6 +5,20 @@ interface Props {
   traceability: TraceabilitySummary | null;
 }
 
+function StatusDot({ status }: { status: TraceabilityStatus }) {
+  const colors: Record<TraceabilityStatus, string> = {
+    passing: 'bg-accent-mint',
+    failing: 'bg-accent-coral',
+    untested: 'bg-amber-400',
+  };
+  return (
+    <span
+      data-testid={`status-dot-${status}`}
+      className={`inline-block w-2 h-2 rounded-full shrink-0 ${colors[status]}`}
+    />
+  );
+}
+
 function StatusBadge({ status }: { status: TraceabilityStatus }) {
   switch (status) {
     case 'passing':
@@ -52,6 +66,13 @@ export default function TraceabilityView({ traceability }: Props) {
       {/* Proof meter at top */}
       <ProofMeter traceability={traceability} />
 
+      {/* Status legend */}
+      <div data-testid="status-legend" className="flex items-center gap-3 text-[10px] text-atelier-text-muted">
+        <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full bg-accent-mint" /> Passing</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full bg-accent-coral" /> Failing</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full bg-amber-400" /> Untested</span>
+      </div>
+
       {/* Requirements table */}
       <div className="flex-1 min-h-0 overflow-y-auto">
         <table className="w-full text-xs">
@@ -68,8 +89,13 @@ export default function TraceabilityView({ traceability }: Props) {
                 key={req.requirement_id}
                 className="border-b border-border-subtle/50 last:border-b-0"
               >
-                <td className="py-1.5 pr-2 text-atelier-text-secondary max-w-[200px] truncate" title={req.description}>
-                  {req.description || req.requirement_id}
+                <td className="py-1.5 pr-2 text-atelier-text-secondary max-w-[200px]">
+                  <div className="flex items-center gap-1.5">
+                    <StatusDot status={req.status} />
+                    <span className="truncate" title={req.description}>
+                      {req.description || req.requirement_id}
+                    </span>
+                  </div>
                 </td>
                 <td className="py-1.5 pr-2 text-atelier-text-muted font-mono max-w-[200px] truncate" title={req.test_name ?? ''}>
                   {req.test_name ?? (req.test_id ?? '--')}

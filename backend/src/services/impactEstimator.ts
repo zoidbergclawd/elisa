@@ -2,10 +2,19 @@
 
 export type Complexity = 'simple' | 'moderate' | 'complex';
 
+export interface RequirementDetail {
+  description: string;
+  estimated_task_count: number;
+  test_linked: boolean;
+  weight: number;
+  dependents: number;
+}
+
 export interface ImpactEstimate {
   estimated_tasks: number;
   complexity: Complexity;
   heaviest_requirements: string[];
+  requirement_details: RequirementDetail[];
 }
 
 /**
@@ -65,18 +74,42 @@ export function estimate(spec: Record<string, unknown>): ImpactEstimate {
     }
   }
 
-  const heaviest_requirements: string[] = requirements
-    .map((r: Record<string, unknown>, i: number) => ({
-      description: String(r.description ?? ''),
-      index: i,
-      weight:
-        (String(r.description ?? '').length > 100 ? 2 : 1) +
-        (testLinkedReqs.has(i) ? 2 : 0),
-    }))
-    .sort((a: { weight: number }, b: { weight: number }) => b.weight - a.weight)
+  // Build per-requirement detail records
+  const reqDetails: Array<{
+    description: string;
+    index: number;
+    weight: number;
+    testLinked: boolean;
+    taskCount: number;
+    dependents: number;
+  }> = requirements.map((r: Record<string, unknown>, i: number) => {
+    const desc = String(r.description ?? '');
+    const testLinked = testLinkedReqs.has(i);
+    const weight =
+      (desc.length > 100 ? 2 : 1) + (testLinked ? 2 : 0);
+    // Each requirement generates 1 base task, plus a review task share if reviewer is present
+    const taskCount = 1 + (reviewerPresent ? 1 / requirements.length : 0);
+    // Dependents: how many other requirements reference this one's outputs
+    // Approximate via test linkage count (test-linked reqs are depended on more)
+    const dependents = testLinked
+      ? Math.min(requirements.length - 1, 3)
+      : 0;
+    return { description: desc, index: i, weight, testLinked, taskCount, dependents };
+  });
+
+  const heaviest_requirements: string[] = [...reqDetails]
+    .sort((a, b) => b.weight - a.weight)
     .slice(0, 3)
-    .map((r: { description: string }) => r.description)
+    .map((r) => r.description)
     .filter((d: string) => d.length > 0);
 
-  return { estimated_tasks, complexity, heaviest_requirements };
+  const requirement_details: RequirementDetail[] = reqDetails.map((r) => ({
+    description: r.description,
+    estimated_task_count: Math.round(r.taskCount),
+    test_linked: r.testLinked,
+    weight: r.weight,
+    dependents: r.dependents,
+  }));
+
+  return { estimated_tasks, complexity, heaviest_requirements, requirement_details };
 }

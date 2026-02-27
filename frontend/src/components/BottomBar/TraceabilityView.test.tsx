@@ -90,4 +90,41 @@ describe('TraceabilityView', () => {
     expect(screen.getByRole('progressbar')).toBeInTheDocument();
     expect(screen.getByText('1/2 proven')).toBeInTheDocument();
   });
+
+  // -- Status dot and legend tests --
+
+  it('renders status dots next to each requirement', () => {
+    const traceability: TraceabilitySummary = {
+      coverage: 33,
+      requirements: [
+        { requirement_id: 'req-0', description: 'Passing req', test_id: 'test-pass', test_name: 'pass test', status: 'passing' },
+        { requirement_id: 'req-1', description: 'Failing req', test_id: 'test-fail', test_name: 'fail test', status: 'failing' },
+        { requirement_id: 'req-2', description: 'Untested req', status: 'untested' },
+      ],
+    };
+    render(<TraceabilityView traceability={traceability} />);
+    expect(screen.getByTestId('status-dot-passing')).toBeInTheDocument();
+    expect(screen.getByTestId('status-dot-failing')).toBeInTheDocument();
+    expect(screen.getByTestId('status-dot-untested')).toBeInTheDocument();
+  });
+
+  it('renders status legend with all three statuses', () => {
+    const traceability: TraceabilitySummary = {
+      coverage: 100,
+      requirements: [
+        { requirement_id: 'req-0', description: 'Some req', test_id: 'test-1', status: 'passing' },
+      ],
+    };
+    render(<TraceabilityView traceability={traceability} />);
+    const legend = screen.getByTestId('status-legend');
+    expect(legend).toBeInTheDocument();
+    expect(legend).toHaveTextContent('Passing');
+    expect(legend).toHaveTextContent('Failing');
+    expect(legend).toHaveTextContent('Untested');
+  });
+
+  it('does not render status legend in empty state', () => {
+    render(<TraceabilityView traceability={null} />);
+    expect(screen.queryByTestId('status-legend')).not.toBeInTheDocument();
+  });
 });

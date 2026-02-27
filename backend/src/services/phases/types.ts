@@ -57,7 +57,7 @@ export type WSEvent =
   | { type: 'correction_cycle_progress'; task_id: string; attempt_number: number; step: 'diagnosing' | 'fixing' | 'retesting' }
   | { type: 'convergence_update'; task_id: string; attempts_so_far: number; tests_passing: number; tests_total: number; trend: 'improving' | 'stalled' | 'diverging'; converged: boolean; attempts: Array<{ attempt_number: number; status: string; tests_passing?: number; tests_total?: number }> }
   | { type: 'decomposition_narrated'; goal: string; subtasks: string[]; explanation: string }
-  | { type: 'impact_estimate'; estimated_tasks: number; complexity: 'simple' | 'moderate' | 'complex'; heaviest_requirements: string[] }
+  | { type: 'impact_estimate'; estimated_tasks: number; complexity: 'simple' | 'moderate' | 'complex'; heaviest_requirements: string[]; requirement_details: Array<{ description: string; estimated_task_count: number; test_linked: boolean; weight: number; dependents: number }> }
   | { type: 'system_health_update'; tasks_done: number; tasks_total: number; tests_passing: number; tests_total: number; tokens_used: number; health_score: number }
   | { type: 'system_health_summary'; health_score: number; grade: 'A' | 'B' | 'C' | 'D' | 'F'; breakdown: { tasks_score: number; tests_score: number; corrections_score: number; budget_score: number } }
   | { type: 'boundary_analysis'; inputs: Array<{ name: string; type: string; source?: string }>; outputs: Array<{ name: string; type: string; source?: string }>; boundary_portals: string[] };

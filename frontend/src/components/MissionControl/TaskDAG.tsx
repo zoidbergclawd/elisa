@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, type MouseEvent as ReactMouseEvent } from 'react';
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -167,6 +167,12 @@ function TaskDAGInner({
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
   const [hoveredReqId, setHoveredReqId] = useState<string | null>(null);
+  const [edgeTooltip, setEdgeTooltip] = useState<{
+    x: number;
+    y: number;
+    sourceTask: Task;
+    targetTask: Task;
+  } | null>(null);
   const { fitView } = useReactFlow();
   const isFullSize = !!className;
 
@@ -188,6 +194,32 @@ function TaskDAGInner({
     () => buildRequirementLegend(displayTasks, requirements),
     [displayTasks, requirements],
   );
+
+  /** Generate a human-readable explanation for why targetTask depends on sourceTask */
+  const buildEdgeExplanation = useCallback((sourceTask: Task, targetTask: Task): string => {
+    // Check if target has acceptance criteria mentioning the source
+    const criteria = targetTask.acceptance_criteria;
+    if (criteria && criteria.length > 0) {
+      return `"${targetTask.name}" needs "${sourceTask.name}" to finish first because it depends on its output.`;
+    }
+    return `"${targetTask.name}" depends on "${sourceTask.name}" completing first.`;
+  }, []);
+
+  const handleEdgeClick = useCallback((_event: ReactMouseEvent, edge: Edge) => {
+    const sourceTask = displayTasks.find(t => t.id === edge.source);
+    const targetTask = displayTasks.find(t => t.id === edge.target);
+    if (!sourceTask || !targetTask) return;
+
+    const rect = (_event.currentTarget as HTMLElement).closest('.react-flow')?.getBoundingClientRect();
+    const x = _event.clientX - (rect?.left ?? 0);
+    const y = _event.clientY - (rect?.top ?? 0);
+
+    setEdgeTooltip(prev =>
+      prev?.sourceTask.id === sourceTask.id && prev?.targetTask.id === targetTask.id
+        ? null  // Toggle off if clicking the same edge
+        : { x, y, sourceTask, targetTask }
+    );
+  }, [displayTasks]);
 
   const elkGraph = useMemo(() => ({
     id: 'root',
@@ -370,7 +402,30 @@ function TaskDAGInner({
         preventScrolling={!isFullSize}
         fitView
         proOptions={{ hideAttribution: true }}
+        onEdgeClick={handleEdgeClick}
+        onPaneClick={() => setEdgeTooltip(null)}
       />
+
+      {/* "Why This Order?" edge tooltip */}
+      {edgeTooltip && (
+        <div
+          data-testid="edge-tooltip"
+          className="absolute z-20 max-w-[240px] glass-panel rounded-lg p-3 text-xs shadow-lg"
+          style={{ left: edgeTooltip.x, top: edgeTooltip.y + 8 }}
+        >
+          <div className="font-semibold text-atelier-text-primary mb-1">
+            Why this order?
+          </div>
+          <p className="text-atelier-text-secondary leading-relaxed">
+            {buildEdgeExplanation(edgeTooltip.sourceTask, edgeTooltip.targetTask)}
+          </p>
+          <div className="flex items-center gap-1.5 mt-2 text-atelier-text-muted">
+            <span className="font-mono">{truncate(edgeTooltip.sourceTask.name, 20)}</span>
+            <span>&rarr;</span>
+            <span className="font-mono">{truncate(edgeTooltip.targetTask.name, 20)}</span>
+          </div>
+        </div>
+      )}
 
       {/* Context flow animations */}
       {contextFlows && contextFlows.length > 0 && (

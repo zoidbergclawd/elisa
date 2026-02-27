@@ -1,15 +1,22 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, act, waitFor } from '@testing-library/react';
 import TaskDAG from './TaskDAG';
 import type { Task, Agent } from '../../types';
 
+// Store last ReactFlow props for edge-click testing
+let lastReactFlowProps: Record<string, unknown> = {};
+
 // Mock @xyflow/react
 vi.mock('@xyflow/react', () => ({
-  ReactFlow: vi.fn(({ nodes, edges }: { nodes: unknown[]; edges: unknown[] }) => (
-    <div data-testid="react-flow" data-nodes={nodes?.length ?? 0} data-edges={edges?.length ?? 0}>
-      ReactFlow
-    </div>
-  )),
+  ReactFlow: vi.fn((props: Record<string, unknown>) => {
+    lastReactFlowProps = props;
+    const { nodes, edges } = props as { nodes: unknown[]; edges: unknown[] };
+    return (
+      <div data-testid="react-flow" data-nodes={nodes?.length ?? 0} data-edges={edges?.length ?? 0}>
+        ReactFlow
+      </div>
+    );
+  }),
   ReactFlowProvider: vi.fn(({ children }: { children: React.ReactNode }) => <div>{children}</div>),
   useReactFlow: vi.fn(() => ({ fitView: vi.fn() })),
 }));
@@ -190,5 +197,111 @@ describe('TaskDAG', () => {
     // In architect mode, all 3 task nodes are shown (no filtering)
     render(<TaskDAG tasks={tasks} agents={agents} systemLevel="architect" />);
     expect(screen.getByTestId('react-flow')).toBeInTheDocument();
+  });
+
+  // -- "Why This Order?" edge click tests --
+
+  it('passes onEdgeClick handler to ReactFlow', async () => {
+    const tasks: Task[] = [
+      { id: '1', name: 'Plan', description: '', status: 'done', agent_name: 'Planner', dependencies: [] },
+      { id: '2', name: 'Build', description: '', status: 'pending', agent_name: 'Builder', dependencies: ['1'] },
+    ];
+    render(<TaskDAG tasks={tasks} />);
+    await waitFor(() => {
+      expect(lastReactFlowProps.onEdgeClick).toBeDefined();
+    });
+    expect(typeof lastReactFlowProps.onEdgeClick).toBe('function');
+  });
+
+  it('shows edge tooltip when onEdgeClick is triggered', async () => {
+    const tasks: Task[] = [
+      { id: '1', name: 'Plan', description: '', status: 'done', agent_name: 'Planner', dependencies: [] },
+      { id: '2', name: 'Build', description: '', status: 'pending', agent_name: 'Builder', dependencies: ['1'] },
+    ];
+    render(<TaskDAG tasks={tasks} />);
+    await waitFor(() => {
+      expect(lastReactFlowProps.onEdgeClick).toBeDefined();
+    });
+
+    // Simulate edge click
+    const mockEvent = {
+      clientX: 100,
+      clientY: 200,
+      currentTarget: {
+        closest: () => ({ getBoundingClientRect: () => ({ left: 0, top: 0 }) }),
+      },
+    };
+    act(() => {
+      (lastReactFlowProps.onEdgeClick as (event: unknown, edge: { source: string; target: string }) => void)(
+        mockEvent,
+        { source: '1', target: '2' },
+      );
+    });
+
+    expect(screen.getByTestId('edge-tooltip')).toBeInTheDocument();
+    expect(screen.getByText('Why this order?')).toBeInTheDocument();
+    expect(screen.getByText(/depends on/)).toBeInTheDocument();
+  });
+
+  it('hides edge tooltip when clicking the same edge again', async () => {
+    const tasks: Task[] = [
+      { id: '1', name: 'Plan', description: '', status: 'done', agent_name: 'Planner', dependencies: [] },
+      { id: '2', name: 'Build', description: '', status: 'pending', agent_name: 'Builder', dependencies: ['1'] },
+    ];
+    render(<TaskDAG tasks={tasks} />);
+    await waitFor(() => {
+      expect(lastReactFlowProps.onEdgeClick).toBeDefined();
+    });
+
+    const mockEvent = {
+      clientX: 100,
+      clientY: 200,
+      currentTarget: {
+        closest: () => ({ getBoundingClientRect: () => ({ left: 0, top: 0 }) }),
+      },
+    };
+    const edgeClickHandler = lastReactFlowProps.onEdgeClick as (event: unknown, edge: { source: string; target: string }) => void;
+
+    // Click once to show
+    act(() => { edgeClickHandler(mockEvent, { source: '1', target: '2' }); });
+    expect(screen.getByTestId('edge-tooltip')).toBeInTheDocument();
+
+    // Click same edge again to hide
+    act(() => { edgeClickHandler(mockEvent, { source: '1', target: '2' }); });
+    expect(screen.queryByTestId('edge-tooltip')).not.toBeInTheDocument();
+  });
+
+  it('hides edge tooltip on pane click', async () => {
+    const tasks: Task[] = [
+      { id: '1', name: 'Plan', description: '', status: 'done', agent_name: 'Planner', dependencies: [] },
+      { id: '2', name: 'Build', description: '', status: 'pending', agent_name: 'Builder', dependencies: ['1'] },
+    ];
+    render(<TaskDAG tasks={tasks} />);
+    await waitFor(() => {
+      expect(lastReactFlowProps.onEdgeClick).toBeDefined();
+    });
+
+    const mockEvent = {
+      clientX: 100,
+      clientY: 200,
+      currentTarget: {
+        closest: () => ({ getBoundingClientRect: () => ({ left: 0, top: 0 }) }),
+      },
+    };
+
+    // Show tooltip
+    act(() => {
+      (lastReactFlowProps.onEdgeClick as (event: unknown, edge: { source: string; target: string }) => void)(
+        mockEvent,
+        { source: '1', target: '2' },
+      );
+    });
+    expect(screen.getByTestId('edge-tooltip')).toBeInTheDocument();
+
+    // Click pane to dismiss
+    act(() => {
+      (lastReactFlowProps.onPaneClick as () => void)();
+    });
+    expect(screen.queryByTestId('edge-tooltip')).not.toBeInTheDocument();
   });
 });

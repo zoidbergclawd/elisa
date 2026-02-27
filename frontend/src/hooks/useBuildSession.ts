@@ -33,6 +33,13 @@ export interface ErrorNotification {
   timestamp: number;
 }
 
+export interface PreFlashChecklist {
+  specReady: boolean;
+  runtimeProvisioned: boolean;
+  backpackReady: boolean;
+  firmwareReady: boolean;
+}
+
 export interface FlashWizardState {
   visible: boolean;
   deviceRole: string;
@@ -41,6 +48,10 @@ export interface FlashWizardState {
   progress: number;
   deviceName?: string;
   flashMethod?: string;
+  agentName?: string;
+  wakeWord?: string;
+  agentId?: string;
+  preFlashChecklist?: PreFlashChecklist;
 }
 
 export interface ContextFlow {
@@ -79,7 +90,7 @@ export interface BuildSessionState {
   traceability: TraceabilitySummary | null;
   correctionCycles: Record<string, CorrectionCycleState>;
   decomposition: { goal: string; subtasks: string[]; explanation: string } | null;
-  impactEstimate: { estimated_tasks: number; complexity: 'simple' | 'moderate' | 'complex'; heaviest_requirements: string[] } | null;
+  impactEstimate: { estimated_tasks: number; complexity: 'simple' | 'moderate' | 'complex'; heaviest_requirements: string[]; requirement_details?: Array<{ description: string; estimated_task_count: number; test_linked: boolean; weight: number; dependents: number }> } | null;
   healthUpdate: { tasks_done: number; tasks_total: number; tests_passing: number; tests_total: number; tokens_used: number; health_score: number } | null;
   healthSummary: { health_score: number; grade: 'A' | 'B' | 'C' | 'D' | 'F'; breakdown: { tasks_score: number; tests_score: number; corrections_score: number; budget_score: number } } | null;
   boundaryAnalysis: { inputs: Array<{ name: string; type: string; source?: string }>; outputs: Array<{ name: string; type: string; source?: string }>; boundary_portals: string[] } | null;
@@ -602,6 +613,7 @@ function handleWSEvent(state: BuildSessionState, event: WSEvent, deploySteps: Ar
           estimated_tasks: event.estimated_tasks,
           complexity: event.complexity,
           heaviest_requirements: event.heaviest_requirements,
+          requirement_details: event.requirement_details,
         },
       };
 
