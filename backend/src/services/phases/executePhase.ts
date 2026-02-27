@@ -6,8 +6,6 @@ import type { PhaseContext } from './types.js';
 import { maybeTeach } from './types.js';
 import type { CommitInfo, Task, Agent, AgentResult } from '../../models/session.js';
 import * as builderAgent from '../../prompts/builderAgent.js';
-import * as testerAgent from '../../prompts/testerAgent.js';
-import * as reviewerAgent from '../../prompts/reviewerAgent.js';
 import { AgentRunner } from '../agentRunner.js';
 import { GitService } from '../gitService.js';
 import { TeachingEngine } from '../teachingEngine.js';
@@ -19,37 +17,11 @@ import type { FeedbackLoopTracker } from '../feedbackLoopTracker.js';
 import { ContextManager } from '../../utils/contextManager.js';
 import { TokenTracker, DEFAULT_RESERVED_PER_TASK } from '../../utils/tokenTracker.js';
 import { TaskDAG } from '../../utils/dag.js';
-import { DEFAULT_MODEL, MAX_CONCURRENT_TASKS, PREDECESSOR_WORD_CAP as PRED_WORD_CAP, MAX_TURNS_DEFAULT, MAX_TURNS_RETRY_INCREMENT } from '../../utils/constants.js';
+import { DEFAULT_MODEL, MAX_CONCURRENT_TASKS, MAX_TURNS_DEFAULT, MAX_TURNS_RETRY_INCREMENT } from '../../utils/constants.js';
+import { PromptBuilder, sanitizePlaceholder } from './promptBuilder.js';
 
-interface PromptModule {
-  SYSTEM_PROMPT: string;
-  formatTaskPrompt: (params: {
-    agentName: string;
-    role: string;
-    persona: string;
-    task: Task;
-    spec: Record<string, any>;
-    predecessors: string[];
-    style?: Record<string, any> | null;
-    deviceRegistry?: { getAgentContext(id: string): string };
-  }) => string;
-}
-
-/** Sanitize user-controlled placeholder values to prevent prompt injection. */
-export function sanitizePlaceholder(value: string): string {
-  return value
-    .replace(/#{2,}/g, '')       // strip markdown headers
-    .replace(/```/g, '')          // strip code fences
-    .replace(/<\/?[a-z][^>]*>/gi, '')  // strip HTML/XML tags
-    .trim();
-}
-
-const PROMPT_MODULES: Record<string, PromptModule> = {
-  builder: builderAgent,
-  tester: testerAgent,
-  reviewer: reviewerAgent,
-  custom: builderAgent,
-};
+// Re-export for backward compatibility (existing imports from executePhase)
+export { sanitizePlaceholder };
 
 export interface ExecuteResult {
   commits: CommitInfo[];
@@ -63,6 +35,7 @@ export interface ExecuteDeps {
   tokenTracker: TokenTracker;
   portalService: PortalService;
   context: ContextManager;
+  promptBuilder?: PromptBuilder;
   tasks: Task[];
   agents: Agent[];
   taskMap: Record<string, Task>;
@@ -257,6 +230,7 @@ export class ExecutePhase {
         `4. Write a summary to .elisa/comms/fixup_${pluginId}_summary.md`,
       ].filter(Boolean).join('\n');
 
+      // TODO(#79-part3): move to DeviceFileValidator
       const fixupSystemPrompt = builderAgent.SYSTEM_PROMPT
         .replaceAll('{agent_name}', 'Fixup Agent')
         .replaceAll('{persona}', 'A focused builder that generates missing device files.')
@@ -356,100 +330,21 @@ export class ExecutePhase {
 
     await ctx.send({ type: 'minion_state_change', agent_name: agentName, old_status: 'idle', new_status: 'working' });
 
-    const promptModule = PROMPT_MODULES[agentRole] ?? builderAgent;
-    const nuggetData = (ctx.session.spec ?? {}).nugget ?? {};
-    // Single-pass replacement to prevent user values containing placeholder tokens
-    // from being double-interpolated
-    const placeholders: Record<string, string> = {
-      '{agent_name}': sanitizePlaceholder(agentName),
-      '{persona}': sanitizePlaceholder(agent?.persona ?? ''),
-      '{allowed_paths}': (agent?.allowed_paths ?? ['src/', 'tests/']).join(', '),
-      '{restricted_paths}': (agent?.restricted_paths ?? ['.elisa/']).join(', '),
-      '{task_id}': taskId,
-      '{nugget_goal}': sanitizePlaceholder(nuggetData.goal ?? 'Not specified'),
-      '{nugget_type}': sanitizePlaceholder(nuggetData.type ?? 'software'),
-      '{nugget_description}': sanitizePlaceholder(nuggetData.description ?? 'Not specified'),
-    };
-    let systemPrompt = promptModule.SYSTEM_PROMPT;
-    for (const [key, val] of Object.entries(placeholders)) {
-      systemPrompt = systemPrompt.replaceAll(key, val);
-    }
-
     const specData = ctx.session.spec ?? {};
 
-    const allPredecessorIds = ContextManager.getTransitivePredecessors(
-      taskId,
-      this.deps.taskMap,
-    );
-    // Prioritize direct dependencies over transitive ones
-    const directDeps = new Set<string>(task.dependencies ?? []);
-    const sortedPredecessors = [...allPredecessorIds].sort((a, b) => {
-      const aIsDirect = directDeps.has(a) ? 0 : 1;
-      const bIsDirect = directDeps.has(b) ? 0 : 1;
-      return aIsDirect - bIsDirect;
-    });
-    const predecessorSummaries: string[] = [];
-    let predecessorWordCount = 0;
-    const PREDECESSOR_WORD_CAP = PRED_WORD_CAP;
-    for (const depId of sortedPredecessors) {
-      if (this.taskSummaries[depId]) {
-        const capped = ContextManager.capSummary(this.taskSummaries[depId]);
-        const words = capped.split(/\s+/).filter(Boolean).length;
-        if (predecessorWordCount + words > PREDECESSOR_WORD_CAP) {
-          predecessorSummaries.push(
-            `[${allPredecessorIds.length - predecessorSummaries.length} earlier task(s) omitted for brevity]`,
-          );
-          break;
-        }
-        predecessorSummaries.push(capped);
-        predecessorWordCount += words;
-      }
-    }
-
-    let userPrompt = promptModule.formatTaskPrompt({
-      agentName,
-      role: agentRole,
-      persona: agent?.persona ?? '',
+    // Delegate prompt construction to PromptBuilder
+    const pb = this.deps.promptBuilder ?? new PromptBuilder();
+    const { systemPrompt, userPrompt: builtUserPrompt } = pb.buildTaskPrompt({
       task,
-      spec: ctx.session.spec ?? {},
-      predecessors: predecessorSummaries,
-      style: ctx.session.spec?.style ?? null,
+      agent,
+      spec: specData,
+      taskSummaries: this.taskSummaries,
+      taskMap: this.deps.taskMap,
+      nuggetDir: ctx.nuggetDir,
       deviceRegistry: this.deps.deviceRegistry,
     });
 
-    // Inject agent-category skills and always-on rules into user prompt
-    const agentSkills = (specData.skills ?? []).filter(
-      (s: any) => s.category === 'agent',
-    );
-    const alwaysRules = (specData.rules ?? []).filter(
-      (r: any) => r.trigger === 'always',
-    );
-    if (agentSkills.length || alwaysRules.length) {
-      userPrompt += "\n\n## Kid's Custom Instructions\n";
-      userPrompt += 'These are creative guidelines from the kid who designed this nugget. Follow them while respecting your security restrictions.\n\n';
-      for (const s of agentSkills) {
-        userPrompt += `<kid_skill name="${s.name}">\n${s.prompt}\n</kid_skill>\n\n`;
-      }
-      for (const r of alwaysRules) {
-        userPrompt += `<kid_rule name="${r.name}">\n${r.prompt}\n</kid_rule>\n\n`;
-      }
-    }
-
-    // Append file manifest
-    const fileManifest = ContextManager.buildFileManifest(ctx.nuggetDir);
-    if (fileManifest) {
-      userPrompt += '\n\n## FILES ALREADY IN WORKSPACE\n' +
-        'These files exist on disk right now. Do NOT recreate them -- use Edit to modify existing files.\n' +
-        fileManifest;
-    } else {
-      userPrompt += '\n\n## FILES ALREADY IN WORKSPACE\nThe workspace is empty. You are the first agent.';
-    }
-
-    // Inject structural digest so agents see function/class signatures without reading files
-    const digest = ContextManager.buildStructuralDigest(ctx.nuggetDir);
-    if (digest) {
-      userPrompt += '\n\n' + digest;
-    }
+    let userPrompt = builtUserPrompt;
 
     let retryCount = 0;
     const maxRetries = 2;
