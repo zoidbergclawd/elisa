@@ -231,7 +231,7 @@ describe('session state transitions', () => {
     configureAgentSuccess();
 
     const states: string[] = [];
-    let currentState = session.state;
+    let currentState: string = session.state;
     Object.defineProperty(session, 'state', {
       get: () => currentState,
       set: (val: string) => {
@@ -253,7 +253,7 @@ describe('session state transitions', () => {
     configureHardwareSuccess();
 
     const states: string[] = [];
-    let currentState = session.state;
+    let currentState: string = session.state;
     Object.defineProperty(session, 'state', {
       get: () => currentState,
       set: (val: string) => {

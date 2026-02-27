@@ -127,11 +127,14 @@ describe('ContextManager.extractSignatures', () => {
 });
 
 describe('ContextManager.getTransitivePredecessors', () => {
+  const stub = (deps: string[]) =>
+    ({ id: '', name: '', description: '', status: 'pending', agent_name: '', dependencies: deps, acceptance_criteria: [] }) as any;
+
   it('follows a linear dependency chain', () => {
-    const taskMap: Record<string, Record<string, any>> = {
-      a: { dependencies: [] },
-      b: { dependencies: ['a'] },
-      c: { dependencies: ['b'] },
+    const taskMap = {
+      a: stub([]),
+      b: stub(['a']),
+      c: stub(['b']),
     };
     const preds = ContextManager.getTransitivePredecessors('c', taskMap);
     expect(preds).toContain('b');
@@ -139,11 +142,11 @@ describe('ContextManager.getTransitivePredecessors', () => {
   });
 
   it('follows a diamond dependency graph', () => {
-    const taskMap: Record<string, Record<string, any>> = {
-      a: { dependencies: [] },
-      b: { dependencies: ['a'] },
-      c: { dependencies: ['a'] },
-      d: { dependencies: ['b', 'c'] },
+    const taskMap = {
+      a: stub([]),
+      b: stub(['a']),
+      c: stub(['a']),
+      d: stub(['b', 'c']),
     };
     const preds = ContextManager.getTransitivePredecessors('d', taskMap);
     expect(preds).toContain('b');
@@ -152,23 +155,21 @@ describe('ContextManager.getTransitivePredecessors', () => {
   });
 
   it('returns empty array when task has no dependencies', () => {
-    const taskMap: Record<string, Record<string, any>> = {
-      a: { dependencies: [] },
-    };
+    const taskMap = { a: stub([]) };
     const preds = ContextManager.getTransitivePredecessors('a', taskMap);
     expect(preds).toEqual([]);
   });
 
   it('handles missing tasks gracefully', () => {
-    const taskMap: Record<string, Record<string, any>> = {};
+    const taskMap: Record<string, any> = {};
     const preds = ContextManager.getTransitivePredecessors('missing', taskMap);
     expect(preds).toEqual([]);
   });
 
   it('does not visit the same node twice in a cycle', () => {
-    const taskMap: Record<string, Record<string, any>> = {
-      a: { dependencies: ['b'] },
-      b: { dependencies: ['a'] },
+    const taskMap = {
+      a: stub(['b']),
+      b: stub(['a']),
     };
     // Should terminate even with circular deps
     const preds = ContextManager.getTransitivePredecessors('a', taskMap);

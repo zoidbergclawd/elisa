@@ -33,6 +33,7 @@ import { TaskDAG } from '../../utils/dag.js';
 import { ContextManager } from '../../utils/contextManager.js';
 import { TokenTracker } from '../../utils/tokenTracker.js';
 import type { PhaseContext } from './types.js';
+import type { Task, Agent, TaskStatus, AgentRole, AgentStatus } from '../../models/session.js';
 
 // -- Helpers --
 
@@ -52,7 +53,7 @@ function makeCtx(overrides: Partial<PhaseContext> = {}): PhaseContext {
       tasks: [],
       agents: [],
     } as any,
-    send: async (evt: Record<string, any>) => { events.push(evt); },
+    send: (async (evt: Record<string, any>) => { events.push(evt); }) as any,
     logger: null,
     nuggetDir,
     nuggetType: 'software',
@@ -61,20 +62,20 @@ function makeCtx(overrides: Partial<PhaseContext> = {}): PhaseContext {
   };
 }
 
-function makeTask(id: string, name: string, agentName: string, deps: string[] = []) {
+function makeTask(id: string, name: string, agentName: string, deps: string[] = []): Task {
   return {
     id,
     name,
     description: `Do ${name}`,
-    status: 'pending',
+    status: 'pending' as TaskStatus,
     agent_name: agentName,
     dependencies: deps,
     acceptance_criteria: [`${name} done`],
   };
 }
 
-function makeAgent(name: string, role = 'builder') {
-  return { name, role, persona: 'helpful', status: 'idle' };
+function makeAgent(name: string, role: AgentRole = 'builder'): Agent {
+  return { name, role, persona: 'helpful', status: 'idle' as AgentStatus };
 }
 
 function makeSuccessResult(overrides: Record<string, any> = {}) {
@@ -94,9 +95,9 @@ function makeDeps(
 ): ExecuteDeps {
   const tasks = overrides.tasks ?? [];
   const agents = overrides.agents ?? [];
-  const taskMap: Record<string, Record<string, any>> = {};
+  const taskMap: Record<string, Task> = {};
   for (const t of tasks) taskMap[t.id] = t;
-  const agentMap: Record<string, Record<string, any>> = {};
+  const agentMap: Record<string, Agent> = {};
   for (const a of agents) agentMap[a.name] = a;
   const dag = overrides.dag ?? new TaskDAG();
   if (!overrides.dag) {
