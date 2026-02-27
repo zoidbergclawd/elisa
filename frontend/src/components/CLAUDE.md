@@ -1,6 +1,6 @@
 # Frontend Components
 
-Tabbed layout: Header (Logo + MainTabBar + GO + Badge) | Main (Workspace/Agents/Tasks tabs) | BottomBar (6 tabs). Overlay modals for gates, questions, skills, and completion.
+Tabbed layout: Header (Logo + MainTabBar + GO + Badge) | Main (Workspace/Agents/Tasks tabs) | BottomBar (9 tabs). Overlay modals for gates, questions, skills, and completion.
 
 ## Component Tree
 
@@ -23,10 +23,12 @@ App.tsx
   MissionControl/MetricsPanel.tsx    Token usage bars per agent, cost display, budget percentage
   MissionControl/FeedbackLoopIndicator.tsx  Correction cycle animation + attempt counter for retrying tasks
   MissionControl/ConvergencePanel.tsx       Convergence tracking: attempt history, trends, teaching moments
-  BottomBar/BottomBar.tsx            Tabbed panel (7 tabs: Timeline/Tests/Trace/Board/Learn/Progress/Tokens)
+  BottomBar/BottomBar.tsx            Tabbed panel (9 tabs: Timeline/Tests/Trace/Board/Learn/Progress/System/Health/Tokens)
     GitTimeline.tsx                  Commit list with file diffs
     TestResults.tsx                  Pass/fail indicators + coverage bar (build-state aware)
     TraceabilityView.tsx             Requirement-to-test traceability table with status badges
+    SystemBoundaryView.tsx           System boundary visualization (inputs/outputs/portals columns)
+    HealthDashboard.tsx              System health vital signs (live score + post-build grade + breakdown)
     BoardOutput.tsx                  Serial output (conditional on serial data)
     TeachingSidebar.tsx              Learning moments list
     ProgressPanel.tsx                Build progress bar + phase text
@@ -43,6 +45,7 @@ App.tsx
   shared/FlashWizardModal.tsx        Multi-device flash wizard with progress bar for IoT deploy
   shared/MeetingInviteToast.tsx      Floating meeting invite notification with accept/decline + 30s auto-dismiss
   shared/LevelBadge.tsx             System level badge (Explorer/Builder/Architect) in header
+  shared/ImpactPreview.tsx          Pre-execution impact preview card (task estimate, complexity, heaviest reqs)
   shared/DisplayThemePreview.tsx    BOX-3 display theme preview (320x240 ratio, theme colors, avatar style)
   Meeting/MeetingModal.tsx           Full-screen meeting modal: agent chat panel (left) + canvas area (right)
   Meeting/canvasRegistry.ts          Registry for pluggable canvas components (Map<canvasType, Component>)
