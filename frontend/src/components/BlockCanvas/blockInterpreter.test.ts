@@ -865,6 +865,106 @@ describe('blockInterpreter', () => {
     });
   });
 
+  describe('feature block TEST_SOCKET (#148)', () => {
+    it('produces behavioral_tests when behavioral_test socketed into feature', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        goalBlock('Test', {
+          type: 'feature',
+          fields: { FEATURE_TEXT: 'play music' },
+          inputs: { TEST_SOCKET: { block: { type: 'behavioral_test', fields: { GIVEN_WHEN: 'user presses play', THEN: 'music plays' } } } },
+        }),
+      ]));
+      expect(spec.workflow.behavioral_tests).toHaveLength(1);
+      expect(spec.workflow.behavioral_tests![0]).toMatchObject({
+        when: 'user presses play',
+        then: 'music plays',
+        id: 'test_0',
+        requirement_id: 'req_0',
+      });
+    });
+
+    it('enables testing when behavioral_test socketed into feature', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        goalBlock('Test', {
+          type: 'feature',
+          fields: { FEATURE_TEXT: 'play music' },
+          inputs: { TEST_SOCKET: { block: { type: 'behavioral_test', fields: { GIVEN_WHEN: 'play', THEN: 'music' } } } },
+        }),
+      ]));
+      expect(spec.workflow.testing_enabled).toBe(true);
+    });
+
+    it('feature without socketed test has no test_id', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        goalBlock('Test', { type: 'feature', fields: { FEATURE_TEXT: 'play music' } }),
+      ]));
+      expect(spec.requirements[0].test_id).toBeUndefined();
+      expect(spec.workflow.behavioral_tests).toBeUndefined();
+    });
+
+    it('links test_id on feature requirement to socketed behavioral_test', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        goalBlock('Test', {
+          type: 'feature',
+          fields: { FEATURE_TEXT: 'play music' },
+          inputs: { TEST_SOCKET: { block: { type: 'behavioral_test', fields: { GIVEN_WHEN: 'press play', THEN: 'music starts' } } } },
+        }),
+      ]));
+      expect(spec.requirements[0].test_id).toBe('test_0');
+      expect(spec.workflow.behavioral_tests![0].requirement_id).toBe('req_0');
+    });
+  });
+
+  describe('has_data block TEST_SOCKET (#148)', () => {
+    it('produces behavioral_tests when behavioral_test socketed into has_data', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        goalBlock('Test', {
+          type: 'has_data',
+          fields: { DATA_TEXT: 'user scores' },
+          inputs: { TEST_SOCKET: { block: { type: 'behavioral_test', fields: { GIVEN_WHEN: 'game ends', THEN: 'score is saved' } } } },
+        }),
+      ]));
+      expect(spec.workflow.behavioral_tests).toHaveLength(1);
+      expect(spec.workflow.behavioral_tests![0]).toMatchObject({
+        when: 'game ends',
+        then: 'score is saved',
+        id: 'test_0',
+        requirement_id: 'req_0',
+      });
+    });
+
+    it('enables testing when behavioral_test socketed into has_data', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        goalBlock('Test', {
+          type: 'has_data',
+          fields: { DATA_TEXT: 'user scores' },
+          inputs: { TEST_SOCKET: { block: { type: 'behavioral_test', fields: { GIVEN_WHEN: 'game ends', THEN: 'score saved' } } } },
+        }),
+      ]));
+      expect(spec.workflow.testing_enabled).toBe(true);
+    });
+
+    it('has_data without socketed test has no test_id', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        goalBlock('Test', { type: 'has_data', fields: { DATA_TEXT: 'user scores' } }),
+      ]));
+      expect(spec.requirements[0].test_id).toBeUndefined();
+      expect(spec.workflow.behavioral_tests).toBeUndefined();
+    });
+
+    it('links test_id on has_data requirement to socketed behavioral_test', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        goalBlock('Test', {
+          type: 'has_data',
+          fields: { DATA_TEXT: 'user scores' },
+          inputs: { TEST_SOCKET: { block: { type: 'behavioral_test', fields: { GIVEN_WHEN: 'game ends', THEN: 'score persisted' } } } },
+        }),
+      ]));
+      expect(spec.requirements[0].test_id).toBe('test_0');
+      expect(spec.workflow.behavioral_tests![0].requirement_id).toBe('req_0');
+    });
+  });
+
   describe('unknown block types', () => {
     it('unknown blocks in chain are silently ignored', () => {
       const spec = interpretWorkspace(makeWorkspace([

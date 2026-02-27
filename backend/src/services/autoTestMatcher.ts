@@ -1,6 +1,6 @@
 /**
  * Auto test matcher: at Explorer level, auto-generates behavioral tests
- * for when_then requirements that have no test_id.
+ * for when_then, feature, and data requirements that have no test_id.
  *
  * This runs before the spec is passed to MetaPlanner so the tester agent
  * knows to verify these behaviors.
@@ -51,27 +51,37 @@ export async function autoMatchTests(
 
   let generated = 0;
 
+  const TESTABLE_TYPES = new Set(['when_then', 'feature', 'data']);
+
   for (let i = 0; i < requirements.length; i++) {
     const req = requirements[i];
-    if (req.type !== 'when_then') continue;
+    if (!TESTABLE_TYPES.has(req.type ?? '')) continue;
     if (req.test_id) continue; // already has a manually-assigned test
 
     const reqId = `req_${i}`;
     if (coveredReqIds.has(reqId)) continue; // already covered by an existing test
 
-    // Parse the description: "When X happens, Y should happen"
     const desc = req.description ?? '';
-    const match = desc.match(/^When\s+(.+?)\s+happens?,\s+(.+?)\s+should\s+happen$/i);
-
     let when: string;
     let then: string;
-    if (match) {
-      when = match[1];
-      then = match[2];
+
+    if (req.type === 'when_then') {
+      // Parse the description: "When X happens, Y should happen"
+      const match = desc.match(/^When\s+(.+?)\s+happens?,\s+(.+?)\s+should\s+happen$/i);
+      if (match) {
+        when = match[1];
+        then = match[2];
+      } else {
+        when = desc;
+        then = 'it works as expected';
+      }
+    } else if (req.type === 'feature') {
+      when = `the user uses the feature: ${desc}`;
+      then = `${desc} works correctly`;
     } else {
-      // Fallback: use the full description
-      when = desc;
-      then = 'it works as expected';
+      // data type
+      when = `data is accessed: ${desc}`;
+      then = `${desc} is stored and retrievable`;
     }
 
     const testId = `auto_test_${i}`;
@@ -87,10 +97,11 @@ export async function autoMatchTests(
     generated++;
 
     // Narrator event for the kid
+    const label = req.type === 'when_then' ? 'rule' : req.type === 'feature' ? 'feature' : 'data';
     await send({
       type: 'narrator_message',
       from: 'Narrator',
-      text: `I noticed you want: "${desc}" -- I'll make sure to test that!`,
+      text: `I noticed your ${label}: "${desc}" -- I'll make sure to test that!`,
       mood: 'encouraging',
     });
   }

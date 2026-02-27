@@ -20,18 +20,23 @@ const blockDefs = [
   },
   {
     type: 'feature',
-    message0: 'It should be able to... %1',
+    message0: 'It should %1 %2',
     args0: [
       {
         type: 'field_input',
         name: 'FEATURE_TEXT',
         text: 'do something cool',
       },
+      {
+        type: 'input_statement',
+        name: 'TEST_SOCKET',
+        check: 'test_check',
+      },
     ],
     previousStatement: null,
     nextStatement: null,
     colour: 135,
-    tooltip: 'Add a feature requirement',
+    tooltip: 'Add a feature requirement — attach a behavioral test to verify it',
     helpUrl: '',
   },
   {
@@ -162,18 +167,23 @@ const blockDefs = [
   },
   {
     type: 'has_data',
-    message0: 'It needs to know about... %1',
+    message0: 'It stores/tracks %1 %2',
     args0: [
       {
         type: 'field_input',
         name: 'DATA_TEXT',
         text: 'some information',
       },
+      {
+        type: 'input_statement',
+        name: 'TEST_SOCKET',
+        check: 'test_check',
+      },
     ],
     previousStatement: null,
     nextStatement: null,
     colour: 135,
-    tooltip: 'Add data the nugget needs',
+    tooltip: 'Add data the nugget needs — attach a behavioral test to verify it',
     helpUrl: '',
   },
   // Tests category (colour 30, red family — same as Minions/testing)
@@ -357,6 +367,54 @@ const blockDefs = [
     nextStatement: null,
     colour: 60,
     tooltip: 'Add a review checkpoint',
+    helpUrl: '',
+  },
+  // Flow category: feedback loop (Systems Thinking)
+  {
+    type: 'feedback_loop',
+    message0: 'Feedback loop %1 triggered by %2 exit when %3 max tries %4 from %5 to %6',
+    args0: [
+      {
+        type: 'field_input',
+        name: 'LOOP_ID',
+        text: 'loop-1',
+      },
+      {
+        type: 'field_dropdown',
+        name: 'TRIGGER',
+        options: [
+          ['Test Failure', 'test_failure'],
+          ['Review Rejection', 'review_rejection'],
+          ['Custom', 'custom'],
+        ],
+      },
+      {
+        type: 'field_input',
+        name: 'EXIT_CONDITION',
+        text: 'all tests pass',
+      },
+      {
+        type: 'field_number',
+        name: 'MAX_ITERATIONS',
+        value: 3,
+        min: 1,
+        max: 10,
+      },
+      {
+        type: 'field_input',
+        name: 'CONNECTS_FROM',
+        text: 'task-id',
+      },
+      {
+        type: 'field_input',
+        name: 'CONNECTS_TO',
+        text: 'task-id',
+      },
+    ],
+    previousStatement: null,
+    nextStatement: null,
+    colour: 135,
+    tooltip: 'Add a feedback loop that retries tasks when something goes wrong',
     helpUrl: '',
   },
   // Deploy category additions

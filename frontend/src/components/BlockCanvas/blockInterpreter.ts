@@ -169,7 +169,24 @@ export function interpretWorkspace(
       }
       case 'feature': {
         const text = (block.fields?.FEATURE_TEXT as string) ?? '';
-        spec.requirements.push({ type: 'feature', description: text });
+        const featureReqIndex = spec.requirements.length;
+        const featureReqId = `req_${featureReqIndex}`;
+        const featureTestBlocks = walkInputChain(block, 'TEST_SOCKET');
+        let featureLinkedTestId: string | undefined;
+        if (featureTestBlocks.length > 0) {
+          for (const tb of featureTestBlocks) {
+            if (tb.type === 'behavioral_test') {
+              const givenWhen = (tb.fields?.GIVEN_WHEN as string) ?? '';
+              const then = (tb.fields?.THEN as string) ?? '';
+              if (!spec.workflow.behavioral_tests) spec.workflow.behavioral_tests = [];
+              const testId = `test_${spec.workflow.behavioral_tests.length}`;
+              spec.workflow.behavioral_tests.push({ id: testId, when: givenWhen, then, requirement_id: featureReqId });
+              spec.workflow.testing_enabled = true;
+              if (!featureLinkedTestId) featureLinkedTestId = testId;
+            }
+          }
+        }
+        spec.requirements.push({ type: 'feature', description: text, test_id: featureLinkedTestId });
         break;
       }
       case 'constraint': {
@@ -202,7 +219,24 @@ export function interpretWorkspace(
       }
       case 'has_data': {
         const text = (block.fields?.DATA_TEXT as string) ?? '';
-        spec.requirements.push({ type: 'data', description: text });
+        const dataReqIndex = spec.requirements.length;
+        const dataReqId = `req_${dataReqIndex}`;
+        const dataTestBlocks = walkInputChain(block, 'TEST_SOCKET');
+        let dataLinkedTestId: string | undefined;
+        if (dataTestBlocks.length > 0) {
+          for (const tb of dataTestBlocks) {
+            if (tb.type === 'behavioral_test') {
+              const givenWhen = (tb.fields?.GIVEN_WHEN as string) ?? '';
+              const then = (tb.fields?.THEN as string) ?? '';
+              if (!spec.workflow.behavioral_tests) spec.workflow.behavioral_tests = [];
+              const testId = `test_${spec.workflow.behavioral_tests.length}`;
+              spec.workflow.behavioral_tests.push({ id: testId, when: givenWhen, then, requirement_id: dataReqId });
+              spec.workflow.testing_enabled = true;
+              if (!dataLinkedTestId) dataLinkedTestId = testId;
+            }
+          }
+        }
+        spec.requirements.push({ type: 'data', description: text, test_id: dataLinkedTestId });
         break;
       }
       // behavioral_test blocks are now handled inside when_then via TEST_SOCKET input.
