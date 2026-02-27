@@ -76,6 +76,31 @@ export interface SearchResult {
   score: number;
 }
 
+// ── Study Mode ───────────────────────────────────────────────────────
+
+export interface StudyModeConfig {
+  enabled: boolean;
+  style: 'flashcard' | 'quiz' | 'explain';
+  difficulty: 'easy' | 'medium' | 'hard';
+  quiz_frequency: number; // 1-20, quizzes per session
+}
+
+export interface QuizQuestion {
+  id: string;
+  source_id: string;
+  question: string;
+  options: string[];
+  correct_index: number;
+}
+
+export interface StudyProgress {
+  total_questions: number;
+  correct_answers: number;
+  sources_covered: number;
+  total_sources: number;
+  accuracy: number;
+}
+
 // ── Provisioning ──────────────────────────────────────────────────────
 
 export interface ProvisionResult {
