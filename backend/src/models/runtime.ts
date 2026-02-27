@@ -103,6 +103,15 @@ export interface StudyProgress {
   accuracy: number;
 }
 
+// ── Gap Detection ────────────────────────────────────────────────────
+
+export interface GapEntry {
+  query: string;
+  timestamp: Date;
+  topic?: string;
+  reason?: string;
+}
+
 // ── Provisioning ──────────────────────────────────────────────────────
 
 export interface ProvisionResult {

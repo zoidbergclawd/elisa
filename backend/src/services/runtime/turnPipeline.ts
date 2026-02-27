@@ -25,6 +25,7 @@ import { filterAgentResponse } from './contentFilter.js';
 import { UsageLimiter } from './usageLimiter.js';
 import { ToolExecutor } from './toolExecutor.js';
 import type { ToolUseBlock } from './toolExecutor.js';
+import type { GapDetector } from './gapDetector.js';
 import { DEFAULT_MODEL } from '../../utils/constants.js';
 
 // ── Types ─────────────────────────────────────────────────────────────
@@ -47,6 +48,7 @@ export interface TurnPipelineDeps {
   getClient: () => Anthropic;
   knowledgeBackpack?: KnowledgeBackpack;
   consentManager?: ConsentManager;
+  gapDetector?: GapDetector;
 }
 
 // ── Usage Tracking ────────────────────────────────────────────────────
@@ -92,6 +94,7 @@ export class TurnPipeline {
   private usageLimiter: UsageLimiter;
   private knowledgeBackpack?: KnowledgeBackpack;
   private consentManager?: ConsentManager;
+  private gapDetector?: GapDetector;
   private model: string;
 
   constructor(deps: TurnPipelineDeps, usageTracker?: UsageTracker, usageLimiter?: UsageLimiter) {
@@ -100,6 +103,7 @@ export class TurnPipeline {
     this.getClient = deps.getClient;
     this.knowledgeBackpack = deps.knowledgeBackpack;
     this.consentManager = deps.consentManager;
+    this.gapDetector = deps.gapDetector;
     this.usageTracker = usageTracker ?? new UsageTracker();
     this.usageLimiter = usageLimiter ?? new UsageLimiter();
     this.model = process.env.CLAUDE_MODEL ?? DEFAULT_MODEL;
@@ -251,6 +255,14 @@ export class TurnPipeline {
     responseText = filterResult.content;
     if (filterResult.flagged) {
       console.warn(`[TurnPipeline] Content filter flagged agent ${agentId}:`, filterResult.flags);
+    }
+
+    // 5c. Gap detection (log-only, Phase 1)
+    if (this.gapDetector) {
+      const gap = this.gapDetector.detectGap(agentId, input.text, responseText, identity.fallback_response);
+      if (gap) {
+        console.info(`[TurnPipeline] Gap detected for agent ${agentId}: ${gap.reason} — "${gap.topic}"`);
+      }
     }
 
     // 6. Store assistant turn in history

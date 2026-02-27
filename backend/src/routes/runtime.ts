@@ -18,6 +18,7 @@ import type { ConversationManager } from '../services/runtime/conversationManage
 import type { TurnPipeline } from '../services/runtime/turnPipeline.js';
 import type { KnowledgeBackpack } from '../services/runtime/knowledgeBackpack.js';
 import type { StudyMode } from '../services/runtime/studyMode.js';
+import type { GapDetector } from '../services/runtime/gapDetector.js';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -27,6 +28,7 @@ export interface RuntimeRouterDeps {
   turnPipeline: TurnPipeline;
   knowledgeBackpack?: KnowledgeBackpack;
   studyMode?: StudyMode;
+  gapDetector?: GapDetector;
 }
 
 // ── Auth Middleware ────────────────────────────────────────────────────
@@ -62,7 +64,7 @@ function requireApiKey(agentStore: AgentStore) {
 // ── Router ────────────────────────────────────────────────────────────
 
 export function createRuntimeRouter(deps: RuntimeRouterDeps): Router {
-  const { agentStore, conversationManager, turnPipeline, knowledgeBackpack, studyMode } = deps;
+  const { agentStore, conversationManager, turnPipeline, knowledgeBackpack, studyMode, gapDetector } = deps;
   const router = Router();
 
   const authMiddleware = requireApiKey(agentStore);
@@ -121,6 +123,9 @@ export function createRuntimeRouter(deps: RuntimeRouterDeps): Router {
 
     // Clean up study mode
     studyMode?.deleteAgent(agentId);
+
+    // Clean up gap detection
+    gapDetector?.deleteAgent(agentId);
 
     // Remove agent
     const deleted = agentStore.delete(agentId);
@@ -214,6 +219,17 @@ export function createRuntimeRouter(deps: RuntimeRouterDeps): Router {
       total_input_tokens: usage.input_tokens,
       total_output_tokens: usage.output_tokens,
     });
+  });
+
+  // ── GET /v1/agents/:id/gaps — Knowledge gap list ─────────────────────
+  router.get('/agents/:id/gaps', authMiddleware, (req: Request, res: Response) => {
+    if (!gapDetector) {
+      res.status(501).json({ detail: 'Gap detection not available' });
+      return;
+    }
+
+    const gaps = gapDetector.getGaps(req.params.id);
+    res.json({ agent_id: req.params.id, gaps });
   });
 
   // ── Knowledge Backpack Endpoints ─────────────────────────────────────
@@ -372,6 +388,19 @@ export function createRuntimeRouter(deps: RuntimeRouterDeps): Router {
     } catch (err: any) {
       res.status(400).json({ detail: err.message });
     }
+  });
+
+  // ── Gap Detection Endpoints ─────────────────────────────────────────
+
+  // GET /v1/agents/:id/gaps — List detected knowledge gaps
+  router.get('/agents/:id/gaps', authMiddleware, (req: Request, res: Response) => {
+    if (!gapDetector) {
+      res.status(501).json({ detail: 'Gap detection not available' });
+      return;
+    }
+
+    const gaps = gapDetector.getGaps(req.params.id);
+    res.json({ agent_id: req.params.id, gaps });
   });
 
   return router;
