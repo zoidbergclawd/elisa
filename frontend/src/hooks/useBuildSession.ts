@@ -40,6 +40,7 @@ export interface FlashWizardState {
   isFlashing: boolean;
   progress: number;
   deviceName?: string;
+  flashMethod?: string;
 }
 
 export interface ContextFlow {
@@ -441,6 +442,7 @@ function handleWSEvent(state: BuildSessionState, event: WSEvent, deploySteps: Ar
           isFlashing: false,
           progress: 0,
           deviceName: stepInfo?.name,
+          flashMethod: stepInfo?.method,
         },
         tasks: updateTasks(state.tasks, flashNodeId, 'in_progress'),
       };

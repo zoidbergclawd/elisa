@@ -128,6 +128,7 @@ export default function ModalHost({
           isFlashing={flashWizardState.isFlashing}
           progress={flashWizardState.progress}
           deviceName={flashWizardState.deviceName}
+          flashMethod={flashWizardState.flashMethod}
           onReady={() => {
             authFetch(`/api/sessions/${sessionId}/gate`, {
               method: 'POST',

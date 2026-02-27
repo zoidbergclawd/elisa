@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import EsptoolFlashStep from './EsptoolFlashStep';
 
 interface FlashWizardModalProps {
   deviceRole: string;
@@ -6,6 +7,7 @@ interface FlashWizardModalProps {
   isFlashing?: boolean;
   progress?: number;
   deviceName?: string;
+  flashMethod?: string;
   onReady: () => void;
   onCancel: () => void;
 }
@@ -21,6 +23,7 @@ export default function FlashWizardModal({
   isFlashing = false,
   progress = 0,
   deviceName,
+  flashMethod,
   onReady,
   onCancel,
 }: FlashWizardModalProps) {
@@ -28,6 +31,16 @@ export default function FlashWizardModal({
     () => deviceName ?? FRIENDLY_NAMES[deviceRole] ?? deviceRole,
     [deviceName, deviceRole],
   );
+
+  const isEsptool = flashMethod === 'esptool';
+  const [manualPort, setManualPort] = useState('');
+
+  /** Derive the esptool step from the flash state */
+  const esptoolStep = useMemo(() => {
+    if (isFlashing && progress >= 100) return 'success' as const;
+    if (isFlashing) return 'flashing' as const;
+    return 'detecting' as const;
+  }, [isFlashing, progress]);
 
   return (
     <div
@@ -42,16 +55,29 @@ export default function FlashWizardModal({
         </h2>
         <p className="text-atelier-text-secondary text-sm mb-4">{message}</p>
 
-        {isFlashing && (
+        {isEsptool ? (
           <div className="mb-4">
-            <div className="w-full bg-atelier-surface rounded-full h-3">
-              <div
-                className="bg-accent-sky h-3 rounded-full transition-all duration-300"
-                style={{ width: `${Math.min(progress, 100)}%` }}
-              />
-            </div>
-            <p className="text-xs text-atelier-text-muted mt-1">{progress}% complete</p>
+            <EsptoolFlashStep
+              step={esptoolStep}
+              progress={progress}
+              deviceName={friendlyName}
+              esptoolAvailable={true}
+              manualPort={manualPort}
+              onManualPortChange={setManualPort}
+            />
           </div>
+        ) : (
+          isFlashing && (
+            <div className="mb-4">
+              <div className="w-full bg-atelier-surface rounded-full h-3">
+                <div
+                  className="bg-accent-sky h-3 rounded-full transition-all duration-300"
+                  style={{ width: `${Math.min(progress, 100)}%` }}
+                />
+              </div>
+              <p className="text-xs text-atelier-text-muted mt-1">{progress}% complete</p>
+            </div>
+          )
         )}
 
         <div className="flex gap-3 justify-end">
