@@ -67,7 +67,7 @@ class SensorNode:
                     readings["dht22"] = sensor.read()
                 elif cls_name == "ReedSwitch":
                     readings["reed"] = {
-                        "door_opened": sensor.events_since(reset=True)
+                        "door_opened": sensor.is_open()
                     }
                 elif cls_name == "PIRSensor":
                     readings["pir"] = {
@@ -112,13 +112,13 @@ class SensorNode:
         self._init_watchdog()
         print(f"[SensorNode] Starting (interval={interval_sec}s, ch={self._channel})")
 
-        # Register event-based sensors (reed, PIR) for interrupt tracking
+        # PIR uses interrupt tracking for motion events between polls
         for sensor in self._sensors:
             cls_name = type(sensor).__name__
-            if cls_name == "ReedSwitch":
-                sensor.on_change(lambda is_open: None)  # Enable IRQ tracking
-            elif cls_name == "PIRSensor":
+            if cls_name == "PIRSensor":
                 sensor.on_motion(lambda: None)  # Enable IRQ tracking
+            # Reed switch is polled via is_open() -- no IRQ needed.
+            # Breadboard reed switches bounce heavily and can crash the IRQ system.
 
         while True:
             self._feed_watchdog()

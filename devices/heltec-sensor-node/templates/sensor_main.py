@@ -21,9 +21,9 @@ BROADCAST_INTERVAL = __INTERVAL__  # seconds
 
 # Initialize hardware
 board = ElisaBoard()
-dht = DHT22Sensor(pin=13)
-reed = ReedSwitch(pin=12)
-pir = PIRSensor(pin=14)
+dht = DHT22Sensor(pin=__PIN_DHT22__)
+reed = ReedSwitch(pin=__PIN_REED__)
+pir = PIRSensor(pin=__PIN_PIR__)
 display = OLEDDisplay()
 
 # Self-test mode

@@ -17,9 +17,9 @@
   },
 
   "capabilities": [
-    { "id": "dht22", "name": "DHT22 Temperature/Humidity", "kind": "sensor", "params": [{ "name": "pin", "type": "number", "default": 13 }] },
-    { "id": "reed_switch", "name": "Reed Switch (Door)", "kind": "sensor", "params": [{ "name": "pin", "type": "number", "default": 12 }] },
-    { "id": "pir", "name": "PIR Motion Sensor", "kind": "sensor", "params": [{ "name": "pin", "type": "number", "default": 14 }] },
+    { "id": "dht22", "name": "DHT22 Temperature/Humidity", "kind": "sensor", "params": [{ "name": "pin", "type": "number", "default": 5 }] },
+    { "id": "reed_switch", "name": "Reed Switch (Door)", "kind": "sensor", "params": [{ "name": "pin", "type": "number", "default": 6 }] },
+    { "id": "pir", "name": "PIR Motion Sensor", "kind": "sensor", "params": [{ "name": "pin", "type": "number", "default": 7 }] },
     { "id": "oled_ssd1306", "name": "OLED Display", "kind": "display", "params": [{ "name": "sda", "type": "number", "default": 17 }, { "name": "scl", "type": "number", "default": 18 }] },
     { "id": "lora_tx", "name": "LoRa Transmit", "kind": "radio", "params": [{ "name": "channel", "type": "number", "default": 1, "min": 0, "max": 255 }] }
   ],
@@ -31,11 +31,11 @@
       "args": [
         { "type": "input_dummy" },
         { "type": "field_checkbox", "name": "SENSOR_DHT22", "checked": true },
-        { "type": "field_number", "name": "PIN_DHT22", "value": 13, "min": 0, "max": 48 },
+        { "type": "field_number", "name": "PIN_DHT22", "value": 5, "min": 0, "max": 48 },
         { "type": "field_checkbox", "name": "SENSOR_REED", "checked": true },
-        { "type": "field_number", "name": "PIN_REED", "value": 12, "min": 0, "max": 48 },
+        { "type": "field_number", "name": "PIN_REED", "value": 6, "min": 0, "max": 48 },
         { "type": "field_checkbox", "name": "SENSOR_PIR", "checked": true },
-        { "type": "field_number", "name": "PIN_PIR", "value": 14, "min": 0, "max": 48 },
+        { "type": "field_number", "name": "PIN_PIR", "value": 7, "min": 0, "max": 48 },
         { "type": "field_checkbox", "name": "HAS_OLED", "checked": true },
         { "type": "field_number", "name": "LORA_CHANNEL", "value": 1, "min": 0, "max": 255 },
         { "type": "field_number", "name": "INTERVAL", "value": 10, "min": 1, "max": 3600 }
