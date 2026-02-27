@@ -44,7 +44,7 @@ elisa/
   backend/           Express server - orchestration, agents, hardware
   scripts/           Build tooling (esbuild backend bundler)
   devices/           Device plugins (manifest + templates + prompts)
-  docs/              Product requirements (elisa-prd.md)
+  docs/              Documentation (INDEX.md, guides, API reference, plans)
 ```
 
 Root `package.json` manages Electron and build tooling. Frontend and backend remain independent Node.js projects with their own `package.json`.
@@ -63,8 +63,7 @@ Root `package.json` manages Electron and build tooling. Frontend and backend rem
                 Git commit after each completed task (serialized via mutex)
                 Token budget tracked per agent; warning at 80%, halt on exceed
    c. TEST:    TestRunner executes pytest, parses results + coverage
-   d. REVIEW:  Optional reviewer agent pass
-   e. DEPLOY:  Surface before_deploy rules as deploy_checklist event
+   d. DEPLOY:  Surface before_deploy rules as deploy_checklist event
                If web: build -> find serve dir -> start local HTTP server -> open browser
                If devices: resolveDeployOrder -> flash wizard per device
                If CLI portals: execute via CliPortalAdapter (no shell)
@@ -119,12 +118,14 @@ Each agent runs via the Claude Agent SDK's `query()` API with role-specific syst
 ## State Machine
 
 ```
-idle -> planning -> executing -> testing -> reviewing -> deploying -> done
-                       ^                                               |
-                   human gates (pause/resume via REST)          keep working
-                                                                       |
-                                                                       v
-                                                                    design (iterative build)
+idle -> planning -> executing -> testing -> deploying -> done
+                       ^                                        |
+                   human gates (pause/resume via REST)   keep working
+                                                                |
+                                                                v
+                                                             design (iterative build)
+
+Note: `reviewing` is a transient state during human gate pauses within execution, not a separate pipeline phase. Reviewer agents execute as tasks within the execute phase.
 ```
 
 ## Key Patterns

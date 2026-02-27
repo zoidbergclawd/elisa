@@ -40,6 +40,12 @@ Base URL: `http://localhost:8000/api`
 | POST | `/workspace/save` | `{ workspace_path, workspace_json?, skills?, rules?, portals? }` | `{ status: "saved" }` | Save design files to directory |
 | POST | `/workspace/load` | `{ workspace_path }` | `{ workspace, skills, rules, portals }` | Load design files from directory |
 
+### Devices
+
+| Method | Path | Response | Description |
+|--------|------|----------|-------------|
+| GET | `/devices` | `DeviceManifest[]` | List device plugin manifests (block definitions, deploy config) |
+
 ### Other
 
 | Method | Path | Response | Description |
@@ -113,6 +119,10 @@ All events flow server to client as JSON with a `type` discriminator field.
 | `deploy_progress` | `{ step, progress: number }` | Deploy progress (0-100) |
 | `deploy_checklist` | `{ rules: Array<{ name, prompt }> }` | Pre-deploy rules checklist |
 | `deploy_complete` | `{ target, url? }` | Deploy finished |
+| `flash_prompt` | `{ device_role, device_name, instructions }` | Prompts user to connect device for flashing |
+| `flash_progress` | `{ device_role, step, progress: number }` | Per-file flash progress (0-100) |
+| `flash_complete` | `{ device_role, success }` | Device flash finished |
+| `documentation_ready` | `{ path }` | Generated documentation available |
 | `serial_data` | `{ line, timestamp }` | ESP32 serial monitor output |
 
 ### User Interaction
@@ -178,7 +188,7 @@ Max 1 narrator message per task per 15 seconds. Messages that would exceed this 
 CLI portals validate commands against a strict allowlist before execution:
 
 ```
-node, npx, python, python3, pip, pip3, mpremote, arduino-cli, esptool, git
+node, npx, python, python3, uvx, docker, deno, bun, bunx, gcloud, firebase
 ```
 
 Any command not in this list is rejected with an error.
@@ -199,47 +209,43 @@ The JSON structure produced by the block interpreter and sent to `POST /sessions
 
 ```typescript
 interface NuggetSpec {
-  project: {
+  nugget: {
     goal: string;           // What the user wants to build
     description: string;    // Expanded description
     type: string;           // "game" | "website" | "hardware" | "story" | "tool" | "general"
   };
-  requirements: Array<{
-    type: string;           // "feature" | "constraint" | "when_then" | "data"
+  requirements?: Array<{
+    type: string;           // "feature" | "constraint" | "when_then" | "data" | "timer"
     description: string;
   }>;
   style?: {
     visual: string | null;  // "fun_colorful" | "clean_simple" | "dark_techy" | "nature" | "space"
     personality: string | null;
   };
-  agents: Array<{
+  agents?: Array<{
     name: string;
     role: string;           // "builder" | "tester" | "reviewer" | "custom"
     persona: string;
+    allowed_paths?: string[];
+    restricted_paths?: string[];
   }>;
-  hardware?: {
-    target: string;         // "esp32"
-    components: Array<{ type: string; [key: string]: unknown }>;
-  };
-  deployment: {
+  deployment?: {
     target: string;         // "preview" | "web" | "esp32" | "both"
     auto_flash: boolean;
   };
-  workflow: {
+  workflow?: {
     review_enabled: boolean;
     testing_enabled: boolean;
     human_gates: string[];
-    flow_hints?: Array<{
-      type: "sequential" | "parallel";
-      descriptions: string[];
-    }>;
+    flow_hints?: Array<{ type: "sequential" | "parallel"; descriptions: string[] }>;
     iteration_conditions?: string[];
+    behavioral_tests?: Array<{ when: string; then: string }>;
   };
   skills?: Array<{
     id: string;
     name: string;
     prompt: string;
-    category: string;       // "agent" | "feature" | "style"
+    category: string;       // "agent" | "feature" | "style" | "composite"
   }>;
   rules?: Array<{
     id: string;
@@ -247,6 +253,27 @@ interface NuggetSpec {
     prompt: string;
     trigger: string;        // "always" | "on_task_complete" | "on_test_fail" | "before_deploy"
   }>;
+  portals?: Array<{
+    id: string;
+    name: string;
+    description: string;
+    mechanism: string;      // "mcp" | "cli" | "serial"
+    capabilities?: Array<{ id: string; name: string; kind: string; description: string }>;
+    interactions?: Array<{ type: "tell" | "when" | "ask"; capabilityId: string; params?: Record<string, unknown> }>;
+    mcpConfig?: { command: string; args?: string[]; env?: Record<string, string> };
+    cliConfig?: { command: string; args?: string[] };
+  }>;
+  devices?: Array<{
+    pluginId: string;       // Device plugin ID (e.g., "heltec-sensor-node")
+    instanceId: string;     // Unique block instance ID
+    fields: Record<string, unknown>;  // User-configured field values from Blockly blocks
+  }>;
+  permissions?: {
+    auto_approve_workspace_writes?: boolean;
+    auto_approve_safe_commands?: boolean;
+    allow_network?: boolean;
+    escalation_threshold?: number;  // 1-10
+  };
 }
 ```
 
@@ -258,6 +285,8 @@ type AgentRole = "builder" | "tester" | "reviewer" | "custom";
 type AgentStatus = "idle" | "working" | "done" | "error" | "waiting";
 type SessionState = "idle" | "planning" | "executing" | "testing" | "deploying" | "reviewing" | "done";
 ```
+
+Note: `reviewing` is a transient state during human gate pauses, not a separate pipeline phase.
 
 ---
 

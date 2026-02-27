@@ -7,7 +7,7 @@ Tabbed layout: Header (Logo + MainTabBar + GO + Badge) | Main (Workspace/Agents/
 ```
 App.tsx
   shared/MainTabBar.tsx              Workspace/Agents/Tasks tab switcher in header
-  shared/ErrorBoundary.tsx             Class component error boundary (wraps App in main.tsx)
+  shared/ErrorBoundary.tsx           Class component error boundary (wraps App in main.tsx)
   shared/GoButton.tsx                Build trigger with ready/building/stop/disabled states
   shared/ReadinessBadge.tsx          Backend readiness indicator
   BlockCanvas/WorkspaceSidebar.tsx   Vertical icon toolbar (Folder/Open/Save/Skills/Portals/Examples/Help)
@@ -17,6 +17,7 @@ App.tsx
   MissionControl/MissionControlPanel.tsx  Main mission control layout with narrator feed + minion squad
   MissionControl/MinionSquadPanel.tsx     Minion cards with status badges and task assignments
   MissionControl/NarratorFeed.tsx         Scrolling narrator message feed with mood indicators
+  MissionControl/PlanningIndicator.tsx    Planning phase status indicator
   MissionControl/TaskDAG.tsx         @xyflow/react graph of task dependencies
   MissionControl/CommsFeed.tsx       Scrolling agent message log
   MissionControl/MetricsPanel.tsx    Token usage bars per agent, cost display, budget percentage
@@ -32,20 +33,22 @@ App.tsx
   shared/AgentAvatar.tsx             Status dot + role icon
   shared/MinionAvatar.tsx            Animated avatar for narrator/minion characters
   shared/ExamplePickerModal.tsx      Card grid to choose bundled example nuggets
-  shared/DirectoryPickerModal.tsx   Text input fallback for non-Electron workspace directory selection
-  shared/BoardDetectedModal.tsx    Celebrates ESP32 connection, offers one-click Portal creation
-  shared/FlashWizardModal.tsx     Multi-device flash wizard with progress bar for IoT deploy
+  shared/DirectoryPickerModal.tsx    Text input fallback for non-Electron workspace directory selection
+  shared/BoardDetectedModal.tsx      Celebrates ESP32 connection, offers one-click Portal creation
+  shared/FlashWizardModal.tsx        Multi-device flash wizard with progress bar for IoT deploy
   Skills/SkillsModal.tsx             CRUD editor for custom skills + template library
   Skills/SkillFlowEditor.tsx         Visual flow editor for composite skill steps
+  Skills/SkillQuestionModal.tsx      Modal for skill questions during execution
   Rules/RulesModal.tsx               CRUD editor for rules + template library
   Portals/PortalsModal.tsx           CRUD editor for portal connections
 ```
 
 ## BlockCanvas Subsystem
 
-- `blockDefinitions.ts`: Custom block types across 8 categories (Goal, Requirements, Style, Agents, Flow, Deploy, Skills, Portals)
+- `blockDefinitions.ts`: Custom block types across 10 categories (Goal, Requirements, Tests, Style, Skills, Rules, Portals, Agents, Flow, Deploy). Device plugin blocks add additional categories dynamically.
 - `blockInterpreter.ts`: Walks Blockly workspace JSON, extracts fields, builds NuggetSpec. Device plugin blocks handled generically.
 - `toolbox.ts`: Defines Blockly sidebar categories. Device plugin blocks dynamically added via `buildDeviceCategories()`.
+- `skillFlowToolbox.ts`: Blockly toolbox definition for the skill flow editor.
 - Device blocks: Loaded from `GET /api/devices` at startup and registered via `deviceBlocks.ts`.
 
 ## Key Patterns
