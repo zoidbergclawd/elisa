@@ -58,6 +58,7 @@ src/
     impactEstimator.ts   Pre-execution complexity analysis (task count, complexity, heaviest requirements)
     boundaryAnalyzer.ts  System boundary analysis (inputs, outputs, boundary portals)
     healthTracker.ts     System health vital signs during and after execution (score 0-100, grades)
+    redeployClassifier.ts  Redeploy decision matrix: classifyChanges(oldSpec, newSpec) -> action + reasons
     runtimeProvisioner.ts Interface + Stub/Local implementations for agent provisioning
     runtime/
       agentStore.ts      In-memory agent identity store (NuggetSpec -> AgentIdentity)

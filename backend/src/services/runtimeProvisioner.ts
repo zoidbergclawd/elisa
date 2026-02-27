@@ -15,6 +15,7 @@
 import { randomUUID } from 'node:crypto';
 import type { DeviceManifest } from '../utils/deviceManifestSchema.js';
 import type { AgentStore } from './runtime/agentStore.js';
+import { classifyChanges as classifyNuggetChanges } from './redeployClassifier.js';
 
 // ── Interfaces ──────────────────────────────────────────────────────────
 
@@ -42,21 +43,6 @@ export interface RuntimeProvisioner {
     manifest: DeviceManifest,
   ): 'config_only' | 'firmware_required';
 }
-
-// ── Fields that always require firmware reflash ─────────────────────────
-
-/**
- * Device fields that are baked into firmware and require a reflash when changed.
- * These are values written to config.py or template placeholders on the device.
- */
-const FIRMWARE_FIELDS = new Set([
-  'wifi_ssid',
-  'wifi_password',
-  'wake_word',
-  'lora_channel',
-  'lora_band',
-  'device_name',
-]);
 
 // ── Stub Implementation ─────────────────────────────────────────────────
 
@@ -101,39 +87,43 @@ export class StubRuntimeProvisioner implements RuntimeProvisioner {
     newSpec: Record<string, any>,
     manifest: DeviceManifest,
   ): 'config_only' | 'firmware_required' {
-    // Check device fields that require firmware reflash
-    const oldFields = oldSpec.fields ?? {};
-    const newFields = newSpec.fields ?? {};
+    // Use NuggetSpec-level classifier for firmware field detection
+    const oldNugget = { devices: [{ pluginId: 'device', instanceId: 'i', fields: oldSpec.fields ?? {} }] };
+    const newNugget = { devices: [{ pluginId: 'device', instanceId: 'i', fields: newSpec.fields ?? {} }] };
+    const decision = classifyNuggetChanges(oldNugget, newNugget);
+    if (decision.action === 'firmware_required') return 'firmware_required';
 
-    for (const field of FIRMWARE_FIELDS) {
-      const oldVal = oldFields[field];
-      const newVal = newFields[field];
-      if (oldVal !== newVal && (oldVal !== undefined || newVal !== undefined)) {
-        console.log(`[RuntimeProvisioner:stub] classifyChanges: firmware_required (field: ${field})`);
-        return 'firmware_required';
-      }
-    }
-
-    // Check manifest-specific config_fields if runtime_provision is configured
-    const deploy = manifest.deploy as any;
-    if (deploy.runtime_provision?.config_fields) {
-      const configFields = new Set(deploy.runtime_provision.config_fields as string[]);
-      // Any field NOT in config_fields that changed => firmware required
-      for (const key of Object.keys({ ...oldFields, ...newFields })) {
-        if (!configFields.has(key) && !FIRMWARE_FIELDS.has(key)) {
-          const oldVal = oldFields[key];
-          const newVal = newFields[key];
-          if (oldVal !== newVal && (oldVal !== undefined || newVal !== undefined)) {
-            console.log(`[RuntimeProvisioner:stub] classifyChanges: firmware_required (non-config field: ${key})`);
-            return 'firmware_required';
-          }
-        }
-      }
-    }
-
-    console.log(`[RuntimeProvisioner:stub] classifyChanges: config_only`);
-    return 'config_only';
+    // Additionally check manifest config_fields whitelist:
+    // fields NOT in config_fields that changed require firmware
+    return classifyByManifestConfigFields(oldSpec, newSpec, manifest);
   }
+}
+
+/**
+ * Check device fields against the manifest's config_fields whitelist.
+ * Any changed field that is not in the whitelist requires firmware.
+ */
+function classifyByManifestConfigFields(
+  oldSpec: Record<string, any>,
+  newSpec: Record<string, any>,
+  manifest: DeviceManifest,
+): 'config_only' | 'firmware_required' {
+  const deploy = manifest.deploy as any;
+  if (!deploy.runtime_provision?.config_fields) return 'config_only';
+
+  const configFields = new Set(deploy.runtime_provision.config_fields as string[]);
+  const oldFields = oldSpec.fields ?? {};
+  const newFields = newSpec.fields ?? {};
+
+  for (const key of Object.keys({ ...oldFields, ...newFields })) {
+    if (configFields.has(key)) continue;
+    const oldVal = oldFields[key];
+    const newVal = newFields[key];
+    if (oldVal !== newVal && (oldVal !== undefined || newVal !== undefined)) {
+      return 'firmware_required';
+    }
+  }
+  return 'config_only';
 }
 
 // ── Local Implementation (in-process AgentStore) ─────────────────────
@@ -175,33 +165,13 @@ export class LocalRuntimeProvisioner implements RuntimeProvisioner {
     newSpec: Record<string, any>,
     manifest: DeviceManifest,
   ): 'config_only' | 'firmware_required' {
-    // Check device fields that require firmware reflash
-    const oldFields = oldSpec.fields ?? {};
-    const newFields = newSpec.fields ?? {};
+    // Use NuggetSpec-level classifier for firmware field detection
+    const oldNugget = { devices: [{ pluginId: 'device', instanceId: 'i', fields: oldSpec.fields ?? {} }] };
+    const newNugget = { devices: [{ pluginId: 'device', instanceId: 'i', fields: newSpec.fields ?? {} }] };
+    const decision = classifyNuggetChanges(oldNugget, newNugget);
+    if (decision.action === 'firmware_required') return 'firmware_required';
 
-    for (const field of FIRMWARE_FIELDS) {
-      const oldVal = oldFields[field];
-      const newVal = newFields[field];
-      if (oldVal !== newVal && (oldVal !== undefined || newVal !== undefined)) {
-        return 'firmware_required';
-      }
-    }
-
-    // Check manifest-specific config_fields if runtime_provision is configured
-    const deploy = manifest.deploy as any;
-    if (deploy.runtime_provision?.config_fields) {
-      const configFields = new Set(deploy.runtime_provision.config_fields as string[]);
-      for (const key of Object.keys({ ...oldFields, ...newFields })) {
-        if (!configFields.has(key) && !FIRMWARE_FIELDS.has(key)) {
-          const oldVal = oldFields[key];
-          const newVal = newFields[key];
-          if (oldVal !== newVal && (oldVal !== undefined || newVal !== undefined)) {
-            return 'firmware_required';
-          }
-        }
-      }
-    }
-
-    return 'config_only';
+    // Additionally check manifest config_fields whitelist
+    return classifyByManifestConfigFields(oldSpec, newSpec, manifest);
   }
 }

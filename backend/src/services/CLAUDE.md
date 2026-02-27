@@ -93,8 +93,11 @@ Core text conversation pipeline: load agent identity, load conversation history,
 ### runtime/safetyGuardrails.ts (safety prompt)
 Generates the safety prompt section injected into every agent's system prompt at the runtime level (PRD-001 Section 6.3). Single source of truth for safety rules: age-appropriate content, no PII, medical/legal redirects, no impersonation, no harmful content, no dangerous activities, encourage learning. Exports `generateSafetyPrompt()` and `hasSafetyGuardrails()` for validation.
 
+### redeployClassifier.ts (redeploy decision matrix)
+Pure function `classifyChanges(oldSpec, newSpec)` compares two NuggetSpec objects and returns `{ action: 'config_only' | 'firmware_required' | 'no_change', reasons: string[] }`. Compares `devices` array (plugin IDs, field values), `deployment` section, and `runtime` config. Firmware fields (WiFi SSID/password, wake word, LoRa, device name) trigger `firmware_required`. Runtime config changes (agent name, voice, display theme, greeting) are `config_only`. Used by `RuntimeProvisioner.classifyChanges()`.
+
 ### runtimeProvisioner.ts (provisioner interface)
-Interface for agent provisioning during deploy. `StubRuntimeProvisioner`: returns mock values for dev/tests. `LocalRuntimeProvisioner`: delegates to the in-process `AgentStore` for real provisioning. Both implement `classifyChanges()` to determine config-only vs firmware-required redeployments.
+Interface for agent provisioning during deploy. `StubRuntimeProvisioner`: returns mock values for dev/tests. `LocalRuntimeProvisioner`: delegates to the in-process `AgentStore` for real provisioning. Both implement `classifyChanges()` which delegates to `redeployClassifier` for firmware field detection, then checks manifest `config_fields` whitelist.
 
 ## Interaction Pattern
 
