@@ -7,11 +7,14 @@ import MainTabBar, { type MainTab } from './components/shared/MainTabBar';
 import WorkspaceSidebar from './components/BlockCanvas/WorkspaceSidebar';
 import MissionControlPanel from './components/MissionControl/MissionControlPanel';
 import TeachingToast from './components/shared/TeachingToast';
+import MeetingInviteToast from './components/shared/MeetingInviteToast';
+import MeetingModal from './components/Meeting/MeetingModal';
 import ReadinessBadge from './components/shared/ReadinessBadge';
 import LevelBadge from './components/shared/LevelBadge';
 import ModalHost from './components/shared/ModalHost';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useBuildSession } from './hooks/useBuildSession';
+import { useMeetingSession } from './hooks/useMeetingSession';
 import { useHealthCheck } from './hooks/useHealthCheck';
 import { useBoardDetect } from './hooks/useBoardDetect';
 import { useWorkspaceIO } from './hooks/useWorkspaceIO';
@@ -19,7 +22,7 @@ import { useSystemLevel } from './hooks/useSystemLevel';
 import { setAuthToken, authFetch } from './lib/apiClient';
 import { registerDeviceBlocks, type DeviceManifest } from './lib/deviceBlocks';
 import { playChime } from './lib/playChime';
-import type { TeachingMoment } from './types';
+import type { TeachingMoment, WSEvent } from './types';
 import elisaLogo from '../assets/elisa.svg';
 
 export default function App() {
@@ -36,7 +39,20 @@ export default function App() {
     handleEvent, startBuild, stopBuild, clearGateRequest, clearQuestionRequest,
     clearErrorNotification, resetToDesign,
   } = useBuildSession();
-  const { waitForOpen } = useWebSocket({ sessionId, onEvent: handleEvent });
+
+  const {
+    pendingInvite, activeMeeting, messages: meetingMessages, canvasState: meetingCanvasState,
+    handleMeetingEvent, acceptInvite, declineInvite,
+    sendMessage: sendMeetingMessage, endMeeting, updateCanvas: updateMeetingCanvas,
+  } = useMeetingSession(sessionId);
+
+  // Route WS events to both build session and meeting session handlers
+  const handleAllEvents = useCallback((event: WSEvent) => {
+    handleMeetingEvent(event);
+    handleEvent(event);
+  }, [handleMeetingEvent, handleEvent]);
+
+  const { waitForOpen } = useWebSocket({ sessionId, onEvent: handleAllEvents });
   const { health, loading: healthLoading } = useHealthCheck(uiState === 'design');
 
   // Fetch auth token on mount
@@ -405,6 +421,27 @@ export default function App() {
 
       {/* Teaching toast overlay */}
       <TeachingToast moment={currentToast} onDismiss={handleDismissToast} />
+
+      {/* Meeting invite toast */}
+      <MeetingInviteToast
+        invite={pendingInvite}
+        onAccept={acceptInvite}
+        onDecline={declineInvite}
+      />
+
+      {/* Active meeting modal */}
+      {activeMeeting && (
+        <MeetingModal
+          meetingId={activeMeeting.meetingId}
+          agentName={activeMeeting.agentName}
+          canvasType={activeMeeting.canvasType}
+          canvasState={meetingCanvasState}
+          messages={meetingMessages}
+          onSendMessage={sendMeetingMessage}
+          onCanvasUpdate={updateMeetingCanvas}
+          onEndMeeting={endMeeting}
+        />
+      )}
     </div>
   );
 }
