@@ -28,6 +28,7 @@ describe('BOX-3 Deploy Integration: DeviceRegistry', () => {
     expect(device).toBeDefined();
     expect(device!.deploy.method).toBe('esptool');
     expect(device!.deploy.requires).toEqual(['agent_id', 'api_key', 'runtime_url']);
+    expect(device!.deploy.provides).toEqual(['box3_agent_endpoint']);
     const provision = (device!.deploy as any).runtime_provision;
     expect(provision).toBeDefined();
     expect(provision.required).toBe(true);

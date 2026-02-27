@@ -18,6 +18,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { AgentStore } from './agentStore.js';
 import type { ConversationManager } from './conversationManager.js';
+import type { ConsentManager } from './consentManager.js';
 import type { KnowledgeBackpack } from './knowledgeBackpack.js';
 import type { UsageRecord } from '../../models/runtime.js';
 import { filterAgentResponse } from './contentFilter.js';
@@ -43,6 +44,7 @@ export interface TurnPipelineDeps {
   conversationManager: ConversationManager;
   getClient: () => Anthropic;
   knowledgeBackpack?: KnowledgeBackpack;
+  consentManager?: ConsentManager;
 }
 
 // ── Usage Tracking ────────────────────────────────────────────────────
@@ -87,6 +89,7 @@ export class TurnPipeline {
   private usageTracker: UsageTracker;
   private usageLimiter: UsageLimiter;
   private knowledgeBackpack?: KnowledgeBackpack;
+  private consentManager?: ConsentManager;
   private model: string;
 
   constructor(deps: TurnPipelineDeps, usageTracker?: UsageTracker, usageLimiter?: UsageLimiter) {
@@ -94,6 +97,7 @@ export class TurnPipeline {
     this.conversationManager = deps.conversationManager;
     this.getClient = deps.getClient;
     this.knowledgeBackpack = deps.knowledgeBackpack;
+    this.consentManager = deps.consentManager;
     this.usageTracker = usageTracker ?? new UsageTracker();
     this.usageLimiter = usageLimiter ?? new UsageLimiter();
     this.model = process.env.CLAUDE_MODEL ?? DEFAULT_MODEL;

@@ -7,6 +7,7 @@
 
 import { randomUUID } from 'node:crypto';
 import type { ConversationSession, ConversationTurn } from '../../models/runtime.js';
+import type { ConsentManager } from './consentManager.js';
 
 /** Maximum turns to keep in a session before truncating older ones. */
 const DEFAULT_MAX_WINDOW = 50;
@@ -19,9 +20,11 @@ export class ConversationManager {
   /** Index: agentId -> set of sessionIds */
   private agentSessions = new Map<string, Set<string>>();
   private maxWindow: number;
+  private consentManager?: ConsentManager;
 
-  constructor(maxWindow = DEFAULT_MAX_WINDOW) {
+  constructor(maxWindow = DEFAULT_MAX_WINDOW, consentManager?: ConsentManager) {
     this.maxWindow = maxWindow;
+    this.consentManager = consentManager;
   }
 
   /**
@@ -50,6 +53,11 @@ export class ConversationManager {
   /**
    * Add a conversation turn to a session.
    * Triggers window management if the session exceeds maxWindow.
+   *
+   * Consent-aware storage:
+   * - 'full_transcripts': store full turn (default behavior)
+   * - 'session_summaries': store turn but mark for summary-only retention
+   * - 'no_history': skip storage entirely, return the turn without persisting
    */
   addTurn(
     sessionId: string,
@@ -66,6 +74,21 @@ export class ConversationManager {
       timestamp: Date.now(),
       tokens_used: tokensUsed,
     };
+
+    // Check consent-based storage policy
+    if (this.consentManager) {
+      const policy = this.consentManager.getStoragePolicy(session.agent_id);
+
+      if (policy === 'no_history') {
+        // Don't persist the turn at all
+        return turn;
+      }
+
+      if (policy === 'session_summaries') {
+        // Store the turn but mark for summary-only retention
+        turn.summary_only = true;
+      }
+    }
 
     session.turns.push(turn);
 

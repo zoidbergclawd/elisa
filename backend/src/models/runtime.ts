@@ -38,6 +38,8 @@ export interface ConversationTurn {
   content: string;
   timestamp: number;
   tokens_used?: number;
+  /** When true, this turn should only be retained as a summary (COPPA consent: session_summaries). */
+  summary_only?: boolean;
 }
 
 export interface ConversationSession {

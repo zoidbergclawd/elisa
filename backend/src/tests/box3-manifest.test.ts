@@ -72,9 +72,9 @@ describe('BOX-3 device.json manifest', () => {
   });
 
   describe('capabilities', () => {
-    it('has at least 5 capabilities', () => {
+    it('has at least 7 capabilities', () => {
       const result = DeviceManifestSchema.parse(loadManifest());
-      expect(result.capabilities.length).toBeGreaterThanOrEqual(5);
+      expect(result.capabilities.length).toBeGreaterThanOrEqual(7);
     });
 
     it('includes microphone sensor', () => {
@@ -109,11 +109,38 @@ describe('BOX-3 device.json manifest', () => {
       expect(height!.default).toBe(240);
     });
 
-    it('includes wifi network capability', () => {
+    it('includes wifi network capability with ssid and password params', () => {
       const result = DeviceManifestSchema.parse(loadManifest());
       const wifi = result.capabilities.find((c) => c.id === 'wifi');
       expect(wifi).toBeDefined();
       expect(wifi!.kind).toBe('network');
+      const ssid = wifi!.params.find((p) => p.name === 'ssid');
+      const password = wifi!.params.find((p) => p.name === 'password');
+      expect(ssid).toBeDefined();
+      expect(ssid!.type).toBe('string');
+      expect(password).toBeDefined();
+      expect(password!.type).toBe('string');
+    });
+
+    it('includes wake_word compute capability', () => {
+      const result = DeviceManifestSchema.parse(loadManifest());
+      const ww = result.capabilities.find((c) => c.id === 'wake_word');
+      expect(ww).toBeDefined();
+      expect(ww!.kind).toBe('compute');
+      const param = ww!.params.find((p) => p.name === 'wake_word');
+      expect(param).toBeDefined();
+      expect(param!.default).toBe('hey_elisa');
+    });
+
+    it('includes runtime_client compute capability', () => {
+      const result = DeviceManifestSchema.parse(loadManifest());
+      const rc = result.capabilities.find((c) => c.id === 'runtime_client');
+      expect(rc).toBeDefined();
+      expect(rc!.kind).toBe('compute');
+      const paramNames = rc!.params.map((p) => p.name);
+      expect(paramNames).toContain('agent_id');
+      expect(paramNames).toContain('api_key');
+      expect(paramNames).toContain('runtime_url');
     });
   });
 
@@ -130,9 +157,9 @@ describe('BOX-3 device.json manifest', () => {
       expect(result.deploy.requires).toContain('runtime_url');
     });
 
-    it('has no provides (depends on runtime, provides nothing to DAG)', () => {
+    it('provides box3_agent_endpoint', () => {
       const result = DeviceManifestSchema.parse(loadManifest());
-      expect(result.deploy.provides).toEqual([]);
+      expect(result.deploy.provides).toEqual(['box3_agent_endpoint']);
     });
 
     it('has esptool config with firmware file', () => {
@@ -180,51 +207,86 @@ describe('BOX-3 device.json manifest', () => {
   });
 
   describe('block definitions', () => {
-    it('has exactly one block definition', () => {
+    it('has two block definitions', () => {
       const result = DeviceManifestSchema.parse(loadManifest());
-      expect(result.blocks).toHaveLength(1);
+      expect(result.blocks).toHaveLength(2);
     });
 
-    it('block type is box3_agent_config', () => {
+    it('main block type is esp32_s3_box3_agent', () => {
       const result = DeviceManifestSchema.parse(loadManifest());
-      expect(result.blocks[0].type).toBe('box3_agent_config');
+      expect(result.blocks[0].type).toBe('esp32_s3_box3_agent');
     });
 
-    it('block has WIFI_SSID, WIFI_PASSWORD, and WAKE_WORD fields', () => {
+    it('main block has AGENT_NAME, WAKE_WORD, TTS_VOICE, WIFI_SSID, WIFI_PASSWORD fields', () => {
       const raw = loadManifest() as any;
       const args = raw.blocks[0].args;
       const fieldNames = args
         .filter((a: any) => a.name)
         .map((a: any) => a.name);
+      expect(fieldNames).toContain('AGENT_NAME');
+      expect(fieldNames).toContain('WAKE_WORD');
+      expect(fieldNames).toContain('TTS_VOICE');
       expect(fieldNames).toContain('WIFI_SSID');
       expect(fieldNames).toContain('WIFI_PASSWORD');
-      expect(fieldNames).toContain('WAKE_WORD');
     });
 
-    it('WAKE_WORD is a dropdown with at least 2 options', () => {
+    it('WAKE_WORD options match PRD: hey_elisa, hey_box, hi_alex, hey_computer', () => {
       const raw = loadManifest() as any;
       const wakeWord = raw.blocks[0].args.find(
         (a: any) => a.name === 'WAKE_WORD',
       );
       expect(wakeWord).toBeDefined();
       expect(wakeWord.type).toBe('field_dropdown');
-      expect(wakeWord.options.length).toBeGreaterThanOrEqual(2);
+      const values = wakeWord.options.map((o: [string, string]) => o[1]);
+      expect(values).toEqual(['hey_elisa', 'hey_box', 'hi_alex', 'hey_computer']);
+    });
+
+    it('TTS_VOICE options are nova, onyx, shimmer, echo', () => {
+      const raw = loadManifest() as any;
+      const voice = raw.blocks[0].args.find(
+        (a: any) => a.name === 'TTS_VOICE',
+      );
+      expect(voice).toBeDefined();
+      expect(voice.type).toBe('field_dropdown');
+      const values = voice.options.map((o: [string, string]) => o[1]);
+      expect(values).toEqual(['nova', 'onyx', 'shimmer', 'echo']);
+    });
+
+    it('display block type is esp32_s3_box3_display', () => {
+      const result = DeviceManifestSchema.parse(loadManifest());
+      expect(result.blocks[1].type).toBe('esp32_s3_box3_display');
+    });
+
+    it('display block has DISPLAY_THEME, SHOW_LISTENING, SHOW_TRANSCRIPTION fields', () => {
+      const raw = loadManifest() as any;
+      const args = raw.blocks[1].args;
+      const fieldNames = args
+        .filter((a: any) => a.name)
+        .map((a: any) => a.name);
+      expect(fieldNames).toContain('DISPLAY_THEME');
+      expect(fieldNames).toContain('SHOW_LISTENING');
+      expect(fieldNames).toContain('SHOW_TRANSCRIPTION');
     });
   });
 
   describe('spec_mapping', () => {
-    it('has spec_mapping with voice_agent role', () => {
+    it('has spec_mapping with voice_agent_device role', () => {
       const result = DeviceManifestSchema.parse(loadManifest());
       expect(result.spec_mapping).toBeDefined();
-      expect(result.spec_mapping!.role).toBe('voice_agent');
+      expect(result.spec_mapping!.role).toBe('voice_agent_device');
     });
 
     it('extract_fields map block fields to spec fields', () => {
       const result = DeviceManifestSchema.parse(loadManifest());
       const fields = result.spec_mapping!.extract_fields;
-      expect(fields).toHaveProperty('wifi_ssid');
-      expect(fields).toHaveProperty('wifi_password');
-      expect(fields).toHaveProperty('wake_word');
+      expect(fields).toHaveProperty('agent.name');
+      expect(fields).toHaveProperty('agent.wake_word');
+      expect(fields).toHaveProperty('agent.voice');
+      expect(fields).toHaveProperty('wifi.ssid');
+      expect(fields).toHaveProperty('wifi.password');
+      expect(fields).toHaveProperty('display.theme');
+      expect(fields).toHaveProperty('display.show_listening');
+      expect(fields).toHaveProperty('display.show_transcription');
     });
   });
 
@@ -237,14 +299,14 @@ describe('BOX-3 device.json manifest', () => {
       expect(fs.existsSync(promptPath)).toBe(true);
     });
 
-    it('agent-context.md mentions ESP-IDF (not MicroPython)', () => {
+    it('agent-context.md mentions not generating firmware or MicroPython', () => {
       const promptPath = path.resolve(
         manifestPath,
         '../prompts/agent-context.md',
       );
       const content = fs.readFileSync(promptPath, 'utf-8');
       expect(content).toContain('ESP-IDF');
-      expect(content).toContain('NOT MicroPython');
+      expect(content).toContain('MicroPython');
     });
 
     it('agent-context.md covers audio pipeline', () => {
@@ -253,18 +315,19 @@ describe('BOX-3 device.json manifest', () => {
         '../prompts/agent-context.md',
       );
       const content = fs.readFileSync(promptPath, 'utf-8');
-      expect(content).toContain('Microphone');
+      expect(content).toContain('microphone');
       expect(content).toContain('Speaker');
-      expect(content).toContain('VAD');
+      expect(content).toContain('TTS');
     });
 
-    it('agent-context.md covers LVGL display', () => {
+    it('agent-context.md covers display themes', () => {
       const promptPath = path.resolve(
         manifestPath,
         '../prompts/agent-context.md',
       );
       const content = fs.readFileSync(promptPath, 'utf-8');
-      expect(content).toContain('LVGL');
+      expect(content).toContain('touchscreen');
+      expect(content).toContain('DISPLAY_THEME');
     });
 
     it('agent-context.md references Device Instance fields', () => {
