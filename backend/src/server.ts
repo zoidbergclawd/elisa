@@ -28,6 +28,8 @@ import { StudyMode } from './services/runtime/studyMode.js';
 import { GapDetector } from './services/runtime/gapDetector.js';
 import { LocalRuntimeProvisioner } from './services/runtimeProvisioner.js';
 import { createRuntimeRouter } from './routes/runtime.js';
+import { SpecGraphService } from './services/specGraph.js';
+import { createSpecGraphRouter } from './routes/specGraph.js';
 import { getAnthropicClient } from './utils/anthropicClient.js';
 import type { WSEvent } from './services/phases/types.js';
 
@@ -68,6 +70,9 @@ registerMediaAgentMeeting(meetingRegistry);
 // Register Architecture Agent meeting type (system understanding capstone)
 import { registerArchitectureAgentMeeting } from './services/architectureAgentMeeting.js';
 registerArchitectureAgentMeeting(meetingRegistry);
+
+// Spec Graph
+const specGraphService = new SpecGraphService();
 
 // Agent Runtime (PRD-001)
 const agentStore = new AgentStore();
@@ -263,6 +268,7 @@ function createApp(staticDir?: string, authToken?: string) {
   app.use('/api/workspace', createWorkspaceRouter());
   app.use('/api/devices', createDeviceRouter({ registry: deviceRegistry }));
   app.use('/api/sessions/:sessionId/meetings', createMeetingRouter({ store, meetingService, sendEvent }));
+  app.use('/api/spec-graph', createSpecGraphRouter({ specGraphService }));
 
   // Agent Runtime (PRD-001) — mounted at /v1/* with its own api-key auth
   app.use('/v1', createRuntimeRouter({ agentStore, conversationManager, turnPipeline, knowledgeBackpack, studyMode, gapDetector }));
