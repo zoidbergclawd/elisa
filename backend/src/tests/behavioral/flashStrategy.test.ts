@@ -146,7 +146,7 @@ describe('EsptoolFlashStrategy', () => {
     expect(strategy.method).toBe('esptool');
   });
 
-  it('returns stub failure message (not yet implemented)', async () => {
+  it('fails if firmware file does not exist (with esptool config)', async () => {
     const strategy = new EsptoolFlashStrategy();
     const params = makeFlashParams({
       flashConfig: {
@@ -158,19 +158,11 @@ describe('EsptoolFlashStrategy', () => {
       },
     });
 
-    // Create a fake firmware file for the check
-    const firmwarePath = path.join(params.pluginDir, 'firmware.bin');
-    vi.spyOn(fs, 'existsSync').mockImplementation((p) => {
-      if (String(p) === firmwarePath) return true;
-      return false;
-    });
-
+    // pluginDir is /tmp/test-plugin -- firmware.bin does not exist there
     const result = await strategy.flash(params);
 
     expect(result.success).toBe(false);
-    expect(result.message).toContain('stub');
-
-    vi.restoreAllMocks();
+    expect(result.message).toContain('not found');
   });
 
   it('fails if firmware file does not exist', async () => {

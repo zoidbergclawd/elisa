@@ -21,9 +21,10 @@ App.tsx
   MissionControl/TaskDAG.tsx         @xyflow/react graph of task dependencies
   MissionControl/CommsFeed.tsx       Scrolling agent message log
   MissionControl/MetricsPanel.tsx    Token usage bars per agent, cost display, budget percentage
-  BottomBar/BottomBar.tsx            Tabbed panel (6 tabs: Timeline/Tests/Board/Learn/Progress/Tokens)
+  BottomBar/BottomBar.tsx            Tabbed panel (7 tabs: Timeline/Tests/Trace/Board/Learn/Progress/Tokens)
     GitTimeline.tsx                  Commit list with file diffs
     TestResults.tsx                  Pass/fail indicators + coverage bar (build-state aware)
+    TraceabilityView.tsx             Requirement-to-test traceability table with status badges
     BoardOutput.tsx                  Serial output (conditional on serial data)
     TeachingSidebar.tsx              Learning moments list
     ProgressPanel.tsx                Build progress bar + phase text
@@ -33,11 +34,13 @@ App.tsx
   shared/TeachingToast.tsx           Floating notification for learning moments
   shared/AgentAvatar.tsx             Status dot + role icon
   shared/MinionAvatar.tsx            Animated avatar for narrator/minion characters
+  shared/ProofMeter.tsx              Segmented progress bar for requirement verification (green/red/amber)
   shared/ExamplePickerModal.tsx      Card grid to choose bundled example nuggets
   shared/DirectoryPickerModal.tsx    Text input fallback for non-Electron workspace directory selection
   shared/BoardDetectedModal.tsx      Celebrates ESP32 connection, offers one-click Portal creation
   shared/FlashWizardModal.tsx        Multi-device flash wizard with progress bar for IoT deploy
   shared/MeetingInviteToast.tsx      Floating meeting invite notification with accept/decline + 30s auto-dismiss
+  shared/LevelBadge.tsx             System level badge (Explorer/Builder/Architect) in header
   shared/DisplayThemePreview.tsx    BOX-3 display theme preview (320x240 ratio, theme colors, avatar style)
   Meeting/MeetingModal.tsx           Full-screen meeting modal: agent chat panel (left) + canvas area (right)
   Meeting/canvasRegistry.ts          Registry for pluggable canvas components (Map<canvasType, Component>)
@@ -51,7 +54,7 @@ App.tsx
 
 ## BlockCanvas Subsystem
 
-- `blockDefinitions.ts`: Custom block types across 10 categories (Goal, Requirements, Tests, Style, Skills, Rules, Portals, Agents, Flow, Deploy). Device plugin blocks add additional categories dynamically.
+- `blockDefinitions.ts`: Custom block types across 11 categories (Goal, Requirements, Tests, Style, Skills, Rules, Portals, Agents, Flow, System, Deploy). Device plugin blocks add additional categories dynamically.
 - `blockInterpreter.ts`: Walks Blockly workspace JSON, extracts fields, builds NuggetSpec. Device plugin blocks handled generically.
 - `toolbox.ts`: Defines Blockly sidebar categories. Device plugin blocks dynamically added via `buildDeviceCategories()`.
 - `skillFlowToolbox.ts`: Blockly toolbox definition for the skill flow editor.

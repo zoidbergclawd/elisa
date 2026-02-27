@@ -23,6 +23,10 @@ import { ContextManager } from '../utils/contextManager.js';
 import { SessionLogger } from '../utils/sessionLogger.js';
 import { TokenTracker } from '../utils/tokenTracker.js';
 import { DeviceRegistry } from './deviceRegistry.js';
+import { TraceabilityTracker } from './traceabilityTracker.js';
+import { FeedbackLoopTracker } from './feedbackLoopTracker.js';
+import { HealthTracker } from './healthTracker.js';
+import { autoMatchTests } from './autoTestMatcher.js';
 
 export class Orchestrator {
   private session: BuildSession;
@@ -56,13 +60,16 @@ export class Orchestrator {
   private narratorService = new NarratorService();
   private permissionPolicy: PermissionPolicy | null = null;
   private deviceRegistry: DeviceRegistry;
+  private traceabilityTracker = new TraceabilityTracker();
+  private healthTracker = new HealthTracker();
+  private meetingRegistry?: import('./meetingRegistry.js').MeetingRegistry;
 
   // Phase handlers
   private planPhase: PlanPhase;
   private testPhase: TestPhase;
   private deployPhase: DeployPhase;
 
-  constructor(session: BuildSession, sendEvent: SendEvent, hardwareService?: HardwareService, workspacePath?: string, deviceRegistry?: DeviceRegistry) {
+  constructor(session: BuildSession, sendEvent: SendEvent, hardwareService?: HardwareService, workspacePath?: string, deviceRegistry?: DeviceRegistry, meetingRegistry?: import('./meetingRegistry.js').MeetingRegistry) {
     this.session = session;
     this.send = sendEvent;
     this.nuggetDir = workspacePath || path.join(os.tmpdir(), `elisa-nugget-${session.id}`);
@@ -70,6 +77,7 @@ export class Orchestrator {
     this.hardwareService = hardwareService ?? new HardwareService();
     this.portalService = new PortalService();
     this.deviceRegistry = deviceRegistry ?? new DeviceRegistry(path.resolve(import.meta.dirname, '../../devices'));
+    this.meetingRegistry = meetingRegistry;
 
     this.planPhase = new PlanPhase(new MetaPlanner(), this.teachingEngine, this.deviceRegistry);
     this.testPhase = new TestPhase(this.testRunner, this.teachingEngine);
@@ -96,9 +104,18 @@ export class Orchestrator {
     try {
       const ctx = this.makeContext();
 
+      // Auto-match tests at Explorer level (before planning)
+      await autoMatchTests(spec, this.send);
+
       // Plan
       const planResult = await this.planPhase.execute(ctx, spec);
       this.nuggetType = planResult.nuggetType;
+
+      // Build traceability map from spec requirements and behavioral tests
+      this.traceabilityTracker.buildMap(
+        spec.requirements,
+        spec.workflow?.behavioral_tests,
+      );
 
       // Initialize portals if needed
       const updatedCtx = this.makeContext();
@@ -112,6 +129,8 @@ export class Orchestrator {
         spec.permissions ?? {},
       );
       this.narratorService.reset();
+
+      const feedbackLoopTracker = new FeedbackLoopTracker(this.send, this.meetingRegistry);
 
       const executePhase = new ExecutePhase({
         agentRunner: this.agentRunner,
@@ -130,16 +149,56 @@ export class Orchestrator {
         narratorService: this.narratorService,
         permissionPolicy: this.permissionPolicy,
         deviceRegistry: this.deviceRegistry,
+        feedbackLoopTracker,
       });
 
       // Initialize logger before execute so plan and execute phases get logging
       this.logger = new SessionLogger(this.nuggetDir);
 
+      // Initialize health tracker with task count
+      this.healthTracker.setTasksTotal(planResult.tasks.length);
+
       const executeResult = await executePhase.execute(this.makeContext());
       this.commits = executeResult.commits;
 
+      // Update health tracker with execution results
+      const doneTasks = planResult.tasks.filter(t => t.status === 'done').length;
+      for (let i = 0; i < doneTasks; i++) this.healthTracker.recordTaskDone();
+      this.healthTracker.recordTokenUsage(
+        this.tokenTracker.total,
+        this.tokenTracker.maxBudget,
+      );
+      // Emit health update after execution
+      await this.healthTracker.emitUpdate(this.send);
+
       // Test
-      await this.testPhase.execute(this.makeContext());
+      const testResult = await this.testPhase.execute(this.makeContext());
+
+      // Traceability: update tracker with test results and emit summary
+      if (this.traceabilityTracker.hasRequirements()) {
+        const testCtx = this.makeContext();
+        const tests = testResult.testResults?.tests ?? [];
+        for (const test of tests) {
+          const update = this.traceabilityTracker.recordTestResult(test.test_name, test.passed);
+          if (update) {
+            await testCtx.send({
+              type: 'traceability_update',
+              requirement_id: update.requirement_id,
+              test_id: update.test_id,
+              status: update.status,
+            });
+          }
+        }
+        await this.traceabilityTracker.emitSummary(testCtx.send);
+      }
+
+      // Update health tracker with test results
+      const testResults = testResult.testResults?.tests ?? [];
+      const testsPassing = testResults.filter((t: { passed: boolean }) => t.passed).length;
+      this.healthTracker.recordTestResults(testsPassing, testResults.length);
+      // Emit final health summary
+      await this.healthTracker.emitUpdate(this.send);
+      await this.healthTracker.emitSummary(this.send);
 
       // Deploy
       console.log('[orchestrator] entering deploy phase');

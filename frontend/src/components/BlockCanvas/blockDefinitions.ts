@@ -491,6 +491,27 @@ const blockDefs = [
     colour: 210,
     tooltip: 'Generate a kid-friendly guide about your project',
   },
+  // System category (NEW - colour 290, purple)
+  {
+    type: 'system_level',
+    message0: 'My level: %1',
+    args0: [
+      {
+        type: 'field_dropdown',
+        name: 'LEVEL',
+        options: [
+          ['Explorer - See how systems work', 'explorer'],
+          ['Builder - Understand and control systems', 'builder'],
+          ['Architect - Design your own systems', 'architect'],
+        ],
+      },
+    ],
+    previousStatement: null,
+    nextStatement: null,
+    colour: 290,
+    tooltip: 'Choose your mastery level. Explorer: everything is automatic and explained. Builder: you control more. Architect: you design everything yourself.',
+    helpUrl: '',
+  },
 ];
 
 let registered = false;

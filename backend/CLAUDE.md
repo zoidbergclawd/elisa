@@ -22,6 +22,7 @@ src/
     workspace.ts         /api/workspace/* endpoints (save, load design files)
     devices.ts           /api/devices endpoint (list device plugin manifests)
     meetings.ts          /api/sessions/:id/meetings/* endpoints (accept, decline, message, end)
+    runtime.ts           /v1/agents/* endpoints (provision, update, delete, turn, history, heartbeat)
   models/
     session.ts           Type definitions: Session, Task, Agent, BuildPhase, WSEvent
     meeting.ts           Meeting framework types: MeetingType, MeetingSession, CanvasState, etc.
@@ -49,9 +50,17 @@ src/
     deviceRegistry.ts    Loads device plugin manifests, provides block defs + agent context
     meetingRegistry.ts   Meeting type registry + trigger engine for build events
     meetingService.ts    In-memory meeting session lifecycle management
+    systemLevelService.ts  Progressive mastery level flags (Explorer/Builder/Architect)
+    autoTestMatcher.ts   Explorer-level auto-generation of behavioral tests
     cloudDeployService.ts Google Cloud Run deployment (scaffold, gcloud CLI)
     portalService.ts     Portal adapters (MCP, CLI) with command allowlist
     traceabilityTracker.ts  Requirement-to-test traceability map with coverage tracking
+    runtimeProvisioner.ts Interface + Stub/Local implementations for agent provisioning
+    runtime/
+      agentStore.ts      In-memory agent identity store (NuggetSpec -> AgentIdentity)
+      conversationManager.ts  Per-agent conversation session and turn history
+      turnPipeline.ts    Core conversation loop: input -> Claude API -> response
+      safetyGuardrails.ts  Safety prompt generator (PRD-001 Section 6.3)
   prompts/
     metaPlanner.ts       System prompt for task decomposition
     builderAgent.ts      Builder role prompt template
@@ -104,6 +113,12 @@ src/
 | POST | /api/sessions/:id/meetings/:mid/decline | Decline meeting invite |
 | POST | /api/sessions/:id/meetings/:mid/message | Send message in meeting |
 | POST | /api/sessions/:id/meetings/:mid/end | End active meeting |
+| POST | /v1/agents | Provision new agent (returns agent_id, api_key, runtime_url) |
+| PUT | /v1/agents/:id | Update agent config (x-api-key auth) |
+| DELETE | /v1/agents/:id | Deprovision agent (x-api-key auth) |
+| POST | /v1/agents/:id/turn/text | Text conversation turn (x-api-key auth) |
+| GET | /v1/agents/:id/history | Conversation history (x-api-key auth) |
+| GET | /v1/agents/:id/heartbeat | Agent health check (no auth) |
 
 ### WebSocket Events (server -> client)
 `planning_started`, `plan_ready`, `task_started`, `task_completed`, `task_failed`, `agent_output`, `commit_created`, `token_usage`, `budget_warning`, `test_result`, `coverage_update`, `deploy_started`, `deploy_progress`, `deploy_checklist`, `deploy_complete` (includes `url?` for web deploys), `serial_data`, `human_gate`, `user_question`, `skill_*`, `teaching_moment`, `narrator_message`, `permission_auto_resolved`, `minion_state_change`, `workspace_created`, `flash_prompt`, `flash_progress`, `flash_complete`, `context_flow` (from_task_id, to_task_ids, summary_preview), `documentation_ready`, `meeting_invite`, `meeting_started`, `meeting_message`, `meeting_canvas_update`, `meeting_outcome`, `meeting_ended`, `traceability_update`, `traceability_summary`, `error`, `session_complete`

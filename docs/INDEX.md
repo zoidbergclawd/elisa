@@ -98,6 +98,9 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/services/deviceRegistry.ts` | Loads device plugin manifests, provides block defs + agent context |
 | `backend/src/services/meetingRegistry.ts` | Meeting type registry + trigger engine for build events |
 | `backend/src/services/meetingService.ts` | In-memory meeting session lifecycle management |
+| `backend/src/services/systemLevelService.ts` | Progressive mastery level feature flags (Explorer/Builder/Architect) |
+| `backend/src/services/autoTestMatcher.ts` | Explorer-level auto-generation of behavioral tests for when_then requirements |
+| `backend/src/services/traceabilityTracker.ts` | Requirement-to-test traceability map with coverage tracking |
 | `backend/src/services/runtime/displayManager.ts` | BOX-3 display command generator (screen layouts, themes, truncation) |
 | `backend/src/utils/deviceManifestSchema.ts` | Zod schema for device.json manifest validation |
 
@@ -156,6 +159,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/components/shared/MinionAvatar.tsx` | Animated avatar for narrator/minion characters |
 | `frontend/src/components/shared/FlashWizardModal.tsx` | Multi-device flash wizard modal for IoT deploy |
 | `frontend/src/components/shared/MeetingInviteToast.tsx` | Floating meeting invite notification with accept/decline |
+| `frontend/src/components/shared/LevelBadge.tsx` | System level badge (Explorer/Builder/Architect) with tooltip |
 | `frontend/src/components/shared/DisplayThemePreview.tsx` | BOX-3 display theme preview (320x240 ratio, theme colors, avatar style) |
 | `frontend/src/components/Meeting/MeetingModal.tsx` | Full-screen meeting modal with chat panel and canvas area |
 | `frontend/src/components/Meeting/canvasRegistry.ts` | Registry for pluggable meeting canvas components |
@@ -173,6 +177,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/hooks/useHealthCheck.ts` | Backend readiness polling |
 | `frontend/src/hooks/useWebSocket.ts` | WebSocket connection with auto-reconnect |
 | `frontend/src/hooks/useMeetingSession.ts` | Meeting session state via useReducer + WebSocket events |
+| `frontend/src/hooks/useSystemLevel.ts` | Extract system level from NuggetSpec for feature gating |
 
 ### Lib
 

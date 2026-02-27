@@ -197,31 +197,100 @@ export class MpremoteFlashStrategy implements FlashStrategy {
 
 // ── Esptool Strategy ────────────────────────────────────────────────────
 
+/** Esptool flash timeout in milliseconds. */
+const ESPTOOL_TIMEOUT_MS = 120_000;
+
+/** Progress regex: esptool outputs lines like "Writing at 0x00010000... (10 %)" */
+const PROGRESS_RE = /\((\d+)\s*%\)/;
+
+/**
+ * Resolve the esptool command. Returns the command and args prefix needed to
+ * invoke esptool. Tries `esptool.py` first (standalone install), then `esptool`
+ * (pip script entry point), then `python3 -m esptool` as a last resort.
+ *
+ * Exported for testing.
+ */
+export async function resolveEsptool(): Promise<{ cmd: string; prefix: string[]; version: string } | null> {
+  // Try esptool.py (standalone script)
+  try {
+    const { stdout } = await execFileAsync('esptool.py', ['version'], { timeout: 5000, env: safeEnv() });
+    const version = extractVersion(stdout);
+    return { cmd: 'esptool.py', prefix: [], version };
+  } catch { /* not found */ }
+
+  // Try esptool (pip entry point, no .py suffix)
+  try {
+    const { stdout } = await execFileAsync('esptool', ['version'], { timeout: 5000, env: safeEnv() });
+    const version = extractVersion(stdout);
+    return { cmd: 'esptool', prefix: [], version };
+  } catch { /* not found */ }
+
+  // Try python3 -m esptool
+  try {
+    const { stdout } = await execFileAsync('python3', ['-m', 'esptool', 'version'], { timeout: 5000, env: safeEnv() });
+    const version = extractVersion(stdout);
+    return { cmd: 'python3', prefix: ['-m', 'esptool'], version };
+  } catch { /* not found */ }
+
+  return null;
+}
+
+/** Extract version string from esptool version output (e.g. "esptool.py v4.7.0"). */
+function extractVersion(stdout: string): string {
+  const match = stdout.match(/v?(\d+\.\d+(?:\.\d+)?)/);
+  return match ? `v${match[1]}` : 'unknown';
+}
+
+/**
+ * Detect the serial port for an ESP32 device.
+ * Checks for an explicit SERIAL_PORT field override first, then falls back
+ * to USB VID:PID detection via HardwareService.
+ *
+ * Exported for testing.
+ */
+export async function detectSerialPort(
+  deviceFields: Record<string, unknown>,
+  hardwareService?: HardwareService,
+): Promise<string | null> {
+  // Explicit port override from device block fields
+  const explicitPort = deviceFields.SERIAL_PORT;
+  if (typeof explicitPort === 'string' && explicitPort.length > 0) {
+    return explicitPort;
+  }
+
+  // Auto-detect via hardware service
+  if (hardwareService) {
+    const board = await hardwareService.detectBoardFast();
+    if (board) return board.port;
+    // Fall back to full detection (includes REPL probe)
+    const fullBoard = await hardwareService.detectBoard();
+    if (fullBoard) return fullBoard.port;
+  }
+
+  return null;
+}
+
 /**
  * Flash strategy for binary firmware flash using esptool.
- * This is a STUB implementation. Actual esptool execution will be
- * implemented in task #13.
+ * Flashes pre-built firmware images (.bin) to ESP32 devices.
  */
 export class EsptoolFlashStrategy implements FlashStrategy {
   readonly method = 'esptool';
 
+  constructor(
+    private hardwareService?: HardwareService,
+  ) {}
+
   async checkPrerequisites(): Promise<{ available: boolean; message: string }> {
-    try {
-      await execFileAsync('esptool.py', ['version'], { timeout: 5000, env: safeEnv() });
-      return { available: true, message: 'esptool.py is available' };
-    } catch {
-      // Also try the pip-installed name without .py
-      try {
-        await execFileAsync('esptool', ['version'], { timeout: 5000, env: safeEnv() });
-        return { available: true, message: 'esptool is available' };
-      } catch {
-        return { available: false, message: 'esptool not found. Install it with: pip install esptool' };
-      }
+    const resolved = await resolveEsptool();
+    if (resolved) {
+      return { available: true, message: `esptool ${resolved.version} found` };
     }
+    return { available: false, message: 'esptool not found: install with pip install esptool' };
   }
 
   async flash(params: FlashParams): Promise<FlashResult> {
-    const { pluginDir, flashConfig, onProgress } = params;
+    const { pluginDir, nuggetDir, deviceFields, injections, flashConfig, onProgress } = params;
 
     // Validate that the firmware file exists in the plugin directory
     const firmwarePath = path.join(pluginDir, flashConfig.firmware_file);
@@ -232,21 +301,125 @@ export class EsptoolFlashStrategy implements FlashStrategy {
       };
     }
 
-    onProgress('Preparing firmware flash...', 10);
+    onProgress('Checking esptool...', 5);
 
-    // STUB: Log what we would do. Real implementation in task #13.
+    // Resolve esptool command
+    const resolved = await resolveEsptool();
+    if (!resolved) {
+      return {
+        success: false,
+        message: 'esptool not found: install with pip install esptool',
+      };
+    }
+
+    onProgress('Detecting serial port...', 10);
+
+    // Detect serial port
+    const port = await detectSerialPort(deviceFields, this.hardwareService);
+    if (!port) {
+      return {
+        success: false,
+        message: 'No ESP32 board detected. Connect your board via USB and try again.',
+      };
+    }
+
+    // Write runtime config if injections are present
+    if (Object.keys(injections).length > 0) {
+      onProgress('Writing runtime configuration...', 15);
+      const configPath = path.join(nuggetDir, 'runtime_config.json');
+      fs.writeFileSync(configPath, JSON.stringify(injections, null, 2), 'utf-8');
+    }
+
+    onProgress('Flashing firmware...', 20);
+
+    // Build esptool args
     const chip = flashConfig.chip ?? 'esp32s3';
     const offset = flashConfig.flash_offset ?? '0x0';
-    const baudRate = flashConfig.baud_rate ?? 460800;
+    const baudRate = String(flashConfig.baud_rate ?? 460800);
 
-    console.log(`[esptool-stub] Would flash ${firmwarePath} to ${chip} at offset ${offset} baud ${baudRate}`);
+    const args = [
+      ...resolved.prefix,
+      '--chip', chip,
+      '--port', port,
+      '--baud', baudRate,
+      'write_flash', offset, firmwarePath,
+    ];
 
-    onProgress('esptool flash not yet implemented (stub)', 100);
+    // Execute esptool via execFile (no shell)
+    try {
+      const result = await new Promise<FlashResult>((resolve, reject) => {
+        const child = execFile(
+          resolved.cmd,
+          args,
+          { timeout: ESPTOOL_TIMEOUT_MS, env: safeEnv(), maxBuffer: 10 * 1024 * 1024 },
+          (err, stdout, stderr) => {
+            if (err) {
+              // Check for timeout
+              if ((err as any).killed || err.message === 'Timed out') {
+                resolve({
+                  success: false,
+                  message: 'Firmware flash timed out after 120 seconds',
+                });
+                return;
+              }
+              // Capture stderr for diagnostics
+              const diagnostic = (stderr || '').trim() || (stdout || '').trim() || err.message;
+              resolve({
+                success: false,
+                message: `esptool failed: ${diagnostic}`,
+              });
+              return;
+            }
 
-    return {
-      success: false,
-      message: 'esptool flash is a stub — real implementation pending (task #13)',
-    };
+            // Check for success indicator in output
+            const output = (stdout || '') + (stderr || '');
+            if (output.includes('Hash of data verified') || output.includes('Leaving...')) {
+              resolve({
+                success: true,
+                message: `Firmware flashed to ${port} successfully`,
+              });
+            } else {
+              // esptool completed without error code but no verification
+              resolve({
+                success: true,
+                message: `Firmware flashed to ${port}`,
+              });
+            }
+          },
+        );
+
+        // Parse progress from stdout/stderr in real time
+        child.stdout?.on('data', (data: Buffer | string) => {
+          const text = typeof data === 'string' ? data : data.toString();
+          const match = text.match(PROGRESS_RE);
+          if (match) {
+            const pct = parseInt(match[1], 10);
+            // Map esptool's 0-100% to our 20-90% range
+            const mappedPct = Math.round(20 + (pct / 100) * 70);
+            onProgress(`Flashing firmware... ${pct}%`, mappedPct);
+          }
+        });
+        child.stderr?.on('data', (data: Buffer | string) => {
+          const text = typeof data === 'string' ? data : data.toString();
+          const match = text.match(PROGRESS_RE);
+          if (match) {
+            const pct = parseInt(match[1], 10);
+            const mappedPct = Math.round(20 + (pct / 100) * 70);
+            onProgress(`Flashing firmware... ${pct}%`, mappedPct);
+          }
+        });
+      });
+
+      if (result.success) {
+        onProgress('Flash complete!', 100);
+      }
+      return result;
+    } catch (err: any) {
+      return {
+        success: false,
+        message: `esptool error: ${err.message}`,
+      };
+    }
   }
 }
 
@@ -263,7 +436,7 @@ export function selectFlashStrategy(
     case 'flash':
       return new MpremoteFlashStrategy(hardwareService);
     case 'esptool':
-      return new EsptoolFlashStrategy();
+      return new EsptoolFlashStrategy(hardwareService);
     default:
       throw new Error(`Unknown flash method: ${method}`);
   }

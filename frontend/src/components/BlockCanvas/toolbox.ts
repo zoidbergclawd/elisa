@@ -106,6 +106,14 @@ export const toolbox = {
     },
     {
       kind: 'category',
+      name: 'System',
+      colour: '290',
+      contents: [
+        { kind: 'block', type: 'system_level' },
+      ],
+    },
+    {
+      kind: 'category',
       name: 'Deploy',
       colour: '180',
       contents: [

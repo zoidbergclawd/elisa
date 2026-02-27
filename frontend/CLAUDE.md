@@ -34,6 +34,7 @@ src/
     useHealthCheck.ts        Polls /api/health for backend readiness (API key + SDK status)
     useWebSocket.ts          WebSocket connection with auto-reconnect (3s interval)
     useMeetingSession.ts     Meeting session state via useReducer + WebSocket events
+    useSystemLevel.ts        Extract system level from NuggetSpec for feature gating
   lib/
     nuggetFile.ts            .elisa nugget file save/load utilities (JSZip-based)
     playChime.ts             Web Audio API two-tone chime for board detection events

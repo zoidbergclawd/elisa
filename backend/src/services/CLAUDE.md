@@ -48,6 +48,15 @@ Registry for meeting type definitions (id, name, agentName, canvasType, triggerC
 ### meetingService.ts (meeting session lifecycle)
 In-memory meeting session management. Lifecycle: `createInvite()` -> invited -> `acceptMeeting()` -> active -> `sendMessage()` / `addOutcome()` / `updateCanvas()` -> `endMeeting()` -> completed. Also supports `declineMeeting()` from invited state. Sessions indexed by meeting ID and by build session ID. Each method sends the appropriate WebSocket event. `cleanupSession()` removes all meetings for a build session.
 
+### systemLevelService.ts (progressive mastery levels)
+Pure functions for the Explorer/Builder/Architect progressive mastery system. `getLevel(spec)` extracts system level from NuggetSpec (default: explorer). Feature flags: `shouldAutoMatchTests()`, `shouldNarrate()`, `getDAGDetailLevel()`, `shouldAutoInviteMeetings()`, `getMaxNuggets()`. No state, no side effects.
+
+### autoTestMatcher.ts (explorer auto-test generation)
+At Explorer level, auto-generates behavioral tests for `when_then` requirements that lack a `test_id`. Parses requirement descriptions to extract when/then clauses. Links generated tests back to requirements via `test_id` and `requirement_id`. Emits narrator messages for each generated test. No-op at Builder and Architect levels. Runs before MetaPlanner in the orchestrator pipeline.
+
+### traceabilityTracker.ts (requirement-test traceability)
+Builds a map from NuggetSpec requirements to behavioral tests at plan time. Updates status (untested/passing/failing) as test results arrive via `recordTestResult()`. Computes coverage statistics via `getCoverage()`. Emits `traceability_update` per linked test result and `traceability_summary` after all tests complete. Wired into orchestrator after TestPhase. Does not modify test execution logic -- observes only.
+
 ### teachingEngine.ts (educational moments)
 Fast-path curriculum lookup maps events to concepts. Deduplicates per concept per session. Falls back to Claude Sonnet API for dynamic generation. Targets ages 8-14.
 
@@ -60,10 +69,26 @@ Auto-resolves agent permission requests (`file_write`, `file_edit`, `bash`, `com
 ### runtime/displayManager.ts (BOX-3 display)
 Generates `DisplayCommand[]` sequences for the BOX-3 2.4" IPS touchscreen (320x240). Screen generators: `getIdleScreen`, `getConversationScreen`, `getThinkingScreen`, `getErrorScreen`, `getStatusScreen`, `getMenuScreen`. Text truncation with ellipsis. Theme management from predefined `DEFAULT_THEMES` (4 themes). Types defined in `models/display.ts`.
 
+### runtime/agentStore.ts (agent identity store)
+In-memory store for provisioned agents. Compiles NuggetSpec into `AgentIdentity` (system prompt, greeting, tools, study config, topic index). Generates unique `api_key` per agent (prefixed `eart_`). Synthesizes system prompts from NuggetSpec fields with safety guardrails always appended. Methods: `provision()`, `update()`, `get()`, `delete()`, `validateApiKey()`, `has()`.
+
+### runtime/conversationManager.ts (conversation sessions)
+Manages per-agent conversation sessions and turn history. Sessions indexed by session_id and by agent_id. Window management truncates older turns when context exceeds `maxWindow` (default 50). Methods: `createSession()`, `addTurn()`, `getHistory()`, `getSessions()`, `deleteSession()`, `deleteAgentSessions()`, `formatForClaude()`.
+
+### runtime/turnPipeline.ts (conversation loop)
+Core text conversation pipeline: load agent identity, load conversation history, assemble context, call Claude API, store turn, track usage. Uses `getAnthropicClient()` singleton. Falls back to agent's `fallback_response` on API error. `UsageTracker` records per-agent token usage (input/output/tts/stt). No audio processing yet (Phase 2).
+
+### runtime/safetyGuardrails.ts (safety prompt)
+Generates the safety prompt section injected into every agent's system prompt at the runtime level (PRD-001 Section 6.3). Single source of truth for safety rules: age-appropriate content, no PII, medical/legal redirects, no impersonation, no harmful content, no dangerous activities, encourage learning. Exports `generateSafetyPrompt()` and `hasSafetyGuardrails()` for validation.
+
+### runtimeProvisioner.ts (provisioner interface)
+Interface for agent provisioning during deploy. `StubRuntimeProvisioner`: returns mock values for dev/tests. `LocalRuntimeProvisioner`: delegates to the in-process `AgentStore` for real provisioning. Both implement `classifyChanges()` to determine config-only vs firmware-required redeployments.
+
 ## Interaction Pattern
 
 ```
 Orchestrator.run(spec)
+  |-> autoMatchTests(spec, send)        Explorer: auto-generate tests for when_then reqs
   |-> PlanPhase.execute(ctx, spec)      returns tasks, agents, DAG
   |-> ExecutePhase.execute(ctx)
   |     streaming-parallel pool of ready tasks (up to 3 concurrent):

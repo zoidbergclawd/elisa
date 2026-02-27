@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { Commit, TestResult, TeachingMoment, UIState, Task, Agent, TokenUsage } from '../../types';
+import type { Commit, TestResult, TeachingMoment, UIState, Task, Agent, TokenUsage, TraceabilitySummary } from '../../types';
 import type { SerialLine, DeployProgress } from '../../hooks/useBuildSession';
 import type { BoardInfo } from '../../hooks/useBoardDetect';
 import GitTimeline from './GitTimeline';
@@ -7,6 +7,9 @@ import TestResults from './TestResults';
 import TeachingSidebar from './TeachingSidebar';
 import BoardOutput from './BoardOutput';
 import ProgressPanel from './ProgressPanel';
+import TraceabilityView from './TraceabilityView';
+import SystemBoundaryView from './SystemBoundaryView';
+import HealthDashboard from './HealthDashboard';
 import MetricsPanel from '../MissionControl/MetricsPanel';
 
 interface Props {
@@ -22,13 +25,18 @@ interface Props {
   deployChecklist: Array<{ name: string; prompt: string }> | null;
   tokenUsage: TokenUsage;
   boardInfo: BoardInfo | null;
+  traceability: TraceabilitySummary | null;
+  boundaryAnalysis: { inputs: Array<{ name: string; type: string; source?: string }>; outputs: Array<{ name: string; type: string; source?: string }>; boundary_portals: string[] } | null;
+  healthUpdate: { tasks_done: number; tasks_total: number; tests_passing: number; tests_total: number; tokens_used: number; health_score: number } | null;
+  healthSummary: { health_score: number; grade: 'A' | 'B' | 'C' | 'D' | 'F'; breakdown: { tasks_score: number; tests_score: number; corrections_score: number; budget_score: number } } | null;
 }
 
-type Tab = 'Timeline' | 'Tests' | 'Board' | 'Learn' | 'Progress' | 'Tokens';
+type Tab = 'Timeline' | 'Tests' | 'Trace' | 'Board' | 'Learn' | 'Progress' | 'System' | 'Health' | 'Tokens';
 
 export default function BottomBar({
   commits, testResults, coveragePct, teachingMoments, serialLines,
   uiState, tasks, agents, deployProgress, deployChecklist, tokenUsage, boardInfo,
+  traceability, boundaryAnalysis, healthUpdate, healthSummary,
 }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('Timeline');
 
@@ -46,7 +54,14 @@ export default function BottomBar({
     }
   }, [testResults.length]);
 
-  const tabs: Tab[] = ['Timeline', 'Tests', 'Board', 'Learn', 'Progress', 'Tokens'];
+  // Auto-switch to Trace tab when traceability summary arrives
+  useEffect(() => {
+    if (traceability && traceability.requirements.length > 0) {
+      setActiveTab('Trace'); // eslint-disable-line react-hooks/set-state-in-effect
+    }
+  }, [traceability !== null]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const tabs: Tab[] = ['Timeline', 'Tests', 'Trace', 'Board', 'Learn', 'Progress', 'System', 'Health', 'Tokens'];
 
   return (
     <div className="relative z-10 glass-panel border-x-0 border-b-0">
@@ -68,9 +83,16 @@ export default function BottomBar({
       <div className="h-32 overflow-y-auto">
         {activeTab === 'Timeline' && <GitTimeline commits={commits} />}
         {activeTab === 'Tests' && <TestResults results={testResults} coveragePct={coveragePct} uiState={uiState} tasks={tasks} agents={agents} />}
+        {activeTab === 'Trace' && <TraceabilityView traceability={traceability} />}
         {activeTab === 'Board' && <BoardOutput serialLines={serialLines} boardInfo={boardInfo} />}
         {activeTab === 'Learn' && <TeachingSidebar moments={teachingMoments} />}
         {activeTab === 'Progress' && <ProgressPanel uiState={uiState} tasks={tasks} deployProgress={deployProgress} deployChecklist={deployChecklist} />}
+        {activeTab === 'System' && (
+          boundaryAnalysis
+            ? <SystemBoundaryView inputs={boundaryAnalysis.inputs} outputs={boundaryAnalysis.outputs} boundary_portals={boundaryAnalysis.boundary_portals} />
+            : <p className="text-sm text-atelier-text-muted p-4">System boundary data will appear during a build</p>
+        )}
+        {activeTab === 'Health' && <HealthDashboard healthUpdate={healthUpdate} healthSummary={healthSummary} />}
         {activeTab === 'Tokens' && (
           <div className="p-4">
             <MetricsPanel tokenUsage={tokenUsage} agents={agents} />
