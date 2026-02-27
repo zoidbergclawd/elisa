@@ -8,7 +8,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 |------|-------------|
 | `electron/` | Electron main process, preload, settings dialog |
 | `backend/` | Express 5 API server + orchestration engine |
-| `backend/src/routes/` | REST endpoint handlers (sessions, hardware, skills, workspace) |
+| `backend/src/routes/` | REST endpoint handlers (sessions, hardware, skills, workspace, meetings) |
 | `backend/src/services/` | Core services: orchestrator, runners, hardware, portals |
 | `backend/src/services/phases/` | Pipeline stage handlers: plan, execute, test, deploy |
 | `backend/src/models/` | TypeScript type definitions (session, skillPlan) |
@@ -27,6 +27,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/components/Skills/` | Skills CRUD modal + template library |
 | `frontend/src/components/Rules/` | Rules CRUD modal + template library |
 | `frontend/src/components/Portals/` | Portal connections modal |
+| `frontend/src/components/Meeting/` | Agent Meeting framework: modal, canvas registry, default canvas |
 | `frontend/src/components/shared/` | Reusable: tabs, buttons, modals, toasts, avatars |
 | `frontend/src/hooks/` | React hooks (session state, health, WebSocket, board detect, skills) |
 | `frontend/src/lib/` | Utility functions (nugget files, skill templates, terminology) |
@@ -74,6 +75,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/routes/hardware.ts` | /api/hardware/* endpoints (detect, flash) |
 | `backend/src/routes/skills.ts` | /api/skills/* endpoints (run, answer, list) |
 | `backend/src/routes/workspace.ts` | /api/workspace/* endpoints (save, load design files) |
+| `backend/src/routes/meetings.ts` | /api/sessions/:id/meetings/* endpoints (accept, decline, message, end) |
 
 ### Services
 
@@ -92,6 +94,8 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/services/narratorService.ts` | Generates narrator messages for build events (Claude Haiku) |
 | `backend/src/services/permissionPolicy.ts` | Auto-resolves agent permission requests based on policy rules |
 | `backend/src/services/deviceRegistry.ts` | Loads device plugin manifests, provides block defs + agent context |
+| `backend/src/services/meetingRegistry.ts` | Meeting type registry + trigger engine for build events |
+| `backend/src/services/meetingService.ts` | In-memory meeting session lifecycle management |
 | `backend/src/utils/deviceManifestSchema.ts` | Zod schema for device.json manifest validation |
 
 ### Phases
@@ -148,6 +152,9 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/components/TaskMap/TaskMapPanel.tsx` | Full-width interactive task DAG |
 | `frontend/src/components/shared/MinionAvatar.tsx` | Animated avatar for narrator/minion characters |
 | `frontend/src/components/shared/FlashWizardModal.tsx` | Multi-device flash wizard modal for IoT deploy |
+| `frontend/src/components/shared/MeetingInviteToast.tsx` | Floating meeting invite notification with accept/decline |
+| `frontend/src/components/Meeting/MeetingModal.tsx` | Full-screen meeting modal with chat panel and canvas area |
+| `frontend/src/components/Meeting/canvasRegistry.ts` | Registry for pluggable meeting canvas components |
 | `frontend/src/components/MissionControl/MissionControlPanel.tsx` | Main mission control layout with narrator feed + minion squad |
 | `frontend/src/components/MissionControl/MinionSquadPanel.tsx` | Minion cards with status badges and task assignments |
 | `frontend/src/components/MissionControl/NarratorFeed.tsx` | Scrolling narrator message feed with mood indicators |
@@ -161,6 +168,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/hooks/useBoardDetect.ts` | ESP32 board detection polling |
 | `frontend/src/hooks/useHealthCheck.ts` | Backend readiness polling |
 | `frontend/src/hooks/useWebSocket.ts` | WebSocket connection with auto-reconnect |
+| `frontend/src/hooks/useMeetingSession.ts` | Meeting session state via useReducer + WebSocket events |
 
 ### Lib
 

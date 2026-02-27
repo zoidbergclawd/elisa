@@ -43,7 +43,13 @@ export type WSEvent =
   | { type: 'flash_prompt'; device_role: string; message: string }
   | { type: 'flash_progress'; device_role: string; step: string; progress: number }
   | { type: 'flash_complete'; device_role: string; success: boolean; message?: string }
-  | { type: 'documentation_ready'; file_path: string };
+  | { type: 'documentation_ready'; file_path: string }
+  | { type: 'meeting_invite'; meetingTypeId: string; meetingId: string; agentName: string; title: string; description: string }
+  | { type: 'meeting_started'; meetingId: string; meetingTypeId: string; agentName: string; canvasType: string }
+  | { type: 'meeting_message'; meetingId: string; role: 'agent' | 'kid'; content: string }
+  | { type: 'meeting_canvas_update'; meetingId: string; canvasType: string; data: Record<string, unknown> }
+  | { type: 'meeting_outcome'; meetingId: string; outcomeType: string; data: Record<string, unknown> }
+  | { type: 'meeting_ended'; meetingId: string; outcomes: Array<{ type: string; data: Record<string, unknown> }> };
 
 export type SendEvent = (event: WSEvent) => Promise<void>;
 

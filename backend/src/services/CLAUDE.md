@@ -42,6 +42,12 @@ Manages portal adapters per session (MCP, CLI). Command allowlist validation (`A
 ### deviceRegistry.ts (device plugins)
 Loads device plugin manifests from `devices/` directory at startup. Validates each `device.json` against `DeviceManifestSchema`. Provides: `getAllDevices()` for REST API, `getBlockDefinitions()` for frontend block registration, `getAgentContext()` for builder prompt injection (reads `prompts/agent-context.md` from plugin dir). Caches agent context per plugin. Skips `_shared/` and invalid plugins.
 
+### meetingRegistry.ts (meeting type registry)
+Registry for meeting type definitions (id, name, agentName, canvasType, triggerConditions, persona). Supports `register()`, `getById()`, `getAll()`, `unregister()`. `MeetingTriggerEngine` evaluates build events against registered trigger conditions to determine which meetings to propose. Multiple meeting types can match a single event.
+
+### meetingService.ts (meeting session lifecycle)
+In-memory meeting session management. Lifecycle: `createInvite()` -> invited -> `acceptMeeting()` -> active -> `sendMessage()` / `addOutcome()` / `updateCanvas()` -> `endMeeting()` -> completed. Also supports `declineMeeting()` from invited state. Sessions indexed by meeting ID and by build session ID. Each method sends the appropriate WebSocket event. `cleanupSession()` removes all meetings for a build session.
+
 ### teachingEngine.ts (educational moments)
 Fast-path curriculum lookup maps events to concepts. Deduplicates per concept per session. Falls back to Claude Sonnet API for dynamic generation. Targets ages 8-14.
 

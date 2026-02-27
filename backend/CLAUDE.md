@@ -21,8 +21,10 @@ src/
     skills.ts            /api/skills/* endpoints (run, answer, list)
     workspace.ts         /api/workspace/* endpoints (save, load design files)
     devices.ts           /api/devices endpoint (list device plugin manifests)
+    meetings.ts          /api/sessions/:id/meetings/* endpoints (accept, decline, message, end)
   models/
     session.ts           Type definitions: Session, Task, Agent, BuildPhase, WSEvent
+    meeting.ts           Meeting framework types: MeetingType, MeetingSession, CanvasState, etc.
   services/
     orchestrator.ts      Thin coordinator: delegates to phase handlers in sequence
     sessionStore.ts      Consolidated session state (replaces 4 parallel Maps)
@@ -43,6 +45,8 @@ src/
     narratorService.ts   Generates narrator messages for build events (Claude Haiku)
     permissionPolicy.ts  Auto-resolves agent permission requests based on policy rules
     deviceRegistry.ts    Loads device plugin manifests, provides block defs + agent context
+    meetingRegistry.ts   Meeting type registry + trigger engine for build events
+    meetingService.ts    In-memory meeting session lifecycle management
     cloudDeployService.ts Google Cloud Run deployment (scaffold, gcloud CLI)
     portalService.ts     Portal adapters (MCP, CLI) with command allowlist
   prompts/
@@ -91,9 +95,15 @@ src/
 | GET | /api/devices | List device plugin manifests |
 | GET | /api/hardware/detect | Detect ESP32 (fast VID:PID only) |
 | POST | /api/hardware/flash/:id | Flash to board |
+| GET | /api/sessions/:id/meetings | List meetings for session |
+| GET | /api/sessions/:id/meetings/:mid | Get meeting details |
+| POST | /api/sessions/:id/meetings/:mid/accept | Accept meeting invite |
+| POST | /api/sessions/:id/meetings/:mid/decline | Decline meeting invite |
+| POST | /api/sessions/:id/meetings/:mid/message | Send message in meeting |
+| POST | /api/sessions/:id/meetings/:mid/end | End active meeting |
 
 ### WebSocket Events (server -> client)
-`planning_started`, `plan_ready`, `task_started`, `task_completed`, `task_failed`, `agent_output`, `commit_created`, `token_usage`, `budget_warning`, `test_result`, `coverage_update`, `deploy_started`, `deploy_progress`, `deploy_checklist`, `deploy_complete` (includes `url?` for web deploys), `serial_data`, `human_gate`, `user_question`, `skill_*`, `teaching_moment`, `narrator_message`, `permission_auto_resolved`, `minion_state_change`, `workspace_created`, `flash_prompt`, `flash_progress`, `flash_complete`, `documentation_ready`, `error`, `session_complete`
+`planning_started`, `plan_ready`, `task_started`, `task_completed`, `task_failed`, `agent_output`, `commit_created`, `token_usage`, `budget_warning`, `test_result`, `coverage_update`, `deploy_started`, `deploy_progress`, `deploy_checklist`, `deploy_complete` (includes `url?` for web deploys), `serial_data`, `human_gate`, `user_question`, `skill_*`, `teaching_moment`, `narrator_message`, `permission_auto_resolved`, `minion_state_change`, `workspace_created`, `flash_prompt`, `flash_progress`, `flash_complete`, `documentation_ready`, `meeting_invite`, `meeting_started`, `meeting_message`, `meeting_canvas_update`, `meeting_outcome`, `meeting_ended`, `error`, `session_complete`
 
 ## Key Patterns
 

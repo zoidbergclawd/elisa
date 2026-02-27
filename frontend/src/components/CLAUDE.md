@@ -37,6 +37,10 @@ App.tsx
   shared/DirectoryPickerModal.tsx    Text input fallback for non-Electron workspace directory selection
   shared/BoardDetectedModal.tsx      Celebrates ESP32 connection, offers one-click Portal creation
   shared/FlashWizardModal.tsx        Multi-device flash wizard with progress bar for IoT deploy
+  shared/MeetingInviteToast.tsx      Floating meeting invite notification with accept/decline + 30s auto-dismiss
+  Meeting/MeetingModal.tsx           Full-screen meeting modal: agent chat panel (left) + canvas area (right)
+  Meeting/canvasRegistry.ts          Registry for pluggable canvas components (Map<canvasType, Component>)
+  Meeting/DefaultCanvas.tsx          Placeholder canvas shown when no specialized canvas is registered
   Skills/SkillsModal.tsx             CRUD editor for custom skills + template library
   Skills/SkillFlowEditor.tsx         Visual flow editor for composite skill steps
   Skills/SkillQuestionModal.tsx      Modal for skill questions during execution

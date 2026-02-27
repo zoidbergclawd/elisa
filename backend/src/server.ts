@@ -16,12 +16,17 @@ import { createSkillRouter } from './routes/skills.js';
 import { createWorkspaceRouter } from './routes/workspace.js';
 import { DeviceRegistry } from './services/deviceRegistry.js';
 import { createDeviceRouter } from './routes/devices.js';
+import { MeetingRegistry } from './services/meetingRegistry.js';
+import { MeetingService } from './services/meetingService.js';
+import { createMeetingRouter } from './routes/meetings.js';
 
 // -- State --
 
 const store = new SessionStore();
 const hardwareService = new HardwareService();
 const deviceRegistry = new DeviceRegistry(path.resolve(import.meta.dirname, '../../devices'));
+const meetingRegistry = new MeetingRegistry();
+const meetingService = new MeetingService(meetingRegistry);
 
 // -- Health --
 
@@ -104,8 +109,11 @@ class ConnectionManager {
 
 const manager = new ConnectionManager();
 
-// Wire up WebSocket cleanup when sessions are removed
-store.onCleanup = (sessionId: string) => manager.cleanup(sessionId);
+// Wire up WebSocket + meeting cleanup when sessions are removed
+store.onCleanup = (sessionId: string) => {
+  manager.cleanup(sessionId);
+  meetingService.cleanupSession(sessionId);
+};
 
 // -- Express App --
 
@@ -196,6 +204,7 @@ function createApp(staticDir?: string, authToken?: string) {
   app.use('/api/hardware', createHardwareRouter({ store, hardwareService }));
   app.use('/api/workspace', createWorkspaceRouter());
   app.use('/api/devices', createDeviceRouter({ registry: deviceRegistry }));
+  app.use('/api/sessions/:sessionId/meetings', createMeetingRouter({ store, meetingService, sendEvent }));
 
   // Templates
   app.get('/api/templates', (_req, res) => {

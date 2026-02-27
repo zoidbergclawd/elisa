@@ -24,7 +24,8 @@ src/
     Skills/                  Skills editor modal + template library + SkillFlowEditor (visual flow editor)
     Rules/                   Rules editor modal + template library
     Portals/                 Portals editor modal + registry
-    shared/                  MainTabBar, GoButton, ModalHost, HumanGateModal, QuestionModal, TeachingToast, AgentAvatar, ReadinessBadge, ExamplePickerModal, DirectoryPickerModal, FlashWizardModal
+    Meeting/                 Agent Meeting framework: MeetingModal, canvasRegistry, DefaultCanvas
+    shared/                  MainTabBar, GoButton, ModalHost, HumanGateModal, QuestionModal, TeachingToast, AgentAvatar, ReadinessBadge, ExamplePickerModal, DirectoryPickerModal, FlashWizardModal, MeetingInviteToast
   hooks/
     useBuildSession.ts       Build session state via useReducer (typed actions + reducer)
     useWorkspaceIO.ts        Workspace file I/O: open/save/load nugget, open folder, select example, syncDesignToStorage
@@ -32,6 +33,7 @@ src/
     useBoardDetect.ts        ESP32 board detection polling via /api/hardware/detect
     useHealthCheck.ts        Polls /api/health for backend readiness (API key + SDK status)
     useWebSocket.ts          WebSocket connection with auto-reconnect (3s interval)
+    useMeetingSession.ts     Meeting session state via useReducer + WebSocket events
   lib/
     nuggetFile.ts            .elisa nugget file save/load utilities (JSZip-based)
     playChime.ts             Web Audio API two-tone chime for board detection events
