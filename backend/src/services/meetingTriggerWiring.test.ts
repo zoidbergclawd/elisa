@@ -61,24 +61,26 @@ describe('MeetingTriggerWiring', () => {
     expect(invites).toHaveLength(0);
   });
 
-  it('does not create invites at builder level (auto-invite disabled)', async () => {
+  it('creates invites at builder level (auto-invite enabled at all levels)', async () => {
     const meeting = makeDeployMeeting('doc-agent', 'session_complete');
     registry.register(meeting);
 
     const send = makeSend();
     await wiring.evaluateAndInvite('session_complete', {}, 'session-1', send, 'builder');
 
-    expect(send).not.toHaveBeenCalled();
+    const invites = vi.mocked(send).mock.calls.filter(([ev]) => ev.type === 'meeting_invite');
+    expect(invites).toHaveLength(1);
   });
 
-  it('does not create invites at architect level (auto-invite disabled)', async () => {
+  it('creates invites at architect level (auto-invite enabled at all levels)', async () => {
     const meeting = makeDeployMeeting('doc-agent', 'session_complete');
     registry.register(meeting);
 
     const send = makeSend();
     await wiring.evaluateAndInvite('session_complete', {}, 'session-1', send, 'architect');
 
-    expect(send).not.toHaveBeenCalled();
+    const invites = vi.mocked(send).mock.calls.filter(([ev]) => ev.type === 'meeting_invite');
+    expect(invites).toHaveLength(1);
   });
 
   it('creates invites for session_complete events at explorer level', async () => {
