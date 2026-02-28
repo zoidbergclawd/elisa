@@ -352,13 +352,16 @@ describe('BOX-3 device.json manifest', () => {
     });
   });
 
-  describe('firmware placeholder', () => {
-    it('firmware directory has .gitkeep', () => {
-      const gitkeepPath = path.resolve(
-        manifestPath,
-        '../firmware/.gitkeep',
-      );
-      expect(fs.existsSync(gitkeepPath)).toBe(true);
+  describe('firmware scaffold', () => {
+    it('firmware directory has main source files', () => {
+      const mainDir = path.resolve(manifestPath, '../firmware/main');
+      expect(fs.existsSync(path.join(mainDir, 'elisa_config.h'))).toBe(true);
+      expect(fs.existsSync(path.join(mainDir, 'elisa_main.c'))).toBe(true);
+    });
+
+    it('firmware directory has runtime config schema', () => {
+      const schemaPath = path.resolve(manifestPath, '../firmware/runtime_config.schema.json');
+      expect(fs.existsSync(schemaPath)).toBe(true);
     });
   });
 });

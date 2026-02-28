@@ -219,7 +219,7 @@ export class DeployPhase {
         await this.deployCloud(ctx, device, manifest, outputs);
       } else if (manifest.deploy.method === 'flash' || manifest.deploy.method === 'esptool') {
         // Flash deploy (mpremote or esptool) via strategy pattern
-        await this.deployFlash(ctx, device, manifest, outputs, gateResolver);
+        await this.deployFlash(ctx, device, manifest, outputs, gateResolver, resolvedSpec);
       }
     }
 
@@ -288,6 +288,7 @@ export class DeployPhase {
     manifest: any,
     outputs: Record<string, string>,
     gateResolver: { current: ((value: GateResponse) => void) | null },
+    resolvedSpec?: Record<string, any>,
   ): Promise<void> {
     const method = manifest.deploy.method;
     const flashConfig = method === 'flash' ? manifest.deploy.flash : manifest.deploy.esptool;
@@ -350,6 +351,9 @@ export class DeployPhase {
             progress,
           });
         },
+        runtimeConfig: resolvedSpec?.runtime ? {
+          face_descriptor: resolvedSpec.runtime.face_descriptor,
+        } : undefined,
       });
 
       await ctx.send({
