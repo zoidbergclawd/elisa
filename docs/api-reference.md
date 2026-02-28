@@ -46,6 +46,67 @@ Base URL: `http://localhost:8000/api`
 |--------|------|----------|-------------|
 | GET | `/devices` | `DeviceManifest[]` | List device plugin manifests (block definitions, deploy config) |
 
+### Meetings
+
+Base URL: `http://localhost:8000/api/sessions/:sessionId/meetings`
+
+| Method | Path | Request Body | Response | Description |
+|--------|------|--------------|----------|-------------|
+| GET | `/sessions/:id/meetings` | -- | `MeetingSession[]` | List all meetings for a session |
+| GET | `/sessions/:id/meetings/:mid` | -- | `MeetingSession` | Get meeting details |
+| POST | `/sessions/:id/meetings/:mid/accept` | -- | `MeetingSession` | Accept a meeting invite (must be in `invited` state) |
+| POST | `/sessions/:id/meetings/:mid/decline` | -- | `MeetingSession` | Decline a meeting invite (must be in `invited` state) |
+| POST | `/sessions/:id/meetings/:mid/message` | `{ content: string }` | `MeetingMessage` | Send a message from the kid in an active meeting |
+| POST | `/sessions/:id/meetings/:mid/end` | -- | `MeetingSession` | End an active meeting |
+
+### Agent Runtime
+
+Base URL: `http://localhost:8000/v1`
+
+All endpoints except `POST /v1/agents` and `GET /v1/agents/:id/heartbeat` require the `x-api-key` header set to the API key returned during provisioning.
+
+| Method | Path | Request Body | Response | Description |
+|--------|------|--------------|----------|-------------|
+| POST | `/v1/agents` | `NuggetSpec` | `{ agent_id, api_key, runtime_url, agent_name, greeting }` | Provision a new agent (no auth required) |
+| PUT | `/v1/agents/:id` | `NuggetSpec` | `{ status: "updated", agent_id }` | Update agent config |
+| DELETE | `/v1/agents/:id` | -- | `{ status: "deleted", agent_id }` | Deprovision agent (cleans up sessions, usage, backpack, study, gaps) |
+| POST | `/v1/agents/:id/turn/text` | `{ text: string, session_id?: string }` | `{ response, session_id, input_tokens, output_tokens }` | Send a text conversation turn |
+| GET | `/v1/agents/:id/history` | -- | `{ agent_id, sessions: Array<{ session_id, turn_count, created_at }> }` | List conversation sessions for agent |
+| GET | `/v1/agents/:id/history?session_id=X&limit=N` | -- | `{ session_id, turns: ConversationTurn[] }` | Get turn history for a specific session |
+| GET | `/v1/agents/:id/heartbeat` | -- | `{ status: "online", agent_id, agent_name, session_count, total_input_tokens, total_output_tokens }` | Agent health check (no auth required) |
+| GET | `/v1/agents/:id/gaps` | -- | `{ agent_id, gaps: GapEntry[] }` | List detected knowledge gaps |
+| POST | `/v1/agents/:id/backpack` | `{ title: string, content: string, source_type?: string, uri?: string }` | `{ source_id, agent_id }` | Add a source to the knowledge backpack |
+| GET | `/v1/agents/:id/backpack` | -- | `{ agent_id, sources: BackpackSource[] }` | List all backpack sources |
+| DELETE | `/v1/agents/:id/backpack/:sourceId` | -- | `{ status: "removed", source_id }` | Remove a backpack source |
+| POST | `/v1/agents/:id/backpack/search` | `{ query: string, limit?: number }` | `{ agent_id, results: SearchResult[] }` | Search the knowledge backpack |
+| PUT | `/v1/agents/:id/study` | `{ enabled?: boolean, style?: string, difficulty?: string, quiz_frequency?: number }` | `{ status: "enabled"\|"disabled", agent_id }` | Enable or disable study mode |
+| GET | `/v1/agents/:id/study` | -- | `{ agent_id, config: StudyModeConfig, progress: StudyProgress }` | Get study mode config and progress |
+| POST | `/v1/agents/:id/study/quiz` | -- | `QuizQuestion` | Generate a quiz question from backpack content |
+| POST | `/v1/agents/:id/study/answer` | `{ question_id: string, answer: number }` | `{ correct: boolean, question_id }` | Submit a quiz answer |
+| WS | `/v1/agents/:id/stream?api_key=KEY` | -- | Streaming conversation turn | WebSocket endpoint for streaming conversation turns |
+
+### Spec Graph
+
+Base URL: `http://localhost:8000/api/spec-graph`
+
+| Method | Path | Request Body | Response | Description |
+|--------|------|--------------|----------|-------------|
+| POST | `/api/spec-graph` | `{ workspace_path: string }` | `{ graph_id }` | Create a new spec graph |
+| GET | `/api/spec-graph/:id` | -- | `{ graph: SpecGraph }` | Get full graph (nodes + edges) |
+| DELETE | `/api/spec-graph/:id` | -- | `{ status: "deleted" }` | Delete a graph |
+| POST | `/api/spec-graph/:id/nodes` | `{ spec: NuggetSpec, label: string }` | `{ node_id }` | Add a nugget node to the graph |
+| GET | `/api/spec-graph/:id/nodes` | -- | `{ nodes: SpecGraphNode[] }` | List all nodes |
+| GET | `/api/spec-graph/:id/nodes/:nid` | -- | `{ node: SpecGraphNode }` | Get a single node |
+| DELETE | `/api/spec-graph/:id/nodes/:nid` | -- | `{ status: "removed" }` | Remove a node and its edges |
+| POST | `/api/spec-graph/:id/edges` | `{ from_id: string, to_id: string, relationship: EdgeRelationship, description?: string }` | `{ status: "added" }` | Add a directed edge between nodes |
+| DELETE | `/api/spec-graph/:id/edges` | `{ from_id: string, to_id: string }` | `{ status: "removed" }` | Remove an edge |
+| GET | `/api/spec-graph/:id/neighbors/:nid` | -- | `{ incoming: SpecGraphEdge[], outgoing: SpecGraphEdge[] }` | Get incoming and outgoing neighbors of a node |
+| POST | `/api/spec-graph/:id/compose` | `{ node_ids: string[], system_level?: string, session_id?: string }` | `ComposeResult` | Compose selected nodes into a merged NuggetSpec |
+| POST | `/api/spec-graph/:id/impact` | `{ node_id: string }` | `ImpactResult` | Detect cross-nugget impact of changing a node |
+| GET | `/api/spec-graph/:id/interfaces?node_ids=A,B,C` | -- | `{ contracts: InterfaceContract[] }` | Resolve interface contracts among nodes |
+
+**EdgeRelationship**: `"depends_on"` | `"provides_to"` | `"shares_interface"` | `"composes_into"`
+
 ### Other
 
 | Method | Path | Response | Description |
@@ -116,13 +177,13 @@ All events flow server to client as JSON with a `type` discriminator field.
 | Event | Payload | Description |
 |-------|---------|-------------|
 | `deploy_started` | `{ target }` | Deploy phase started |
-| `deploy_progress` | `{ step, progress: number }` | Deploy progress (0-100) |
+| `deploy_progress` | `{ step, progress: number, device_role? }` | Deploy progress (0-100) |
 | `deploy_checklist` | `{ rules: Array<{ name, prompt }> }` | Pre-deploy rules checklist |
 | `deploy_complete` | `{ target, url? }` | Deploy finished |
-| `flash_prompt` | `{ device_role, device_name, instructions }` | Prompts user to connect device for flashing |
+| `flash_prompt` | `{ device_role, message }` | Prompts user to connect device for flashing |
 | `flash_progress` | `{ device_role, step, progress: number }` | Per-file flash progress (0-100) |
-| `flash_complete` | `{ device_role, success }` | Device flash finished |
-| `documentation_ready` | `{ path }` | Generated documentation available |
+| `flash_complete` | `{ device_role, success, message? }` | Device flash finished |
+| `documentation_ready` | `{ file_path }` | Generated documentation available |
 | `serial_data` | `{ line, timestamp }` | ESP32 serial monitor output |
 
 ### User Interaction
@@ -144,6 +205,46 @@ All events flow server to client as JSON with a `type` discriminator field.
 ```
 
 **NarratorMessage moods**: `excited`, `encouraging`, `concerned`, `celebrating`
+
+### Systems Thinking
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `decomposition_narrated` | `{ goal, subtasks: string[], explanation }` | Narrated breakdown of the goal into subtasks |
+| `impact_estimate` | `{ estimated_tasks, complexity: 'simple'\|'moderate'\|'complex', heaviest_requirements: string[], requirement_details: Array<{ description, estimated_task_count, test_linked, weight, dependents }> }` | Pre-execution complexity analysis |
+| `boundary_analysis` | `{ inputs: Array<{ name, type, source? }>, outputs: Array<{ name, type, source? }>, boundary_portals: string[] }` | System boundary identification (inputs, outputs, portals) |
+| `system_health_update` | `{ tasks_done, tasks_total, tests_passing, tests_total, tokens_used, health_score }` | Periodic health vital signs during execution |
+| `system_health_summary` | `{ health_score, grade: 'A'\|'B'\|'C'\|'D'\|'F', breakdown: { tasks_score, tests_score, corrections_score, budget_score } }` | Post-execution health summary with grade |
+| `health_history` | `{ entries: Array<{ timestamp, goal, score, grade, breakdown: { tasks, tests, corrections, budget } }> }` | Health-over-time trend data (Architect level) |
+| `traceability_update` | `{ requirement_id, test_id, status: 'untested'\|'passing'\|'failing' }` | Individual requirement-test link status change |
+| `traceability_summary` | `{ coverage: number, requirements: Array<{ requirement_id, description, test_id?, test_name?, status: 'untested'\|'passing'\|'failing' }> }` | Full requirement traceability coverage report |
+| `correction_cycle_started` | `{ task_id, attempt_number, failure_reason, max_attempts }` | Correction cycle begun for a failed task |
+| `correction_cycle_progress` | `{ task_id, attempt_number, step: 'diagnosing'\|'fixing'\|'retesting' }` | Progress within a correction cycle |
+| `convergence_update` | `{ task_id, attempts_so_far, tests_passing, tests_total, trend: 'improving'\|'stalled'\|'diverging', converged: boolean, attempts: Array<{ attempt_number, status, tests_passing?, tests_total? }> }` | Feedback loop convergence tracking |
+
+### Composition
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `composition_started` | `{ graph_id, node_ids: string[] }` | Nugget composition process started |
+| `composition_impact` | `{ graph_id, changed_node_id, affected_nodes: Array<{ node_id, label, reason }>, severity }` | Cross-nugget impact detected from a node change |
+
+### Meetings
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `meeting_invite` | `{ meetingId, meetingTypeId, agentName, title, description }` | Agent proposes a meeting to the user |
+| `meeting_started` | `{ meetingId, meetingTypeId, agentName, canvasType }` | Meeting session activated |
+| `meeting_message` | `{ meetingId, role: 'agent'\|'kid', content }` | Message in an active meeting |
+| `meeting_canvas_update` | `{ meetingId, canvasType, data }` | Canvas state updated during meeting |
+| `meeting_outcome` | `{ meetingId, outcomeType, data }` | Single outcome produced during meeting |
+| `meeting_ended` | `{ meetingId, outcomes: Array<{ type, data }> }` | Meeting ended with collected outcomes |
+
+### Context Flow
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `context_flow` | `{ from_task_id, to_task_ids: string[], summary_preview }` | Context passed from one task to its dependents |
 
 ---
 

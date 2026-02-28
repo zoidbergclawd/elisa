@@ -6,9 +6,9 @@ Block-based visual programming IDE where kids build software by snapping togethe
 
 | Path | Description |
 |------|-------------|
-| `electron/` | Electron main process, preload, settings dialog |
+| `electron/` | Electron main process, preload, settings dialog (HTML) |
 | `backend/` | Express 5 API server + orchestration engine |
-| `backend/src/routes/` | REST endpoint handlers (sessions, hardware, skills, workspace, meetings) |
+| `backend/src/routes/` | REST endpoint handlers (sessions, hardware, skills, workspace, meetings, runtime, specGraph, devices) |
 | `backend/src/services/` | Core services: orchestrator, runners, hardware, portals |
 | `backend/src/services/phases/` | Pipeline stage handlers: plan, execute, test, deploy |
 | `backend/src/services/runtime/` | Agent Runtime: identity store, conversation, turn pipeline, safety, backpack, study, content filter, consent, usage limiter |
@@ -44,7 +44,6 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `scripts/` | Build tooling (esbuild backend bundler, port killer, subdirectory installer) |
 | `docs/` | Product + technical documentation |
 | `docs/plans/` | Design docs and implementation plans (dated, archival) |
-| `support/` | ESP32 firmware binaries |
 
 ## Documentation Map
 
@@ -81,6 +80,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/routes/meetings.ts` | /api/sessions/:id/meetings/* endpoints (accept, decline, message, end) |
 | `backend/src/routes/runtime.ts` | /v1/agents/* endpoints (provision, update, delete, turn, history, heartbeat) |
 | `backend/src/routes/specGraph.ts` | /api/spec-graph/* endpoints (CRUD, compose, impact, interfaces) |
+| `backend/src/routes/devices.ts` | /api/devices endpoint (list device plugin manifests) |
 
 ### Services
 
@@ -118,6 +118,8 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/services/runtime/contentFilter.ts` | PII detection/redaction, inappropriate topic flagging |
 | `backend/src/services/runtime/consentManager.ts` | Parental consent tracking (COPPA compliance) |
 | `backend/src/services/runtime/usageLimiter.ts` | Token/turn rate limiting with tiered usage (free/basic/unlimited) |
+| `backend/src/services/runtime/toolExecutor.ts` | Tool execution engine for agent tool-use blocks |
+| `backend/src/services/runtime/gapDetector.ts` | Knowledge gap detection from conversation history |
 | `backend/src/services/runtimeProvisioner.ts` | Provisioner interface + Stub/Local implementations |
 | `backend/src/services/flashStrategy.ts` | FlashStrategy interface, MpremoteFlashStrategy, EsptoolFlashStrategy |
 | `backend/src/services/redeployClassifier.ts` | Redeploy decision matrix (config_only vs firmware_required) |
@@ -126,6 +128,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/services/integrationAgentMeeting.ts` | Integration meeting type for nugget composition |
 | `backend/src/services/meetingTriggerWiring.ts` | Wires MeetingTriggerEngine into orchestrator pipeline per build event |
 | `backend/src/services/healthHistoryService.ts` | Health-over-time persistence (20-entry cap, .elisa/health-history.json) |
+| `backend/src/services/cloudDeployService.ts` | Google Cloud Run deployment (scaffold, gcloud CLI) |
 | `backend/src/services/architectureAgentMeeting.ts` | Architecture Agent meeting type (canvasType: blueprint) |
 | `backend/src/services/docAgentMeeting.ts` | Documentation Agent meeting type (canvasType: explain-it) |
 | `backend/src/services/mediaAgentMeeting.ts` | Media Agent meeting type (canvasType: campaign) |
@@ -241,6 +244,8 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/lib/skillTemplates.ts` | Pre-built skill and rule templates |
 | `frontend/src/lib/terminology.ts` | Kid-friendly term mappings (technical -> friendly labels) |
 | `frontend/src/lib/deviceBlocks.ts` | Dynamic Blockly block registration from device plugin manifests |
+| `frontend/src/lib/apiClient.ts` | Auth token management and authenticated fetch wrapper |
+| `frontend/src/lib/playChime.ts` | Web Audio API two-tone chime for board detection events |
 
 ### Electron
 

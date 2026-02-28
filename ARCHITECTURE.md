@@ -21,8 +21,12 @@ frontend/ (React 19 + Vite)         backend/ (Express 5 + TypeScript)
 |  Metrics, Deploy)     |  events  |  -> AgentRunner (SDK)      |
 |                       |           |  -> TestRunner (pytest)    |
 | BottomBar             |           |  -> GitService (simple-git)|
-| (Git, Tests, Board,   |           |  -> HardwareService       |
-|  Teaching)            |           |  -> TeachingEngine         |
+| (Timeline, Tests,     |           |  -> HardwareService       |
+|  Trace, Board, Learn, |           |  -> TeachingEngine         |
+|  Progress, System,    |           |                           |
+|  Health, Tokens —     |           |                           |
+|  contextual           |           |                           |
+|  visibility)          |           |                           |
 |                       |           |  -> DeviceRegistry         |
 | FlashWizardModal      |           |     (plugin manifests)     |
 | (multi-device flash)  |           |                           |
@@ -208,4 +212,4 @@ Elisa is distributed as an Electron desktop app. The build pipeline:
 3. `npm run build:electron` -- tsc compiles `electron/main.ts` and `preload.ts`
 4. `npm run dist` -- electron-builder packages into installer (NSIS on Windows, DMG on macOS)
 
-Dev mode (`npm run dev` at root): runs backend, frontend, and Electron concurrently. Electron loads `http://localhost:5173` (Vite HMR). Production: Electron loads `http://localhost:{free port}` where Express serves everything.
+Dev mode (`npm run dev` at root): runs backend + frontend only (no Electron). `npm run dev:electron` runs backend, frontend, and Electron concurrently. Electron loads `http://localhost:5173` (Vite HMR). Production: Electron loads `http://localhost:{free port}` where Express serves everything.

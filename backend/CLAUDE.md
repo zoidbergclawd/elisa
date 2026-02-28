@@ -87,6 +87,8 @@ src/
       knowledgeBackpack.ts  In-memory TF-IDF keyword search, per-agent document store
       studyMode.ts       Quiz generation from backpack sources, progress tracking
       contentFilter.ts   PII detection/redaction, inappropriate topic flagging
+      toolExecutor.ts    Tool execution engine for agent tool-use blocks
+      gapDetector.ts     Knowledge gap detection from conversation history
       usageLimiter.ts    Token/turn rate limiting with tiered usage
       consentManager.ts  Parental consent tracking (COPPA compliance)
   prompts/
@@ -148,6 +150,14 @@ src/
 | GET | /v1/agents/:id/history | Conversation history (x-api-key auth) |
 | GET | /v1/agents/:id/gaps | Knowledge gap list (x-api-key auth) |
 | GET | /v1/agents/:id/heartbeat | Agent health check (no auth) |
+| POST | /v1/agents/:id/backpack | Add source to knowledge backpack (x-api-key auth) |
+| GET | /v1/agents/:id/backpack | List backpack sources (x-api-key auth) |
+| DELETE | /v1/agents/:id/backpack/:sourceId | Remove backpack source (x-api-key auth) |
+| POST | /v1/agents/:id/backpack/search | Search backpack (x-api-key auth) |
+| PUT | /v1/agents/:id/study | Update study mode config (x-api-key auth) |
+| GET | /v1/agents/:id/study | Get study progress (x-api-key auth) |
+| POST | /v1/agents/:id/study/quiz | Generate quiz (x-api-key auth) |
+| POST | /v1/agents/:id/study/answer | Submit quiz answer (x-api-key auth) |
 | WS | /v1/agents/:id/stream?api_key= | Streaming conversation turn (WebSocket) |
 | POST | /api/spec-graph | Create new Spec Graph |
 | GET | /api/spec-graph/:id | Get full graph (nodes + edges) |

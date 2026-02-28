@@ -105,6 +105,12 @@ In-memory per-agent document store with TF-IDF keyword search. Stores `BackpackS
 ### runtime/studyMode.ts (study mode)
 Spaced-repetition tutoring from Knowledge Backpack content. Generates `QuizQuestion` objects programmatically from backpack sources (fill-in-the-blank from key sentences). Tracks `StudyProgress` per agent: correct/total answers, source coverage. Ensures all sources are quizzed before repeating. Methods: `generateQuiz()`, `submitAnswer()`, `getProgress()`, `resetProgress()`.
 
+### runtime/toolExecutor.ts (tool executor)
+Matches `tool_use` blocks from Claude API responses against an agent's `ToolConfig[]` list and returns `tool_result` blocks. Phase 1: returns a structured acknowledgment echoing the input (proves round-trip works). Phase 2+: full portal integration (CLI/MCP adapters). Methods: `execute(toolUse)`, `executeAll(toolUseBlocks)`, `hasTools()`.
+
+### runtime/gapDetector.ts (knowledge gap detector)
+Heuristic-based detection of topics an agent couldn't answer, surfacing them as "things to add to your backpack." Three detection signals: exact fallback response match, uncertainty phrase regex matching (8 patterns), and short response for complex queries. Stores `GapEntry[]` per agent with query, timestamp, extracted topic. Methods: `detectGap(agentId, query, response, fallbackResponse?)`, `getGaps(agentId)`, `deleteAgent(agentId)`. Phase 1 is log-only — no automated remediation.
+
 ### runtime/contentFilter.ts (content filter)
 Post-processing regex-based filter for agent responses. Detects and redacts PII patterns (email, phone, physical address). Flags inappropriate topic indicators. Returns `FilterResult` with filtered content, flagged boolean, and descriptive flags array. No AI-powered filtering — lightweight regex patterns only.
 
@@ -116,6 +122,9 @@ Parental consent tracking for COPPA compliance. Three consent levels: `full_tran
 
 ### flashStrategy.ts (flash strategy abstraction)
 Defines `FlashStrategy` interface with `checkPrerequisites()` and `flash()` methods. Two implementations: `MpremoteFlashStrategy` for MicroPython file-by-file flash via mpremote, and `EsptoolFlashStrategy` for binary firmware flash via esptool. Factory function `selectFlashStrategy(method, hw)` dispatches based on the device manifest's `deploy.method` field. `EsptoolFlashStrategy` resolves the esptool command (tries `esptool.py`, `esptool`, then `python3 -m esptool`), detects serial port via USB VID:PID, writes runtime config as JSON, and streams flash progress. 120s timeout.
+
+### cloudDeployService.ts (Google Cloud Run deployment)
+Scaffolds and deploys IoT cloud dashboards to Google Cloud Run. Generates a crypto-random API key shared between ESP32 gateway and cloud dashboard. Copies scaffold template files (server.js, package.json, Dockerfile, public/) into `iot-dashboard/` subdirectory and injects the API key as a Dockerfile `ENV` directive. Enables required GCP APIs (Cloud Run, Cloud Build, Artifact Registry) idempotently via `gcloud services enable`. Deploys via `gcloud run deploy` with 5-minute timeout. Methods: `generateApiKey()`, `enableRequiredApis(project)`, `scaffoldDashboard(scaffoldDir, workDir, apiKey)`, `buildDeployCommand(dashboardDir, project, region)`, `deploy(scaffoldDir, workDir, project, region)`.
 
 ### redeployClassifier.ts (redeploy decision matrix)
 Pure function `classifyChanges(oldSpec, newSpec)` compares two NuggetSpec objects and returns `{ action: 'config_only' | 'firmware_required' | 'no_change', reasons: string[] }`. Compares `devices` array (plugin IDs, field values), `deployment` section, and `runtime` config. Firmware fields (WiFi SSID/password, wake word, LoRa, device name) trigger `firmware_required`. Runtime config changes (agent name, voice, display theme, greeting) are `config_only`. Used by `RuntimeProvisioner.classifyChanges()`.
