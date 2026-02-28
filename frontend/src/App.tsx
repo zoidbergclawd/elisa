@@ -271,6 +271,7 @@ export default function App() {
               isPlanning={isPlanning}
               contextFlows={contextFlows}
               correctionCycles={correctionCycles}
+              impactEstimate={impactEstimate}
             />
           </div>
         )}

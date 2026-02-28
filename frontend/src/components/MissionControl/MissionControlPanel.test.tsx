@@ -19,6 +19,12 @@ vi.mock('./NarratorFeed', () => ({
   default: vi.fn(() => <div data-testid="narrator-feed">NarratorFeed</div>),
 }));
 
+vi.mock('../shared/ImpactPreview', () => ({
+  default: vi.fn(({ estimate }: { estimate: { estimated_tasks: number; complexity: string } }) => (
+    <div data-testid="impact-preview">ImpactPreview (~{estimate.estimated_tasks} tasks, {estimate.complexity})</div>
+  )),
+}));
+
 const defaultProps = {
   tasks: [] as Task[],
   agents: [] as Agent[],
@@ -61,5 +67,61 @@ describe('MissionControlPanel', () => {
   it('renders NarratorFeed subcomponent', () => {
     render(<MissionControlPanel {...defaultProps} />);
     expect(screen.getByTestId('narrator-feed')).toBeInTheDocument();
+  });
+
+  // --- ImpactPreview integration ---
+
+  it('renders ImpactPreview when isPlanning=true and impactEstimate is provided', () => {
+    const impactEstimate = {
+      estimated_tasks: 5,
+      complexity: 'moderate' as const,
+      heaviest_requirements: ['Build game board'],
+    };
+    render(
+      <MissionControlPanel
+        {...defaultProps}
+        isPlanning={true}
+        impactEstimate={impactEstimate}
+      />,
+    );
+    expect(screen.getByTestId('impact-preview')).toBeInTheDocument();
+    expect(screen.getByText(/~5 tasks/)).toBeInTheDocument();
+  });
+
+  it('does NOT render ImpactPreview when isPlanning=false', () => {
+    const impactEstimate = {
+      estimated_tasks: 5,
+      complexity: 'moderate' as const,
+      heaviest_requirements: ['Build game board'],
+    };
+    render(
+      <MissionControlPanel
+        {...defaultProps}
+        isPlanning={false}
+        impactEstimate={impactEstimate}
+      />,
+    );
+    expect(screen.queryByTestId('impact-preview')).not.toBeInTheDocument();
+  });
+
+  it('does NOT render ImpactPreview when impactEstimate is null', () => {
+    render(
+      <MissionControlPanel
+        {...defaultProps}
+        isPlanning={true}
+        impactEstimate={null}
+      />,
+    );
+    expect(screen.queryByTestId('impact-preview')).not.toBeInTheDocument();
+  });
+
+  it('does NOT render ImpactPreview when impactEstimate is undefined (default)', () => {
+    render(
+      <MissionControlPanel
+        {...defaultProps}
+        isPlanning={true}
+      />,
+    );
+    expect(screen.queryByTestId('impact-preview')).not.toBeInTheDocument();
   });
 });
