@@ -1290,6 +1290,35 @@ describe('blockInterpreter', () => {
     });
   });
 
+  describe('agent_backpack block (PRD-001)', () => {
+    it('initialises knowledge with empty backpack_sources when present', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        goalBlock('Test', { type: 'agent_backpack' }),
+      ]));
+      expect(spec.knowledge).toBeDefined();
+      expect(spec.knowledge!.backpack_sources).toEqual([]);
+    });
+
+    it('does not overwrite existing backpack_sources', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        chainBlocks(
+          { type: 'nugget_goal', fields: { GOAL_TEXT: 'test' } },
+          { type: 'backpack_source', fields: { SOURCE_ID: 'src-1', SOURCE_TYPE: 'pdf', TITLE: 'Book' } },
+          { type: 'agent_backpack' },
+        ),
+      ]));
+      expect(spec.knowledge!.backpack_sources).toHaveLength(1);
+      expect(spec.knowledge!.backpack_sources![0].title).toBe('Book');
+    });
+
+    it('knowledge is undefined when agent_backpack block is absent', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        goalBlock('Test', { type: 'feature', fields: { FEATURE_TEXT: 'something' } }),
+      ]));
+      expect(spec.knowledge).toBeUndefined();
+    });
+  });
+
   describe('backpack_source block (PRD-001)', () => {
     it('extracts backpack source from block', () => {
       const spec = interpretWorkspace(makeWorkspace([
@@ -1380,6 +1409,21 @@ describe('blockInterpreter', () => {
         difficulty: 'medium',
         quiz_frequency: 5,
       });
+    });
+
+    it('handles string quiz_frequency from Blockly dropdown', () => {
+      const spec = interpretWorkspace(makeWorkspace([
+        goalBlock('Test', {
+          type: 'study_mode',
+          fields: {
+            STYLE: 'socratic',
+            DIFFICULTY: 'easy',
+            QUIZ_FREQUENCY: '3',
+          },
+        }),
+      ]));
+      expect(spec.knowledge!.study_mode!.quiz_frequency).toBe(3);
+      expect(typeof spec.knowledge!.study_mode!.quiz_frequency).toBe('number');
     });
 
     it('study_mode and backpack_source share knowledge object', () => {

@@ -461,6 +461,12 @@ export function interpretWorkspace(
         };
         break;
       }
+      // --- PRD-001: agent backpack declaration block ---
+      case 'agent_backpack': {
+        if (!spec.knowledge) spec.knowledge = {};
+        if (!spec.knowledge.backpack_sources) spec.knowledge.backpack_sources = [];
+        break;
+      }
       // --- PRD-001: backpack source block ---
       case 'backpack_source': {
         const sourceId = (block.fields?.SOURCE_ID as string) ?? '';
@@ -482,7 +488,8 @@ export function interpretWorkspace(
         const enabled = (block.fields?.ENABLED as boolean) ?? true;
         const style = (block.fields?.STYLE as string) ?? 'explain';
         const difficulty = (block.fields?.DIFFICULTY as string) ?? 'medium';
-        const quizFrequency = (block.fields?.QUIZ_FREQUENCY as number) ?? 5;
+        const rawFreq = block.fields?.QUIZ_FREQUENCY;
+        const quizFrequency = typeof rawFreq === 'number' ? rawFreq : Number(rawFreq) || 5;
         if (!spec.knowledge) spec.knowledge = {};
         spec.knowledge.study_mode = {
           enabled,

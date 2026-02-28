@@ -426,6 +426,55 @@ const blockDefs = [
     tooltip: 'Add a feedback loop that retries tasks when something goes wrong',
     helpUrl: '',
   },
+  // Knowledge category (NEW - colour 160, green)
+  {
+    type: 'agent_backpack',
+    message0: 'Agent Backpack',
+    previousStatement: null,
+    nextStatement: null,
+    colour: 160,
+    tooltip: 'Give your agent a backpack of knowledge to reference',
+    helpUrl: '',
+  },
+  {
+    type: 'study_mode',
+    message0: 'Study Mode  Style: %1  Difficulty: %2  Quiz every: %3 turns',
+    args0: [
+      {
+        type: 'field_dropdown',
+        name: 'STYLE',
+        options: [
+          ['Quiz Me', 'quiz_me'],
+          ['Explain', 'explain'],
+          ['Flashcards', 'flashcards'],
+          ['Socratic', 'socratic'],
+        ],
+      },
+      {
+        type: 'field_dropdown',
+        name: 'DIFFICULTY',
+        options: [
+          ['Easy', 'easy'],
+          ['Medium', 'medium'],
+          ['Hard', 'hard'],
+        ],
+      },
+      {
+        type: 'field_dropdown',
+        name: 'QUIZ_FREQUENCY',
+        options: [
+          ['3', '3'],
+          ['5', '5'],
+          ['10', '10'],
+        ],
+      },
+    ],
+    previousStatement: null,
+    nextStatement: null,
+    colour: 160,
+    tooltip: 'Turn your agent into a tutor that quizzes you on its backpack knowledge',
+    helpUrl: '',
+  },
   // Deploy category additions
   {
     type: 'deploy_both',

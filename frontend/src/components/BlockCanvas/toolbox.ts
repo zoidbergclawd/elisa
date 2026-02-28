@@ -83,6 +83,15 @@ export const toolbox = {
     },
     {
       kind: 'category',
+      name: 'Knowledge',
+      colour: '160',
+      contents: [
+        { kind: 'block', type: 'agent_backpack' },
+        { kind: 'block', type: 'study_mode' },
+      ],
+    },
+    {
+      kind: 'category',
       name: 'Minions',
       colour: '30',
       contents: [
