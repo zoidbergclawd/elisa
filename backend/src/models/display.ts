@@ -133,6 +133,38 @@ export const DEFAULT_THEMES: DisplayTheme[] = [
   },
 ];
 
+// ── Face Descriptor (parameterized face design) ─────────────────────
+
+/**
+ * Parameterized face descriptor for agent avatar customization.
+ * Deliberately constrained to ~50 meaningful combinations, all renderable
+ * with basic geometric shapes on both SVG (browser) and LVGL (firmware).
+ */
+export interface FaceDescriptor {
+  base_shape: 'round' | 'square' | 'oval';
+  eyes: {
+    style: 'dots' | 'circles' | 'anime' | 'pixels' | 'sleepy';
+    size: 'small' | 'medium' | 'large';
+    color: string; // hex color
+  };
+  mouth: {
+    style: 'line' | 'smile' | 'zigzag' | 'open' | 'cat';
+  };
+  expression: 'happy' | 'neutral' | 'excited' | 'shy' | 'cool';
+  colors: {
+    face: string;    // hex, face background
+    accent: string;  // hex, cheeks/highlights
+  };
+}
+
+export const DEFAULT_FACE: FaceDescriptor = {
+  base_shape: 'round',
+  eyes: { style: 'circles', size: 'medium', color: '#4361ee' },
+  mouth: { style: 'smile' },
+  expression: 'happy',
+  colors: { face: '#f0f0f0', accent: '#ffb3ba' },
+};
+
 // ── Display Constraints ──────────────────────────────────────────────
 
 /** BOX-3 screen resolution: 320x240 pixels. */

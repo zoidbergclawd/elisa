@@ -99,6 +99,32 @@ const FeedbackLoopSchema = z.object({
   connects_to: z.string().max(200),
 }).strict();
 
+// --- PRD-002: Face descriptor for parameterized agent face ---
+
+const HexColorSchema = z.string().max(20).regex(
+  /^#[0-9a-fA-F]{6}$/,
+  { message: 'Must be a 6-digit hex color (e.g. #4361ee)' },
+);
+
+const FaceDescriptorSchema = z.object({
+  base_shape: z.enum(['round', 'square', 'oval']),
+  eyes: z.object({
+    style: z.enum(['dots', 'circles', 'anime', 'pixels', 'sleepy']),
+    size: z.enum(['small', 'medium', 'large']),
+    color: HexColorSchema,
+  }).strict(),
+  mouth: z.object({
+    style: z.enum(['line', 'smile', 'zigzag', 'open', 'cat']),
+  }).strict(),
+  expression: z.enum(['happy', 'neutral', 'excited', 'shy', 'cool']),
+  colors: z.object({
+    face: HexColorSchema,
+    accent: HexColorSchema,
+  }).strict(),
+}).strict();
+
+export { FaceDescriptorSchema };
+
 // --- PRD-001: Agent runtime configuration ---
 
 const RuntimeConfigSchema = z.object({
@@ -107,6 +133,7 @@ const RuntimeConfigSchema = z.object({
   fallback_response: z.string().max(500).optional(),
   voice: z.string().max(50).optional(),
   display_theme: z.string().max(50).optional(),
+  face_descriptor: FaceDescriptorSchema.optional(),
 }).strict();
 
 // --- PRD-001: Knowledge backpack source ---
