@@ -8,6 +8,7 @@ import WorkspaceSidebar from './components/BlockCanvas/WorkspaceSidebar';
 import MissionControlPanel from './components/MissionControl/MissionControlPanel';
 import TeachingToast from './components/shared/TeachingToast';
 import MeetingInviteToast from './components/shared/MeetingInviteToast';
+import MeetingInviteCard from './components/shared/MeetingInviteCard';
 import MeetingModal from './components/Meeting/MeetingModal';
 import ReadinessBadge from './components/shared/ReadinessBadge';
 import LevelBadge from './components/shared/LevelBadge';
@@ -41,7 +42,7 @@ export default function App() {
   } = useBuildSession();
 
   const {
-    pendingInvite, activeMeeting, messages: meetingMessages, canvasState: meetingCanvasState,
+    inviteQueue, nextInvite, activeMeeting, messages: meetingMessages, canvasState: meetingCanvasState,
     handleMeetingEvent, acceptInvite, declineInvite,
     sendMessage: sendMeetingMessage, endMeeting, updateCanvas: updateMeetingCanvas,
   } = useMeetingSession(sessionId);
@@ -365,7 +366,7 @@ export default function App() {
       {/* Done mode overlay */}
       {uiState === 'done' && (
         <div className="fixed inset-0 modal-backdrop z-40 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="done-modal-title">
-          <div className="glass-elevated rounded-2xl shadow-2xl p-8 max-w-md mx-4 text-center animate-float-in">
+          <div className={`glass-elevated rounded-2xl shadow-2xl p-8 mx-4 text-center animate-float-in ${inviteQueue.length > 0 ? 'max-w-lg' : 'max-w-md'}`}>
             <h2 id="done-modal-title" className="text-2xl font-display font-bold mb-4 gradient-text-warm">Nugget Complete!</h2>
             <p className="text-atelier-text-secondary mb-4">
               {events.find(e => e.type === 'session_complete')?.type === 'session_complete'
@@ -380,6 +381,22 @@ export default function App() {
                     <li key={i}>- {m.headline}</li>
                   ))}
                 </ul>
+              </div>
+            )}
+            {/* Meeting invite cards embedded in done modal */}
+            {inviteQueue.length > 0 && (
+              <div className="mb-4">
+                <h3 className="text-sm font-semibold text-accent-sky mb-3">Your agents want to meet!</h3>
+                <div className="flex gap-3 justify-center flex-wrap">
+                  {inviteQueue.map(invite => (
+                    <MeetingInviteCard
+                      key={invite.meetingId}
+                      invite={invite}
+                      onAccept={acceptInvite}
+                      onDecline={declineInvite}
+                    />
+                  ))}
+                </div>
               </div>
             )}
             <div className="flex flex-col items-center gap-2">
@@ -422,12 +439,14 @@ export default function App() {
       {/* Teaching toast overlay */}
       <TeachingToast moment={currentToast} onDismiss={handleDismissToast} />
 
-      {/* Meeting invite toast */}
-      <MeetingInviteToast
-        invite={pendingInvite}
-        onAccept={acceptInvite}
-        onDecline={declineInvite}
-      />
+      {/* Meeting invite toast -- shown during builds, hidden at completion (cards shown in done modal instead) */}
+      {uiState !== 'done' && (
+        <MeetingInviteToast
+          invite={nextInvite}
+          onAccept={acceptInvite}
+          onDecline={declineInvite}
+        />
+      )}
 
       {/* Active meeting modal */}
       {activeMeeting && (

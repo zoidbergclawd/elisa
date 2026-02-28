@@ -1,6 +1,6 @@
 /** Meeting session state hook -- manages active meeting, invites, and WebSocket events. */
 
-import { useReducer, useCallback } from 'react';
+import { useReducer, useCallback, useMemo } from 'react';
 import type { WSEvent } from '../types';
 import type { MeetingInvite } from '../components/shared/MeetingInviteToast';
 import { authFetch } from '../lib/apiClient';
@@ -28,12 +28,12 @@ export interface ActiveMeeting {
 }
 
 export interface MeetingSessionState {
-  pendingInvite: MeetingInvite | null;
+  inviteQueue: MeetingInvite[];
   activeMeeting: ActiveMeeting | null;
 }
 
 const initialState: MeetingSessionState = {
-  pendingInvite: null,
+  inviteQueue: [],
   activeMeeting: null,
 };
 
@@ -46,29 +46,35 @@ type MeetingAction =
   | { type: 'MEETING_CANVAS_UPDATE'; meetingId: string; canvasType: string; data: Record<string, unknown> }
   | { type: 'MEETING_OUTCOME'; meetingId: string; outcomeType: string; data: Record<string, unknown> }
   | { type: 'MEETING_ENDED'; meetingId: string; outcomes: Array<{ type: string; data: Record<string, unknown> }> }
-  | { type: 'CLEAR_INVITE' }
+  | { type: 'CLEAR_INVITE'; meetingId: string }
   | { type: 'RESET' };
 
 // -- Reducer --
 
 function meetingReducer(state: MeetingSessionState, action: MeetingAction): MeetingSessionState {
   switch (action.type) {
-    case 'MEETING_INVITE':
+    case 'MEETING_INVITE': {
+      // Don't add duplicates (check meetingId)
+      if (state.inviteQueue.some(inv => inv.meetingId === action.meetingId)) return state;
       return {
         ...state,
-        pendingInvite: {
-          meetingId: action.meetingId,
-          meetingTypeId: action.meetingTypeId,
-          agentName: action.agentName,
-          title: action.title,
-          description: action.description,
-        },
+        inviteQueue: [
+          ...state.inviteQueue,
+          {
+            meetingId: action.meetingId,
+            meetingTypeId: action.meetingTypeId,
+            agentName: action.agentName,
+            title: action.title,
+            description: action.description,
+          },
+        ],
       };
+    }
 
     case 'MEETING_STARTED': {
       return {
         ...state,
-        pendingInvite: state.pendingInvite?.meetingId === action.meetingId ? null : state.pendingInvite,
+        inviteQueue: state.inviteQueue.filter(inv => inv.meetingId !== action.meetingId),
         activeMeeting: {
           meetingId: action.meetingId,
           meetingTypeId: action.meetingTypeId,
@@ -122,7 +128,7 @@ function meetingReducer(state: MeetingSessionState, action: MeetingAction): Meet
       };
 
     case 'CLEAR_INVITE':
-      return { ...state, pendingInvite: null };
+      return { ...state, inviteQueue: state.inviteQueue.filter(inv => inv.meetingId !== action.meetingId) };
 
     case 'RESET':
       return initialState;
@@ -204,7 +210,7 @@ export function useMeetingSession(sessionId: string | null) {
   /** Accept a meeting invite via REST API. */
   const acceptInvite = useCallback(async (meetingId: string) => {
     if (!sessionId) return;
-    dispatch({ type: 'CLEAR_INVITE' });
+    dispatch({ type: 'CLEAR_INVITE', meetingId });
     await authFetch(`/api/sessions/${sessionId}/meetings/${meetingId}/accept`, {
       method: 'POST',
     });
@@ -213,7 +219,7 @@ export function useMeetingSession(sessionId: string | null) {
   /** Decline a meeting invite via REST API. */
   const declineInvite = useCallback(async (meetingId: string) => {
     if (!sessionId) return;
-    dispatch({ type: 'CLEAR_INVITE' });
+    dispatch({ type: 'CLEAR_INVITE', meetingId });
     await authFetch(`/api/sessions/${sessionId}/meetings/${meetingId}/decline`, {
       method: 'POST',
     });
@@ -250,8 +256,12 @@ export function useMeetingSession(sessionId: string | null) {
     }
   }, [state.activeMeeting]);
 
+  /** First invite in queue (for toast display). */
+  const nextInvite = useMemo(() => state.inviteQueue[0] ?? null, [state.inviteQueue]);
+
   return {
-    pendingInvite: state.pendingInvite,
+    inviteQueue: state.inviteQueue,
+    nextInvite,
     activeMeeting: state.activeMeeting,
     messages: state.activeMeeting?.messages ?? [],
     canvasState: state.activeMeeting?.canvasState ?? { type: '', data: {} },

@@ -16,12 +16,211 @@ describe('useMeetingSession', () => {
   });
 
   describe('initial state', () => {
-    it('starts with no pending invite and no active meeting', () => {
+    it('starts with empty invite queue and no active meeting', () => {
       const { result } = renderHook(() => useMeetingSession('session-1'));
-      expect(result.current.pendingInvite).toBeNull();
+      expect(result.current.inviteQueue).toEqual([]);
+      expect(result.current.nextInvite).toBeNull();
       expect(result.current.activeMeeting).toBeNull();
       expect(result.current.messages).toEqual([]);
       expect(result.current.canvasState).toEqual({ type: '', data: {} });
+    });
+  });
+
+  describe('invite queue', () => {
+    it('accumulates multiple invites in queue', () => {
+      const { result } = renderHook(() => useMeetingSession('session-1'));
+
+      act(() => {
+        result.current.handleMeetingEvent({
+          type: 'meeting_invite',
+          meetingId: 'meeting-1',
+          meetingTypeId: 'doc-agent',
+          agentName: 'Doc',
+          title: 'Documentation Review',
+          description: 'Let me help with docs!',
+        });
+      });
+
+      act(() => {
+        result.current.handleMeetingEvent({
+          type: 'meeting_invite',
+          meetingId: 'meeting-2',
+          meetingTypeId: 'arch-agent',
+          agentName: 'Archie',
+          title: 'Architecture Review',
+          description: 'Let me show the architecture!',
+        });
+      });
+
+      act(() => {
+        result.current.handleMeetingEvent({
+          type: 'meeting_invite',
+          meetingId: 'meeting-3',
+          meetingTypeId: 'media-agent',
+          agentName: 'Media',
+          title: 'Media Campaign',
+          description: 'Let me create some media!',
+        });
+      });
+
+      expect(result.current.inviteQueue).toHaveLength(3);
+      expect(result.current.inviteQueue[0].meetingId).toBe('meeting-1');
+      expect(result.current.inviteQueue[1].meetingId).toBe('meeting-2');
+      expect(result.current.inviteQueue[2].meetingId).toBe('meeting-3');
+    });
+
+    it('nextInvite returns first item in queue', () => {
+      const { result } = renderHook(() => useMeetingSession('session-1'));
+
+      act(() => {
+        result.current.handleMeetingEvent({
+          type: 'meeting_invite',
+          meetingId: 'meeting-1',
+          meetingTypeId: 'doc-agent',
+          agentName: 'Doc',
+          title: 'Documentation',
+          description: 'Docs!',
+        });
+      });
+
+      act(() => {
+        result.current.handleMeetingEvent({
+          type: 'meeting_invite',
+          meetingId: 'meeting-2',
+          meetingTypeId: 'arch-agent',
+          agentName: 'Archie',
+          title: 'Architecture',
+          description: 'Arch!',
+        });
+      });
+
+      expect(result.current.nextInvite).toEqual({
+        meetingId: 'meeting-1',
+        meetingTypeId: 'doc-agent',
+        agentName: 'Doc',
+        title: 'Documentation',
+        description: 'Docs!',
+      });
+    });
+
+    it('does not add duplicate invites with same meetingId', () => {
+      const { result } = renderHook(() => useMeetingSession('session-1'));
+
+      act(() => {
+        result.current.handleMeetingEvent({
+          type: 'meeting_invite',
+          meetingId: 'meeting-1',
+          meetingTypeId: 'doc-agent',
+          agentName: 'Doc',
+          title: 'Documentation',
+          description: 'Docs!',
+        });
+      });
+
+      act(() => {
+        result.current.handleMeetingEvent({
+          type: 'meeting_invite',
+          meetingId: 'meeting-1',
+          meetingTypeId: 'doc-agent',
+          agentName: 'Doc',
+          title: 'Documentation',
+          description: 'Docs!',
+        });
+      });
+
+      expect(result.current.inviteQueue).toHaveLength(1);
+    });
+
+    it('CLEAR_INVITE removes only the specified meetingId', async () => {
+      const { result } = renderHook(() => useMeetingSession('session-1'));
+
+      // Add three invites
+      act(() => {
+        result.current.handleMeetingEvent({
+          type: 'meeting_invite',
+          meetingId: 'meeting-1',
+          meetingTypeId: 'doc-agent',
+          agentName: 'Doc',
+          title: 'Doc',
+          description: 'Docs!',
+        });
+      });
+
+      act(() => {
+        result.current.handleMeetingEvent({
+          type: 'meeting_invite',
+          meetingId: 'meeting-2',
+          meetingTypeId: 'arch-agent',
+          agentName: 'Archie',
+          title: 'Arch',
+          description: 'Arch!',
+        });
+      });
+
+      act(() => {
+        result.current.handleMeetingEvent({
+          type: 'meeting_invite',
+          meetingId: 'meeting-3',
+          meetingTypeId: 'media-agent',
+          agentName: 'Media',
+          title: 'Media',
+          description: 'Media!',
+        });
+      });
+
+      expect(result.current.inviteQueue).toHaveLength(3);
+
+      // Decline the middle one
+      await act(async () => {
+        await result.current.declineInvite('meeting-2');
+      });
+
+      expect(result.current.inviteQueue).toHaveLength(2);
+      expect(result.current.inviteQueue[0].meetingId).toBe('meeting-1');
+      expect(result.current.inviteQueue[1].meetingId).toBe('meeting-3');
+    });
+
+    it('MEETING_STARTED clears that invite from queue', () => {
+      const { result } = renderHook(() => useMeetingSession('session-1'));
+
+      act(() => {
+        result.current.handleMeetingEvent({
+          type: 'meeting_invite',
+          meetingId: 'meeting-1',
+          meetingTypeId: 'doc-agent',
+          agentName: 'Doc',
+          title: 'Doc',
+          description: 'Docs!',
+        });
+      });
+
+      act(() => {
+        result.current.handleMeetingEvent({
+          type: 'meeting_invite',
+          meetingId: 'meeting-2',
+          meetingTypeId: 'arch-agent',
+          agentName: 'Archie',
+          title: 'Arch',
+          description: 'Arch!',
+        });
+      });
+
+      expect(result.current.inviteQueue).toHaveLength(2);
+
+      act(() => {
+        result.current.handleMeetingEvent({
+          type: 'meeting_started',
+          meetingId: 'meeting-1',
+          meetingTypeId: 'doc-agent',
+          agentName: 'Doc',
+          canvasType: 'explain-it',
+        });
+      });
+
+      // meeting-1 should be removed from queue, meeting-2 remains
+      expect(result.current.inviteQueue).toHaveLength(1);
+      expect(result.current.inviteQueue[0].meetingId).toBe('meeting-2');
+      expect(result.current.activeMeeting).not.toBeNull();
     });
   });
 
@@ -41,7 +240,8 @@ describe('useMeetingSession', () => {
         expect(handled).toBe(true);
       });
 
-      expect(result.current.pendingInvite).toEqual({
+      expect(result.current.inviteQueue).toHaveLength(1);
+      expect(result.current.nextInvite).toEqual({
         meetingId: 'meeting-1',
         meetingTypeId: 'test-type',
         agentName: 'Pixel',
@@ -79,8 +279,9 @@ describe('useMeetingSession', () => {
       expect(result.current.activeMeeting).not.toBeNull();
       expect(result.current.activeMeeting!.meetingId).toBe('meeting-1');
       expect(result.current.activeMeeting!.canvasType).toBe('debug-canvas');
-      // Invite should be cleared
-      expect(result.current.pendingInvite).toBeNull();
+      // Invite should be cleared from queue
+      expect(result.current.inviteQueue).toHaveLength(0);
+      expect(result.current.nextInvite).toBeNull();
     });
 
     it('handles meeting_message event', () => {
@@ -268,7 +469,7 @@ describe('useMeetingSession', () => {
   });
 
   describe('acceptInvite', () => {
-    it('clears pending invite and calls REST API', async () => {
+    it('removes invite from queue and calls REST API', async () => {
       const { authFetch } = await import('../lib/apiClient');
       const { result } = renderHook(() => useMeetingSession('session-1'));
 
@@ -283,11 +484,24 @@ describe('useMeetingSession', () => {
         });
       });
 
+      act(() => {
+        result.current.handleMeetingEvent({
+          type: 'meeting_invite',
+          meetingId: 'meeting-2',
+          meetingTypeId: 'arch-agent',
+          agentName: 'Archie',
+          title: 'Arch',
+          description: 'Review',
+        });
+      });
+
       await act(async () => {
         await result.current.acceptInvite('meeting-1');
       });
 
-      expect(result.current.pendingInvite).toBeNull();
+      // meeting-1 removed, meeting-2 remains
+      expect(result.current.inviteQueue).toHaveLength(1);
+      expect(result.current.inviteQueue[0].meetingId).toBe('meeting-2');
       expect(authFetch).toHaveBeenCalledWith(
         '/api/sessions/session-1/meetings/meeting-1/accept',
         { method: 'POST' },
@@ -296,7 +510,7 @@ describe('useMeetingSession', () => {
   });
 
   describe('declineInvite', () => {
-    it('clears pending invite and calls REST API', async () => {
+    it('removes invite from queue and calls REST API', async () => {
       const { authFetch } = await import('../lib/apiClient');
       const { result } = renderHook(() => useMeetingSession('session-1'));
 
@@ -315,7 +529,8 @@ describe('useMeetingSession', () => {
         await result.current.declineInvite('meeting-1');
       });
 
-      expect(result.current.pendingInvite).toBeNull();
+      expect(result.current.inviteQueue).toHaveLength(0);
+      expect(result.current.nextInvite).toBeNull();
       expect(authFetch).toHaveBeenCalledWith(
         '/api/sessions/session-1/meetings/meeting-1/decline',
         { method: 'POST' },
@@ -401,7 +616,8 @@ describe('useMeetingSession', () => {
           description: 'Let me help',
         });
       });
-      expect(result.current.pendingInvite).not.toBeNull();
+      expect(result.current.inviteQueue).toHaveLength(1);
+      expect(result.current.nextInvite).not.toBeNull();
 
       // Started (after accept call on backend)
       act(() => {
@@ -414,7 +630,8 @@ describe('useMeetingSession', () => {
         });
       });
       expect(result.current.activeMeeting).not.toBeNull();
-      expect(result.current.pendingInvite).toBeNull();
+      expect(result.current.inviteQueue).toHaveLength(0);
+      expect(result.current.nextInvite).toBeNull();
 
       // Messages
       act(() => {
