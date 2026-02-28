@@ -165,7 +165,7 @@ src/
 | GET | /v1/agents/:id/study | Get study progress (x-api-key auth) |
 | POST | /v1/agents/:id/study/quiz | Generate quiz (x-api-key auth) |
 | POST | /v1/agents/:id/study/answer | Submit quiz answer (x-api-key auth) |
-| WS | /v1/agents/:id/stream?api_key= | Streaming conversation turn (WebSocket) |
+| WS | /v1/agents/:id/stream?api_key= | Streaming conversation turn (WebSocket, text + audio) |
 | POST | /api/spec-graph | Create new Spec Graph |
 | GET | /api/spec-graph/:id | Get full graph (nodes + edges) |
 | DELETE | /api/spec-graph/:id | Delete graph |
@@ -182,6 +182,13 @@ src/
 
 ### WebSocket Events (server -> client)
 `planning_started`, `plan_ready`, `task_started`, `task_completed`, `task_failed`, `agent_output`, `commit_created`, `token_usage`, `budget_warning`, `test_result`, `coverage_update`, `deploy_started`, `deploy_progress`, `deploy_checklist`, `deploy_complete` (includes `url?` for web deploys), `serial_data`, `human_gate`, `user_question`, `skill_*`, `teaching_moment`, `narrator_message`, `permission_auto_resolved`, `minion_state_change`, `workspace_created`, `flash_prompt`, `flash_progress`, `flash_complete`, `context_flow` (from_task_id, to_task_ids, summary_preview), `documentation_ready`, `meeting_invite`, `meeting_started`, `meeting_message`, `meeting_canvas_update`, `meeting_outcome`, `meeting_ended`, `traceability_update`, `traceability_summary`, `correction_cycle_started`, `correction_cycle_progress`, `convergence_update`, `composition_started` (graph_id, node_ids), `composition_impact` (graph_id, changed_node_id, affected_nodes, severity), `decomposition_narrated`, `impact_estimate`, `boundary_analysis`, `system_health_update`, `system_health_summary`, `health_history` (entries array for Architect trend tracking), `error`, `session_complete`
+
+### Agent Runtime WebSocket Events (/v1/agents/:id/stream)
+Client sends `turn` (text) or `audio_turn` (audio) messages. Server responds with:
+
+**Text turn**: `text_delta` (streaming chunks), `turn_complete` (final result)
+
+**Audio turn**: `audio_status` (status: transcribing/thinking/speaking — drives face animations), `audio_response` (transcript, response_text, audio_base64, usage)
 
 ## Key Patterns
 

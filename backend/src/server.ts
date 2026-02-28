@@ -397,19 +397,88 @@ export function startServer(
         ws.on('message', async (raw) => {
           try {
             const msg = JSON.parse(String(raw));
-            if (msg.type !== 'turn' || !msg.text) {
-              ws.send(JSON.stringify({ type: 'error', detail: 'Expected { type: "turn", text: string, session_id?: string }' }));
+
+            // ── Text turn ───────────────────────────────────────────
+            if (msg.type === 'turn') {
+              if (!msg.text) {
+                ws.send(JSON.stringify({ type: 'error', detail: 'Expected { type: "turn", text: string, session_id?: string }' }));
+                return;
+              }
+
+              for await (const chunk of turnPipeline.receiveStreamingTurn(wsAgentId, {
+                text: msg.text,
+                session_id: msg.session_id,
+              })) {
+                if (ws.readyState === WebSocket.OPEN) {
+                  ws.send(JSON.stringify(chunk));
+                }
+              }
               return;
             }
 
-            for await (const chunk of turnPipeline.receiveStreamingTurn(wsAgentId, {
-              text: msg.text,
-              session_id: msg.session_id,
-            })) {
-              if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify(chunk));
+            // ── Audio turn ──────────────────────────────────────────
+            if (msg.type === 'audio_turn') {
+              if (!audioPipeline || !audioPipeline.isAvailable()) {
+                ws.send(JSON.stringify({ type: 'error', detail: 'Audio features require OPENAI_API_KEY environment variable' }));
+                return;
               }
+
+              if (!msg.audio_base64 || typeof msg.audio_base64 !== 'string') {
+                ws.send(JSON.stringify({ type: 'error', detail: 'audio_base64 field is required' }));
+                return;
+              }
+
+              const format = (msg.format === 'wav' || msg.format === 'webm') ? msg.format : 'webm';
+
+              // Decode base64 audio
+              let audioBuffer: Buffer;
+              try {
+                audioBuffer = Buffer.from(msg.audio_base64, 'base64');
+              } catch {
+                ws.send(JSON.stringify({ type: 'error', detail: 'Invalid base64 audio data' }));
+                return;
+              }
+
+              if (audioBuffer.length === 0) {
+                ws.send(JSON.stringify({ type: 'error', detail: 'Empty audio data' }));
+                return;
+              }
+
+              // Send status events to drive face animation states
+              const sendStatus = (status: string) => {
+                if (ws.readyState === WebSocket.OPEN) {
+                  ws.send(JSON.stringify({ type: 'audio_status', status }));
+                }
+              };
+
+              sendStatus('transcribing');
+
+              const result = await audioPipeline.processAudioTurn(
+                wsAgentId,
+                audioBuffer,
+                format,
+                msg.session_id,
+              );
+
+              sendStatus('thinking');
+              sendStatus('speaking');
+
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                  type: 'audio_response',
+                  transcript: result.transcript,
+                  response_text: result.response_text,
+                  audio_base64: result.audio_base64,
+                  audio_format: result.audio_format,
+                  session_id: result.session_id,
+                  usage: result.usage,
+                }));
+              }
+              return;
             }
+
+            // ── Unknown message type ────────────────────────────────
+            ws.send(JSON.stringify({ type: 'error', detail: 'Unknown message type. Expected "turn" or "audio_turn"' }));
           } catch (err: unknown) {
             const message = err instanceof Error ? err.message : String(err);
             if (ws.readyState === WebSocket.OPEN) {
