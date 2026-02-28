@@ -267,6 +267,20 @@ describe('BOX-3 device.json manifest', () => {
       expect(fieldNames).toContain('SHOW_LISTENING');
       expect(fieldNames).toContain('SHOW_TRANSCRIPTION');
     });
+
+    it('DISPLAY_THEME options match all 9 canonical themes from DEFAULT_THEMES', () => {
+      const raw = loadManifest() as any;
+      const themeField = raw.blocks[1].args.find(
+        (a: any) => a.name === 'DISPLAY_THEME',
+      );
+      expect(themeField).toBeDefined();
+      expect(themeField.type).toBe('field_dropdown');
+      const values = themeField.options.map((o: [string, string]) => o[1]);
+      expect(values).toEqual([
+        'default', 'forest', 'sunset', 'pixel',
+        'space', 'nature', 'tech', 'candy', 'plain',
+      ]);
+    });
   });
 
   describe('spec_mapping', () => {

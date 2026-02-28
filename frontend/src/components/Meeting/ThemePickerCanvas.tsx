@@ -6,7 +6,7 @@ import DisplayThemePreview from '../shared/DisplayThemePreview';
 import type { DisplayTheme } from '../shared/DisplayThemePreview';
 
 /**
- * Default themes mirroring backend/src/models/display.ts DEFAULT_THEMES.
+ * All 9 themes matching backend/src/models/display.ts DEFAULT_THEMES.
  * Duplicated here to avoid cross-package imports.
  */
 const DEFAULT_THEMES: DisplayTheme[] = [
@@ -41,6 +41,46 @@ const DEFAULT_THEMES: DisplayTheme[] = [
     text_color: '#00ff00',
     accent_color: '#ff00ff',
     avatar_style: 'pixel',
+  },
+  {
+    id: 'space',
+    name: 'Space',
+    background_color: '#0a0a2e',
+    text_color: '#ffffff',
+    accent_color: '#7b68ee',
+    avatar_style: 'expressive',
+  },
+  {
+    id: 'nature',
+    name: 'Nature',
+    background_color: '#1a4d1a',
+    text_color: '#ffffff',
+    accent_color: '#4caf50',
+    avatar_style: 'expressive',
+  },
+  {
+    id: 'tech',
+    name: 'Tech',
+    background_color: '#0d1b2a',
+    text_color: '#ffffff',
+    accent_color: '#00bcd4',
+    avatar_style: 'minimal',
+  },
+  {
+    id: 'candy',
+    name: 'Candy',
+    background_color: '#fff0f5',
+    text_color: '#333333',
+    accent_color: '#ff69b4',
+    avatar_style: 'expressive',
+  },
+  {
+    id: 'plain',
+    name: 'Plain',
+    background_color: '#ffffff',
+    text_color: '#333333',
+    accent_color: '#333333',
+    avatar_style: 'minimal',
   },
 ];
 
@@ -94,7 +134,7 @@ function ThemePickerCanvas({ canvasState, onCanvasUpdate, onMaterialize }: Canva
 
       {/* Theme grid */}
       <div className="flex-1 overflow-y-auto">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-3 gap-3">
           {DEFAULT_THEMES.map((theme) => (
             <button
               key={theme.id}

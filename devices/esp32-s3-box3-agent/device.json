@@ -68,6 +68,10 @@
       "args": [
         { "type": "input_dummy" },
         { "type": "field_dropdown", "name": "DISPLAY_THEME", "options": [
+          ["Elisa Blue (default)", "default"],
+          ["Forest (green)", "forest"],
+          ["Sunset (warm)", "sunset"],
+          ["Pixel Art (retro)", "pixel"],
           ["Space (dark)", "space"],
           ["Nature (green)", "nature"],
           ["Tech (blue)", "tech"],
