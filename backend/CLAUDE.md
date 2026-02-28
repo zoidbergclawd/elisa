@@ -5,7 +5,7 @@ Express 5 + TypeScript server. Orchestrates AI agent teams via the Claude Agent 
 ## Stack
 
 - Express 5, TypeScript 5.9, Node.js (ES modules)
-- ws 8 (WebSocket), simple-git 3, serialport 12, @anthropic-ai/sdk, @anthropic-ai/claude-agent-sdk
+- ws 8 (WebSocket), simple-git 3, serialport 12, @anthropic-ai/sdk, @anthropic-ai/claude-agent-sdk, openai (STT/TTS)
 - Zod 4 (NuggetSpec validation)
 - archiver 7 (zip streaming for nugget export)
 - Vitest (tests)
@@ -28,7 +28,7 @@ src/
     session.ts           Type definitions: Session, Task, Agent, BuildPhase, WSEvent
     meeting.ts           Meeting framework types: MeetingType, MeetingSession, CanvasState, etc.
     display.ts           BOX-3 display protocol types: DisplayCommand, TouchEvent, DisplayTheme, constraints
-    runtime.ts           Agent Runtime types: AgentIdentity, ConversationTurn, UsageRecord, ProvisionResult, StudyModeConfig, QuizQuestion, BackpackSource
+    runtime.ts           Agent Runtime types: AgentIdentity, ConversationTurn, UsageRecord, ProvisionResult, StudyModeConfig, QuizQuestion, BackpackSource, AudioTurnResult, AudioTurnRequest
     specGraph.ts         Spec Graph types: SpecGraphNode, SpecGraphEdge, SpecGraph, SpecGraphPersistence
     composition.ts       Composition types: ComposeResult, EmergentBehavior, InterfaceContract, ImpactResult
     parentDashboard.ts   Parent Dashboard types: ParentDashboardData, UsageSummary, SafetyReport (Phase 2)
@@ -86,6 +86,7 @@ src/
       agentStore.ts      In-memory agent identity store (NuggetSpec -> AgentIdentity)
       conversationManager.ts  Per-agent conversation session and turn history
       turnPipeline.ts    Core conversation loop: input -> Claude API -> response
+      audioPipeline.ts   Audio conversation turns: mic -> OpenAI Whisper STT -> Claude text turn -> OpenAI TTS -> audio
       safetyGuardrails.ts  Safety prompt generator (PRD-001 Section 6.3)
       knowledgeBackpack.ts  In-memory TF-IDF keyword search, per-agent document store
       studyMode.ts       Quiz generation from backpack sources, progress tracking
@@ -152,6 +153,7 @@ src/
 | PUT | /v1/agents/:id | Update agent config (x-api-key auth) |
 | DELETE | /v1/agents/:id | Deprovision agent (x-api-key auth) |
 | POST | /v1/agents/:id/turn/text | Text conversation turn (x-api-key auth) |
+| POST | /v1/agents/:id/turn/audio | Audio conversation turn via OpenAI STT/TTS (x-api-key auth, 501 without OPENAI_API_KEY) |
 | GET | /v1/agents/:id/history | Conversation history (x-api-key auth) |
 | GET | /v1/agents/:id/gaps | Knowledge gap list (x-api-key auth) |
 | GET | /v1/agents/:id/heartbeat | Agent health check (no auth) |
@@ -225,4 +227,5 @@ Multi-device builds use the device plugin system:
 - `CORS_ORIGIN`: Override CORS origin in dev mode (default `http://localhost:5173`)
 - `CLAUDE_MODEL`: Override model for agents and teaching engine (default `claude-opus-4-6`)
 - `ANTHROPIC_API_KEY`: Required for Claude API/SDK access
+- `OPENAI_API_KEY`: Optional, enables audio features (STT via Whisper, TTS via OpenAI TTS)
 - Claude models: configurable via `CLAUDE_MODEL` env var (default claude-opus-4-6)

@@ -24,6 +24,7 @@ import { AgentStore } from './services/runtime/agentStore.js';
 import { ConversationManager } from './services/runtime/conversationManager.js';
 import { ConsentManager } from './services/runtime/consentManager.js';
 import { TurnPipeline } from './services/runtime/turnPipeline.js';
+import { AudioPipeline } from './services/runtime/audioPipeline.js';
 import { KnowledgeBackpack } from './services/runtime/knowledgeBackpack.js';
 import { StudyMode } from './services/runtime/studyMode.js';
 import { GapDetector } from './services/runtime/gapDetector.js';
@@ -104,6 +105,7 @@ const turnPipeline = new TurnPipeline({
   consentManager,
   gapDetector,
 });
+const audioPipeline = new AudioPipeline(turnPipeline, agentStore);
 
 // -- Health --
 
@@ -288,7 +290,7 @@ function createApp(staticDir?: string, authToken?: string) {
   app.use('/api/spec-graph', createSpecGraphRouter({ specGraphService, compositionService, sendEvent }));
 
   // Agent Runtime (PRD-001) — mounted at /v1/* with its own api-key auth
-  app.use('/v1', createRuntimeRouter({ agentStore, conversationManager, turnPipeline, knowledgeBackpack, studyMode, gapDetector }));
+  app.use('/v1', createRuntimeRouter({ agentStore, conversationManager, turnPipeline, audioPipeline, knowledgeBackpack, studyMode, gapDetector }));
 
   // Templates
   app.get('/api/templates', (_req, res) => {

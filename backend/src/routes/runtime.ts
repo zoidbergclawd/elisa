@@ -16,9 +16,11 @@ import { Router, type Request, type Response, type NextFunction } from 'express'
 import type { AgentStore } from '../services/runtime/agentStore.js';
 import type { ConversationManager } from '../services/runtime/conversationManager.js';
 import type { TurnPipeline } from '../services/runtime/turnPipeline.js';
+import type { AudioPipeline } from '../services/runtime/audioPipeline.js';
 import type { KnowledgeBackpack } from '../services/runtime/knowledgeBackpack.js';
 import type { StudyMode } from '../services/runtime/studyMode.js';
 import type { GapDetector } from '../services/runtime/gapDetector.js';
+import type { AudioInputFormat } from '../models/runtime.js';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -26,6 +28,7 @@ export interface RuntimeRouterDeps {
   agentStore: AgentStore;
   conversationManager: ConversationManager;
   turnPipeline: TurnPipeline;
+  audioPipeline?: AudioPipeline;
   knowledgeBackpack?: KnowledgeBackpack;
   studyMode?: StudyMode;
   gapDetector?: GapDetector;
@@ -64,7 +67,7 @@ function requireApiKey(agentStore: AgentStore) {
 // ── Router ────────────────────────────────────────────────────────────
 
 export function createRuntimeRouter(deps: RuntimeRouterDeps): Router {
-  const { agentStore, conversationManager, turnPipeline, knowledgeBackpack, studyMode, gapDetector } = deps;
+  const { agentStore, conversationManager, turnPipeline, audioPipeline, knowledgeBackpack, studyMode, gapDetector } = deps;
   const router = Router();
 
   const authMiddleware = requireApiKey(agentStore);
@@ -162,6 +165,55 @@ export function createRuntimeRouter(deps: RuntimeRouterDeps): Router {
         res.status(404).json({ detail: message });
       } else {
         res.status(500).json({ detail: `Turn failed: ${message}` });
+      }
+    }
+  });
+
+  // ── POST /v1/agents/:id/turn/audio — Audio conversation turn ────────
+  router.post('/agents/:id/turn/audio', authMiddleware, async (req: Request, res: Response) => {
+    if (!audioPipeline || !audioPipeline.isAvailable()) {
+      res.status(501).json({ detail: 'Audio features require OPENAI_API_KEY environment variable' });
+      return;
+    }
+
+    const agentId = req.params.id as string;
+
+    // Validate content type
+    const contentType = req.headers['content-type'] ?? '';
+    if (!contentType.includes('multipart/form-data') && !contentType.includes('application/octet-stream')) {
+      res.status(400).json({ detail: 'Content-Type must be multipart/form-data or application/octet-stream' });
+      return;
+    }
+
+    try {
+      // Read raw body as buffer
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      }
+      const audioBuffer = Buffer.concat(chunks);
+
+      if (audioBuffer.length === 0) {
+        res.status(400).json({ detail: 'No audio data received' });
+        return;
+      }
+
+      // Determine format from query param or content-type, default to 'webm'
+      const formatParam = (req.query.format as string)?.toLowerCase();
+      const format: AudioInputFormat = (formatParam === 'wav' || formatParam === 'webm')
+        ? formatParam
+        : 'webm';
+
+      const sessionId = req.query.session_id as string | undefined;
+
+      const result = await audioPipeline.processAudioTurn(agentId, audioBuffer, format, sessionId);
+      res.json(result);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes('not found')) {
+        res.status(404).json({ detail: message });
+      } else {
+        res.status(500).json({ detail: `Audio turn failed: ${message}` });
       }
     }
   });
