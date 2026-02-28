@@ -293,14 +293,10 @@ describe('BOX-3 device.json manifest', () => {
     it('extract_fields map block fields to spec fields', () => {
       const result = DeviceManifestSchema.parse(loadManifest());
       const fields = result.spec_mapping!.extract_fields;
-      expect(fields).toHaveProperty('agent.name');
-      expect(fields).toHaveProperty('agent.wake_word');
-      expect(fields).toHaveProperty('agent.voice');
-      expect(fields).toHaveProperty('wifi.ssid');
-      expect(fields).toHaveProperty('wifi.password');
-      expect(fields).toHaveProperty('display.theme');
-      expect(fields).toHaveProperty('display.show_listening');
-      expect(fields).toHaveProperty('display.show_transcription');
+      // Runtime config fields bridged from device block fields to NuggetSpec paths
+      expect(fields).toHaveProperty('runtime.agent_name', 'AGENT_NAME');
+      expect(fields).toHaveProperty('runtime.voice', 'TTS_VOICE');
+      expect(fields).toHaveProperty('runtime.display_theme', 'DISPLAY_THEME');
     });
   });
 

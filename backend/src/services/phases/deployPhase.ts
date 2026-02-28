@@ -15,6 +15,7 @@ import type { DeviceRegistry } from '../deviceRegistry.js';
 import { resolveDeployOrder } from './deployOrder.js';
 import { selectFlashStrategy } from '../flashStrategy.js';
 import type { RuntimeProvisioner } from '../runtimeProvisioner.js';
+import type { DeviceManifest } from '../../utils/deviceManifestSchema.js';
 
 function log(msg: string, data?: Record<string, unknown>): void {
   const ts = new Date().toISOString();
@@ -23,6 +24,66 @@ function log(msg: string, data?: Record<string, unknown>): void {
   } else {
     console.log(`[deploy ${ts}] ${msg}`);
   }
+}
+
+// ── spec_mapping bridge ───────────────────────────────────────────────
+
+/**
+ * Set a nested property on an object using a dot-delimited path.
+ * Creates intermediate objects as needed.
+ *
+ * Example: setNestedValue(obj, 'runtime.agent_name', 'Elisa')
+ * sets obj.runtime.agent_name = 'Elisa', creating obj.runtime if absent.
+ */
+export function setNestedValue(obj: Record<string, unknown>, path: string, value: unknown): void {
+  const parts = path.split('.');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- navigating arbitrary nested structure
+  let current: any = obj;
+  for (let i = 0; i < parts.length - 1; i++) {
+    if (current[parts[i]] === undefined || current[parts[i]] === null) {
+      current[parts[i]] = {};
+    }
+    current = current[parts[i]];
+  }
+  current[parts[parts.length - 1]] = value;
+}
+
+/**
+ * Resolve device block fields into the NuggetSpec according to each device
+ * plugin's spec_mapping.extract_fields declaration.
+ *
+ * Each entry in extract_fields maps a dot-delimited spec path (key) to a
+ * block field name (value). For example, `{ "runtime.agent_name": "AGENT_NAME" }`
+ * copies `device.fields.AGENT_NAME` into `spec.runtime.agent_name`.
+ *
+ * This must run BEFORE runtimeProvisioner.provision(spec) so that device
+ * block field values are available in the spec's runtime config.
+ *
+ * @param spec - The NuggetSpec to resolve. A deep clone is returned; the original is not mutated.
+ * @param getManifest - Lookup function to retrieve a DeviceManifest by plugin ID.
+ * @returns A new NuggetSpec with device fields mapped to their spec paths.
+ */
+export function resolveDeviceConfig(
+  spec: Record<string, unknown>,
+  getManifest: (pluginId: string) => DeviceManifest | undefined,
+): Record<string, unknown> {
+  const devices = spec.devices as Array<{ pluginId: string; fields?: Record<string, unknown> }> | undefined;
+  if (!Array.isArray(devices) || devices.length === 0) return spec;
+
+  const resolved = structuredClone(spec);
+  for (const device of (resolved.devices as Array<{ pluginId: string; fields?: Record<string, unknown> }>)) {
+    const manifest = getManifest(device.pluginId);
+    if (!manifest?.spec_mapping?.extract_fields) continue;
+
+    const extractFields = manifest.spec_mapping.extract_fields as Record<string, string>;
+    for (const [specPath, fieldKey] of Object.entries(extractFields)) {
+      if (typeof fieldKey !== 'string') continue;
+      if (device.fields?.[fieldKey] !== undefined) {
+        setNestedValue(resolved, specPath, device.fields[fieldKey]);
+      }
+    }
+  }
+  return resolved;
 }
 
 export class DeployPhase {
@@ -87,6 +148,18 @@ export class DeployPhase {
     log('deployDevices: resolved order', { order: order.map(d => d.pluginId) });
     const outputs: Record<string, string> = {};
 
+    // Resolve device block fields into the spec before provisioning.
+    // This maps e.g. device.fields.AGENT_NAME -> spec.runtime.agent_name
+    // according to each plugin's spec_mapping.extract_fields declaration.
+    const resolvedSpec = resolveDeviceConfig(
+      spec,
+      (pluginId) => this.deviceRegistry!.getDevice(pluginId),
+    );
+    log('deployDevices: resolved device config', {
+      hadMapping: resolvedSpec !== spec,
+      runtimeKeys: Object.keys((resolvedSpec as any).runtime ?? {}),
+    });
+
     // Run runtime provisioning for any device that requires it BEFORE device flash.
     // Provision results (agent_id, api_key, runtime_url) are added to outputs so
     // downstream devices can consume them via the provides/requires DAG.
@@ -107,7 +180,7 @@ export class DeployPhase {
           });
 
           try {
-            const provisionResult = await this.runtimeProvisioner.provision(spec);
+            const provisionResult = await this.runtimeProvisioner.provision(resolvedSpec as any);
             outputs['agent_id'] = provisionResult.agent_id;
             outputs['api_key'] = provisionResult.api_key;
             outputs['runtime_url'] = provisionResult.runtime_url;
