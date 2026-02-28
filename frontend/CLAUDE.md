@@ -20,12 +20,12 @@ src/
     AgentTeam/               Full-width agent cards + comms feed panel (Agents tab)
     TaskMap/                 Full-width interactive task DAG panel (Tasks tab)
     MissionControl/          MissionControlPanel (layout), MinionSquadPanel, NarratorFeed, TaskDAG, CommsFeed, MetricsPanel
-    BottomBar/               Bottom tabs: timeline, tests, board, learn, progress, tokens
+    BottomBar/               Resizable bottom tabs with contextual visibility: timeline, tests, trace, board, learn, progress, system, health, tokens
     Skills/                  Skills editor modal + template library + SkillFlowEditor (visual flow editor)
     Rules/                   Rules editor modal + template library
     Portals/                 Portals editor modal + registry
     Meeting/                 Agent Meeting framework: MeetingModal, canvasRegistry, DefaultCanvas, ThemePickerCanvas, BugDetectiveCanvas, BlueprintCanvas, CampaignCanvas, ExplainItCanvas, InterfaceDesignerCanvas, LaunchPadCanvas
-    shared/                  MainTabBar, GoButton, ModalHost, HumanGateModal, QuestionModal, TeachingToast, AgentAvatar, ReadinessBadge, ExamplePickerModal, DirectoryPickerModal, FlashWizardModal, MeetingInviteToast, DisplayThemePreview, EsptoolFlashStep, ImpactPreview
+    shared/                  MainTabBar, GoButton, ModalHost, HumanGateModal, QuestionModal, TeachingToast, AgentAvatar, ReadinessBadge, ExamplePickerModal, DirectoryPickerModal, FlashWizardModal, MeetingInviteToast, MeetingInviteCard, DisplayThemePreview, EsptoolFlashStep, ImpactPreview
   hooks/
     useBuildSession.ts       Build session state via useReducer (typed actions + reducer)
     useWorkspaceIO.ts        Workspace file I/O: open/save/load nugget, open folder, select example, syncDesignToStorage

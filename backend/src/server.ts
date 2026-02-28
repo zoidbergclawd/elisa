@@ -270,7 +270,7 @@ function createApp(staticDir?: string, authToken?: string) {
   const sendEvent = (sessionId: string, event: WSEvent) =>
     manager.sendEvent(sessionId, event);
 
-  app.use('/api/sessions', createSessionRouter({ store, sendEvent, hardwareService, deviceRegistry, meetingRegistry, meetingService, runtimeProvisioner }));
+  app.use('/api/sessions', createSessionRouter({ store, sendEvent, hardwareService, deviceRegistry, meetingRegistry, meetingService, runtimeProvisioner, specGraphService }));
   app.use('/api/skills', createSkillRouter({ store, sendEvent }));
   app.use('/api/hardware', createHardwareRouter({ store, hardwareService }));
   app.use('/api/workspace', createWorkspaceRouter());

@@ -25,7 +25,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/components/AgentTeam/` | Agent cards + comms feed |
 | `frontend/src/components/TaskMap/` | DAG visualization (@xyflow/react) |
 | `frontend/src/components/MissionControl/` | Shared: TaskDAG, CommsFeed, MetricsPanel |
-| `frontend/src/components/BottomBar/` | Tabs: Timeline, Tests, Board, Learn, Progress, Tokens |
+| `frontend/src/components/BottomBar/` | Resizable tabs with contextual visibility: Timeline, Tests, Trace, Board, Learn, Progress, System, Health, Tokens |
 | `frontend/src/components/Skills/` | Skills CRUD modal + template library |
 | `frontend/src/components/Rules/` | Rules CRUD modal + template library |
 | `frontend/src/components/Portals/` | Portal connections modal |
@@ -185,7 +185,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 |------|------|
 | `frontend/src/App.tsx` | Root component, layout, modal routing |
 | `frontend/src/components/BlockCanvas/BlockCanvas.tsx` | Blockly editor wrapper |
-| `frontend/src/components/BlockCanvas/blockDefinitions.ts` | Custom block types (12 categories) |
+| `frontend/src/components/BlockCanvas/blockDefinitions.ts` | Custom block types (13 categories incl. Knowledge) |
 | `frontend/src/components/BlockCanvas/blockInterpreter.ts` | Workspace -> NuggetSpec JSON conversion |
 | `frontend/src/components/BlockCanvas/toolbox.ts` | Blockly sidebar categories |
 | `frontend/src/components/BlockCanvas/skillFlowBlocks.ts` | Skill flow block definitions |
@@ -195,6 +195,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/components/shared/MinionAvatar.tsx` | Animated avatar for narrator/minion characters |
 | `frontend/src/components/shared/FlashWizardModal.tsx` | Multi-device flash wizard modal for IoT deploy |
 | `frontend/src/components/shared/MeetingInviteToast.tsx` | Floating meeting invite notification with accept/decline |
+| `frontend/src/components/shared/MeetingInviteCard.tsx` | Inline meeting invite card for done modal |
 | `frontend/src/components/shared/LevelBadge.tsx` | System level badge (Explorer/Builder/Architect) with tooltip |
 | `frontend/src/components/shared/DisplayThemePreview.tsx` | BOX-3 display theme preview (320x240 ratio, theme colors, avatar style) |
 | `frontend/src/components/Meeting/MeetingModal.tsx` | Full-screen meeting modal with chat panel and canvas area |
