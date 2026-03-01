@@ -336,4 +336,98 @@ describe('MeetingAgentService', () => {
     expect(result.canvasUpdate?.scene_title).toBe('Game');
     expect(result.text).not.toContain('"scene_title"');
   });
+
+  it('never leaks "draw" field code into chat text', async () => {
+    // Realistic scenario: agent outputs design-preview canvas with draw code
+    const response = '```canvas\n' + JSON.stringify({
+      scene_title: 'Space Dodge',
+      background: 'linear-gradient(135deg, #0a0a2e, #1a1a4e)',
+      palette: ['#00d4ff', '#ff006e', '#ffffff'],
+      elements: [
+        {
+          name: 'Starfield',
+          description: 'Twinkling stars',
+          color: '#ffffff',
+          draw: "ctx.fillStyle='#ffffff';for(let i=0;i<100;i++){const x=Math.sin(i)*w;const y=(i*7)%h;ctx.beginPath();ctx.arc(x,y,1.5,0,Math.PI*2);ctx.fill();}",
+        },
+        {
+          name: 'Spaceship',
+          description: 'A player spaceship',
+          color: '#00ff88',
+          draw: "ctx.fillStyle='#00ff88';ctx.beginPath();ctx.moveTo(w/2,h-50);ctx.lineTo(w/2-20,h-20);ctx.lineTo(w/2+20,h-20);ctx.fill();",
+        },
+      ],
+    }) + '\n```';
+    mockCreate.mockResolvedValueOnce({
+      content: [{ type: 'text', text: response }],
+    });
+
+    const result = await service.generateResponse(
+      meetingType,
+      [{ role: 'kid', content: 'Design my space game', timestamp: 1 }],
+      buildContext,
+    );
+    expect(result.canvasUpdate).toBeDefined();
+    expect(result.canvasUpdate?.scene_title).toBe('Space Dodge');
+    expect((result.canvasUpdate?.elements as any[])).toHaveLength(2);
+    // Critical: no JSON or draw code in chat
+    expect(result.text).not.toContain('ctx.');
+    expect(result.text).not.toContain('"draw"');
+    expect(result.text).not.toContain('"scene_title"');
+    expect(result.text).not.toContain('fillStyle');
+  });
+
+  it('never leaks pretty-printed JSON with draw code into chat', async () => {
+    // Scenario: agent outputs pretty-printed canvas with literal newlines in draw strings
+    const prettyJson = `\`\`\`canvas
+{
+  "scene_title": "Stars",
+  "elements": [
+    {
+      "name": "bg",
+      "draw": "ctx.fillStyle = '#000';
+ctx.fillRect(0, 0, w, h);"
+    }
+  ]
+}
+\`\`\``;
+    mockCreate.mockResolvedValueOnce({
+      content: [{ type: 'text', text: prettyJson }],
+    });
+
+    const result = await service.generateResponse(
+      meetingType,
+      [{ role: 'kid', content: 'Draw', timestamp: 1 }],
+      buildContext,
+    );
+    // Even with literal newlines in draw code, JSON should be extracted
+    expect(result.canvasUpdate).toBeDefined();
+    expect(result.text).not.toContain('"scene_title"');
+    expect(result.text).not.toContain('fillRect');
+  });
+
+  it('strips large unfenced canvas JSON with multiple elements', async () => {
+    // Scenario: agent outputs JSON without fencing but with canvas fields
+    const raw = 'Here is your design! ' + JSON.stringify({
+      scene_title: 'Cosmic',
+      background: '#000',
+      palette: ['#fff'],
+      elements: [
+        { name: 'A', description: 'a', color: '#fff', draw: 'ctx.fill()' },
+        { name: 'B', description: 'b', color: '#f00', draw: 'ctx.stroke()' },
+      ],
+    });
+    mockCreate.mockResolvedValueOnce({
+      content: [{ type: 'text', text: raw }],
+    });
+
+    const result = await service.generateResponse(
+      meetingType,
+      [{ role: 'kid', content: 'Go', timestamp: 1 }],
+      buildContext,
+    );
+    expect(result.canvasUpdate).toBeDefined();
+    expect(result.text).not.toContain('"elements"');
+    expect(result.text).not.toContain('ctx.fill');
+  });
 });

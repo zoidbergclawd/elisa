@@ -201,6 +201,28 @@ describe('DesignPreviewCanvas', () => {
     expect(mockCtx.createLinearGradient).toHaveBeenCalled();
   });
 
+  it('handles gradient color stops with percentages (e.g. #0a0a2e 0%)', () => {
+    const addColorStop = vi.fn();
+    mockCtx.createLinearGradient.mockReturnValue({ addColorStop });
+
+    const props = {
+      ...baseProps,
+      canvasState: {
+        type: 'design-preview',
+        data: {
+          scene_title: 'Pct Test',
+          background: 'linear-gradient(135deg, #0a0a2e 0%, #1a1a4e 100%)',
+          elements: [],
+        },
+      },
+    };
+    render(<DesignPreviewCanvas {...props} />);
+    expect(mockCtx.createLinearGradient).toHaveBeenCalled();
+    // Should strip percentages and pass color-only values
+    expect(addColorStop).toHaveBeenCalledWith(0, '#0a0a2e');
+    expect(addColorStop).toHaveBeenCalledWith(1, '#1a1a4e');
+  });
+
   it('backward compat: elements with only name/description still render', () => {
     const props = {
       ...baseProps,

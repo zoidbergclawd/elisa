@@ -57,7 +57,7 @@ App.tsx
   Meeting/BugDetectiveCanvas.tsx     Bug diagnosis canvas for debug-convergence meetings (expected vs actual, fix decision)
   Meeting/BlueprintCanvas.tsx        System overview walkthrough canvas for Architecture Agent meetings (tasks, reqs, stats)
   Meeting/CampaignCanvas.tsx         Creative asset builder canvas for Media Agent meetings (poster, social card, storyboard)
-  Meeting/DesignPreviewCanvas.tsx    Display-only design preview canvas for Design Review meetings (scene, palette, elements)
+  Meeting/DesignPreviewCanvas.tsx    Design preview canvas with Canvas 2D rendering for Design Review meetings (SceneComposition sub-component executes agent-generated draw code, drawBackground handles CSS gradients with percentage stops, fallback circles for elements without draw code)
   Meeting/InterfaceDesignerCanvas.tsx Interface contract builder canvas for Integration meetings (provides/requires/connections)
   Meeting/ExplainItCanvas.tsx        Document editor canvas for Documentation Agent meetings (title, content, suggestions, word count)
   Meeting/LaunchPadCanvas.tsx        Launch page builder canvas for Web Designer Agent meetings (template selection, customization, live preview)
