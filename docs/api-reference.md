@@ -71,6 +71,7 @@ All endpoints except `POST /v1/agents` and `GET /v1/agents/:id/heartbeat` requir
 | PUT | `/v1/agents/:id` | `NuggetSpec` | `{ status: "updated", agent_id }` | Update agent config |
 | DELETE | `/v1/agents/:id` | -- | `{ status: "deleted", agent_id }` | Deprovision agent (cleans up sessions, usage, backpack, study, gaps) |
 | POST | `/v1/agents/:id/turn/text` | `{ text: string, session_id?: string }` | `{ response, session_id, input_tokens, output_tokens }` | Send a text conversation turn |
+| POST | `/v1/agents/:id/turn/audio` | Audio file (multipart) | `{ transcript, response_text, audio_base64, audio_format, session_id, usage }` | Audio conversation turn via OpenAI STT/TTS (x-api-key auth, 501 without OPENAI_API_KEY) |
 | GET | `/v1/agents/:id/history` | -- | `{ agent_id, sessions: Array<{ session_id, turn_count, created_at }> }` | List conversation sessions for agent |
 | GET | `/v1/agents/:id/history?session_id=X&limit=N` | -- | `{ session_id, turns: ConversationTurn[] }` | Get turn history for a specific session |
 | GET | `/v1/agents/:id/heartbeat` | -- | `{ status: "online", agent_id, agent_name, session_count, total_input_tokens, total_output_tokens }` | Agent health check (no auth required) |
@@ -239,6 +240,13 @@ All events flow server to client as JSON with a `type` discriminator field.
 | `meeting_canvas_update` | `{ meetingId, canvasType, data }` | Canvas state updated during meeting |
 | `meeting_outcome` | `{ meetingId, outcomeType, data }` | Single outcome produced during meeting |
 | `meeting_ended` | `{ meetingId, outcomes: Array<{ type, data }> }` | Meeting ended with collected outcomes |
+
+### Agent Runtime WebSocket Events
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `audio_status` | `{ status: 'transcribing' \| 'thinking' \| 'speaking' }` | Audio turn processing state for face animation |
+| `audio_response` | `{ transcript, response_text, audio_base64, audio_format, session_id, usage }` | Completed audio turn result |
 
 ### Context Flow
 

@@ -43,7 +43,7 @@ src/
     deviceBlocks.ts          Dynamic Blockly block registration from device plugin manifests
     examples/                Bundled example nuggets (ES modules, offline-ready, device-gated via requiredDevices)
   types/
-    index.ts                 All TypeScript interfaces (NuggetSpec, Task, Agent, WSEvent, etc.)
+    index.ts                 All TypeScript interfaces (NuggetSpec, Task, Agent, WSEvent, FaceDescriptor, etc.)
 ```
 
 ## State Management

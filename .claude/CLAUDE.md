@@ -44,6 +44,7 @@ Do NOT update docs for internal implementation changes that don't affect the str
 - `NARRATOR_MODEL` -- Override narrator model (default: `claude-haiku-4-5-20251001`)
 - `CORS_ORIGIN` -- Override CORS origin in dev mode (default: `http://localhost:5173`)
 - `PORT` -- Backend port (default: 8000)
+- `OPENAI_API_KEY` -- Optional, enables audio features (STT via Whisper, TTS via OpenAI TTS)
 
 ## Setup and Launch
 
