@@ -199,7 +199,13 @@ function materializeDesignPreview(data: Record<string, unknown>): { files: Array
     palette,
     elements: elements.map((e: unknown) => {
       const el = e as Record<string, unknown>;
-      return { name: String(el.name ?? ''), description: String(el.description ?? '') };
+      const mapped: Record<string, string> = {
+        name: String(el.name ?? ''),
+        description: String(el.description ?? ''),
+      };
+      if (typeof el.color === 'string' && el.color) mapped.color = el.color;
+      if (typeof el.draw === 'string' && el.draw) mapped.draw = el.draw;
+      return mapped;
     }),
     exported_at: new Date().toISOString(),
   }, null, 2);

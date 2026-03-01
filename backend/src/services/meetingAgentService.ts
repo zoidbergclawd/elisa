@@ -48,10 +48,15 @@ const CANVAS_INSTRUCTIONS: Record<string, string> = {
     'Required fields: test_name (string), when (string -- trigger condition), then_expected (string -- what should happen), then_actual (string -- what actually happened), diagnosis_notes (array of strings with analysis steps).',
   'design-preview':
     'ALWAYS include a ```canvas JSON block with EVERY message so the kid sees the design evolve live. ' +
-    'Required fields: scene_title (string -- name of the visual element being designed), description (string -- what it looks like), ' +
-    'background (string -- CSS color or gradient, e.g. "#0a0a2e" or "linear-gradient(135deg, #0a0a2e, #1a1a4e)"), ' +
-    'palette (array of hex color strings, e.g. ["#ffffff", "#4361ee"]), ' +
-    'elements (array of {name, description} objects describing visual elements). ' +
+    'Required fields: scene_title (string), description (string), ' +
+    'background (CSS color or gradient, e.g. "#0a0a2e" or "linear-gradient(135deg, #0a0a2e, #1a1a4e)"), ' +
+    'palette (array of 3-6 hex color strings), ' +
+    'elements (array ordered background-first, then foreground, then UI. Each object has: ' +
+    'name (string), description (string), color (hex string from palette), ' +
+    'draw (string -- Canvas 2D JavaScript code. Variables: ctx (CanvasRenderingContext2D), w (canvas width), h (canvas height), color (hex string). ' +
+    'Use ctx.fillStyle, ctx.beginPath, ctx.arc, ctx.moveTo, ctx.lineTo, ctx.fill, ctx.stroke, ctx.save, ctx.restore, ' +
+    'ctx.shadowBlur, ctx.shadowColor, ctx.createLinearGradient, ctx.fillRect, ctx.font, ctx.fillText, etc. ' +
+    'Draw the element so it looks like the actual game asset. Background elements fill the canvas; sprites draw at a representative position; UI elements draw at edges.)). ' +
     'Update the canvas with every message so the kid sees their design evolve in real time.',
 };
 

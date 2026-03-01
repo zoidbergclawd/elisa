@@ -1,7 +1,50 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import DesignPreviewCanvas from './DesignPreviewCanvas';
 import { getCanvas } from './canvasRegistry';
+
+// Mock canvas 2d context
+const mockCtx = {
+  clearRect: vi.fn(),
+  fillRect: vi.fn(),
+  fillText: vi.fn(),
+  beginPath: vi.fn(),
+  arc: vi.fn(),
+  fill: vi.fn(),
+  save: vi.fn(),
+  restore: vi.fn(),
+  measureText: vi.fn().mockReturnValue({ width: 50 }),
+  createLinearGradient: vi.fn().mockReturnValue({
+    addColorStop: vi.fn(),
+  }),
+  roundRect: vi.fn(),
+  set fillStyle(_v: string) { /* noop */ },
+  get fillStyle() { return '#000'; },
+  set font(_v: string) { /* noop */ },
+  set textAlign(_v: string) { /* noop */ },
+  set textBaseline(_v: string) { /* noop */ },
+};
+
+beforeEach(() => {
+  vi.restoreAllMocks();
+  // Mock HTMLCanvasElement.getContext
+  HTMLCanvasElement.prototype.getContext = vi.fn().mockReturnValue(mockCtx);
+  // Mock getBoundingClientRect for canvas sizing
+  HTMLCanvasElement.prototype.getBoundingClientRect = vi.fn().mockReturnValue({
+    width: 640,
+    height: 360,
+    top: 0,
+    left: 0,
+    right: 640,
+    bottom: 360,
+  });
+  Object.keys(mockCtx).forEach((key) => {
+    const val = (mockCtx as Record<string, unknown>)[key];
+    if (typeof val === 'function') (val as ReturnType<typeof vi.fn>).mockClear();
+  });
+  // Reset the gradient mock
+  mockCtx.createLinearGradient.mockReturnValue({ addColorStop: vi.fn() });
+});
 
 const baseProps = {
   meetingId: 'meeting-1',
@@ -20,7 +63,7 @@ describe('DesignPreviewCanvas', () => {
     expect(screen.getAllByText('Start chatting -- the preview updates as you talk!').length).toBeGreaterThan(0);
   });
 
-  it('renders scene preview with title and description', () => {
+  it('renders scene canvas with elements', () => {
     const props = {
       ...baseProps,
       canvasState: {
@@ -29,14 +72,34 @@ describe('DesignPreviewCanvas', () => {
           scene_title: 'Starfield',
           description: 'A scrolling starfield with twinkling stars',
           background: '#0a0a2e',
+          elements: [
+            { name: 'Stars', description: 'Twinkling dots', color: '#ffffff' },
+          ],
         },
       },
     };
     render(<DesignPreviewCanvas {...props} />);
-    expect(screen.getByText('Starfield')).toBeTruthy();
-    expect(screen.getByText('A scrolling starfield with twinkling stars')).toBeTruthy();
-    const scenePreview = screen.getByTestId('scene-preview');
-    expect(scenePreview.style.background).toBe('rgb(10, 10, 46)');
+    expect(screen.getByTestId('scene-canvas')).toBeTruthy();
+    // Scene title is drawn on canvas, not DOM text
+    // Element details still render as DOM cards
+    expect(screen.getByText('Stars')).toBeTruthy();
+    expect(screen.getByText('Twinkling dots')).toBeTruthy();
+  });
+
+  it('scene canvas calls getContext 2d when elements are present', () => {
+    const props = {
+      ...baseProps,
+      canvasState: {
+        type: 'design-preview',
+        data: {
+          scene_title: 'Test',
+          background: '#111',
+          elements: [{ name: 'A', description: 'B' }],
+        },
+      },
+    };
+    render(<DesignPreviewCanvas {...props} />);
+    expect(HTMLCanvasElement.prototype.getContext).toHaveBeenCalledWith('2d');
   });
 
   it('renders color palette swatches', () => {
@@ -57,7 +120,7 @@ describe('DesignPreviewCanvas', () => {
     expect(screen.getByText('#ff6b6b')).toBeTruthy();
   });
 
-  it('renders design elements', () => {
+  it('renders design elements with color swatch', () => {
     const props = {
       ...baseProps,
       canvasState: {
@@ -65,7 +128,7 @@ describe('DesignPreviewCanvas', () => {
         data: {
           scene_title: 'Test',
           elements: [
-            { name: 'Twinkling Stars', description: 'Small white dots that blink' },
+            { name: 'Twinkling Stars', description: 'Small white dots that blink', color: '#ffffff' },
             { name: 'Nebula', description: 'Colorful cloud of gas' },
           ],
         },
@@ -76,6 +139,85 @@ describe('DesignPreviewCanvas', () => {
     expect(screen.getByText('Twinkling Stars')).toBeTruthy();
     expect(screen.getByText('Small white dots that blink')).toBeTruthy();
     expect(screen.getByText('Nebula')).toBeTruthy();
+  });
+
+  it('elements without draw render fallback (no crash)', () => {
+    const props = {
+      ...baseProps,
+      canvasState: {
+        type: 'design-preview',
+        data: {
+          scene_title: 'Test',
+          background: '#000',
+          elements: [
+            { name: 'NoDraw', description: 'Element without draw code' },
+          ],
+        },
+      },
+    };
+    // Should not throw
+    const { container } = render(<DesignPreviewCanvas {...props} />);
+    expect(container).toBeTruthy();
+    expect(screen.getByTestId('scene-canvas')).toBeTruthy();
+    // Fallback draws a circle -- ctx.arc should have been called
+    expect(mockCtx.arc).toHaveBeenCalled();
+  });
+
+  it('invalid draw code does not crash (try/catch works)', () => {
+    const props = {
+      ...baseProps,
+      canvasState: {
+        type: 'design-preview',
+        data: {
+          scene_title: 'Test',
+          background: '#000',
+          elements: [
+            { name: 'BadCode', description: 'Has bad draw', draw: 'throw new Error("boom")' },
+          ],
+        },
+      },
+    };
+    // Should not throw
+    const { container } = render(<DesignPreviewCanvas {...props} />);
+    expect(container).toBeTruthy();
+    expect(screen.getByTestId('scene-canvas')).toBeTruthy();
+    // Fallback should have been called after the error
+    expect(mockCtx.arc).toHaveBeenCalled();
+  });
+
+  it('background gradient parsing produces valid gradient', () => {
+    const props = {
+      ...baseProps,
+      canvasState: {
+        type: 'design-preview',
+        data: {
+          scene_title: 'Gradient Test',
+          background: 'linear-gradient(135deg, #0a0a2e, #1a1a4e)',
+          elements: [],
+        },
+      },
+    };
+    render(<DesignPreviewCanvas {...props} />);
+    expect(mockCtx.createLinearGradient).toHaveBeenCalled();
+  });
+
+  it('backward compat: elements with only name/description still render', () => {
+    const props = {
+      ...baseProps,
+      canvasState: {
+        type: 'design-preview',
+        data: {
+          scene_title: 'Compat',
+          elements: [
+            { name: 'OldElement', description: 'No color or draw field' },
+          ],
+        },
+      },
+    };
+    render(<DesignPreviewCanvas {...props} />);
+    expect(screen.getByText('OldElement')).toBeTruthy();
+    expect(screen.getByText('No color or draw field')).toBeTruthy();
+    expect(screen.getByTestId('scene-canvas')).toBeTruthy();
   });
 
   it('is registered in the canvas registry', () => {
