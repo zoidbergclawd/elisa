@@ -24,7 +24,7 @@ src/
     Skills/                  Skills editor modal + template library + SkillFlowEditor (visual flow editor)
     Rules/                   Rules editor modal + template library
     Portals/                 Portals editor modal + registry
-    Meeting/                 Agent Meeting framework: MeetingModal, canvasRegistry, DefaultCanvas, ThemePickerCanvas, BugDetectiveCanvas, BlueprintCanvas, CampaignCanvas, ExplainItCanvas, InterfaceDesignerCanvas, LaunchPadCanvas
+    Meeting/                 Agent Meeting framework: MeetingModal, canvasRegistry, DefaultCanvas, ThemePickerCanvas, BugDetectiveCanvas, BlueprintCanvas, CampaignCanvas, ExplainItCanvas, InterfaceDesignerCanvas, LaunchPadCanvas, AgentStudioCanvas, FacePreview
     shared/                  MainTabBar, GoButton, ModalHost, HumanGateModal, QuestionModal, TeachingToast, AgentAvatar, ReadinessBadge, ExamplePickerModal, DirectoryPickerModal, FlashWizardModal, MeetingInviteToast, MeetingInviteCard, DisplayThemePreview, EsptoolFlashStep, ImpactPreview
   hooks/
     useBuildSession.ts       Build session state via useReducer (typed actions + reducer)

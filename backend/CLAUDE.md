@@ -209,6 +209,8 @@ Client sends `turn` (text) or `audio_turn` (audio) messages. Server responds wit
 - **Timeouts**: Agent=300s, Tests=120s, Flash=60s. Task retry limit=2.
 - **Spec Graph**: Persistent directed graph of NuggetSpecs persisted to `.elisa/spec-graph.json`. Nodes=nuggets, edges=dependencies/interfaces. Graph context injected into MetaPlanner when `composition.parent_graph_id` is set.
 - **Nugget composition**: NuggetSpec `composition` field declares `provides`/`requires` interfaces. CompositionService merges selected nuggets, detects emergence (feedback loops, pipelines, hubs), resolves interface contracts. System level gates max nuggets (explorer=1, builder=3, architect=unlimited).
+- **Audio pipeline**: `AudioPipeline` wraps OpenAI Whisper (STT) + Claude text turn + OpenAI TTS into a single `processAudioTurn()` call. Used by both the REST `/turn/audio` endpoint and the WebSocket `/stream` handler. Gracefully returns 501 when `OPENAI_API_KEY` is not set.
+- **WebSocket audio streaming**: Agent Runtime WebSocket (`/v1/agents/:id/stream`) supports both text and audio turns. Audio turns emit `audio_status` events (transcribing/thinking/speaking) to drive face animations on device, followed by `audio_response` with transcript, response text, and base64-encoded TTS audio.
 
 ## Device Plugin Deploy Flow
 

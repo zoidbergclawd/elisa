@@ -1,6 +1,28 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import EsptoolFlashStep from './EsptoolFlashStep';
+import FacePreview from '../Meeting/FacePreview';
+import type { FaceDescriptor } from '../../types';
 import type { PreFlashChecklist } from '../../hooks/useBuildSession';
+
+type WizardStep = 'pre-flash' | 'connect' | 'flashing' | 'waking' | 'celebration';
+
+/** Default face used when no face_descriptor is provided. */
+const DEFAULT_FACE: FaceDescriptor = {
+  base_shape: 'round',
+  eyes: { style: 'circles', size: 'medium', color: '#4361ee' },
+  mouth: { style: 'smile' },
+  expression: 'happy',
+  colors: { face: '#f0f0f0', accent: '#ffb3ba' },
+};
+
+/** Map wizard step to FacePreview animation state. */
+const STEP_TO_FACE_STATE: Record<WizardStep, 'idle' | 'listening' | 'thinking' | 'speaking'> = {
+  'pre-flash': 'idle',
+  'connect': 'idle',
+  'flashing': 'thinking',
+  'waking': 'listening',
+  'celebration': 'speaking',
+};
 
 export interface FlashWizardModalProps {
   deviceRole: string;
@@ -12,13 +34,13 @@ export interface FlashWizardModalProps {
   agentName?: string;
   wakeWord?: string;
   agentId?: string;
+  agentGreeting?: string;
+  faceDescriptor?: FaceDescriptor;
   preFlashChecklist?: PreFlashChecklist;
   onReady: () => void;
   onCancel: () => void;
   onDashboard?: () => void;
 }
-
-type WizardStep = 'pre-flash' | 'connect' | 'flashing' | 'waking' | 'celebration';
 
 type HeartbeatStatus = 'polling' | 'success' | 'timeout';
 
@@ -52,6 +74,8 @@ export default function FlashWizardModal({
   agentName,
   wakeWord = 'Hey Elisa',
   agentId,
+  agentGreeting,
+  faceDescriptor,
   preFlashChecklist,
   onReady,
   onCancel,
@@ -64,6 +88,7 @@ export default function FlashWizardModal({
 
   const displayName = agentName || friendlyName;
   const isEsptool = flashMethod === 'esptool';
+  const activeFace = faceDescriptor ?? DEFAULT_FACE;
   const [manualPort, setManualPort] = useState('');
   const [heartbeatStatus, setHeartbeatStatus] = useState<HeartbeatStatus>('polling');
   const heartbeatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -218,32 +243,39 @@ export default function FlashWizardModal({
 
         {/* Step: Pre-flash checklist */}
         {currentStep === 'pre-flash' && preFlashChecklist && (
-          <div data-testid="pre-flash-checklist" className="space-y-3 mb-4">
-            <ChecklistItem
-              done={preFlashChecklist.specReady}
-              label={`Building ${displayName}'s personality...`}
-              doneLabel={`Built ${displayName}'s personality`}
-            />
-            <ChecklistItem
-              done={preFlashChecklist.runtimeProvisioned}
-              label={`Setting up ${displayName} in the cloud...`}
-              doneLabel={`${displayName} set up in the cloud`}
-            />
-            <ChecklistItem
-              done={preFlashChecklist.backpackReady}
-              label="Loading the knowledge backpack..."
-              doneLabel="Knowledge backpack loaded"
-            />
-            <ChecklistItem
-              done={preFlashChecklist.firmwareReady}
-              label="Preparing the firmware..."
-              doneLabel="Firmware ready"
-            />
-            {allChecklistDone && (
-              <p data-testid="checklist-complete" className="text-green-400 font-medium text-sm mt-2">
-                {displayName} is ready! Now let's put them on your device.
-              </p>
+          <div data-testid="pre-flash-checklist" className="flex items-start gap-4 mb-4">
+            {faceDescriptor && (
+              <div className="flex-shrink-0" data-testid="face-preview-container">
+                <FacePreview face={activeFace} size={120} state={STEP_TO_FACE_STATE[currentStep]} />
+              </div>
             )}
+            <div className="space-y-3 flex-1">
+              <ChecklistItem
+                done={preFlashChecklist.specReady}
+                label={`Building ${displayName}'s personality...`}
+                doneLabel={`Built ${displayName}'s personality`}
+              />
+              <ChecklistItem
+                done={preFlashChecklist.runtimeProvisioned}
+                label={`Setting up ${displayName} in the cloud...`}
+                doneLabel={`${displayName} set up in the cloud`}
+              />
+              <ChecklistItem
+                done={preFlashChecklist.backpackReady}
+                label="Loading the knowledge backpack..."
+                doneLabel="Knowledge backpack loaded"
+              />
+              <ChecklistItem
+                done={preFlashChecklist.firmwareReady}
+                label="Preparing the firmware..."
+                doneLabel="Firmware ready"
+              />
+              {allChecklistDone && (
+                <p data-testid="checklist-complete" className="text-green-400 font-medium text-sm mt-2">
+                  {displayName} is ready! Now let's put them on your device.
+                </p>
+              )}
+            </div>
           </div>
         )}
 
@@ -295,35 +327,49 @@ export default function FlashWizardModal({
         {/* Step: Flashing */}
         {currentStep === 'flashing' && (
           <div data-testid="flashing-step" className="mb-4">
-            {isEsptool ? (
-              <EsptoolFlashStep
-                step={esptoolStep}
-                progress={progress}
-                deviceName={displayName}
-                esptoolAvailable={true}
-                manualPort={manualPort}
-                onManualPortChange={setManualPort}
-              />
-            ) : (
-              <div>
-                <p className="text-sm text-atelier-text-secondary mb-2">
-                  {displayName} is loading...
-                </p>
-                <div className="w-full bg-atelier-surface rounded-full h-3">
-                  <div
-                    className="bg-accent-sky h-3 rounded-full transition-all duration-300"
-                    style={{ width: `${Math.min(progress, 100)}%` }}
-                  />
+            <div className={faceDescriptor ? 'flex items-start gap-4' : ''}>
+              {faceDescriptor && (
+                <div className="flex-shrink-0" data-testid="face-preview-container">
+                  <FacePreview face={activeFace} size={120} state={STEP_TO_FACE_STATE[currentStep]} />
                 </div>
-                <p className="text-xs text-atelier-text-muted mt-1">{progress}% complete</p>
+              )}
+              <div className="flex-1">
+                {isEsptool ? (
+                  <EsptoolFlashStep
+                    step={esptoolStep}
+                    progress={progress}
+                    deviceName={displayName}
+                    esptoolAvailable={true}
+                    manualPort={manualPort}
+                    onManualPortChange={setManualPort}
+                  />
+                ) : (
+                  <div>
+                    <p className="text-sm text-atelier-text-secondary mb-2">
+                      {displayName} is loading...
+                    </p>
+                    <div className="w-full bg-atelier-surface rounded-full h-3">
+                      <div
+                        className="bg-accent-sky h-3 rounded-full transition-all duration-300"
+                        style={{ width: `${Math.min(progress, 100)}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-atelier-text-muted mt-1">{progress}% complete</p>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
         )}
 
         {/* Step: Waking up */}
         {currentStep === 'waking' && (
           <div data-testid="waking-step" className="mb-4 text-center py-4">
+            {faceDescriptor && (
+              <div className="flex justify-center mb-4" data-testid="face-preview-container">
+                <FacePreview face={activeFace} size={120} state={STEP_TO_FACE_STATE[currentStep]} />
+              </div>
+            )}
             <p className="text-green-400 font-medium mb-3">Flash complete!</p>
             <p className="text-sm text-atelier-text-secondary mb-4">
               Unplug and replug your device to restart it.
@@ -387,9 +433,20 @@ export default function FlashWizardModal({
               }
             `}</style>
 
+            {faceDescriptor && (
+              <div className="flex justify-center mb-3" data-testid="face-preview-container">
+                <FacePreview face={activeFace} size={120} state={STEP_TO_FACE_STATE[currentStep]} />
+              </div>
+            )}
+
             <p className="text-2xl font-display font-bold text-atelier-text mb-2">
               {displayName}
             </p>
+            {agentGreeting && (
+              <p data-testid="agent-greeting" className="text-sm text-accent-sky/80 italic mb-2">
+                Your agent will say: &ldquo;{agentGreeting}&rdquo;
+              </p>
+            )}
             <p className="text-sm text-atelier-text-secondary mb-4">
               Say "<span className="text-accent-sky font-medium">{wakeWord}</span>" to meet {displayName}!
             </p>

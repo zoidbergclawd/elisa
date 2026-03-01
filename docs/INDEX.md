@@ -42,6 +42,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `devices/heltec-blink/` | Simple LED blink plugin |
 | `devices/cloud-dashboard/` | Cloud Run dashboard scaffold plugin |
 | `devices/esp32-s3-box3-agent/` | ESP32-S3-BOX-3 voice agent plugin (mic, speaker, touchscreen, esptool deploy) |
+| `devices/esp32-s3-box3-agent/firmware/` | Firmware scaffold: C source for config, API client, face renderer; based on esp-box chatgpt_demo |
 | `scripts/` | Build tooling (esbuild backend bundler, port killer, subdirectory installer) |
 | `docs/` | Product + technical documentation |
 | `docs/plans/` | Design docs and implementation plans (dated, archival) |
@@ -110,6 +111,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/services/impactEstimator.ts` | Pre-execution complexity analysis (task count, complexity, heaviest requirements) |
 | `backend/src/services/boundaryAnalyzer.ts` | System boundary analysis (inputs, outputs, boundary portals) |
 | `backend/src/services/healthTracker.ts` | System health vital signs during and after execution (score 0-100, grades A-F) |
+| `backend/src/services/runtime/audioPipeline.ts` | Audio conversation turns: OpenAI Whisper STT -> Claude text turn -> OpenAI TTS -> audio |
 | `backend/src/services/runtime/displayManager.ts` | BOX-3 display command generator (screen layouts, themes, truncation) |
 | `backend/src/services/runtime/agentStore.ts` | In-memory agent identity store (NuggetSpec -> AgentIdentity) |
 | `backend/src/services/runtime/conversationManager.ts` | Per-agent conversation session and turn history management |
@@ -203,6 +205,8 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/components/shared/MeetingInviteCard.tsx` | Inline meeting invite card for done modal |
 | `frontend/src/components/shared/LevelBadge.tsx` | System level badge (Explorer/Builder/Architect) with tooltip |
 | `frontend/src/components/shared/DisplayThemePreview.tsx` | BOX-3 display theme preview (320x240 ratio, theme colors, avatar style) |
+| `frontend/src/components/Meeting/AgentStudioCanvas.tsx` | Face designer canvas for Art Agent meetings (mix-and-match face parts, colors, theme) |
+| `frontend/src/components/Meeting/FacePreview.tsx` | Pure SVG face renderer from FaceDescriptor with animated states (idle, listening, thinking, speaking) |
 | `frontend/src/components/Meeting/MeetingModal.tsx` | Full-screen meeting modal with chat panel and canvas area |
 | `frontend/src/components/Meeting/canvasRegistry.ts` | Registry for pluggable meeting canvas components |
 | `frontend/src/components/MissionControl/MissionControlPanel.tsx` | Main mission control layout with narrator feed + minion squad |
