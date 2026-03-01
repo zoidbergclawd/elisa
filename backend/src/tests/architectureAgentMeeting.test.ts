@@ -44,6 +44,7 @@ describe('Architecture Agent trigger conditions', () => {
     registerArchitectureAgentMeeting(registry);
     const engine = new MeetingTriggerEngine(registry);
 
+    expect(engine.evaluate('plan_ready', {})).toHaveLength(0);
     expect(engine.evaluate('deploy_started', {})).toHaveLength(0);
     expect(engine.evaluate('task_completed', {})).toHaveLength(0);
     expect(engine.evaluate('task_started', {})).toHaveLength(0);

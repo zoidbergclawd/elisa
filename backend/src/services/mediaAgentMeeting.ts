@@ -10,7 +10,7 @@ export const MEDIA_AGENT_MEETING: MeetingType = {
   canvasType: 'campaign',
   triggerConditions: [
     {
-      event: 'session_complete',
+      event: 'plan_ready',
     },
   ],
   persona:

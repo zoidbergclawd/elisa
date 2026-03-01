@@ -32,7 +32,8 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/components/Meeting/` | Agent Meeting framework: modal, canvas registry, 8 specialized canvases |
 | `frontend/src/components/shared/` | Reusable: tabs, buttons, modals, toasts, avatars |
 | `frontend/src/hooks/` | React hooks (session state, health, WebSocket, board detect, skills) |
-| `frontend/src/lib/` | Utility functions (nugget files, skill templates, terminology) |
+| `frontend/src/lib/` | Utility functions (nugget files, skill templates, terminology, examples) |
+| `frontend/src/lib/examples/` | Bundled example nuggets (software + hardware, device-gated) |
 | `frontend/src/types/` | TypeScript definitions |
 | `devices/` | Device plugins (manifest-driven, `device.json` per plugin) |
 | `devices/_shared/` | Shared MicroPython library (`elisa_hardware.py`) |
@@ -86,7 +87,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 
 | File | Role |
 |------|------|
-| `backend/src/services/orchestrator.ts` | Thin coordinator: plan -> execute -> test -> deploy |
+| `backend/src/services/orchestrator.ts` | Thin coordinator: plan -> meeting triggers -> execute -> test -> deploy |
 | `backend/src/services/metaPlanner.ts` | Decomposes NuggetSpec into task DAG via Claude API |
 | `backend/src/services/agentRunner.ts` | Executes agents via Claude Agent SDK `query()` with streaming |
 | `backend/src/services/sessionStore.ts` | Session state management with JSON persistence |
@@ -101,6 +102,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/services/deviceRegistry.ts` | Loads device plugin manifests, provides block defs + agent context |
 | `backend/src/services/meetingRegistry.ts` | Meeting type registry + trigger engine for build events |
 | `backend/src/services/meetingService.ts` | In-memory meeting session lifecycle management |
+| `backend/src/services/meetingAgentService.ts` | Claude-powered agent responses for meeting conversations (Haiku model) |
 | `backend/src/services/systemLevelService.ts` | Progressive mastery level feature flags (Explorer/Builder/Architect) |
 | `backend/src/services/autoTestMatcher.ts` | Explorer-level auto-generation of behavioral tests for when_then requirements |
 | `backend/src/services/traceabilityTracker.ts` | Requirement-to-test traceability map with coverage tracking |
@@ -244,6 +246,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/lib/skillTemplates.ts` | Pre-built skill and rule templates |
 | `frontend/src/lib/terminology.ts` | Kid-friendly term mappings (technical -> friendly labels) |
 | `frontend/src/lib/deviceBlocks.ts` | Dynamic Blockly block registration from device plugin manifests |
+| `frontend/src/lib/examples/index.ts` | ExampleNugget interface + EXAMPLE_NUGGETS array (requiredDevices filtering) |
 | `frontend/src/lib/apiClient.ts` | Auth token management and authenticated fetch wrapper |
 | `frontend/src/lib/playChime.ts` | Web Audio API two-tone chime for board detection events |
 

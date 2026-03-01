@@ -128,4 +128,98 @@ describe('ExamplePickerModal', () => {
 
     expect(screen.getByText('1 skill')).toBeDefined();
   });
+
+  describe('device gating', () => {
+    const mixedExamples: ExampleNugget[] = [
+      {
+        id: 'web-app',
+        name: 'Web App',
+        description: 'A web app.',
+        category: 'web',
+        color: 'bg-blue-100',
+        accentColor: 'text-blue-700',
+        workspace: { blocks: { blocks: [] } },
+        skills: [],
+        rules: [],
+        portals: [],
+      },
+      {
+        id: 'hw-blink',
+        name: 'Blinky',
+        description: 'Blink an LED.',
+        category: 'hardware',
+        color: 'bg-green-100',
+        accentColor: 'text-green-700',
+        workspace: { blocks: { blocks: [] } },
+        skills: [],
+        rules: [],
+        portals: [],
+        requiredDevices: ['heltec-blink'],
+      },
+      {
+        id: 'box3-agent',
+        name: 'Space Commander',
+        description: 'Voice agent.',
+        category: 'hardware',
+        color: 'bg-violet-100',
+        accentColor: 'text-violet-700',
+        workspace: { blocks: { blocks: [] } },
+        skills: [],
+        rules: [],
+        portals: [],
+        requiredDevices: ['esp32-s3-box3-agent'],
+      },
+    ];
+
+    it('shows all examples when no availableDeviceIds provided', () => {
+      render(
+        <ExamplePickerModal examples={mixedExamples} onSelect={vi.fn()} onClose={vi.fn()} />,
+      );
+      // Without availableDeviceIds, only examples with no requiredDevices are shown
+      expect(screen.getByText('Web App')).toBeDefined();
+      expect(screen.queryByText('Blinky')).toBeNull();
+      expect(screen.queryByText('Space Commander')).toBeNull();
+    });
+
+    it('shows hardware examples when matching devices are available', () => {
+      render(
+        <ExamplePickerModal
+          examples={mixedExamples}
+          availableDeviceIds={['heltec-blink', 'esp32-s3-box3-agent']}
+          onSelect={vi.fn()}
+          onClose={vi.fn()}
+        />,
+      );
+      expect(screen.getByText('Web App')).toBeDefined();
+      expect(screen.getByText('Blinky')).toBeDefined();
+      expect(screen.getByText('Space Commander')).toBeDefined();
+    });
+
+    it('hides hardware examples when required devices are missing', () => {
+      render(
+        <ExamplePickerModal
+          examples={mixedExamples}
+          availableDeviceIds={['heltec-blink']}
+          onSelect={vi.fn()}
+          onClose={vi.fn()}
+        />,
+      );
+      expect(screen.getByText('Web App')).toBeDefined();
+      expect(screen.getByText('Blinky')).toBeDefined();
+      expect(screen.queryByText('Space Commander')).toBeNull();
+    });
+
+    it('shows examples without requiredDevices regardless of available devices', () => {
+      render(
+        <ExamplePickerModal
+          examples={mixedExamples}
+          availableDeviceIds={[]}
+          onSelect={vi.fn()}
+          onClose={vi.fn()}
+        />,
+      );
+      expect(screen.getByText('Web App')).toBeDefined();
+      expect(screen.queryByText('Blinky')).toBeNull();
+    });
+  });
 });

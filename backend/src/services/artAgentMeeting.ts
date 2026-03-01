@@ -21,6 +21,14 @@ export const ART_AGENT_MEETING: MeetingType = {
         return deviceType === 'box-3';
       },
     },
+    {
+      event: 'plan_ready',
+      filter: (data) => {
+        // Trigger at plan_ready when BOX-3 is in device_types
+        const deviceTypes = data.device_types as string[] | undefined;
+        return Array.isArray(deviceTypes) && deviceTypes.includes('box-3');
+      },
+    },
   ],
   persona:
     "I'm Pixel, your Art Director! I help you pick the perfect look for your BOX-3. " +

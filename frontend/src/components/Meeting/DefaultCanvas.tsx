@@ -1,8 +1,10 @@
 /** Default placeholder canvas shown when no specialized canvas is registered. */
 
 import type { CanvasProps } from './canvasRegistry';
+import { getRegisteredCanvasTypes } from './canvasRegistry';
 
 export default function DefaultCanvas({ canvasState }: CanvasProps) {
+  console.warn(`[DefaultCanvas] Fallback for canvasType="${canvasState.type}". Registered: [${getRegisteredCanvasTypes().join(', ')}]`);
   return (
     <div className="flex items-center justify-center h-full text-atelier-text-secondary">
       <div className="text-center">

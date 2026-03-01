@@ -2,6 +2,7 @@ import type { ExampleNugget } from '../../lib/examples';
 
 interface Props {
   examples: ExampleNugget[];
+  availableDeviceIds?: string[];
   onSelect: (example: ExampleNugget) => void;
   onClose: () => void;
 }
@@ -20,7 +21,12 @@ const CATEGORY_COLORS: Record<ExampleNugget['category'], string> = {
   game: 'bg-accent-gold/20 text-accent-gold',
 };
 
-export default function ExamplePickerModal({ examples, onSelect, onClose }: Props) {
+export default function ExamplePickerModal({ examples, availableDeviceIds, onSelect, onClose }: Props) {
+  const visible = examples.filter(ex =>
+    !ex.requiredDevices?.length ||
+    ex.requiredDevices.every(id => availableDeviceIds?.includes(id))
+  );
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="examples-modal-title">
       <div className="glass-elevated rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[80vh] flex flex-col animate-float-in">
@@ -31,7 +37,7 @@ export default function ExamplePickerModal({ examples, onSelect, onClose }: Prop
 
         <div className="flex-1 overflow-y-auto p-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {examples.map((example) => (
+            {visible.map((example) => (
               <button
                 key={example.id}
                 data-testid={`example-card-${example.id}`}

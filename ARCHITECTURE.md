@@ -61,6 +61,7 @@ Root `package.json` manages Electron and build tooling. Frontend and backend rem
 3. POST /api/sessions (create) -> POST /api/sessions/:id/start (with spec)
 4. Backend Orchestrator.run():
    a. PLAN:    MetaPlanner calls Claude API to decompose spec into task DAG
+   a2. MEETING TRIGGERS: Evaluate plan_ready triggers (Architecture, Media, Art agents)
    b. EXECUTE: Streaming-parallel pool (Promise.race, up to 3 concurrent tasks)
                 Each agent gets: role prompt + task description + context from prior tasks
                 Agent output streams via SDK -> WebSocket events to frontend
@@ -194,7 +195,7 @@ The ESP32-S3-BOX-3 voice agent plugin uses `esptool` for binary firmware flash:
 3. `EsptoolFlashStrategy` resolves esptool, detects serial port, and flashes the pre-built firmware binary
 4. Runtime config (agent_id, api_key, runtime_url) written as `runtime_config.json` alongside firmware
 5. On redeploy, `redeployClassifier.classifyChanges()` determines whether to reflash or just update config
-6. Art Agent meeting (`art-agent` type) triggers on deploy for BOX-3 theme customization
+6. Art Agent meeting (`art-agent` type) triggers on both `plan_ready` (when BOX-3 in device_types) and `deploy_started` for BOX-3 theme customization
 
 ## Module-Level Documentation
 

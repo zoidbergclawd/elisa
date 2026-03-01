@@ -97,4 +97,38 @@ describe('MeetingInviteToast', () => {
     );
     expect(screen.getByRole('alert')).toBeInTheDocument();
   });
+
+  it('does not auto-dismiss when pauseAutoDismiss is true', () => {
+    const onDecline = vi.fn();
+    render(
+      <MeetingInviteToast invite={mockInvite} onAccept={vi.fn()} onDecline={onDecline} pauseAutoDismiss />,
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+
+    expect(onDecline).not.toHaveBeenCalled();
+  });
+
+  it('resumes auto-dismiss when pauseAutoDismiss changes to false', () => {
+    const onDecline = vi.fn();
+    const { rerender } = render(
+      <MeetingInviteToast invite={mockInvite} onAccept={vi.fn()} onDecline={onDecline} pauseAutoDismiss />,
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+    expect(onDecline).not.toHaveBeenCalled();
+
+    rerender(
+      <MeetingInviteToast invite={mockInvite} onAccept={vi.fn()} onDecline={onDecline} pauseAutoDismiss={false} />,
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(30_000);
+    });
+    expect(onDecline).toHaveBeenCalledWith('meeting-1');
+  });
 });

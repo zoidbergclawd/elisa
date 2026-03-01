@@ -40,7 +40,7 @@ App.tsx
   shared/AgentAvatar.tsx             Status dot + role icon
   shared/MinionAvatar.tsx            Animated avatar for narrator/minion characters
   shared/ProofMeter.tsx              Segmented progress bar for requirement verification (green/red/amber)
-  shared/ExamplePickerModal.tsx      Card grid to choose bundled example nuggets
+  shared/ExamplePickerModal.tsx      Card grid to choose bundled example nuggets (filters by availableDeviceIds when requiredDevices specified)
   shared/DirectoryPickerModal.tsx    Text input fallback for non-Electron workspace directory selection
   shared/BoardDetectedModal.tsx      Celebrates ESP32 connection, offers one-click Portal creation
   shared/FlashWizardModal.tsx        Multi-device flash wizard with progress bar for IoT deploy
@@ -53,7 +53,7 @@ App.tsx
   Meeting/MeetingModal.tsx           Full-screen meeting modal: agent chat panel (left) + canvas area (right)
   Meeting/canvasRegistry.ts          Registry for pluggable canvas components (Map<canvasType, Component>)
   Meeting/DefaultCanvas.tsx          Placeholder canvas shown when no specialized canvas is registered
-  Meeting/ThemePickerCanvas.tsx      BOX-3 display theme picker canvas for Art Agent meetings
+  Meeting/ThemePickerCanvas.tsx      BOX-3 display theme picker canvas for Art Agent meetings (reads canvasState.data.currentTheme)
   Meeting/BugDetectiveCanvas.tsx     Bug diagnosis canvas for debug-convergence meetings (expected vs actual, fix decision)
   Meeting/BlueprintCanvas.tsx        System overview walkthrough canvas for Architecture Agent meetings (tasks, reqs, stats)
   Meeting/CampaignCanvas.tsx         Creative asset builder canvas for Media Agent meetings (poster, social card, storyboard)

@@ -14,15 +14,21 @@ interface MeetingInviteToastProps {
   invite: MeetingInvite | null;
   onAccept: (meetingId: string) => void;
   onDecline: (meetingId: string) => void;
+  /** When true, pause the auto-dismiss timer (e.g., while a meeting modal is open). */
+  pauseAutoDismiss?: boolean;
 }
 
 const AUTO_DISMISS_MS = 30_000;
 
-export default function MeetingInviteToast({ invite, onAccept, onDecline }: MeetingInviteToastProps) {
+export default function MeetingInviteToast({ invite, onAccept, onDecline, pauseAutoDismiss }: MeetingInviteToastProps) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!invite) return;
+    if (!invite || pauseAutoDismiss) {
+      // Clear any existing timer when paused or no invite
+      if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+      return;
+    }
 
     // Auto-dismiss after 30 seconds (treated as "Maybe Later")
     timerRef.current = setTimeout(() => {
@@ -32,13 +38,13 @@ export default function MeetingInviteToast({ invite, onAccept, onDecline }: Meet
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [invite, onDecline]);
+  }, [invite, onDecline, pauseAutoDismiss]);
 
   if (!invite) return null;
 
   return (
     <div
-      className="fixed right-4 top-20 w-80 glass-elevated rounded-xl shadow-lg p-4 z-50 animate-float-in border-l-2 border-l-accent-sky"
+      className="fixed right-4 top-20 w-80 glass-elevated rounded-xl shadow-lg p-4 z-[60] animate-float-in border-l-2 border-l-accent-sky"
       role="alert"
       aria-label="Meeting invite"
     >

@@ -201,6 +201,7 @@ export default function ModalHost({
       {examplePickerOpen && (
         <ExamplePickerModal
           examples={EXAMPLE_NUGGETS}
+          availableDeviceIds={deviceManifests.map(m => m.id)}
           onSelect={onSelectExample}
           onClose={onCloseExamplePicker}
         />

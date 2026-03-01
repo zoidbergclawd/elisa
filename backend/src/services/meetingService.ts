@@ -4,11 +4,13 @@ import { randomUUID } from 'node:crypto';
 import type {
   MeetingSession,
   MeetingMessage,
+  MeetingType,
   MeetingOutcome,
   CanvasState,
   MeetingStatus,
 } from '../models/meeting.js';
 import type { MeetingRegistry } from './meetingRegistry.js';
+import type { MeetingBuildContext } from './meetingAgentService.js';
 import type { SendEvent } from './phases/types.js';
 
 export class MeetingService {
@@ -78,13 +80,26 @@ export class MeetingService {
   /**
    * Accept a meeting invite -- transitions to 'active'.
    * Sends a `meeting_started` WebSocket event.
+   * Optionally pre-populates canvas data from build context.
    */
-  async acceptMeeting(meetingId: string, send: SendEvent): Promise<MeetingSession | null> {
+  async acceptMeeting(
+    meetingId: string,
+    send: SendEvent,
+    buildContext?: MeetingBuildContext,
+  ): Promise<MeetingSession | null> {
     const meeting = this.meetings.get(meetingId);
     if (!meeting) return null;
     if (meeting.status !== 'invited') return null;
 
     meeting.status = 'active';
+
+    // Pre-populate canvas data from build context
+    if (buildContext) {
+      const canvasData = this.buildCanvasData(meeting.canvas.type, buildContext);
+      if (canvasData) {
+        meeting.canvas.data = { ...meeting.canvas.data, ...canvasData };
+      }
+    }
 
     const meetingType = this.registry.getById(meeting.meetingTypeId);
     await send({
@@ -94,6 +109,16 @@ export class MeetingService {
       agentName: meeting.agentName,
       canvasType: meeting.canvas.type,
     });
+
+    // Emit canvas update if we pre-populated data
+    if (buildContext && Object.keys(meeting.canvas.data).length > 0) {
+      await send({
+        type: 'meeting_canvas_update',
+        meetingId,
+        canvasType: meeting.canvas.type,
+        data: meeting.canvas.data,
+      });
+    }
 
     // Send an initial greeting from the agent
     if (meetingType?.persona) {
@@ -230,6 +255,13 @@ export class MeetingService {
   }
 
   /**
+   * Get a meeting type by ID from the registry.
+   */
+  getMeetingType(id: string): MeetingType | undefined {
+    return this.registry.getById(id);
+  }
+
+  /**
    * Get a meeting by ID.
    */
   getMeeting(meetingId: string): MeetingSession | undefined {
@@ -276,5 +308,32 @@ export class MeetingService {
       this.meetings.delete(id);
     }
     this.sessionIndex.delete(sessionId);
+  }
+
+  /**
+   * Build initial canvas data from build context based on canvas type.
+   */
+  private buildCanvasData(
+    canvasType: string,
+    ctx: MeetingBuildContext,
+  ): Record<string, unknown> | null {
+    switch (canvasType) {
+      case 'blueprint': {
+        const done = ctx.tasks.filter(t => t.status === 'done').length;
+        return {
+          tasks: ctx.tasks.map(t => ({ ...t, name: t.title })),
+          requirements: ctx.requirements,
+          total_tasks: ctx.tasks.length,
+          tasks_done: done,
+          tests_passing: ctx.testsPassing ?? 0,
+          tests_total: ctx.testsTotal ?? 0,
+          health_score: ctx.healthScore ?? 0,
+        };
+      }
+      case 'theme-picker':
+        return { currentTheme: null };
+      default:
+        return null;
+    }
   }
 }

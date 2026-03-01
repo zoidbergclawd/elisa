@@ -50,6 +50,8 @@ export interface BuildSession {
   spec: NuggetSpec | null;
   tasks: Task[];
   agents: Agent[];
+  testResults?: { passed: number; total: number };
+  healthSummary?: { score: number; grade: string };
 }
 
 export interface AgentResult {
