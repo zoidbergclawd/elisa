@@ -229,4 +229,62 @@ describe('MeetingAgentService', () => {
     const callArgs = mockCreate.mock.calls[0][0];
     expect(callArgs.model).toBe('test-model');
   });
+
+  it('returns empty text when response is canvas-only (no raw JSON leak)', async () => {
+    mockCreate.mockResolvedValueOnce({
+      content: [{ type: 'text', text: '```canvas\n{"scene_title":"Stars","elements":[]}\n```' }],
+    });
+
+    const result = await service.generateResponse(
+      meetingType,
+      [{ role: 'kid', content: 'Show me stars', timestamp: 1 }],
+      buildContext,
+    );
+    expect(result.text).toBe('');
+    expect(result.canvasUpdate).toEqual({ scene_title: 'Stars', elements: [] });
+  });
+
+  it('extracts unfenced JSON from response text', async () => {
+    mockCreate.mockResolvedValueOnce({
+      content: [{ type: 'text', text: 'Here is the design!\n{"scene_title":"Galaxy","palette":["#fff"]}\nEnjoy!' }],
+    });
+
+    const result = await service.generateResponse(
+      meetingType,
+      [{ role: 'kid', content: 'Make a galaxy', timestamp: 1 }],
+      buildContext,
+    );
+    expect(result.canvasUpdate).toEqual({ scene_title: 'Galaxy', palette: ['#fff'] });
+    expect(result.text).toContain('Here is the design!');
+    expect(result.text).toContain('Enjoy!');
+    expect(result.text).not.toContain('scene_title');
+  });
+
+  it('strips malformed canvas fence without leaking to chat', async () => {
+    mockCreate.mockResolvedValueOnce({
+      content: [{ type: 'text', text: 'Check this out\n```canvas\n{not valid json}\n```' }],
+    });
+
+    const result = await service.generateResponse(
+      meetingType,
+      [{ role: 'kid', content: 'Hi', timestamp: 1 }],
+      buildContext,
+    );
+    expect(result.text).toBe('Check this out');
+    expect(result.canvasUpdate).toBeUndefined();
+  });
+
+  it('parses ```json fenced block with canvas fields', async () => {
+    mockCreate.mockResolvedValueOnce({
+      content: [{ type: 'text', text: 'Updated!\n```json\n{"tasks":[{"id":"t1","title":"A","status":"done"}]}\n```' }],
+    });
+
+    const result = await service.generateResponse(
+      meetingType,
+      [{ role: 'kid', content: 'Status?', timestamp: 1 }],
+      buildContext,
+    );
+    expect(result.text).toBe('Updated!');
+    expect(result.canvasUpdate).toEqual({ tasks: [{ id: 't1', title: 'A', status: 'done' }] });
+  });
 });

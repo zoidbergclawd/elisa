@@ -36,7 +36,9 @@ const CANVAS_INSTRUCTIONS: Record<string, string> = {
     'Required fields: poster_title (string), tagline (string), headline (string for social card), storyboard_panels (array of scene description strings).',
   'explain-it':
     'ALWAYS include a ```canvas JSON block when suggesting documentation content. ' +
-    'Required fields: title (string -- document title), content (string -- markdown body text), suggestions (array of {id, text} for additional content ideas).',
+    'Required fields: title (string -- document title), content (string -- the COMPLETE markdown body text of the entire document so far, ' +
+    'including everything previously written PLUS any new additions; never send just the new paragraph, always send the full accumulated document), ' +
+    'suggestions (array of {id, text} for additional content ideas).',
   'launch-pad':
     'ALWAYS include a ```canvas JSON block when suggesting a launch page design. ' +
     'Required fields: template (one of: "hero-features", "centered-minimal", "split-image-text", "full-banner"), headline (string -- project name), description (string -- tagline), primary_color (hex string), accent_color (hex string).',
@@ -176,45 +178,80 @@ export class MeetingAgentService {
   }
 
   private parseResponse(text: string): AgentResponse {
-    // Extract canvas JSON block if present (```canvas or ```json fallback)
-    const canvasMatch = text.match(/```canvas\s*\n?([\s\S]*?)\n?```/);
     let canvasUpdate: Record<string, unknown> | undefined;
     let cleanText = text;
 
+    // 1. Try ```canvas fenced block
+    const canvasMatch = text.match(/```canvas\s*\n?([\s\S]*?)\n?```/);
     if (canvasMatch) {
       try {
         canvasUpdate = JSON.parse(canvasMatch[1]);
       } catch {
         // Ignore malformed canvas JSON
       }
+      // Always strip the fence markers, even if JSON parse failed
       cleanText = text.replace(/```canvas\s*\n?[\s\S]*?\n?```/, '').trim();
     }
 
-    // Fallback: if no ```canvas block found, try ```json blocks that look like canvas data
+    // 2. Fallback: try ```json fenced block
     if (!canvasUpdate) {
       const jsonMatch = text.match(/```json\s*\n?([\s\S]*?)\n?```/);
       if (jsonMatch) {
         try {
           const parsed = JSON.parse(jsonMatch[1]);
-          // Only treat as canvas update if it's an object with recognized canvas fields
-          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-            const hasCanvasFields = 'scene_title' in parsed || 'title' in parsed ||
-              'palette' in parsed || 'elements' in parsed || 'background' in parsed ||
-              'tasks' in parsed || 'requirements' in parsed || 'health_score' in parsed ||
-              'poster_title' in parsed || 'headline' in parsed || 'template' in parsed ||
-              'currentTheme' in parsed || 'provides' in parsed || 'requires' in parsed ||
-              'test_name' in parsed || 'content' in parsed || 'suggestions' in parsed;
-            if (hasCanvasFields) {
-              canvasUpdate = parsed;
-              cleanText = text.replace(/```json\s*\n?[\s\S]*?\n?```/, '').trim();
-            }
+          if (this.looksLikeCanvasData(parsed)) {
+            canvasUpdate = parsed;
+            cleanText = text.replace(/```json\s*\n?[\s\S]*?\n?```/, '').trim();
           }
         } catch {
-          // Not valid JSON, leave as-is
+          // Not valid JSON -- still strip the fence to keep chat clean
+          cleanText = text.replace(/```json\s*\n?[\s\S]*?\n?```/, '').trim();
         }
       }
     }
 
-    return { text: cleanText || text, canvasUpdate };
+    // 3. Fallback: try unfenced JSON object in the text
+    if (!canvasUpdate) {
+      const extracted = this.extractUnfencedJson(cleanText);
+      if (extracted) {
+        canvasUpdate = extracted.data;
+        cleanText = extracted.remainingText;
+      }
+    }
+
+    // Never fall back to the original text -- empty is fine
+    return { text: cleanText, canvasUpdate };
+  }
+
+  /** Check if a parsed object looks like canvas data (has recognized fields). */
+  private looksLikeCanvasData(parsed: unknown): parsed is Record<string, unknown> {
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return false;
+    const obj = parsed as Record<string, unknown>;
+    return 'scene_title' in obj || 'title' in obj ||
+      'palette' in obj || 'elements' in obj || 'background' in obj ||
+      'tasks' in obj || 'requirements' in obj || 'health_score' in obj ||
+      'poster_title' in obj || 'headline' in obj || 'template' in obj ||
+      'currentTheme' in obj || 'provides' in obj || 'requires' in obj ||
+      'test_name' in obj || 'content' in obj || 'suggestions' in obj;
+  }
+
+  /** Try to extract an unfenced JSON object from the text. */
+  private extractUnfencedJson(text: string): { data: Record<string, unknown>; remainingText: string } | null {
+    const jsonStart = text.indexOf('{');
+    if (jsonStart === -1) return null;
+    const jsonEnd = text.lastIndexOf('}');
+    if (jsonEnd <= jsonStart) return null;
+
+    try {
+      const candidate = text.slice(jsonStart, jsonEnd + 1);
+      const parsed = JSON.parse(candidate);
+      if (this.looksLikeCanvasData(parsed)) {
+        const remaining = (text.slice(0, jsonStart) + text.slice(jsonEnd + 1)).trim();
+        return { data: parsed, remainingText: remaining };
+      }
+    } catch {
+      // Not valid JSON
+    }
+    return null;
   }
 }

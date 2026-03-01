@@ -29,23 +29,23 @@ describe('registerDocAgentMeeting', () => {
 });
 
 describe('Doc Agent trigger conditions', () => {
-  it('matches session_complete event', () => {
+  it('matches plan_ready event', () => {
     const registry = new MeetingRegistry();
     registerDocAgentMeeting(registry);
     const engine = new MeetingTriggerEngine(registry);
 
-    const matches = engine.evaluate('session_complete', {});
+    const matches = engine.evaluate('plan_ready', {});
     expect(matches).toHaveLength(1);
     expect(matches[0].meetingType.id).toBe('doc-agent');
   });
 
-  it('does not match non-session_complete events', () => {
+  it('does not match non-plan_ready events', () => {
     const registry = new MeetingRegistry();
     registerDocAgentMeeting(registry);
     const engine = new MeetingTriggerEngine(registry);
 
     expect(engine.evaluate('deploy_started', {})).toHaveLength(0);
     expect(engine.evaluate('task_completed', {})).toHaveLength(0);
-    expect(engine.evaluate('task_started', {})).toHaveLength(0);
+    expect(engine.evaluate('session_complete', {})).toHaveLength(0);
   });
 });

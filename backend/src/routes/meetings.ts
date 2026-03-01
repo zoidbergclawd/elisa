@@ -102,7 +102,9 @@ export function createMeetingRouter({ store, meetingService, meetingAgentService
     if (meetingType) {
       meetingAgentService.generateResponse(meetingType, result.messages, buildContext)
         .then(async (response) => {
-          await meetingService.sendMessage(req.params.meetingId, 'agent', response.text, makeSend(sessionId));
+          if (response.text) {
+            await meetingService.sendMessage(req.params.meetingId, 'agent', response.text, makeSend(sessionId));
+          }
           if (response.canvasUpdate) {
             await meetingService.updateCanvas(req.params.meetingId, response.canvasUpdate, makeSend(sessionId));
           }
@@ -173,7 +175,9 @@ export function createMeetingRouter({ store, meetingService, meetingAgentService
       const currentMeeting = meetingService.getMeeting(req.params.meetingId);
       meetingAgentService.generateResponse(meetingType, currentMeeting?.messages ?? [], buildContext)
         .then(async (response) => {
-          await meetingService.sendMessage(req.params.meetingId, 'agent', response.text, makeSend(sessionId));
+          if (response.text) {
+            await meetingService.sendMessage(req.params.meetingId, 'agent', response.text, makeSend(sessionId));
+          }
           if (response.canvasUpdate) {
             await meetingService.updateCanvas(req.params.meetingId, response.canvasUpdate, makeSend(sessionId));
           }
