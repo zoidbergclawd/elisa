@@ -100,6 +100,12 @@ describe('AgentStudioCanvas', () => {
     expect(screen.getByLabelText('Agent name')).toBeInTheDocument();
   });
 
+  it('agent name input enforces maxLength of 30 characters', () => {
+    render(<AgentStudioCanvas {...defaultProps} />);
+    const input = screen.getByLabelText('Agent name');
+    expect(input).toHaveAttribute('maxLength', '30');
+  });
+
   it('renders the live preview', () => {
     render(<AgentStudioCanvas {...defaultProps} />);
     expect(screen.getByTestId('face-preview')).toBeInTheDocument();
