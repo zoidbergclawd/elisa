@@ -83,7 +83,7 @@ describe('DesignPreviewCanvas', () => {
     expect(canvas).toBeTruthy();
   });
 
-  it('renders save button and calls onMaterialize', () => {
+  it('renders save button and calls onMaterialize', async () => {
     const onMaterialize = vi.fn().mockResolvedValue({ files: ['test.json'], primaryFile: 'test.json' });
     const props = {
       ...baseProps,
@@ -97,5 +97,7 @@ describe('DesignPreviewCanvas', () => {
     const saveBtn = screen.getByText('Save Design Spec');
     fireEvent.click(saveBtn);
     expect(onMaterialize).toHaveBeenCalledWith(props.canvasState.data);
+    // Wait for status to update
+    expect(await screen.findByText('Saved!')).toBeTruthy();
   });
 });

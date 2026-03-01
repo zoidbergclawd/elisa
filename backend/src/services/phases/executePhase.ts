@@ -106,6 +106,7 @@ export class ExecutePhase {
     const failed = new Set<string>();
     const inFlight = new Map<string, Promise<void>>();
     const meetingBlocked = new Set<string>();
+    const meetingEvaluated = new Set<string>();
     const meetingDesignContext = new Map<string, Record<string, unknown>>();
     const MAX_CONCURRENT = MAX_CONCURRENT_TASKS;
 
@@ -167,10 +168,12 @@ export class ExecutePhase {
       const ready = this.deps.dag.getReady(settled())
         .filter((id) => !inFlight.has(id));
 
-      // Pre-pass: evaluate meetings for ready tasks not yet blocked or in-flight
+      // Pre-pass: evaluate meetings for ready tasks not yet blocked or in-flight.
+      // meetingEvaluated prevents re-triggering after a meeting ends for the same task.
       for (const taskId of ready) {
-        if (meetingBlocked.has(taskId) || failed.has(taskId)) continue;
+        if (meetingBlocked.has(taskId) || meetingEvaluated.has(taskId) || failed.has(taskId)) continue;
         if (this.wouldTriggerMeeting(taskId)) {
+          meetingEvaluated.add(taskId);
           meetingBlocked.add(taskId);
           // Fire-and-forget: create invites, wait for meetings, capture design context, then unblock
           this.waitForMeetings(ctx, taskId, meetingBlocked, meetingDesignContext);

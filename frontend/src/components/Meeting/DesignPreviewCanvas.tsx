@@ -1,5 +1,6 @@
 /** Design Preview canvas -- display-only design preview for Design Review meetings. */
 
+import { useState } from 'react';
 import { registerCanvas, type CanvasProps } from './canvasRegistry';
 
 interface DesignElement {
@@ -24,6 +25,7 @@ function parsePalette(data: Record<string, unknown>): string[] {
 }
 
 function DesignPreviewCanvas({ canvasState, onMaterialize }: CanvasProps) {
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const { data } = canvasState;
   const sceneTitle = typeof data.scene_title === 'string' ? data.scene_title : '';
   const description = typeof data.description === 'string' ? data.description : '';
@@ -119,10 +121,29 @@ function DesignPreviewCanvas({ canvasState, onMaterialize }: CanvasProps) {
           {onMaterialize && (
             <button
               type="button"
-              onClick={() => onMaterialize(data)}
-              className="w-full px-4 py-2 rounded-xl text-sm cursor-pointer border border-accent-sky/30 text-accent-sky hover:bg-accent-sky/10 transition-colors"
+              disabled={saveStatus === 'saving'}
+              onClick={async () => {
+                setSaveStatus('saving');
+                try {
+                  const result = await onMaterialize(data);
+                  setSaveStatus(result ? 'saved' : 'error');
+                } catch {
+                  setSaveStatus('error');
+                }
+                setTimeout(() => setSaveStatus('idle'), 3000);
+              }}
+              className={`w-full px-4 py-2 rounded-xl text-sm cursor-pointer border transition-colors ${
+                saveStatus === 'saved'
+                  ? 'border-green-500/30 text-green-400 bg-green-950/20'
+                  : saveStatus === 'error'
+                    ? 'border-red-500/30 text-red-400 bg-red-950/20'
+                    : 'border-accent-sky/30 text-accent-sky hover:bg-accent-sky/10'
+              } ${saveStatus === 'saving' ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
-              Save Design Spec
+              {saveStatus === 'saving' ? 'Saving...'
+                : saveStatus === 'saved' ? 'Saved!'
+                : saveStatus === 'error' ? 'Save failed -- try again'
+                : 'Save Design Spec'}
             </button>
           )}
         </div>
