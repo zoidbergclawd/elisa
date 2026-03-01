@@ -185,6 +185,32 @@ function materializeThemePicker(data: Record<string, unknown>): { files: Array<{
   };
 }
 
+function materializeDesignPreview(data: Record<string, unknown>): { files: Array<{ path: string; content: string }>; primaryFile: string } {
+  const sceneTitle = typeof data.scene_title === 'string' ? data.scene_title.trim() : 'design';
+  const description = typeof data.description === 'string' ? data.description : '';
+  const background = typeof data.background === 'string' ? data.background : '';
+  const palette = Array.isArray(data.palette) ? data.palette.filter((c): c is string => typeof c === 'string') : [];
+  const elements = Array.isArray(data.elements) ? data.elements : [];
+
+  const spec = JSON.stringify({
+    scene_title: sceneTitle,
+    description,
+    background,
+    palette,
+    elements: elements.map((e: unknown) => {
+      const el = e as Record<string, unknown>;
+      return { name: String(el.name ?? ''), description: String(el.description ?? '') };
+    }),
+    exported_at: new Date().toISOString(),
+  }, null, 2);
+
+  const filename = sceneTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-design.json';
+  return {
+    files: [{ path: filename, content: spec }],
+    primaryFile: filename,
+  };
+}
+
 // -- Dispatcher --
 
 const materializers: Record<string, (data: Record<string, unknown>) => { files: Array<{ path: string; content: string }>; primaryFile: string }> = {
@@ -193,6 +219,7 @@ const materializers: Record<string, (data: Record<string, unknown>) => { files: 
   campaign: materializeCampaign,
   'interface-designer': materializeInterfaceDesigner,
   'theme-picker': materializeThemePicker,
+  'design-preview': materializeDesignPreview,
 };
 
 /**

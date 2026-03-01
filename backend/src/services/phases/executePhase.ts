@@ -25,6 +25,7 @@ import { TokenTracker, DEFAULT_RESERVED_PER_TASK } from '../../utils/tokenTracke
 import { TaskDAG } from '../../utils/dag.js';
 import { MAX_CONCURRENT_TASKS, MEETING_BLOCK_TIMEOUT_MS } from '../../utils/constants.js';
 import type { MeetingTriggerWiring } from '../meetingTriggerWiring.js';
+import type { MeetingService } from '../meetingService.js';
 import type { SystemLevel } from '../systemLevelService.js';
 import { PromptBuilder, sanitizePlaceholder } from './promptBuilder.js';
 import { TaskExecutor } from './taskExecutor.js';
@@ -60,6 +61,7 @@ export interface ExecuteDeps {
   deviceRegistry?: DeviceRegistry;
   feedbackLoopTracker?: FeedbackLoopTracker;
   meetingTriggerWiring?: MeetingTriggerWiring;
+  meetingService?: MeetingService;
   meetingBlockResolvers?: Map<string, () => void>;
   sessionId?: string;
   systemLevel?: SystemLevel;
@@ -103,6 +105,8 @@ export class ExecutePhase {
     const completed = new Set<string>();
     const failed = new Set<string>();
     const inFlight = new Map<string, Promise<void>>();
+    const meetingBlocked = new Set<string>();
+    const meetingDesignContext = new Map<string, Record<string, unknown>>();
     const MAX_CONCURRENT = MAX_CONCURRENT_TASKS;
 
     // For DAG readiness, treat both completed and failed as "done" so
@@ -134,10 +138,7 @@ export class ExecutePhase {
       this.deps.tokenTracker.reserve(DEFAULT_RESERVED_PER_TASK);
       const promise = (async () => {
         try {
-          // Pre-task meeting evaluation: check if this task should trigger a design meeting
-          await this.evaluatePreTaskMeetings(ctx, taskId);
-
-          const success = await this.executeOneTask(ctx, taskId, completed);
+          const success = await this.executeOneTask(ctx, taskId, completed, meetingDesignContext.get(taskId));
           if (success) {
             completed.add(taskId);
           } else {
@@ -166,7 +167,18 @@ export class ExecutePhase {
       const ready = this.deps.dag.getReady(settled())
         .filter((id) => !inFlight.has(id));
 
-      if (ready.length === 0 && inFlight.size === 0) {
+      // Pre-pass: evaluate meetings for ready tasks not yet blocked or in-flight
+      for (const taskId of ready) {
+        if (meetingBlocked.has(taskId) || failed.has(taskId)) continue;
+        if (this.wouldTriggerMeeting(taskId)) {
+          meetingBlocked.add(taskId);
+          // Fire-and-forget: create invites, wait for meetings, capture design context, then unblock
+          this.waitForMeetings(ctx, taskId, meetingBlocked, meetingDesignContext);
+        }
+      }
+
+      // Deadlock check: no in-flight tasks and no meeting-blocked tasks
+      if (ready.length === 0 && inFlight.size === 0 && meetingBlocked.size === 0) {
         await ctx.send({
           type: 'error',
           message: 'Some tasks are blocked and cannot proceed.',
@@ -177,6 +189,7 @@ export class ExecutePhase {
 
       // Skip tasks whose dependencies have failed
       for (const taskId of ready) {
+        if (failed.has(taskId)) continue;
         const deps = this.deps.dag.getDeps(taskId);
         for (const dep of deps) {
           if (failed.has(dep)) {
@@ -186,8 +199,8 @@ export class ExecutePhase {
         }
       }
 
-      // Re-filter ready list after skipping
-      const launchable = ready.filter((id) => !failed.has(id) && !inFlight.has(id));
+      // Filter: exclude failed, in-flight, and meeting-blocked tasks
+      const launchable = ready.filter((id) => !failed.has(id) && !inFlight.has(id) && !meetingBlocked.has(id));
 
       // Fill available slots with ready tasks (streaming-parallel)
       const slots = MAX_CONCURRENT - inFlight.size;
@@ -204,6 +217,9 @@ export class ExecutePhase {
       // Wait for at least one in-flight task to complete before re-evaluating
       if (inFlight.size > 0) {
         await Promise.race(inFlight.values());
+      } else if (meetingBlocked.size > 0) {
+        // Meeting-blocked tasks exist but aren't consuming slots -- poll briefly
+        await new Promise((r) => setTimeout(r, 200));
       } else {
         await new Promise((r) => setTimeout(r, 100));
       }
@@ -223,27 +239,64 @@ export class ExecutePhase {
   }
 
   /**
-   * Evaluate task_starting meeting triggers and block until meeting ends/declines/times out.
+   * Synchronous check: would this task trigger a pre-task meeting?
+   * Uses the trigger engine's keyword matching without creating invites.
    */
-  private async evaluatePreTaskMeetings(ctx: PhaseContext, taskId: string): Promise<void> {
+  private wouldTriggerMeeting(taskId: string): boolean {
     const { meetingTriggerWiring, meetingBlockResolvers, sessionId, systemLevel } = this.deps;
-    if (!meetingTriggerWiring || !meetingBlockResolvers || !sessionId || !systemLevel) return;
+    if (!meetingTriggerWiring || !meetingBlockResolvers || !sessionId || !systemLevel) return false;
 
     const task = this.deps.taskMap[taskId];
-    if (!task) return;
+    if (!task) return false;
 
+    // Quick keyword check -- the trigger filter is synchronous
+    const text = `${task.name ?? ''} ${task.description ?? ''}`.toLowerCase();
+    const DESIGN_KEYWORDS = /sprite|art|icon|theme|logo|animation|design|visual|image|graphic|appearance|style|color|palette|layout/i;
+    return DESIGN_KEYWORDS.test(text);
+  }
+
+  /**
+   * Create meeting invites for a task, wait for them to resolve, capture design
+   * context, and remove from meetingBlocked set.
+   */
+  private async waitForMeetings(
+    ctx: PhaseContext,
+    taskId: string,
+    meetingBlocked: Set<string>,
+    meetingDesignContext: Map<string, Record<string, unknown>>,
+  ): Promise<void> {
+    const { meetingTriggerWiring, meetingBlockResolvers, sessionId, systemLevel } = this.deps;
+    if (!meetingTriggerWiring || !meetingBlockResolvers || !sessionId || !systemLevel) {
+      meetingBlocked.delete(taskId);
+      return;
+    }
+
+    const task = this.deps.taskMap[taskId];
+    if (!task) {
+      meetingBlocked.delete(taskId);
+      return;
+    }
+
+    const agentRole = this.deps.agentMap[task.agent_name]?.role ?? '';
+
+    // Await the async invite creation
     const meetingIds = await meetingTriggerWiring.evaluateAndInviteForTask(
       {
         task_id: taskId,
         task_title: task.name ?? '',
         task_description: task.description ?? '',
         agent_name: task.agent_name ?? '',
-        agent_role: task.agent_role ?? '',
+        agent_role: agentRole,
       },
       sessionId,
       ctx.send,
       systemLevel,
     );
+
+    if (meetingIds.length === 0) {
+      meetingBlocked.delete(taskId);
+      return;
+    }
 
     // Block for each created meeting until resolved or timed out
     for (const meetingId of meetingIds) {
@@ -270,7 +323,17 @@ export class ExecutePhase {
           ctx.abortSignal.addEventListener('abort', onAbort, { once: true });
         }
       });
+
+      // After meeting resolves, capture canvas state as design context
+      if (this.deps.meetingService) {
+        const meeting = this.deps.meetingService.getMeeting(meetingId);
+        if (meeting?.canvas?.data && Object.keys(meeting.canvas.data).length > 0) {
+          meetingDesignContext.set(taskId, meeting.canvas.data);
+        }
+      }
     }
+
+    meetingBlocked.delete(taskId);
   }
 
   /**
@@ -282,6 +345,7 @@ export class ExecutePhase {
     ctx: PhaseContext,
     taskId: string,
     completed: Set<string>,
+    meetingDesignContext?: Record<string, unknown>,
   ): Promise<boolean> {
     const task = this.deps.taskMap[taskId];
     const agentName: string = task?.agent_name ?? '';
@@ -319,6 +383,7 @@ export class ExecutePhase {
       dag: this.deps.dag,
       completed,
       commits: this.commits,
+      meetingDesignContext,
     });
   }
 

@@ -46,6 +46,13 @@ const CANVAS_INSTRUCTIONS: Record<string, string> = {
   'bug-detective':
     'ALWAYS include a ```canvas JSON block when analyzing a bug. ' +
     'Required fields: test_name (string), when (string -- trigger condition), then_expected (string -- what should happen), then_actual (string -- what actually happened), diagnosis_notes (array of strings with analysis steps).',
+  'design-preview':
+    'ALWAYS include a ```canvas JSON block with EVERY message so the kid sees the design evolve live. ' +
+    'Required fields: scene_title (string -- name of the visual element being designed), description (string -- what it looks like), ' +
+    'background (string -- CSS color or gradient, e.g. "#0a0a2e" or "linear-gradient(135deg, #0a0a2e, #1a1a4e)"), ' +
+    'palette (array of hex color strings, e.g. ["#ffffff", "#4361ee"]), ' +
+    'elements (array of {name, description} objects describing visual elements). ' +
+    'Update the canvas with every message so the kid sees their design evolve in real time.',
 };
 
 export class MeetingAgentService {

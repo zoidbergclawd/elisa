@@ -76,6 +76,7 @@ export class Orchestrator {
   private healthTracker = new HealthTracker();
   private meetingRegistry?: import('./meetingRegistry.js').MeetingRegistry;
   private meetingTriggerWiring?: MeetingTriggerWiring;
+  private meetingService?: MeetingService;
 
   // Phase handlers
   private planPhase: PlanPhase;
@@ -91,6 +92,7 @@ export class Orchestrator {
     this.portalService = new PortalService();
     this.deviceRegistry = deviceRegistry ?? new DeviceRegistry(path.resolve(import.meta.dirname, '../../devices'));
     this.meetingRegistry = meetingRegistry;
+    this.meetingService = meetingService;
     if (meetingRegistry && meetingService) {
       this.meetingTriggerWiring = new MeetingTriggerWiring(meetingRegistry, meetingService);
     }
@@ -193,6 +195,7 @@ export class Orchestrator {
         deviceRegistry: this.deviceRegistry,
         feedbackLoopTracker,
         meetingTriggerWiring: this.meetingTriggerWiring,
+        meetingService: this.meetingService,
         meetingBlockResolvers: this.meetingBlockResolvers,
         sessionId: this.session.id,
         systemLevel,

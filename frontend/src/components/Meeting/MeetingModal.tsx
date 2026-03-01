@@ -9,6 +9,7 @@ import type { CanvasProps } from './canvasRegistry';
 import './BlueprintCanvas';
 import './BugDetectiveCanvas';
 import './CampaignCanvas';
+import './DesignPreviewCanvas';
 import './ExplainItCanvas';
 import './InterfaceDesignerCanvas';
 import './LaunchPadCanvas';

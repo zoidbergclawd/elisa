@@ -365,8 +365,8 @@ export default function App() {
         </div>
       )}
 
-      {/* Done mode overlay */}
-      {uiState === 'done' && (
+      {/* Done mode overlay -- hidden when a meeting modal is active (z-50 > z-40) */}
+      {uiState === 'done' && !activeMeeting && (
         <div className="fixed inset-0 modal-backdrop z-40 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="done-modal-title">
           <div className={`glass-elevated rounded-2xl shadow-2xl p-8 mx-4 text-center animate-float-in ${inviteQueue.length > 0 ? 'max-w-lg' : 'max-w-md'}`}>
             <h2 id="done-modal-title" className="text-2xl font-display font-bold mb-4 gradient-text-warm">Nugget Complete!</h2>

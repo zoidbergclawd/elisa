@@ -42,6 +42,7 @@ export interface BuildTaskPromptParams {
   taskMap: Record<string, Task>;
   nuggetDir: string;
   deviceRegistry?: DeviceRegistry;
+  meetingDesignContext?: Record<string, unknown>;
 }
 
 export interface BuildTaskPromptResult {
@@ -87,7 +88,7 @@ export class PromptBuilder {
    * injection, file manifest + structural digest injection.
    */
   buildTaskPrompt(params: BuildTaskPromptParams): BuildTaskPromptResult {
-    const { task, agent, spec, taskSummaries, taskMap, nuggetDir, deviceRegistry } = params;
+    const { task, agent, spec, taskSummaries, taskMap, nuggetDir, deviceRegistry, meetingDesignContext } = params;
     const taskId = task.id;
     const agentName: string = task.agent_name ?? '';
     const agentRole: string = agent.role ?? 'builder';
@@ -131,6 +132,11 @@ export class PromptBuilder {
       style: spec.style ?? null,
       deviceRegistry,
     });
+
+    // -- Inject meeting design context if available --
+    if (meetingDesignContext && Object.keys(meetingDesignContext).length > 0) {
+      userPrompt = this.injectMeetingDesignContext(userPrompt, meetingDesignContext);
+    }
 
     // -- Inject agent-category skills and always-on rules --
     userPrompt = this.injectSkillsAndRules(userPrompt, spec);
@@ -222,6 +228,31 @@ export class PromptBuilder {
       userPrompt += '\n\n## FILES ALREADY IN WORKSPACE\nThe workspace is empty. You are the first agent.';
     }
     return userPrompt;
+  }
+
+  /** Inject design decisions from a meeting into the user prompt. */
+  private injectMeetingDesignContext(userPrompt: string, ctx: Record<string, unknown>): string {
+    const parts: string[] = ['\n\n## Design Decisions from Meeting\n'];
+    parts.push('The kid collaborated with Pixel on the visual design for this task.');
+    parts.push('Incorporate these design decisions into your implementation:\n');
+
+    if (ctx.scene_title) parts.push(`Scene: ${ctx.scene_title}`);
+    if (ctx.description) parts.push(`Description: ${ctx.description}`);
+    if (ctx.background) parts.push(`Background: ${ctx.background}`);
+    if (Array.isArray(ctx.palette) && ctx.palette.length > 0) {
+      parts.push(`Colors: ${ctx.palette.join(', ')}`);
+    }
+    if (Array.isArray(ctx.elements) && ctx.elements.length > 0) {
+      parts.push('Elements:');
+      for (const e of ctx.elements) {
+        const el = e as Record<string, unknown>;
+        parts.push(`- ${el.name ?? 'Unnamed'}: ${el.description ?? ''}`);
+      }
+    }
+
+    parts.push('\nIMPORTANT: Follow these design choices exactly. The kid already approved this design.');
+
+    return userPrompt + parts.join('\n');
   }
 
   /** Append structural digest section to user prompt. */

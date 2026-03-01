@@ -68,6 +68,7 @@ export interface TaskExecutionOptions {
   dag: TaskDAG;
   completed: Set<string>;
   commits: CommitInfo[];
+  meetingDesignContext?: Record<string, unknown>;
 }
 
 // ---------------------------------------------------------------------------
@@ -124,6 +125,7 @@ export class TaskExecutor {
       taskMap: options.taskMap,
       nuggetDir: options.nuggetDir,
       deviceRegistry: this.deps.deviceRegistry,
+      meetingDesignContext: options.meetingDesignContext,
     });
 
     let userPrompt = builtUserPrompt;
