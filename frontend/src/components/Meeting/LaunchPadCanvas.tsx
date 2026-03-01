@@ -1,6 +1,6 @@
 /** Launch Pad canvas -- launch page builder with template selection and live preview. */
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { registerCanvas, type CanvasProps } from './canvasRegistry';
 
 interface LayoutTemplate {
@@ -16,27 +16,60 @@ const LAYOUT_TEMPLATES: LayoutTemplate[] = [
   { id: 'full-banner', name: 'Full Banner', description: 'Full-width banner with bold colors and text overlay' },
 ];
 
-function LaunchPadCanvas({ onCanvasUpdate }: CanvasProps) {
+function LaunchPadCanvas({ canvasState, onCanvasUpdate, onMaterialize }: CanvasProps) {
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [projectName, setProjectName] = useState('');
   const [tagline, setTagline] = useState('');
   const [primaryColor, setPrimaryColor] = useState('#4361ee');
   const [accentColor, setAccentColor] = useState('#ff6b6b');
+  const [saved, setSaved] = useState(false);
+  const [materializeMsg, setMaterializeMsg] = useState('');
+
+  // Sync from canvasState.data (agent-driven updates)
+  useEffect(() => {
+    const d = canvasState.data;
+    if (typeof d.template === 'string' && d.template !== selectedTemplate) {
+      setSelectedTemplate(d.template);
+    }
+    if (typeof d.headline === 'string' && d.headline !== projectName) {
+      setProjectName(d.headline);
+    }
+    if (typeof d.description === 'string' && d.description !== tagline) {
+      setTagline(d.description);
+    }
+    if (typeof d.primary_color === 'string' && d.primary_color !== primaryColor) {
+      setPrimaryColor(d.primary_color);
+    }
+    if (typeof d.accent_color === 'string' && d.accent_color !== accentColor) {
+      setAccentColor(d.accent_color);
+    }
+  }, [canvasState.data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const template = useMemo(
     () => LAYOUT_TEMPLATES.find((t) => t.id === selectedTemplate),
     [selectedTemplate],
   );
 
-  const handleFinalize = () => {
-    onCanvasUpdate({
+  const handleFinalize = async () => {
+    const data = {
       type: 'launch_page_finalized',
-      template_id: selectedTemplate,
-      project_name: projectName,
-      tagline,
+      template: selectedTemplate,
+      headline: projectName,
+      description: tagline,
       primary_color: primaryColor,
       accent_color: accentColor,
-    });
+    };
+    onCanvasUpdate(data);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+
+    if (onMaterialize) {
+      const result = await onMaterialize(data);
+      if (result) {
+        setMaterializeMsg(`Saved to ${result.primaryFile}!`);
+        setTimeout(() => setMaterializeMsg(''), 4000);
+      }
+    }
   };
 
   const canFinalize = selectedTemplate && projectName.trim();
@@ -176,14 +209,17 @@ function LaunchPadCanvas({ onCanvasUpdate }: CanvasProps) {
       </div>
 
       {/* Footer: finalize */}
-      <div className="mt-3 pt-3 border-t border-border-subtle flex items-center justify-end">
+      <div className="mt-3 pt-3 border-t border-border-subtle flex items-center justify-end gap-3">
+        {materializeMsg && (
+          <p className="text-xs text-green-400">{materializeMsg}</p>
+        )}
         <button
           type="button"
           onClick={handleFinalize}
           disabled={!canFinalize}
           className="go-btn px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Finalize
+          {saved ? 'Finalized!' : 'Finalize'}
         </button>
       </div>
     </div>

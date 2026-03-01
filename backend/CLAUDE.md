@@ -57,6 +57,9 @@ src/
     deviceRegistry.ts    Loads device plugin manifests, provides block defs + agent context
     meetingRegistry.ts   Meeting type registry + trigger engine for build events
     meetingService.ts    In-memory meeting session lifecycle management
+    meetingAgentService.ts  Claude-powered agent responses for meeting chat (Haiku)
+    meetingMaterializer.ts  Materializes canvas data into real workspace files (HTML, JSON, Markdown)
+    taskMeetingTypes.ts  Task-level meeting types (design review before art/visual tasks)
     systemLevelService.ts  Progressive mastery level flags (Explorer/Builder/Architect)
     autoTestMatcher.ts   Explorer-level auto-generation of behavioral tests
     cloudDeployService.ts Google Cloud Run deployment (scaffold, gcloud CLI)
@@ -107,7 +110,7 @@ src/
     sessionPersistence.ts Atomic JSON persistence for session checkpoint/recovery
     tokenTracker.ts      Tracks input/output tokens, cost per agent, budget limits
     withTimeout.ts       Generic promise timeout wrapper with AbortSignal support
-    constants.ts         Named constants for timeouts, limits, intervals, default model
+    constants.ts         Named constants for timeouts, limits, intervals, default model, meeting agent config
     pathValidator.ts     Workspace path validation (blocklist for system/sensitive dirs)
     safeEnv.ts           Sanitized process.env copy (strips ANTHROPIC_API_KEY)
     findFreePort.ts      Scans for available TCP port from a starting port
@@ -142,7 +145,9 @@ src/
 | POST | /api/sessions/:id/meetings/:mid/accept | Accept meeting invite |
 | POST | /api/sessions/:id/meetings/:mid/decline | Decline meeting invite |
 | POST | /api/sessions/:id/meetings/:mid/message | Send message in meeting |
+| POST | /api/sessions/:id/meetings/:mid/outcome | Save meeting outcome |
 | POST | /api/sessions/:id/meetings/:mid/end | End active meeting |
+| POST | /api/sessions/:id/meetings/:mid/materialize | Materialize canvas data into workspace files |
 | POST | /v1/agents | Provision new agent (returns agent_id, api_key, runtime_url) |
 | PUT | /v1/agents/:id | Update agent config (x-api-key auth) |
 | DELETE | /v1/agents/:id | Deprovision agent (x-api-key auth) |

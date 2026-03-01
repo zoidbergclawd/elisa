@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import ThemePickerCanvas, { DEFAULT_THEMES } from './ThemePickerCanvas';
 
 const defaultProps = {
@@ -92,6 +92,7 @@ describe('ThemePickerCanvas', () => {
     expect(onCanvasUpdate).toHaveBeenCalledWith({
       type: 'theme_selected',
       theme_id: 'forest',
+      currentTheme: 'forest',
     });
   });
 
@@ -103,5 +104,51 @@ describe('ThemePickerCanvas', () => {
 
     fireEvent.click(screen.getByLabelText('Select Sunset theme'));
     expect(screen.getByText('Selected: Sunset')).toBeInTheDocument();
+  });
+
+  it('initializes selectedId from canvasState.data.currentTheme', () => {
+    const propsWithTheme = {
+      ...defaultProps,
+      canvasState: { type: 'theme-picker', data: { currentTheme: 'forest' } },
+    };
+    render(<ThemePickerCanvas {...propsWithTheme} />);
+
+    expect(screen.getByText('Selected: Forest')).toBeInTheDocument();
+    const forestButton = screen.getByLabelText('Select Forest theme');
+    expect(forestButton).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('shows placeholder when canvasState has no currentTheme', () => {
+    render(<ThemePickerCanvas {...defaultProps} />);
+    expect(screen.getByText('Tap a theme above to see how it looks!')).toBeInTheDocument();
+  });
+
+  it('ignores non-string currentTheme values', () => {
+    const propsWithBadTheme = {
+      ...defaultProps,
+      canvasState: { type: 'theme-picker', data: { currentTheme: 42 } },
+    };
+    render(<ThemePickerCanvas {...propsWithBadTheme} />);
+    expect(screen.getByText('Tap a theme above to see how it looks!')).toBeInTheDocument();
+  });
+
+  it('syncs selectedId from canvasState.data.currentTheme on update', () => {
+    const { rerender } = render(<ThemePickerCanvas {...defaultProps} />);
+
+    // Initially no theme selected
+    expect(screen.getByText('Tap a theme above to see how it looks!')).toBeInTheDocument();
+
+    // Agent pushes a theme via canvasState
+    act(() => {
+      rerender(
+        <ThemePickerCanvas
+          {...defaultProps}
+          canvasState={{ type: 'theme-picker', data: { currentTheme: 'sunset' } }}
+        />,
+      );
+    });
+
+    expect(screen.getByText('Selected: Sunset')).toBeInTheDocument();
+    expect(screen.getByLabelText('Select Sunset theme')).toHaveAttribute('aria-pressed', 'true');
   });
 });

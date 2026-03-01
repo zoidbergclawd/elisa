@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import CampaignCanvas, { COLOR_PALETTES } from './CampaignCanvas';
+import { getCanvas } from './canvasRegistry';
 
 const defaultProps = {
   meetingId: 'meeting-1',
@@ -94,6 +95,10 @@ describe('CampaignCanvas', () => {
 
     expect(onCanvasUpdate).toHaveBeenCalledWith({
       type: 'assets_saved',
+      poster_title: 'Title',
+      tagline: 'Sub',
+      headline: '',
+      storyboard_panels: ['', '', '', ''],
       poster: { title: 'Title', subtitle: 'Sub', palette: 'bright' },
       socialCard: { headline: '', description: '', cta: '' },
       storyboard: [{ scene: '' }, { scene: '' }, { scene: '' }, { scene: '' }],
@@ -115,5 +120,40 @@ describe('CampaignCanvas', () => {
     fireEvent.change(screen.getByLabelText('Social card headline'), { target: { value: 'Hello' } });
     fireEvent.change(screen.getByLabelText('Call-to-action text'), { target: { value: 'Try Me' } });
     expect(screen.getByText('Try Me')).toBeInTheDocument();
+  });
+
+  it('registers campaign canvas in the canvas registry', () => {
+    const canvas = getCanvas('campaign');
+    expect(canvas).not.toBeNull();
+    expect(canvas).toBe(CampaignCanvas);
+  });
+
+  it('syncs poster and social card fields from canvasState.data on update', () => {
+    const { rerender } = render(<CampaignCanvas {...defaultProps} />);
+
+    act(() => {
+      rerender(
+        <CampaignCanvas
+          {...defaultProps}
+          canvasState={{
+            type: 'campaign',
+            data: {
+              poster_title: 'Agent Poster',
+              tagline: 'Agent Tagline',
+              headline: 'Social Headline',
+              storyboard_panels: ['Scene A', 'Scene B'],
+            },
+          }}
+        />,
+      );
+    });
+
+    // Poster tab is default -- check poster fields
+    expect(screen.getByLabelText('Poster title')).toHaveValue('Agent Poster');
+    expect(screen.getByLabelText('Poster subtitle')).toHaveValue('Agent Tagline');
+
+    // Switch to social card tab and check headline
+    fireEvent.click(screen.getByRole('tab', { name: 'Social Card' }));
+    expect(screen.getByLabelText('Social card headline')).toHaveValue('Social Headline');
   });
 });

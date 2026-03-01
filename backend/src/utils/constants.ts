@@ -44,3 +44,15 @@ export const MAX_TURNS_DEFAULT = 25;
 
 /** Additional turns granted per retry attempt. */
 export const MAX_TURNS_RETRY_INCREMENT = 10;
+
+/** Meeting agent response timeout in milliseconds. */
+export const MEETING_AGENT_TIMEOUT_MS = 30_000;
+
+/** Meeting agent max tokens per response. */
+export const MEETING_AGENT_MAX_TOKENS = 500;
+
+/** Default narrator/meeting-agent model. */
+export const NARRATOR_MODEL_DEFAULT = 'claude-haiku-4-5-20251001';
+
+/** Timeout for meeting blocks on task execution (auto-proceed after timeout). */
+export const MEETING_BLOCK_TIMEOUT_MS = 300_000;

@@ -242,19 +242,44 @@ export function useMeetingSession(sessionId: string | null) {
     });
   }, [sessionId, state.activeMeeting]);
 
-  /** Update the canvas state. */
+  /** Update the canvas state. Persists finalize/save actions to the backend. */
   const updateCanvas = useCallback(async (data: Record<string, unknown>) => {
-    // Canvas updates are handled locally via WS events; no REST call needed for now.
-    // Individual canvas implementations may call backend APIs for canvas-specific operations.
-    if (state.activeMeeting) {
-      dispatch({
-        type: 'MEETING_CANVAS_UPDATE',
-        meetingId: state.activeMeeting.meetingId,
-        canvasType: state.activeMeeting.canvasType,
-        data,
-      });
+    if (!state.activeMeeting) return;
+    dispatch({
+      type: 'MEETING_CANVAS_UPDATE',
+      meetingId: state.activeMeeting.meetingId,
+      canvasType: state.activeMeeting.canvasType,
+      data,
+    });
+
+    // Persist finalize/save outcomes to the backend
+    const dataType = typeof data.type === 'string' ? data.type : '';
+    if (sessionId && (dataType.includes('finalized') || dataType.includes('saved'))) {
+      authFetch(`/api/sessions/${sessionId}/meetings/${state.activeMeeting.meetingId}/outcome`, {
+        method: 'POST',
+        body: JSON.stringify({ outcomeType: dataType, data }),
+      }).catch((err) => { console.error('[meeting] outcome save failed:', err); });
     }
-  }, [state.activeMeeting]);
+  }, [sessionId, state.activeMeeting]);
+
+  /** Materialize canvas data into real files in the workspace. */
+  const materializeArtifacts = useCallback(async (data: Record<string, unknown>): Promise<{ files: string[]; primaryFile: string } | null> => {
+    if (!sessionId || !state.activeMeeting) return null;
+    try {
+      const resp = await authFetch(`/api/sessions/${sessionId}/meetings/${state.activeMeeting.meetingId}/materialize`, {
+        method: 'POST',
+        body: JSON.stringify({
+          canvasType: state.activeMeeting.canvasType,
+          data,
+        }),
+      });
+      const result = await resp.json();
+      return result as { files: string[]; primaryFile: string };
+    } catch (err) {
+      console.error('[meeting] materialize failed:', err);
+      return null;
+    }
+  }, [sessionId, state.activeMeeting]);
 
   /** First invite in queue (for toast display). */
   const nextInvite = useMemo(() => state.inviteQueue[0] ?? null, [state.inviteQueue]);
@@ -271,5 +296,6 @@ export function useMeetingSession(sessionId: string | null) {
     sendMessage,
     endMeeting,
     updateCanvas,
+    materializeArtifacts,
   };
 }

@@ -1,6 +1,6 @@
 /** Theme Picker canvas — lets kids pick a display theme for their BOX-3 device. */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { registerCanvas, type CanvasProps } from './canvasRegistry';
 import DisplayThemePreview from '../shared/DisplayThemePreview';
 import type { DisplayTheme } from '../shared/DisplayThemePreview';
@@ -44,8 +44,18 @@ const DEFAULT_THEMES: DisplayTheme[] = [
   },
 ];
 
-function ThemePickerCanvas({ onCanvasUpdate }: CanvasProps) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+function ThemePickerCanvas({ canvasState, onCanvasUpdate, onMaterialize }: CanvasProps) {
+  const [selectedId, setSelectedId] = useState<string | null>(
+    typeof canvasState.data.currentTheme === 'string' ? canvasState.data.currentTheme : null
+  );
+
+  // Sync from canvasState.data (agent-driven updates)
+  useEffect(() => {
+    const incoming = canvasState.data.currentTheme;
+    if (typeof incoming === 'string' && incoming !== selectedId) {
+      setSelectedId(incoming);
+    }
+  }, [canvasState.data.currentTheme]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedTheme = DEFAULT_THEMES.find((t) => t.id === selectedId);
 
@@ -53,9 +63,20 @@ function ThemePickerCanvas({ onCanvasUpdate }: CanvasProps) {
     setSelectedId(themeId);
   };
 
-  const handleApply = () => {
+  const [materializeMsg, setMaterializeMsg] = useState('');
+
+  const handleApply = async () => {
     if (!selectedId) return;
-    onCanvasUpdate({ type: 'theme_selected', theme_id: selectedId });
+    const data = { type: 'theme_selected', theme_id: selectedId, currentTheme: selectedId };
+    onCanvasUpdate(data);
+
+    if (onMaterialize) {
+      const result = await onMaterialize(data);
+      if (result) {
+        setMaterializeMsg(`Saved to ${result.primaryFile}!`);
+        setTimeout(() => setMaterializeMsg(''), 4000);
+      }
+    }
   };
 
   return (
@@ -106,13 +127,18 @@ function ThemePickerCanvas({ onCanvasUpdate }: CanvasProps) {
                 {selectedTheme.avatar_style} style
               </p>
             </div>
-            <button
-              type="button"
-              onClick={handleApply}
-              className="go-btn px-4 py-2 rounded-xl text-sm font-medium"
-            >
-              Apply Theme
-            </button>
+            <div className="flex items-center gap-3">
+              {materializeMsg && (
+                <p className="text-xs text-green-400">{materializeMsg}</p>
+              )}
+              <button
+                type="button"
+                onClick={handleApply}
+                className="go-btn px-4 py-2 rounded-xl text-sm font-medium"
+              >
+                Apply Theme
+              </button>
+            </div>
           </div>
         ) : (
           <p className="text-sm text-atelier-text-muted text-center">

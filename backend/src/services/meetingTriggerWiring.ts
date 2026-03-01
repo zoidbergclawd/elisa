@@ -44,4 +44,43 @@ export class MeetingTriggerWiring {
       );
     }
   }
+
+  /**
+   * Evaluate task_starting triggers and create meeting invites for matching types.
+   * Returns IDs of created meetings so callers can block on them.
+   */
+  async evaluateAndInviteForTask(
+    taskData: {
+      task_id: string;
+      task_title: string;
+      task_description: string;
+      agent_name: string;
+      agent_role: string;
+    },
+    sessionId: string,
+    send: SendEvent,
+    systemLevel: SystemLevel,
+  ): Promise<string[]> {
+    if (!shouldAutoInviteMeetings(systemLevel)) return [];
+
+    const matches = this.triggerEngine.evaluate('task_starting', taskData as unknown as Record<string, unknown>);
+    const meetingIds: string[] = [];
+
+    for (const match of matches) {
+      const meeting = await this.meetingService.createInvite(
+        match.meetingType.id,
+        sessionId,
+        send,
+        {
+          title: `${match.meetingType.name}: ${taskData.task_title}`,
+          description: `${match.meetingType.agentName} wants to help design "${taskData.task_title}" before building it!`,
+        },
+      );
+      if (meeting) {
+        meetingIds.push(meeting.id);
+      }
+    }
+
+    return meetingIds;
+  }
 }

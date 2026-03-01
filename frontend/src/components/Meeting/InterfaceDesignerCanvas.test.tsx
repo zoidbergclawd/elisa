@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import InterfaceDesignerCanvas from './InterfaceDesignerCanvas';
 
 const defaultProps = {
@@ -169,5 +169,27 @@ describe('InterfaceDesignerCanvas', () => {
     const requireEntry = screen.getByTestId('require-matched');
     expect(provideEntry.className).toContain('bg-green-500/10');
     expect(requireEntry.className).toContain('bg-green-500/10');
+  });
+
+  it('syncs provides and requires from canvasState.data on update', () => {
+    const { rerender } = render(<InterfaceDesignerCanvas {...defaultProps} />);
+
+    act(() => {
+      rerender(
+        <InterfaceDesignerCanvas
+          {...defaultProps}
+          canvasState={{
+            type: 'interface-designer',
+            data: {
+              provides: [{ name: 'sensor_data', type: 'stream' }],
+              requires: [{ name: 'power', type: 'data' }],
+            },
+          }}
+        />,
+      );
+    });
+
+    expect(screen.getByTestId('provide-sensor_data')).toBeInTheDocument();
+    expect(screen.getByTestId('require-power')).toBeInTheDocument();
   });
 });

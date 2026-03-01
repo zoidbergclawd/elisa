@@ -6,6 +6,7 @@ export interface CanvasProps {
   meetingId: string;
   canvasState: { type: string; data: Record<string, unknown> };
   onCanvasUpdate: (data: Record<string, unknown>) => void;
+  onMaterialize?: (data: Record<string, unknown>) => Promise<{ files: string[]; primaryFile: string } | null>;
 }
 
 const canvasMap = new Map<string, ComponentType<CanvasProps>>();

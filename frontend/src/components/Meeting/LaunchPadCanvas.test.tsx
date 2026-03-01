@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import LaunchPadCanvas, { LAYOUT_TEMPLATES } from './LaunchPadCanvas';
 
 const defaultProps = {
@@ -114,9 +114,9 @@ describe('LaunchPadCanvas', () => {
 
     expect(onCanvasUpdate).toHaveBeenCalledWith({
       type: 'launch_page_finalized',
-      template_id: 'full-banner',
-      project_name: 'Cool App',
-      tagline: 'Very cool',
+      template: 'full-banner',
+      headline: 'Cool App',
+      description: 'Very cool',
       primary_color: '#4361ee',
       accent_color: '#ff6b6b',
     });
@@ -144,5 +144,39 @@ describe('LaunchPadCanvas', () => {
 
   it('has 4 layout templates', () => {
     expect(LAYOUT_TEMPLATES).toHaveLength(4);
+  });
+
+  it('syncs form fields from canvasState.data on update', () => {
+    const initialProps = {
+      ...defaultProps,
+      canvasState: { type: 'launch-pad', data: {} },
+    };
+    const { rerender } = render(<LaunchPadCanvas {...initialProps} />);
+
+    // Re-render with agent-provided canvasState data
+    act(() => {
+      rerender(
+        <LaunchPadCanvas
+          {...initialProps}
+          canvasState={{
+            type: 'launch-pad',
+            data: {
+              template: 'centered-minimal',
+              headline: 'Agent Project',
+              description: 'Built by AI',
+              primary_color: '#ff0000',
+              accent_color: '#00ff00',
+            },
+          }}
+        />,
+      );
+    });
+
+    // Verify form fields updated
+    expect(screen.getByLabelText('Select Centered Minimal template')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByLabelText('Project Name')).toHaveValue('Agent Project');
+    expect(screen.getByLabelText('Tagline')).toHaveValue('Built by AI');
+    // Preview should now show the agent's project name
+    expect(screen.getByText('Agent Project')).toBeInTheDocument();
   });
 });

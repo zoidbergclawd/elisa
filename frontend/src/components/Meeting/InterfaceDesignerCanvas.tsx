@@ -1,6 +1,6 @@
 /** Interface Designer canvas — interface contract builder for nugget composition. */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { registerCanvas, type CanvasProps } from './canvasRegistry';
 
 type InterfaceType = 'data' | 'event' | 'function' | 'stream';
@@ -18,13 +18,36 @@ function generateId(): string {
   return `iface-${nextId++}`;
 }
 
-function InterfaceDesignerCanvas({ onCanvasUpdate }: CanvasProps) {
+function InterfaceDesignerCanvas({ canvasState, onCanvasUpdate, onMaterialize }: CanvasProps) {
   const [provides, setProvides] = useState<InterfaceEntry[]>([]);
   const [requires, setRequires] = useState<InterfaceEntry[]>([]);
   const [newProvideName, setNewProvideName] = useState('');
   const [newProvideType, setNewProvideType] = useState<InterfaceType>('data');
   const [newRequireName, setNewRequireName] = useState('');
   const [newRequireType, setNewRequireType] = useState<InterfaceType>('data');
+
+  const [materializeMsg, setMaterializeMsg] = useState('');
+
+  // Sync from canvasState.data (agent-driven updates)
+  useEffect(() => {
+    const d = canvasState.data;
+    if (Array.isArray(d.provides)) {
+      const incoming: InterfaceEntry[] = d.provides
+        .filter((p): p is { name: string; type: string } =>
+          typeof p === 'object' && p !== null && typeof (p as Record<string, unknown>).name === 'string' && typeof (p as Record<string, unknown>).type === 'string',
+        )
+        .map((p) => ({ id: generateId(), name: p.name, type: p.type as InterfaceType }));
+      if (incoming.length > 0) setProvides(incoming);
+    }
+    if (Array.isArray(d.requires)) {
+      const incoming: InterfaceEntry[] = d.requires
+        .filter((r): r is { name: string; type: string } =>
+          typeof r === 'object' && r !== null && typeof (r as Record<string, unknown>).name === 'string' && typeof (r as Record<string, unknown>).type === 'string',
+        )
+        .map((r) => ({ id: generateId(), name: r.name, type: r.type as InterfaceType }));
+      if (incoming.length > 0) setRequires(incoming);
+    }
+  }, [canvasState.data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const addProvide = () => {
     const trimmed = newProvideName.trim();
@@ -55,13 +78,22 @@ function InterfaceDesignerCanvas({ onCanvasUpdate }: CanvasProps) {
     requires.some((r) => r.name === p.name && r.type === p.type),
   );
 
-  const handleSave = () => {
-    onCanvasUpdate({
+  const handleSave = async () => {
+    const data = {
       type: 'contracts_saved',
       provides: provides.map(({ name, type }) => ({ name, type })),
       requires: requires.map(({ name, type }) => ({ name, type })),
       connections: connections.map((c) => ({ name: c.name, type: c.type })),
-    });
+    };
+    onCanvasUpdate(data);
+
+    if (onMaterialize) {
+      const result = await onMaterialize(data);
+      if (result) {
+        setMaterializeMsg(`Saved to ${result.primaryFile}!`);
+        setTimeout(() => setMaterializeMsg(''), 4000);
+      }
+    }
   };
 
   const typeColor = (t: InterfaceType) => {
@@ -267,13 +299,18 @@ function InterfaceDesignerCanvas({ onCanvasUpdate }: CanvasProps) {
             ? `${connections.length} connection${connections.length === 1 ? '' : 's'} matched`
             : 'Add interfaces to both sides to see connections'}
         </p>
-        <button
-          type="button"
-          onClick={handleSave}
-          className="go-btn px-4 py-2 rounded-xl text-sm font-medium"
-        >
-          Save Contracts
-        </button>
+        <div className="flex items-center gap-3">
+          {materializeMsg && (
+            <p className="text-xs text-green-400">{materializeMsg}</p>
+          )}
+          <button
+            type="button"
+            onClick={handleSave}
+            className="go-btn px-4 py-2 rounded-xl text-sm font-medium"
+          >
+            Save Contracts
+          </button>
+        </div>
       </div>
     </div>
   );

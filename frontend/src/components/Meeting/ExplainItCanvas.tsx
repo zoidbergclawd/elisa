@@ -1,6 +1,6 @@
 /** Explain-It canvas -- collaborative document editor for README/help text creation. */
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { registerCanvas, type CanvasProps } from './canvasRegistry';
 
 interface Suggestion {
@@ -8,9 +8,21 @@ interface Suggestion {
   text: string;
 }
 
-function ExplainItCanvas({ canvasState, onCanvasUpdate }: CanvasProps) {
+function ExplainItCanvas({ canvasState, onCanvasUpdate, onMaterialize }: CanvasProps) {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [materializeMsg, setMaterializeMsg] = useState('');
+
+  // Sync title/content from canvasState.data (agent-driven updates)
+  useEffect(() => {
+    const d = canvasState.data;
+    if (typeof d.title === 'string' && d.title !== title) {
+      setTitle(d.title);
+    }
+    if (typeof d.content === 'string' && d.content !== content) {
+      setContent(d.content);
+    }
+  }, [canvasState.data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Agent suggestions come from canvasState.data
   const suggestions = useMemo<Suggestion[]>(() => {
@@ -33,8 +45,17 @@ function ExplainItCanvas({ canvasState, onCanvasUpdate }: CanvasProps) {
     setContent((prev) => prev + separator + suggestion.text);
   };
 
-  const handleSave = () => {
-    onCanvasUpdate({ type: 'document_saved', title, content });
+  const handleSave = async () => {
+    const data = { type: 'document_saved', title, content };
+    onCanvasUpdate(data);
+
+    if (onMaterialize) {
+      const result = await onMaterialize(data);
+      if (result) {
+        setMaterializeMsg(`Saved to ${result.primaryFile}!`);
+        setTimeout(() => setMaterializeMsg(''), 4000);
+      }
+    }
   };
 
   return (
@@ -110,14 +131,19 @@ function ExplainItCanvas({ canvasState, onCanvasUpdate }: CanvasProps) {
         <p className="text-xs text-atelier-text-muted" data-testid="word-count">
           {wordCount} {wordCount === 1 ? 'word' : 'words'}
         </p>
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={!title.trim() || !content.trim()}
-          className="go-btn px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Save Document
-        </button>
+        <div className="flex items-center gap-3">
+          {materializeMsg && (
+            <p className="text-xs text-green-400">{materializeMsg}</p>
+          )}
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={!title.trim() || !content.trim()}
+            className="go-btn px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Save Document
+          </button>
+        </div>
       </div>
     </div>
   );

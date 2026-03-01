@@ -23,7 +23,9 @@ import type { FeedbackLoopTracker } from '../feedbackLoopTracker.js';
 import { ContextManager } from '../../utils/contextManager.js';
 import { TokenTracker, DEFAULT_RESERVED_PER_TASK } from '../../utils/tokenTracker.js';
 import { TaskDAG } from '../../utils/dag.js';
-import { MAX_CONCURRENT_TASKS } from '../../utils/constants.js';
+import { MAX_CONCURRENT_TASKS, MEETING_BLOCK_TIMEOUT_MS } from '../../utils/constants.js';
+import type { MeetingTriggerWiring } from '../meetingTriggerWiring.js';
+import type { SystemLevel } from '../systemLevelService.js';
 import { PromptBuilder, sanitizePlaceholder } from './promptBuilder.js';
 import { TaskExecutor } from './taskExecutor.js';
 import { DeviceFileValidator } from './deviceFileValidator.js';
@@ -57,6 +59,10 @@ export interface ExecuteDeps {
   permissionPolicy?: PermissionPolicy;
   deviceRegistry?: DeviceRegistry;
   feedbackLoopTracker?: FeedbackLoopTracker;
+  meetingTriggerWiring?: MeetingTriggerWiring;
+  meetingBlockResolvers?: Map<string, () => void>;
+  sessionId?: string;
+  systemLevel?: SystemLevel;
 }
 
 export class ExecutePhase {
@@ -128,6 +134,9 @@ export class ExecutePhase {
       this.deps.tokenTracker.reserve(DEFAULT_RESERVED_PER_TASK);
       const promise = (async () => {
         try {
+          // Pre-task meeting evaluation: check if this task should trigger a design meeting
+          await this.evaluatePreTaskMeetings(ctx, taskId);
+
           const success = await this.executeOneTask(ctx, taskId, completed);
           if (success) {
             completed.add(taskId);
@@ -211,6 +220,57 @@ export class ExecutePhase {
     }
 
     return { commits: this.commits, taskSummaries: this.taskSummaries };
+  }
+
+  /**
+   * Evaluate task_starting meeting triggers and block until meeting ends/declines/times out.
+   */
+  private async evaluatePreTaskMeetings(ctx: PhaseContext, taskId: string): Promise<void> {
+    const { meetingTriggerWiring, meetingBlockResolvers, sessionId, systemLevel } = this.deps;
+    if (!meetingTriggerWiring || !meetingBlockResolvers || !sessionId || !systemLevel) return;
+
+    const task = this.deps.taskMap[taskId];
+    if (!task) return;
+
+    const meetingIds = await meetingTriggerWiring.evaluateAndInviteForTask(
+      {
+        task_id: taskId,
+        task_title: task.name ?? '',
+        task_description: task.description ?? '',
+        agent_name: task.agent_name ?? '',
+        agent_role: task.agent_role ?? '',
+      },
+      sessionId,
+      ctx.send,
+      systemLevel,
+    );
+
+    // Block for each created meeting until resolved or timed out
+    for (const meetingId of meetingIds) {
+      await new Promise<void>((resolve) => {
+        meetingBlockResolvers.set(meetingId, resolve);
+
+        // Auto-proceed after timeout
+        const timer = setTimeout(() => {
+          if (meetingBlockResolvers.has(meetingId)) {
+            meetingBlockResolvers.delete(meetingId);
+            resolve();
+          }
+        }, MEETING_BLOCK_TIMEOUT_MS);
+
+        // Also resolve on abort
+        const onAbort = () => {
+          clearTimeout(timer);
+          meetingBlockResolvers.delete(meetingId);
+          resolve();
+        };
+        if (ctx.abortSignal.aborted) {
+          onAbort();
+        } else {
+          ctx.abortSignal.addEventListener('abort', onAbort, { once: true });
+        }
+      });
+    }
   }
 
   /**

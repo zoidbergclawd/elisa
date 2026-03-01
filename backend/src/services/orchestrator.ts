@@ -32,6 +32,7 @@ import { HealthHistoryService } from './healthHistoryService.js';
 import { autoMatchTests } from './autoTestMatcher.js';
 import { MeetingTriggerWiring } from './meetingTriggerWiring.js';
 import { getLevel } from './systemLevelService.js';
+import type { SystemLevel } from './systemLevelService.js';
 import type { MeetingService } from './meetingService.js';
 import type { RuntimeProvisioner } from './runtimeProvisioner.js';
 import type { SpecGraphService } from './specGraph.js';
@@ -55,6 +56,9 @@ export class Orchestrator {
 
   // Question: Promise-based blocking for interactive questions
   private questionResolvers = new Map<string, (answers: QuestionAnswers) => void>();
+
+  // Meeting block: tasks wait for meetings to end/decline before proceeding
+  private meetingBlockResolvers = new Map<string, () => void>();
 
   // Services
   private agentRunner = new AgentRunner();
@@ -124,6 +128,31 @@ export class Orchestrator {
       const planResult = await this.planPhase.execute(ctx, spec);
       this.nuggetType = planResult.nuggetType;
 
+      // Evaluate meeting triggers after planning (mid-build)
+      const systemLevel = getLevel(spec);
+      // Derive device types from plugin IDs (e.g. 'esp32-s3-box3-agent' -> board variant 'box-3' via registry)
+      const deviceTypes: string[] = [];
+      for (const d of spec.devices ?? []) {
+        const manifest = this.deviceRegistry.getDevice(d.pluginId);
+        if (manifest?.board?.variant) deviceTypes.push(manifest.board.variant);
+        else if (manifest?.board?.type) deviceTypes.push(manifest.board.type);
+        else deviceTypes.push(d.pluginId);
+      }
+      await this.meetingTriggerWiring?.evaluateAndInvite(
+        'plan_ready',
+        {
+          tasks: planResult.tasks.map(t => ({ id: t.id, title: t.name, agent: t.agent_name })),
+          agents: planResult.agents.map(a => ({ name: a.name, role: a.role })),
+          task_count: planResult.tasks.length,
+          spec_goal: spec.nugget?.goal ?? '',
+          has_devices: !!spec.devices?.length,
+          device_types: deviceTypes,
+        },
+        this.session.id,
+        this.send,
+        systemLevel,
+      );
+
       // Build traceability map from spec requirements and behavioral tests
       this.traceabilityTracker.buildMap(
         spec.requirements,
@@ -163,6 +192,10 @@ export class Orchestrator {
         permissionPolicy: this.permissionPolicy,
         deviceRegistry: this.deviceRegistry,
         feedbackLoopTracker,
+        meetingTriggerWiring: this.meetingTriggerWiring,
+        meetingBlockResolvers: this.meetingBlockResolvers,
+        sessionId: this.session.id,
+        systemLevel,
       });
 
       // Initialize logger before execute so plan and execute phases get logging
@@ -213,10 +246,14 @@ export class Orchestrator {
       await this.healthTracker.emitUpdate(this.send);
       await this.healthTracker.emitSummary(this.send);
 
+      // Write test/health results to session for meeting context
+      this.session.testResults = { passed: testsPassing, total: testResults.length };
+
       // Health history: load, record current build, emit, persist
       const healthHistory = new HealthHistoryService(this.nuggetDir);
       healthHistory.load();
       const healthSummary = this.healthTracker.getSummary();
+      this.session.healthSummary = { score: healthSummary.health_score, grade: healthSummary.grade };
       healthHistory.record(spec.nugget?.goal ?? 'Build', healthSummary);
       await healthHistory.emitHistory(this.send);
 
@@ -225,7 +262,6 @@ export class Orchestrator {
       console.log('[orchestrator] session.spec.devices:', JSON.stringify(this.session.spec?.devices ?? null));
       console.log('[orchestrator] session.spec.deployment:', JSON.stringify(this.session.spec?.deployment ?? null));
       const deployCtx = this.makeContext();
-      const systemLevel = getLevel(spec);
       if (this.deployPhase.shouldDeployDevices(deployCtx)) {
         console.log('[orchestrator] deploying devices...');
         // Evaluate meeting triggers for device deploy
@@ -312,7 +348,14 @@ export class Orchestrator {
       const systemLevel = getLevel(spec);
       await this.meetingTriggerWiring?.evaluateAndInvite(
         'session_complete',
-        { tasks_done: doneCount, tasks_total: total, tasks_failed: failedCount },
+        {
+          tasks_done: doneCount,
+          tasks_total: total,
+          tasks_failed: failedCount,
+          tests_passing: this.session.testResults?.passed ?? 0,
+          tests_total: this.session.testResults?.total ?? 0,
+          health_score: this.session.healthSummary?.score ?? 0,
+        },
         this.session.id,
         this.send,
         systemLevel,
@@ -346,6 +389,20 @@ export class Orchestrator {
     } catch {
       // Best-effort cleanup
     }
+  }
+
+  /** Resolve a meeting block, allowing the blocked task to proceed. */
+  resolveMeetingBlock(meetingId: string): void {
+    const resolver = this.meetingBlockResolvers.get(meetingId);
+    if (resolver) {
+      resolver();
+      this.meetingBlockResolvers.delete(meetingId);
+    }
+  }
+
+  /** Session ID accessor for external callers (e.g. route handlers). */
+  get sessionId(): string {
+    return this.session.id;
   }
 
   respondToGate(approved: boolean, feedback = ''): void {

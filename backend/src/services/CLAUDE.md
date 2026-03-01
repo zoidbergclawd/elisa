@@ -5,7 +5,7 @@ Each service owns one concern. Orchestrator coordinates phase handlers.
 ## Service Map
 
 ### orchestrator.ts (thin coordinator)
-Delegates to phase handlers in sequence: plan -> execute -> test -> deploy. Owns cancellation (AbortController), gate/question resolvers, and public accessors. Phases live in `phases/` subdirectory.
+Delegates to phase handlers in sequence: plan -> meeting triggers (plan_ready) -> execute -> test -> deploy. Owns cancellation (AbortController), gate/question resolvers, and public accessors. Phases live in `phases/` subdirectory.
 
 ### phases/ (pipeline stages)
 - **planPhase.ts** -- MetaPlanner invocation, DAG setup, teaching moments
@@ -49,7 +49,7 @@ Loads device plugin manifests from `devices/` directory at startup. Validates ea
 Registry for meeting type definitions (id, name, agentName, canvasType, triggerConditions, persona). Supports `register()`, `getById()`, `getAll()`, `unregister()`. `MeetingTriggerEngine` evaluates build events against registered trigger conditions to determine which meetings to propose. Multiple meeting types can match a single event.
 
 ### meetingService.ts (meeting session lifecycle)
-In-memory meeting session management. Lifecycle: `createInvite()` -> invited -> `acceptMeeting()` -> active -> `sendMessage()` / `addOutcome()` / `updateCanvas()` -> `endMeeting()` -> completed. Also supports `declineMeeting()` from invited state. Sessions indexed by meeting ID and by build session ID. Each method sends the appropriate WebSocket event. `cleanupSession()` removes all meetings for a build session.
+In-memory meeting session management. Lifecycle: `createInvite()` -> invited -> `acceptMeeting(id, send, buildContext?)` -> active -> `sendMessage()` / `addOutcome()` / `updateCanvas()` -> `endMeeting()` -> completed. Also supports `declineMeeting()` from invited state. On accept, pre-populates canvas data from build context (blueprint: tasks/reqs/health; theme-picker: currentTheme). `getMeetingType(id)` delegates to registry. Sessions indexed by meeting ID and by build session ID. Each method sends the appropriate WebSocket event. `cleanupSession()` removes all meetings for a build session.
 
 ### systemLevelService.ts (progressive mastery levels)
 Pure functions for the Explorer/Builder/Architect progressive mastery system. `getLevel(spec)` extracts system level from NuggetSpec (default: explorer). Feature flags: `shouldAutoMatchTests()`, `shouldNarrate()`, `getDAGDetailLevel()`, `shouldAutoInviteMeetings()`, `getMaxNuggets()`. No state, no side effects.
@@ -67,7 +67,7 @@ Passive observer that tracks correction cycles during task execution. Created pe
 Fast-path curriculum lookup maps events to concepts. Deduplicates per concept per session. Falls back to Claude Sonnet API for dynamic generation. Targets ages 8-14.
 
 ### narratorService.ts (build narrator)
-Translates raw build events into kid-friendly commentary via Claude Haiku (`NARRATOR_MODEL` env var, default `claude-haiku-4-5-20241022`). Mood selection from 4 options: `excited`, `encouraging`, `concerned`, `celebrating`. Rate limiting: max 1 narrator message per task per 15 seconds. `agent_output` events are accumulated per task via `accumulateOutput()` and translated after a 10-second silence window (debounce). Translatable events: `task_started`, `task_completed`, `task_failed`, `agent_message`, `error`, `session_complete`. Fallback templates used on API timeout. Deduplicates consecutive identical messages.
+Translates raw build events into kid-friendly commentary via Claude Haiku (`NARRATOR_MODEL` env var, default `claude-haiku-4-5-20251001`). Mood selection from 4 options: `excited`, `encouraging`, `concerned`, `celebrating`. Rate limiting: max 1 narrator message per task per 15 seconds. `agent_output` events are accumulated per task via `accumulateOutput()` and translated after a 10-second silence window (debounce). Translatable events: `task_started`, `task_completed`, `task_failed`, `agent_message`, `error`, `session_complete`. Fallback templates used on API timeout. Deduplicates consecutive identical messages.
 
 ### permissionPolicy.ts (agent permissions)
 Auto-resolves agent permission requests (`file_write`, `file_edit`, `bash`, `command`) based on configurable policy rules. Three decision outcomes: `approved`, `denied`, `escalate`. Workspace-scoped writes are auto-approved when within the nugget directory. Read-only commands (`ls`, `cat`, `grep`, etc.) are always safe. Workspace-restricted commands (`mkdir`, `python`, `npm`, etc.) require cwd to be within the nugget dir. Network commands (`curl`, `wget`, etc.) denied by default. Package installs (`pip install`, `npm install`) escalate to user. Denial counter per task escalates to user after threshold (default 3).
@@ -129,23 +129,32 @@ Scaffolds and deploys IoT cloud dashboards to Google Cloud Run. Generates a cryp
 ### redeployClassifier.ts (redeploy decision matrix)
 Pure function `classifyChanges(oldSpec, newSpec)` compares two NuggetSpec objects and returns `{ action: 'config_only' | 'firmware_required' | 'no_change', reasons: string[] }`. Compares `devices` array (plugin IDs, field values), `deployment` section, and `runtime` config. Firmware fields (WiFi SSID/password, wake word, LoRa, device name) trigger `firmware_required`. Runtime config changes (agent name, voice, display theme, greeting) are `config_only`. Used by `RuntimeProvisioner.classifyChanges()`.
 
+### meetingAgentService.ts (meeting agent AI)
+Claude-powered agent responses for meeting conversations. Uses Anthropic SDK (Haiku model via `NARRATOR_MODEL_DEFAULT` constant). Builds system prompt from meeting type persona, build context (goal, requirements, tasks, agents, devices, phase, test/health data), and canvas-specific instructions. Converts `MeetingMessage[]` to Claude format (kid->user, agent->assistant). Parses optional ` ```canvas ` JSON blocks from responses for canvas state updates. 30s timeout via `withTimeout()`, fallback response on error with `console.error` logging. Constants: `MEETING_AGENT_TIMEOUT_MS`, `MEETING_AGENT_MAX_TOKENS`, `NARRATOR_MODEL_DEFAULT`.
+
+### meetingMaterializer.ts (meeting artifact generation)
+Pure functions that materialize meeting canvas data into real files in the nugget workspace. Dispatches by canvas type: `explain-it` -> markdown doc, `launch-pad` -> self-contained HTML (4 template variants), `campaign` -> poster.html/social-card.html, `interface-designer` -> interfaces.json, `theme-picker` -> theme-config.json. Blueprint and bug-detective produce no files. Top-level `materialize(canvasType, data, nuggetDir)` writes files and returns `{ files, primaryFile }`.
+
 ### meetingTriggerWiring.ts (meeting trigger wiring)
-Wraps `MeetingTriggerEngine` + `MeetingService` for the orchestrator. `evaluateAndInvite(event, context, session, send)` checks system-level gating via `shouldAutoInviteMeetings()`, evaluates build events against registered meeting trigger conditions, and creates meeting invites for matching types. Wired into orchestrator at `deploy_started` and `session_complete` events.
+Wraps `MeetingTriggerEngine` + `MeetingService` for the orchestrator. `evaluateAndInvite(event, context, session, send)` checks system-level gating via `shouldAutoInviteMeetings()`, evaluates build events against registered meeting trigger conditions, and creates meeting invites for matching types. `evaluateAndInviteForTask()` evaluates `task_starting` triggers and returns created meeting IDs for task blocking. Wired into orchestrator at `plan_ready`, `deploy_started`, `session_complete`, and pre-task events.
+
+### taskMeetingTypes.ts (task-level meeting types)
+Registers meeting types with `event: 'task_starting'` and keyword-based filter functions. Currently registers `design-task-agent` (Design Review) which triggers before tasks with visual/design keywords (sprite, art, icon, theme, logo, etc.). Uses `campaign` canvas. `registerTaskMeetingTypes(registry)` called at startup.
 
 ### architectureAgentMeeting.ts (architecture agent meeting type)
-Registers the `architecture-agent` meeting type with `canvasType: 'blueprint'`. Triggers on `session_complete`. Agent persona is "Blueprint". Frontend canvas: `BlueprintCanvas.tsx`. `registerArchitectureAgentMeeting(registry)` called at startup.
+Registers the `architecture-agent` meeting type with `canvasType: 'blueprint'`. Triggers on `session_complete` (post-build, after tests and health summary). Agent persona is "Blueprint". Frontend canvas: `BlueprintCanvas.tsx`. `registerArchitectureAgentMeeting(registry)` called at startup.
 
 ### docAgentMeeting.ts (documentation agent meeting type)
 Registers the `doc-agent` meeting type with `canvasType: 'explain-it'`. Triggers on `session_complete`. Agent persona is "Scribe". Frontend canvas: `ExplainItCanvas.tsx`. `registerDocAgentMeeting(registry)` called at startup.
 
 ### mediaAgentMeeting.ts (media agent meeting type)
-Registers the `media-agent` meeting type with `canvasType: 'campaign'`. Triggers on `session_complete`. Agent persona is "Canvas". Frontend canvas: `CampaignCanvas.tsx`. `registerMediaAgentMeeting(registry)` called at startup.
+Registers the `media-agent` meeting type with `canvasType: 'campaign'`. Triggers on `plan_ready` (mid-build, after planning). Agent persona is "Canvas". Frontend canvas: `CampaignCanvas.tsx`. `registerMediaAgentMeeting(registry)` called at startup.
 
 ### webDesignAgentMeeting.ts (web designer agent meeting type)
 Registers the `web-design-agent` meeting type with `canvasType: 'launch-pad'`. Triggers on `deploy_started` when target is `web`. Agent persona is "Styler". Frontend canvas: `LaunchPadCanvas.tsx`. `registerWebDesignAgentMeeting(registry)` called at startup.
 
 ### artAgentMeeting.ts (art agent meeting type)
-Registers the `art-agent` meeting type with `canvasType: 'theme-picker'`. Triggers on `deploy_started` when a BOX-3 device is present. Agent persona is "Pixel" (Art Director). Frontend canvas: `ThemePickerCanvas.tsx`. `registerArtAgentMeeting(registry)` called at startup.
+Registers the `art-agent` meeting type with `canvasType: 'theme-picker'`. Triggers on both `plan_ready` (when BOX-3 in device_types) and `deploy_started` (when BOX-3 present). Agent persona is "Pixel" (Art Director). Frontend canvas: `ThemePickerCanvas.tsx`. `registerArtAgentMeeting(registry)` called at startup.
 
 ### specGraph.ts (spec graph service)
 Manages a persistent directed graph of NuggetSpecs. In-memory `Map<string, SpecGraph>` with JSON persistence to `.elisa/spec-graph.json`. Nodes wrap NuggetSpecs with labels and timestamps. Edges represent `depends_on`, `provides_to`, `shares_interface`, or `composes_into` relationships. Validates no self-edges or duplicate edges. DFS cycle detection with 3-color marking. Atomic save (write .tmp, rename). `buildGraphContext(graphId, excludeNodeId?)` generates human-readable summary for MetaPlanner prompt injection. Methods: `create()`, `load()`, `save()`, `addNode()`, `removeNode()` (cascades edges), `updateNode()`, `addEdge()`, `removeEdge()`, `getNeighbors()`, `detectCycles()`, `buildGraphContext()`, `getGraph()`, `deleteGraph()`. Types in `models/specGraph.ts`.
@@ -165,6 +174,7 @@ Interface for agent provisioning during deploy. `StubRuntimeProvisioner`: return
 Orchestrator.run(spec)
   |-> autoMatchTests(spec, send)        Explorer: auto-generate tests for when_then reqs
   |-> PlanPhase.execute(ctx, spec)      returns tasks, agents, DAG
+  |-> evaluateAndInvite('plan_ready')  triggers mid-build meetings (Architecture, Media, Art)
   |-> ExecutePhase.execute(ctx)
   |     streaming-parallel pool of ready tasks (up to 3 concurrent):
   |       AgentRunner.execute(prompt)   returns result + tokens

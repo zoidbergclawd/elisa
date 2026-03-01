@@ -5,6 +5,15 @@ import { getCanvas } from './canvasRegistry';
 import DefaultCanvas from './DefaultCanvas';
 import type { CanvasProps } from './canvasRegistry';
 
+// Import canvas modules to trigger their registerCanvas() side-effects
+import './BlueprintCanvas';
+import './BugDetectiveCanvas';
+import './CampaignCanvas';
+import './ExplainItCanvas';
+import './InterfaceDesignerCanvas';
+import './LaunchPadCanvas';
+import './ThemePickerCanvas';
+
 export interface MeetingMessage {
   role: 'agent' | 'kid';
   content: string;
@@ -19,6 +28,7 @@ export interface MeetingModalProps {
   onSendMessage: (content: string) => void;
   onCanvasUpdate: (data: Record<string, unknown>) => void;
   onEndMeeting: () => void;
+  onMaterialize?: (data: Record<string, unknown>) => Promise<{ files: string[]; primaryFile: string } | null>;
 }
 
 export default function MeetingModal({
@@ -30,6 +40,7 @@ export default function MeetingModal({
   onSendMessage,
   onCanvasUpdate,
   onEndMeeting,
+  onMaterialize,
 }: MeetingModalProps) {
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -134,6 +145,7 @@ export default function MeetingModal({
               meetingId={meetingId}
               canvasState={canvasState}
               onCanvasUpdate={onCanvasUpdate}
+              onMaterialize={onMaterialize}
             />
           </div>
         </div>

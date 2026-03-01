@@ -1,6 +1,6 @@
 /** Campaign canvas — creative asset builder for marketing materials. */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { registerCanvas, type CanvasProps } from './canvasRegistry';
 
 type Tab = 'poster' | 'social' | 'storyboard';
@@ -28,8 +28,10 @@ interface StoryboardPanel {
   scene: string;
 }
 
-function CampaignCanvas({ onCanvasUpdate }: CanvasProps) {
+function CampaignCanvas({ canvasState, onCanvasUpdate, onMaterialize }: CanvasProps) {
   const [activeTab, setActiveTab] = useState<Tab>('poster');
+  const [saved, setSaved] = useState(false);
+  const [materializeMsg, setMaterializeMsg] = useState('');
 
   const [poster, setPoster] = useState<PosterState>({
     title: '',
@@ -50,13 +52,50 @@ function CampaignCanvas({ onCanvasUpdate }: CanvasProps) {
     { scene: '' },
   ]);
 
-  const handleSave = () => {
-    onCanvasUpdate({
+  // Sync from canvasState.data (agent-driven updates)
+  useEffect(() => {
+    const d = canvasState.data;
+    if (typeof d.poster_title === 'string' && d.poster_title !== poster.title) {
+      setPoster((prev) => ({ ...prev, title: d.poster_title as string }));
+    }
+    if (typeof d.tagline === 'string' && d.tagline !== poster.subtitle) {
+      setPoster((prev) => ({ ...prev, subtitle: d.tagline as string }));
+    }
+    if (typeof d.headline === 'string' && d.headline !== socialCard.headline) {
+      setSocialCard((prev) => ({ ...prev, headline: d.headline as string }));
+    }
+    if (Array.isArray(d.storyboard_panels)) {
+      const panels = d.storyboard_panels
+        .filter((p): p is string => typeof p === 'string')
+        .map((scene) => ({ scene }));
+      if (panels.length > 0) {
+        setStoryboard(panels);
+      }
+    }
+  }, [canvasState.data]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSave = async () => {
+    const data = {
       type: 'assets_saved',
+      poster_title: poster.title,
+      tagline: poster.subtitle,
+      headline: socialCard.headline,
+      storyboard_panels: storyboard.map((p) => p.scene),
       poster,
       socialCard,
       storyboard,
-    });
+    };
+    onCanvasUpdate(data);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+
+    if (onMaterialize) {
+      const result = await onMaterialize(data);
+      if (result) {
+        setMaterializeMsg(`Saved to ${result.primaryFile}!`);
+        setTimeout(() => setMaterializeMsg(''), 4000);
+      }
+    }
   };
 
   const tabs: { key: Tab; label: string }[] = [
@@ -277,13 +316,16 @@ function CampaignCanvas({ onCanvasUpdate }: CanvasProps) {
       </div>
 
       {/* Save button */}
-      <div className="mt-4 pt-4 border-t border-border-subtle flex justify-end">
+      <div className="mt-4 pt-4 border-t border-border-subtle flex items-center justify-end gap-3">
+        {materializeMsg && (
+          <p className="text-xs text-green-400">{materializeMsg}</p>
+        )}
         <button
           type="button"
           onClick={handleSave}
           className="go-btn px-4 py-2 rounded-xl text-sm font-medium"
         >
-          Save Assets
+          {saved ? 'Saved!' : 'Save Assets'}
         </button>
       </div>
     </div>

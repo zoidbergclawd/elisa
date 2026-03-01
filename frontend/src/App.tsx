@@ -45,6 +45,7 @@ export default function App() {
     inviteQueue, nextInvite, activeMeeting, messages: meetingMessages, canvasState: meetingCanvasState,
     handleMeetingEvent, acceptInvite, declineInvite,
     sendMessage: sendMeetingMessage, endMeeting, updateCanvas: updateMeetingCanvas,
+    materializeArtifacts: materializeMeetingArtifacts,
   } = useMeetingSession(sessionId);
 
   // Route WS events to both build session and meeting session handlers
@@ -446,6 +447,7 @@ export default function App() {
           invite={nextInvite}
           onAccept={acceptInvite}
           onDecline={declineInvite}
+          pauseAutoDismiss={!!activeMeeting}
         />
       )}
 
@@ -460,6 +462,7 @@ export default function App() {
           onSendMessage={sendMeetingMessage}
           onCanvasUpdate={updateMeetingCanvas}
           onEndMeeting={endMeeting}
+          onMaterialize={materializeMeetingArtifacts}
         />
       )}
     </div>
