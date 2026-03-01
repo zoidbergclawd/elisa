@@ -171,7 +171,7 @@ export class MeetingAgentService {
   }
 
   private parseResponse(text: string): AgentResponse {
-    // Extract canvas JSON block if present
+    // Extract canvas JSON block if present (```canvas or ```json fallback)
     const canvasMatch = text.match(/```canvas\s*\n?([\s\S]*?)\n?```/);
     let canvasUpdate: Record<string, unknown> | undefined;
     let cleanText = text;
@@ -183,6 +183,31 @@ export class MeetingAgentService {
         // Ignore malformed canvas JSON
       }
       cleanText = text.replace(/```canvas\s*\n?[\s\S]*?\n?```/, '').trim();
+    }
+
+    // Fallback: if no ```canvas block found, try ```json blocks that look like canvas data
+    if (!canvasUpdate) {
+      const jsonMatch = text.match(/```json\s*\n?([\s\S]*?)\n?```/);
+      if (jsonMatch) {
+        try {
+          const parsed = JSON.parse(jsonMatch[1]);
+          // Only treat as canvas update if it's an object with recognized canvas fields
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            const hasCanvasFields = 'scene_title' in parsed || 'title' in parsed ||
+              'palette' in parsed || 'elements' in parsed || 'background' in parsed ||
+              'tasks' in parsed || 'requirements' in parsed || 'health_score' in parsed ||
+              'poster_title' in parsed || 'headline' in parsed || 'template' in parsed ||
+              'currentTheme' in parsed || 'provides' in parsed || 'requires' in parsed ||
+              'test_name' in parsed || 'content' in parsed || 'suggestions' in parsed;
+            if (hasCanvasFields) {
+              canvasUpdate = parsed;
+              cleanText = text.replace(/```json\s*\n?[\s\S]*?\n?```/, '').trim();
+            }
+          }
+        } catch {
+          // Not valid JSON, leave as-is
+        }
+      }
     }
 
     return { text: cleanText || text, canvasUpdate };

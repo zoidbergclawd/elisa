@@ -234,12 +234,20 @@ export function useMeetingSession(sessionId: string | null) {
     });
   }, [sessionId, state.activeMeeting]);
 
-  /** End the active meeting via REST API. */
+  /** End the active meeting via REST API. Optimistically clears meeting state
+   *  so the modal closes even if the WS event doesn't arrive (e.g. connection lost). */
   const endMeeting = useCallback(async () => {
     if (!sessionId || !state.activeMeeting) return;
-    await authFetch(`/api/sessions/${sessionId}/meetings/${state.activeMeeting.meetingId}/end`, {
-      method: 'POST',
-    });
+    const meetingId = state.activeMeeting.meetingId;
+    try {
+      await authFetch(`/api/sessions/${sessionId}/meetings/${meetingId}/end`, {
+        method: 'POST',
+      });
+    } catch {
+      // Server may be unreachable -- still close the modal locally
+    }
+    // Optimistic: clear meeting state immediately (WS event may duplicate but reducer handles it)
+    dispatch({ type: 'MEETING_ENDED', meetingId, outcomes: state.activeMeeting.outcomes });
   }, [sessionId, state.activeMeeting]);
 
   /** Update the canvas state. Persists finalize/save actions to the backend. */
