@@ -1,10 +1,11 @@
-/** Generates agent responses for meeting conversations using the Anthropic API. */
+/** Generates agent responses for meeting conversations using two parallel Claude API calls:
+ *  one for chat text (never JSON) and one for canvas data (always JSON). */
 
 import Anthropic from '@anthropic-ai/sdk';
 import type { MeetingType, MeetingMessage } from '../models/meeting.js';
 import { getAnthropicClient } from '../utils/anthropicClient.js';
 import { withTimeout } from '../utils/withTimeout.js';
-import { MEETING_AGENT_TIMEOUT_MS, MEETING_AGENT_MAX_TOKENS, NARRATOR_MODEL_DEFAULT } from '../utils/constants.js';
+import { MEETING_AGENT_TIMEOUT_MS, MEETING_CHAT_MAX_TOKENS, MEETING_CANVAS_MAX_TOKENS, NARRATOR_MODEL_DEFAULT } from '../utils/constants.js';
 
 export interface MeetingBuildContext {
   goal: string;
@@ -75,40 +76,89 @@ export class MeetingAgentService {
     messages: MeetingMessage[],
     buildContext: MeetingBuildContext,
   ): Promise<AgentResponse> {
-    const systemPrompt = this.buildSystemPrompt(meetingType, buildContext);
-    const claudeMessages = this.toClaudeMessages(messages);
-
-    try {
-      if (!this.client) {
-        this.client = getAnthropicClient();
-      }
-
-      const response = await withTimeout(
-        this.client.messages.create({
-          model: this.model,
-          max_tokens: MEETING_AGENT_MAX_TOKENS,
-          system: systemPrompt,
-          messages: claudeMessages,
-        }),
-        MEETING_AGENT_TIMEOUT_MS,
-      );
-
-      const text = response.content[0]?.type === 'text' ? response.content[0].text : '';
-      return this.parseResponse(text);
-    } catch (err) {
-      console.error('[meetingAgent] generateResponse failed:', err instanceof Error ? err.message : err);
-      return { text: "Hmm, let me think about that... Can you ask me again?" };
+    if (!this.client) {
+      this.client = getAnthropicClient();
     }
+
+    const claudeMessages = this.toClaudeMessages(messages);
+    const canvasInstructions = CANVAS_INSTRUCTIONS[meetingType.canvasType];
+
+    // Build both calls
+    const chatPromise = this.callChat(meetingType, claudeMessages, buildContext);
+    const canvasPromise = canvasInstructions
+      ? this.callCanvas(meetingType, claudeMessages, buildContext, canvasInstructions)
+      : Promise.resolve(undefined);
+
+    // Run in parallel, graceful failure for each
+    const [chatResult, canvasResult] = await Promise.allSettled([chatPromise, canvasPromise]);
+
+    const text = chatResult.status === 'fulfilled'
+      ? chatResult.value
+      : "Hmm, let me think about that... Can you ask me again?";
+
+    if (chatResult.status === 'rejected') {
+      console.error('[meetingAgent] chat call failed:', chatResult.reason instanceof Error ? chatResult.reason.message : chatResult.reason);
+    }
+
+    const canvasUpdate = canvasResult.status === 'fulfilled'
+      ? canvasResult.value
+      : undefined;
+
+    if (canvasResult.status === 'rejected') {
+      console.error('[meetingAgent] canvas call failed:', canvasResult.reason instanceof Error ? canvasResult.reason.message : canvasResult.reason);
+    }
+
+    return { text, canvasUpdate };
   }
 
-  private buildSystemPrompt(meetingType: MeetingType, ctx: MeetingBuildContext): string {
+  private async callChat(
+    meetingType: MeetingType,
+    claudeMessages: Array<{ role: 'user' | 'assistant'; content: string }>,
+    ctx: MeetingBuildContext,
+  ): Promise<string> {
+    const systemPrompt = this.buildChatSystemPrompt(meetingType, ctx);
+
+    const response = await withTimeout(
+      this.client!.messages.create({
+        model: this.model,
+        max_tokens: MEETING_CHAT_MAX_TOKENS,
+        system: systemPrompt,
+        messages: claudeMessages,
+      }),
+      MEETING_AGENT_TIMEOUT_MS,
+    );
+
+    return response.content[0]?.type === 'text' ? response.content[0].text : '';
+  }
+
+  private async callCanvas(
+    meetingType: MeetingType,
+    claudeMessages: Array<{ role: 'user' | 'assistant'; content: string }>,
+    ctx: MeetingBuildContext,
+    canvasInstructions: string,
+  ): Promise<Record<string, unknown> | undefined> {
+    const systemPrompt = this.buildCanvasSystemPrompt(meetingType, ctx, canvasInstructions);
+
+    const response = await withTimeout(
+      this.client!.messages.create({
+        model: this.model,
+        max_tokens: MEETING_CANVAS_MAX_TOKENS,
+        system: systemPrompt,
+        messages: claudeMessages,
+      }),
+      MEETING_AGENT_TIMEOUT_MS,
+    );
+
+    const raw = response.content[0]?.type === 'text' ? response.content[0].text : '';
+    return this.parseCanvasResponse(raw);
+  }
+
+  private buildChatSystemPrompt(meetingType: MeetingType, ctx: MeetingBuildContext): string {
     const parts: string[] = [];
 
-    // Persona
     parts.push(`You are ${meetingType.agentName}, a meeting agent in a kids' coding app called Elisa.`);
     parts.push(`Your persona: ${meetingType.persona}`);
 
-    // Build context
     parts.push('\n## Current Build Context');
     parts.push(`Goal: ${ctx.goal || 'Not set yet'}`);
     parts.push(`Phase: ${ctx.phase}`);
@@ -132,19 +182,46 @@ export class MeetingAgentService {
       parts.push(`Devices: ${ctx.devices.map(d => `${d.name} (${d.type})`).join(', ')}`);
     }
 
-    // Canvas instructions
-    const canvasInstructions = CANVAS_INSTRUCTIONS[meetingType.canvasType];
-    if (canvasInstructions) {
-      parts.push(`\n## Canvas\n${canvasInstructions}`);
-    }
-
-    // Rules
     parts.push('\n## Rules');
     parts.push('- Keep responses to 2-4 sentences. Kids have short attention spans.');
     parts.push('- Use simple, kid-friendly language (ages 8-14).');
     parts.push('- Stay in character as your persona.');
     parts.push('- Be encouraging and excited about their project.');
     parts.push('- Reference specific parts of their build when possible.');
+    parts.push('- NEVER output JSON, code blocks, structured data, or backtick-fenced content. Plain conversational text ONLY.');
+
+    return parts.join('\n');
+  }
+
+  private buildCanvasSystemPrompt(
+    meetingType: MeetingType,
+    ctx: MeetingBuildContext,
+    canvasInstructions: string,
+  ): string {
+    const parts: string[] = [];
+
+    parts.push(`You are generating canvas data for ${meetingType.agentName} in a kids' coding app.`);
+
+    parts.push('\n## Build Context');
+    parts.push(`Goal: ${ctx.goal || 'Not set yet'}`);
+    parts.push(`Phase: ${ctx.phase}`);
+
+    if (ctx.requirements.length > 0) {
+      parts.push(`Requirements: ${ctx.requirements.slice(0, 5).join('; ')}`);
+    }
+
+    if (ctx.tasks.length > 0) {
+      const taskList = ctx.tasks.slice(0, 8).map(t =>
+        `- ${t.title} (${t.agent}, ${t.status})`
+      ).join('\n');
+      parts.push(`Tasks:\n${taskList}`);
+    }
+
+    parts.push('\n## Canvas Schema');
+    parts.push(canvasInstructions);
+
+    parts.push('\n## Output Format');
+    parts.push('Output ONLY a valid JSON object. No markdown, no code fences, no explanation text. Just the raw JSON object.');
 
     return parts.join('\n');
   }
@@ -177,65 +254,31 @@ export class MeetingAgentService {
     return result;
   }
 
-  private parseResponse(text: string): AgentResponse {
-    let canvasUpdate: Record<string, unknown> | undefined;
-    let cleanText = text;
-
-    // 1. Try ```canvas fenced block
-    const canvasMatch = text.match(/```canvas\s*\n?([\s\S]*?)\n?```/);
-    if (canvasMatch) {
-      canvasUpdate = this.tryParseJson(canvasMatch[1]);
-      // Always strip the fence markers, even if JSON parse failed
-      cleanText = text.replace(/```canvas\s*\n?[\s\S]*?\n?```/, '').trim();
-    }
-
-    // 2. Fallback: try ```json fenced block
-    if (!canvasUpdate) {
-      const jsonMatch = text.match(/```json\s*\n?([\s\S]*?)\n?```/);
-      if (jsonMatch) {
-        const parsed = this.tryParseJson(jsonMatch[1]);
-        if (parsed && this.looksLikeCanvasData(parsed)) {
-          canvasUpdate = parsed;
-        }
-        // Always strip the fence to keep chat clean
-        cleanText = text.replace(/```json\s*\n?[\s\S]*?\n?```/, '').trim();
-      }
-    }
-
-    // 3. Fallback: try unfenced JSON object in the text
-    if (!canvasUpdate) {
-      const extracted = this.extractUnfencedJson(cleanText);
-      if (extracted) {
-        canvasUpdate = extracted.data;
-        cleanText = extracted.remainingText;
-      }
-    }
-
-    // 4. Last resort: strip any remaining JSON-like content that contains canvas fields.
-    //    NEVER show raw JSON in chat -- better to show nothing than confuse the kid.
-    if (!canvasUpdate) {
-      cleanText = this.stripCanvasJsonFromText(cleanText);
-    }
-
-    return { text: cleanText, canvasUpdate };
-  }
-
   /**
-   * Try to parse a JSON string, with fallback sanitization for common LLM issues
-   * (literal newlines inside string values, trailing commas).
+   * Parse the canvas call response: strip accidental fencing, try JSON.parse,
+   * fallback sanitizeJsonStrings for literal newlines in draw code.
    */
-  private tryParseJson(raw: string): Record<string, unknown> | undefined {
+  private parseCanvasResponse(raw: string): Record<string, unknown> | undefined {
+    if (!raw.trim()) return undefined;
+
+    // Strip accidental code fencing the model might add despite instructions
+    let cleaned = raw.trim();
+    const fenceMatch = cleaned.match(/^```(?:json|canvas)?\s*\n?([\s\S]*?)\n?```$/);
+    if (fenceMatch) {
+      cleaned = fenceMatch[1].trim();
+    }
+
     // First attempt: direct parse
     try {
-      const parsed = JSON.parse(raw);
+      const parsed = JSON.parse(cleaned);
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
     } catch {
       // Fall through to sanitized parse
     }
 
-    // Second attempt: fix literal newlines inside JSON string values
+    // Second attempt: fix literal newlines inside JSON string values (draw code)
     try {
-      const sanitized = this.sanitizeJsonStrings(raw);
+      const sanitized = this.sanitizeJsonStrings(cleaned);
       const parsed = JSON.parse(sanitized);
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
     } catch {
@@ -287,56 +330,5 @@ export class MeetingAgentService {
     }
 
     return result;
-  }
-
-  /** Check if a parsed object looks like canvas data (has recognized fields). */
-  private looksLikeCanvasData(parsed: unknown): parsed is Record<string, unknown> {
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return false;
-    const obj = parsed as Record<string, unknown>;
-    return 'scene_title' in obj || 'title' in obj ||
-      'palette' in obj || 'elements' in obj || 'background' in obj ||
-      'tasks' in obj || 'requirements' in obj || 'health_score' in obj ||
-      'poster_title' in obj || 'headline' in obj || 'template' in obj ||
-      'currentTheme' in obj || 'provides' in obj || 'requires' in obj ||
-      'test_name' in obj || 'content' in obj || 'suggestions' in obj;
-  }
-
-  /** Try to extract an unfenced JSON object from the text. */
-  private extractUnfencedJson(text: string): { data: Record<string, unknown>; remainingText: string } | null {
-    const jsonStart = text.indexOf('{');
-    if (jsonStart === -1) return null;
-    const jsonEnd = text.lastIndexOf('}');
-    if (jsonEnd <= jsonStart) return null;
-
-    const candidate = text.slice(jsonStart, jsonEnd + 1);
-    const parsed = this.tryParseJson(candidate);
-    if (parsed && this.looksLikeCanvasData(parsed)) {
-      const remaining = (text.slice(0, jsonStart) + text.slice(jsonEnd + 1)).trim();
-      return { data: parsed, remainingText: remaining };
-    }
-    return null;
-  }
-
-  /**
-   * Last resort: strip JSON-like content containing canvas field names from the text.
-   * Better to show empty chat than raw JSON that confuses the kid.
-   */
-  private stripCanvasJsonFromText(text: string): string {
-    const jsonStart = text.indexOf('{');
-    if (jsonStart === -1) return text;
-
-    const jsonEnd = text.lastIndexOf('}');
-    // If no closing brace, treat as truncated JSON -- strip from { to end
-    const candidate = jsonEnd > jsonStart
-      ? text.slice(jsonStart, jsonEnd + 1)
-      : text.slice(jsonStart);
-
-    const canvasFieldPattern = /"(?:scene_title|elements|palette|background|tasks|requirements|health_score|poster_title|headline|template|currentTheme|provides|requires|test_name|content|suggestions)"\s*:/;
-    if (canvasFieldPattern.test(candidate)) {
-      return jsonEnd > jsonStart
-        ? (text.slice(0, jsonStart) + text.slice(jsonEnd + 1)).trim()
-        : text.slice(0, jsonStart).trim();
-    }
-    return text;
   }
 }

@@ -48,8 +48,11 @@ export const MAX_TURNS_RETRY_INCREMENT = 10;
 /** Meeting agent response timeout in milliseconds. */
 export const MEETING_AGENT_TIMEOUT_MS = 30_000;
 
-/** Meeting agent max tokens per response. */
-export const MEETING_AGENT_MAX_TOKENS = 500;
+/** Meeting chat call max tokens (2-4 sentences of conversational text). */
+export const MEETING_CHAT_MAX_TOKENS = 300;
+
+/** Meeting canvas call max tokens (draw code for multiple elements). */
+export const MEETING_CANVAS_MAX_TOKENS = 4096;
 
 /** Default narrator/meeting-agent model. */
 export const NARRATOR_MODEL_DEFAULT = 'claude-haiku-4-5-20251001';

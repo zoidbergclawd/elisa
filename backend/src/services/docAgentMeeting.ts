@@ -10,7 +10,7 @@ export const DOC_AGENT_MEETING: MeetingType = {
   canvasType: 'explain-it',
   triggerConditions: [
     {
-      event: 'plan_ready',
+      event: 'deploy_started',
     },
   ],
   persona:
