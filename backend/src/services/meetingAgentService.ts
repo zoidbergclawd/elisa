@@ -184,11 +184,7 @@ export class MeetingAgentService {
     // 1. Try ```canvas fenced block
     const canvasMatch = text.match(/```canvas\s*\n?([\s\S]*?)\n?```/);
     if (canvasMatch) {
-      try {
-        canvasUpdate = JSON.parse(canvasMatch[1]);
-      } catch {
-        // Ignore malformed canvas JSON
-      }
+      canvasUpdate = this.tryParseJson(canvasMatch[1]);
       // Always strip the fence markers, even if JSON parse failed
       cleanText = text.replace(/```canvas\s*\n?[\s\S]*?\n?```/, '').trim();
     }
@@ -197,16 +193,12 @@ export class MeetingAgentService {
     if (!canvasUpdate) {
       const jsonMatch = text.match(/```json\s*\n?([\s\S]*?)\n?```/);
       if (jsonMatch) {
-        try {
-          const parsed = JSON.parse(jsonMatch[1]);
-          if (this.looksLikeCanvasData(parsed)) {
-            canvasUpdate = parsed;
-            cleanText = text.replace(/```json\s*\n?[\s\S]*?\n?```/, '').trim();
-          }
-        } catch {
-          // Not valid JSON -- still strip the fence to keep chat clean
-          cleanText = text.replace(/```json\s*\n?[\s\S]*?\n?```/, '').trim();
+        const parsed = this.tryParseJson(jsonMatch[1]);
+        if (parsed && this.looksLikeCanvasData(parsed)) {
+          canvasUpdate = parsed;
         }
+        // Always strip the fence to keep chat clean
+        cleanText = text.replace(/```json\s*\n?[\s\S]*?\n?```/, '').trim();
       }
     }
 
@@ -219,8 +211,82 @@ export class MeetingAgentService {
       }
     }
 
-    // Never fall back to the original text -- empty is fine
+    // 4. Last resort: strip any remaining JSON-like content that contains canvas fields.
+    //    NEVER show raw JSON in chat -- better to show nothing than confuse the kid.
+    if (!canvasUpdate) {
+      cleanText = this.stripCanvasJsonFromText(cleanText);
+    }
+
     return { text: cleanText, canvasUpdate };
+  }
+
+  /**
+   * Try to parse a JSON string, with fallback sanitization for common LLM issues
+   * (literal newlines inside string values, trailing commas).
+   */
+  private tryParseJson(raw: string): Record<string, unknown> | undefined {
+    // First attempt: direct parse
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+    } catch {
+      // Fall through to sanitized parse
+    }
+
+    // Second attempt: fix literal newlines inside JSON string values
+    try {
+      const sanitized = this.sanitizeJsonStrings(raw);
+      const parsed = JSON.parse(sanitized);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+    } catch {
+      // Give up
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Fix literal newlines inside JSON string values.
+   * LLMs often output multi-line strings without proper \n escaping.
+   */
+  private sanitizeJsonStrings(text: string): string {
+    let result = '';
+    let inString = false;
+    let escaped = false;
+
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+
+      if (escaped) {
+        result += ch;
+        escaped = false;
+        continue;
+      }
+
+      if (ch === '\\' && inString) {
+        result += ch;
+        escaped = true;
+        continue;
+      }
+
+      if (ch === '"') {
+        inString = !inString;
+        result += ch;
+        continue;
+      }
+
+      if (inString && ch === '\n') {
+        result += '\\n';
+        continue;
+      }
+      if (inString && ch === '\r') {
+        continue; // skip CR
+      }
+
+      result += ch;
+    }
+
+    return result;
   }
 
   /** Check if a parsed object looks like canvas data (has recognized fields). */
@@ -242,16 +308,35 @@ export class MeetingAgentService {
     const jsonEnd = text.lastIndexOf('}');
     if (jsonEnd <= jsonStart) return null;
 
-    try {
-      const candidate = text.slice(jsonStart, jsonEnd + 1);
-      const parsed = JSON.parse(candidate);
-      if (this.looksLikeCanvasData(parsed)) {
-        const remaining = (text.slice(0, jsonStart) + text.slice(jsonEnd + 1)).trim();
-        return { data: parsed, remainingText: remaining };
-      }
-    } catch {
-      // Not valid JSON
+    const candidate = text.slice(jsonStart, jsonEnd + 1);
+    const parsed = this.tryParseJson(candidate);
+    if (parsed && this.looksLikeCanvasData(parsed)) {
+      const remaining = (text.slice(0, jsonStart) + text.slice(jsonEnd + 1)).trim();
+      return { data: parsed, remainingText: remaining };
     }
     return null;
+  }
+
+  /**
+   * Last resort: strip JSON-like content containing canvas field names from the text.
+   * Better to show empty chat than raw JSON that confuses the kid.
+   */
+  private stripCanvasJsonFromText(text: string): string {
+    const jsonStart = text.indexOf('{');
+    if (jsonStart === -1) return text;
+
+    const jsonEnd = text.lastIndexOf('}');
+    // If no closing brace, treat as truncated JSON -- strip from { to end
+    const candidate = jsonEnd > jsonStart
+      ? text.slice(jsonStart, jsonEnd + 1)
+      : text.slice(jsonStart);
+
+    const canvasFieldPattern = /"(?:scene_title|elements|palette|background|tasks|requirements|health_score|poster_title|headline|template|currentTheme|provides|requires|test_name|content|suggestions)"\s*:/;
+    if (canvasFieldPattern.test(candidate)) {
+      return jsonEnd > jsonStart
+        ? (text.slice(0, jsonStart) + text.slice(jsonEnd + 1)).trim()
+        : text.slice(0, jsonStart).trim();
+    }
+    return text;
   }
 }

@@ -74,12 +74,24 @@ function drawBackground(
     const x1 = cx + Math.cos(rad) * len;
     const y1 = cy + Math.sin(rad) * len;
 
-    const grad = ctx.createLinearGradient(x0, y0, x1, y1);
-    colors.forEach((c, i) => {
-      grad.addColorStop(i / Math.max(colors.length - 1, 1), c);
-    });
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, w, h);
+    try {
+      const grad = ctx.createLinearGradient(x0, y0, x1, y1);
+      colors.forEach((c, i) => {
+        // Handle CSS color stops like "#0a0a2e 0%" -- strip the percentage
+        const colorOnly = c.split(/\s+/)[0];
+        const stopMatch = c.match(/([\d.]+)%/);
+        const position = stopMatch
+          ? parseFloat(stopMatch[1]) / 100
+          : i / Math.max(colors.length - 1, 1);
+        grad.addColorStop(position, colorOnly);
+      });
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+    } catch {
+      // Fallback on gradient parse error
+      ctx.fillStyle = colors[0]?.split(/\s+/)[0] || '#000';
+      ctx.fillRect(0, 0, w, h);
+    }
   } else {
     ctx.fillStyle = background;
     ctx.fillRect(0, 0, w, h);
