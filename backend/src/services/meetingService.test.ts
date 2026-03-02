@@ -33,6 +33,9 @@ const buildContext: MeetingBuildContext = {
   agents: [{ name: 'Builder', role: 'builder' }],
   devices: [],
   phase: 'executing',
+  testResults: [
+    { test_name: 'test_show_temperature', passed: true },
+  ],
 };
 
 describe('MeetingService', () => {
@@ -69,7 +72,7 @@ describe('MeetingService', () => {
       expect(result).not.toBeNull();
       expect(result!.canvas.data).toMatchObject({
         tasks: buildContext.tasks,
-        requirements: buildContext.requirements,
+        tests: [{ name: 'test_show_temperature', passed: true }],
         total_tasks: 2,
         tasks_done: 1,
       });

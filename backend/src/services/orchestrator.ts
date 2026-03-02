@@ -222,6 +222,9 @@ export class Orchestrator {
 
       // Test
       const testResult = await this.testPhase.execute(this.makeContext());
+      if (testResult.testResults) {
+        this.testResults = testResult.testResults;
+      }
 
       // Traceability: update tracker with test results and emit summary
       if (this.traceabilityTracker.hasRequirements()) {

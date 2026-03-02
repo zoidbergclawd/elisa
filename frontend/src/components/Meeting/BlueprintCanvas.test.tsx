@@ -15,10 +15,10 @@ const sampleTasks = [
   { id: 't4', name: 'Write tests', agent: 'Test Bot', status: 'pending' },
 ];
 
-const sampleRequirements = [
-  { id: 'r1', description: 'When user presses arrow key, snake moves', verified: 'passing' },
-  { id: 'r2', description: 'When snake hits wall, game ends', verified: 'failing' },
-  { id: 'r3', description: 'It should keep score', verified: 'untested' },
+const sampleTests = [
+  { name: 'test_snake_moves_on_arrow_key', passed: true },
+  { name: 'test_game_ends_on_wall_hit', passed: false },
+  { name: 'test_score_increments', passed: true },
 ];
 
 const sampleStats = {
@@ -31,7 +31,7 @@ const sampleStats = {
 
 const fullData = {
   tasks: sampleTasks,
-  requirements: sampleRequirements,
+  tests: sampleTests,
   ...sampleStats,
 };
 
@@ -47,9 +47,9 @@ describe('BlueprintCanvas', () => {
     expect(screen.getByText('Waiting for Blueprint to share the task overview...')).toBeInTheDocument();
   });
 
-  it('shows no requirements message when none provided', () => {
+  it('shows no test data message when none provided', () => {
     render(<BlueprintCanvas {...defaultProps} />);
-    expect(screen.getByText('No requirements data yet.')).toBeInTheDocument();
+    expect(screen.getByText('No test data yet.')).toBeInTheDocument();
   });
 
   it('displays tasks from canvas state', () => {
@@ -92,7 +92,7 @@ describe('BlueprintCanvas', () => {
     expect(screen.getByText('Test Bot')).toBeInTheDocument();
   });
 
-  it('displays requirements with status dots', () => {
+  it('displays tests with pass/fail indicators', () => {
     render(
       <BlueprintCanvas
         {...defaultProps}
@@ -100,13 +100,23 @@ describe('BlueprintCanvas', () => {
       />,
     );
 
-    expect(screen.getByText('When user presses arrow key, snake moves')).toBeInTheDocument();
-    expect(screen.getByText('When snake hits wall, game ends')).toBeInTheDocument();
-    expect(screen.getByText('It should keep score')).toBeInTheDocument();
+    expect(screen.getByText('test_snake_moves_on_arrow_key')).toBeInTheDocument();
+    expect(screen.getByText('test_game_ends_on_wall_hit')).toBeInTheDocument();
+    expect(screen.getByText('test_score_increments')).toBeInTheDocument();
 
-    expect(screen.getByLabelText('Status: passing')).toBeInTheDocument();
-    expect(screen.getByLabelText('Status: failing')).toBeInTheDocument();
-    expect(screen.getByLabelText('Status: untested')).toBeInTheDocument();
+    expect(screen.getAllByLabelText('Test: Passed')).toHaveLength(2);
+    expect(screen.getByLabelText('Test: Failed')).toBeInTheDocument();
+  });
+
+  it('shows Tests Written column header', () => {
+    render(
+      <BlueprintCanvas
+        {...defaultProps}
+        canvasState={{ type: 'blueprint', data: fullData }}
+      />,
+    );
+
+    expect(screen.getByText('Tests Written')).toBeInTheDocument();
   });
 
   it('displays system stats', () => {
@@ -186,7 +196,7 @@ describe('BlueprintCanvas', () => {
     render(
       <BlueprintCanvas
         {...defaultProps}
-        canvasState={{ type: 'blueprint', data: { tasks: sampleTasks, requirements: sampleRequirements } }}
+        canvasState={{ type: 'blueprint', data: { tasks: sampleTasks, tests: sampleTests } }}
       />,
     );
 

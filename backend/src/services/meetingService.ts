@@ -333,7 +333,7 @@ export class MeetingService {
         const done = ctx.tasks.filter(t => t.status === 'done').length;
         return {
           tasks: ctx.tasks.map(t => ({ ...t, name: t.title })),
-          requirements: ctx.requirements,
+          tests: (ctx.testResults ?? []).map(t => ({ name: t.test_name, passed: t.passed })),
           total_tasks: ctx.tasks.length,
           tasks_done: done,
           tests_passing: ctx.testsPassing ?? 0,

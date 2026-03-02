@@ -18,6 +18,7 @@ export interface MeetingBuildContext {
   testsTotal?: number;
   healthScore?: number;
   healthGrade?: string;
+  testResults?: Array<{ test_name: string; passed: boolean }>;
 }
 
 interface AgentResponse {
@@ -28,7 +29,7 @@ interface AgentResponse {
 const CANVAS_INSTRUCTIONS: Record<string, string> = {
   blueprint:
     'ALWAYS include a ```canvas JSON block when discussing the build status. ' +
-    'Required fields: tasks (array of {id, title, status}), requirements (array of strings), total_tasks (number), tasks_done (number), tests_passing (number), tests_total (number), health_score (number 0-100).',
+    'Required fields: tasks (array of {id, title, status}), tests (array of {name, passed}), total_tasks (number), tasks_done (number), tests_passing (number), tests_total (number), health_score (number 0-100).',
   'theme-picker':
     'ALWAYS include a ```canvas JSON block when suggesting a theme. ' +
     'Required fields: currentTheme (one of: "default", "forest", "sunset", "pixel").',

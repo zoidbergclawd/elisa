@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isClosingQuestion, isAffirmativeResponse } from '../routes/meetings.js';
+import { isClosingQuestion, isAffirmativeResponse, isDismissalQuestion, isNegativeResponse } from '../routes/meetings.js';
 
 describe('isClosingQuestion', () => {
   it('matches "Ready to build?"', () => {
@@ -147,11 +147,157 @@ describe('isAffirmativeResponse', () => {
     expect(isAffirmativeResponse('Y')).toBe(true);
   });
 
-  it('does not match sentences or complex responses', () => {
-    expect(isAffirmativeResponse('yes I want to build something cool')).toBe(false);
+  it('matches affirmative followed by extra words', () => {
+    expect(isAffirmativeResponse("yes let's build it!")).toBe(true);
+    expect(isAffirmativeResponse('yeah do it')).toBe(true);
+    expect(isAffirmativeResponse('sure thing')).toBe(true);
+    expect(isAffirmativeResponse('ok sounds good')).toBe(true);
+    expect(isAffirmativeResponse('absolutely love it')).toBe(true);
+    expect(isAffirmativeResponse('definitely go for it')).toBe(true);
+  });
+
+  it('does not match negative responses', () => {
     expect(isAffirmativeResponse('no')).toBe(false);
+    expect(isAffirmativeResponse('nope')).toBe(false);
     expect(isAffirmativeResponse('wait')).toBe(false);
     expect(isAffirmativeResponse('maybe')).toBe(false);
     expect(isAffirmativeResponse('not yet')).toBe(false);
+  });
+});
+
+describe('isDismissalQuestion', () => {
+  it('matches "Anything else you want to know?"', () => {
+    expect(isDismissalQuestion('Anything else you want to know?')).toBe(true);
+  });
+
+  it('matches "Do you have more questions?"', () => {
+    expect(isDismissalQuestion('Do you have more questions?')).toBe(true);
+  });
+
+  it('matches "Is there anything else I can help with?"', () => {
+    expect(isDismissalQuestion('Is there anything else I can help with?')).toBe(true);
+  });
+
+  it('matches "Anything more you want to explore?"', () => {
+    expect(isDismissalQuestion('Anything more you want to explore?')).toBe(true);
+  });
+
+  it('matches "Is there anything I can explain?"', () => {
+    expect(isDismissalQuestion('Is there anything I can explain?')).toBe(true);
+  });
+
+  it('matches "Do you need anything else?"', () => {
+    expect(isDismissalQuestion('Do you need anything else?')).toBe(true);
+  });
+
+  it('matches "Want to know anything else?"', () => {
+    expect(isDismissalQuestion('Want to know anything else?')).toBe(true);
+  });
+
+  it('matches "Want to ask anything else?"', () => {
+    expect(isDismissalQuestion('Want to ask anything else?')).toBe(true);
+  });
+
+  it('matches "Want to explore something else?"', () => {
+    expect(isDismissalQuestion('Want to explore something else?')).toBe(true);
+  });
+
+  it('matches within longer text', () => {
+    expect(isDismissalQuestion("That's how the tests work! Anything else you're curious about?")).toBe(true);
+  });
+
+  it('is case insensitive', () => {
+    expect(isDismissalQuestion('ANYTHING ELSE?')).toBe(true);
+    expect(isDismissalQuestion('More Questions?')).toBe(true);
+  });
+
+  it('does not match unrelated messages', () => {
+    expect(isDismissalQuestion('What color do you want?')).toBe(false);
+    expect(isDismissalQuestion('Ready to build?')).toBe(false);
+    expect(isDismissalQuestion('Tell me about your project')).toBe(false);
+  });
+});
+
+describe('isNegativeResponse', () => {
+  it('matches "no"', () => {
+    expect(isNegativeResponse('no')).toBe(true);
+  });
+
+  it('matches "nope"', () => {
+    expect(isNegativeResponse('nope')).toBe(true);
+  });
+
+  it('matches "nah"', () => {
+    expect(isNegativeResponse('nah')).toBe(true);
+  });
+
+  it('matches "I\'m good"', () => {
+    expect(isNegativeResponse("I'm good")).toBe(true);
+  });
+
+  it('matches "im good"', () => {
+    expect(isNegativeResponse('im good')).toBe(true);
+  });
+
+  it('matches "that\'s all"', () => {
+    expect(isNegativeResponse("that's all")).toBe(true);
+  });
+
+  it('matches "thats all"', () => {
+    expect(isNegativeResponse('thats all')).toBe(true);
+  });
+
+  it('matches "all good"', () => {
+    expect(isNegativeResponse('all good')).toBe(true);
+  });
+
+  it('matches "no thanks"', () => {
+    expect(isNegativeResponse('no thanks')).toBe(true);
+  });
+
+  it('matches "no thank you"', () => {
+    expect(isNegativeResponse('no thank you')).toBe(true);
+  });
+
+  it('matches "nothing"', () => {
+    expect(isNegativeResponse('nothing')).toBe(true);
+  });
+
+  it('matches "that\'s it"', () => {
+    expect(isNegativeResponse("that's it")).toBe(true);
+  });
+
+  it('matches "all set"', () => {
+    expect(isNegativeResponse('all set')).toBe(true);
+  });
+
+  it('matches "n"', () => {
+    expect(isNegativeResponse('n')).toBe(true);
+  });
+
+  it('strips trailing punctuation', () => {
+    expect(isNegativeResponse('nope!')).toBe(true);
+    expect(isNegativeResponse('no.')).toBe(true);
+  });
+
+  it('trims whitespace', () => {
+    expect(isNegativeResponse('  nope  ')).toBe(true);
+  });
+
+  it('is case insensitive', () => {
+    expect(isNegativeResponse('NO')).toBe(true);
+    expect(isNegativeResponse('Nope')).toBe(true);
+    expect(isNegativeResponse("I'm Good")).toBe(true);
+  });
+
+  it('does not match affirmative responses', () => {
+    expect(isNegativeResponse('yes')).toBe(false);
+    expect(isNegativeResponse('sure')).toBe(false);
+    expect(isNegativeResponse('ok')).toBe(false);
+  });
+
+  it('does not match complex sentences', () => {
+    expect(isNegativeResponse('no I want to ask about something')).toBe(false);
+    expect(isNegativeResponse('actually yes')).toBe(false);
   });
 });

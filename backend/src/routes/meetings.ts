@@ -59,7 +59,37 @@ export function isAffirmativeResponse(text: string): boolean {
     'lets go', "let's go", 'do it', 'build it', 'go for it',
     'absolutely', 'definitely', 'lets do it', "let's do it", 'go ahead',
   ];
-  return affirmatives.includes(normalized) || /^y$/i.test(normalized);
+  if (affirmatives.includes(normalized) || /^y$/i.test(normalized)) return true;
+  // Also match text starting with a core affirmative + space (e.g. "yes let's build it!")
+  const coreAffirmatives = ['yes', 'yeah', 'yep', 'yup', 'sure', 'ok', 'okay', 'absolutely', 'definitely'];
+  return coreAffirmatives.some(a => normalized.startsWith(a + ' '));
+}
+
+/** Check if an agent message contains a dismissal question (e.g. "Anything else?"). */
+export function isDismissalQuestion(text: string): boolean {
+  const patterns = [
+    /anything else/i,
+    /more questions/i,
+    /is there anything/i,
+    /anything more/i,
+    /anything I can/i,
+    /other questions/i,
+    /something else/i,
+    /need anything/i,
+    /want to (know|ask|explore) (anything|more|something)/i,
+  ];
+  return patterns.some(p => p.test(text));
+}
+
+/** Check if the kid's message is a negative/dismissive response (e.g. "nope", "I'm good"). */
+export function isNegativeResponse(text: string): boolean {
+  const normalized = text.trim().toLowerCase().replace(/[!.]+$/, '');
+  const negatives = [
+    'no', 'nope', 'nah', "i'm good", 'im good', "that's all", 'thats all',
+    'all good', 'no thanks', 'no thank you', "i'm done", 'im done',
+    'nothing', "that's it", 'thats it', 'all set',
+  ];
+  return negatives.includes(normalized) || /^n$/i.test(normalized);
 }
 
 interface MeetingRouterDeps {
@@ -94,6 +124,10 @@ function buildMeetingContext(session: SessionEntry | undefined): MeetingBuildCon
     testsTotal: session?.session.testResults?.total ?? 0,
     healthScore: session?.session.healthSummary?.score ?? 0,
     healthGrade: session?.session.healthSummary?.grade ?? '',
+    testResults: (session?.orchestrator?.getTestResults()?.tests ?? []).map(t => ({
+      test_name: t.test_name,
+      passed: t.passed,
+    })),
   };
 }
 
@@ -236,7 +270,10 @@ export function createMeetingRouter({ store, meetingService, meetingAgentService
     const priorMeeting = meetingService.getMeeting(meetingId);
     const agentMsgsBefore = (priorMeeting?.messages ?? []).filter((m: MeetingMessage) => m.role === 'agent');
     const lastAgentMsg = agentMsgsBefore[agentMsgsBefore.length - 1];
-    const shouldAutoEnd = lastAgentMsg && isClosingQuestion(lastAgentMsg.content) && isAffirmativeResponse(content.trim());
+    const shouldAutoEnd = lastAgentMsg && (
+      (isClosingQuestion(lastAgentMsg.content) && isAffirmativeResponse(content.trim())) ||
+      (isDismissalQuestion(lastAgentMsg.content) && isNegativeResponse(content.trim()))
+    );
 
     // Fire-and-forget: generate agent response asynchronously
     const meetingType = meetingService.getMeetingType(meeting.meetingTypeId);

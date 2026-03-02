@@ -11,10 +11,9 @@ interface TaskSummary {
   acceptance_criteria?: string;
 }
 
-interface RequirementSummary {
-  id: string;
-  description: string;
-  verified: 'passing' | 'failing' | 'untested';
+interface TestSummary {
+  name: string;
+  passed: boolean;
 }
 
 interface SystemStats {
@@ -41,16 +40,13 @@ function parseTasks(data: Record<string, unknown>): TaskSummary[] {
   });
 }
 
-function parseRequirements(data: Record<string, unknown>): RequirementSummary[] {
-  if (!Array.isArray(data.requirements)) return [];
-  return data.requirements.map((r: unknown) => {
-    const req = r as Record<string, unknown>;
+function parseTests(data: Record<string, unknown>): TestSummary[] {
+  if (!Array.isArray(data.tests)) return [];
+  return data.tests.map((t: unknown) => {
+    const test = t as Record<string, unknown>;
     return {
-      id: String(req.id ?? ''),
-      description: String(req.description ?? ''),
-      verified: (['passing', 'failing', 'untested'].includes(String(req.verified))
-        ? String(req.verified)
-        : 'untested') as RequirementSummary['verified'],
+      name: String(test.name ?? ''),
+      passed: Boolean(test.passed),
     };
   });
 }
@@ -73,17 +69,16 @@ const STATUS_COLORS: Record<TaskSummary['status'], string> = {
   failed: 'bg-red-500/20 text-red-400',
 };
 
-const VERIFIED_DOTS: Record<RequirementSummary['verified'], string> = {
-  passing: 'bg-green-400',
-  failing: 'bg-red-400',
-  untested: 'bg-amber-400',
+const TEST_RESULT_STYLES = {
+  passed: { dot: 'bg-green-400', label: 'Passed' },
+  failed: { dot: 'bg-red-400', label: 'Failed' },
 };
 
 function BlueprintCanvas({ canvasState }: CanvasProps) {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   const tasks = parseTasks(canvasState.data);
-  const requirements = parseRequirements(canvasState.data);
+  const tests = parseTests(canvasState.data);
   const stats = parseStats(canvasState.data);
 
   const selectedTask = tasks.find((t) => t.id === selectedTaskId);
@@ -158,7 +153,7 @@ function BlueprintCanvas({ canvasState }: CanvasProps) {
             )}
           </div>
 
-          {/* Requirements + selected task detail */}
+          {/* Tests + selected task detail */}
           <div className="space-y-4">
             {/* Selected task detail */}
             {selectedTask && (
@@ -179,30 +174,33 @@ function BlueprintCanvas({ canvasState }: CanvasProps) {
               </div>
             )}
 
-            {/* Requirements */}
+            {/* Tests Written */}
             <div>
               <p className="text-xs font-semibold text-atelier-text-secondary uppercase tracking-wide mb-2">
-                Requirements
+                Tests Written
               </p>
-              {requirements.length > 0 ? (
+              {tests.length > 0 ? (
                 <div className="space-y-2">
-                  {requirements.map((req) => (
-                    <div
-                      key={req.id}
-                      className="flex items-start gap-2 rounded-xl bg-atelier-surface p-3 border border-border-subtle"
-                    >
-                      <span
-                        className={`w-2.5 h-2.5 rounded-full shrink-0 mt-1 ${VERIFIED_DOTS[req.verified]}`}
-                        aria-label={`Status: ${req.verified}`}
-                      />
-                      <p className="text-sm text-atelier-text">{req.description}</p>
-                    </div>
-                  ))}
+                  {tests.map((test, idx) => {
+                    const style = test.passed ? TEST_RESULT_STYLES.passed : TEST_RESULT_STYLES.failed;
+                    return (
+                      <div
+                        key={idx}
+                        className="flex items-start gap-2 rounded-xl bg-atelier-surface p-3 border border-border-subtle"
+                      >
+                        <span
+                          className={`w-2.5 h-2.5 rounded-full shrink-0 mt-1 ${style.dot}`}
+                          aria-label={`Test: ${style.label}`}
+                        />
+                        <p className="text-sm text-atelier-text">{test.name}</p>
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="rounded-xl bg-atelier-surface p-4 border border-border-subtle text-center">
                   <p className="text-sm text-atelier-text-muted">
-                    No requirements data yet.
+                    No test data yet.
                   </p>
                 </div>
               )}
