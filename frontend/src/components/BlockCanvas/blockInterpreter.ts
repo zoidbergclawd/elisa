@@ -1,6 +1,6 @@
 import type { Skill, Rule } from '../Skills/types';
 import type { Portal } from '../Portals/types';
-import type { BehavioralTest } from '../../types';
+import type { BehavioralTest, FeedbackLoop, SystemLevel, RuntimeConfig, KnowledgeConfig } from '../../types';
 import type { DeviceManifest } from '../../lib/deviceBlocks';
 
 export interface NuggetSpec {
@@ -12,6 +12,7 @@ export interface NuggetSpec {
   requirements: Array<{
     type: string;
     description: string;
+    test_id?: string;
   }>;
   style?: {
     visual: string | null;
@@ -25,6 +26,8 @@ export interface NuggetSpec {
   deployment: {
     target: string;
     auto_flash: boolean;
+    runtime_url?: string;
+    provision_runtime?: boolean;
   };
   workflow: {
     review_enabled: boolean;
@@ -33,6 +36,8 @@ export interface NuggetSpec {
     flow_hints?: Array<{ type: 'sequential' | 'parallel'; descriptions: string[] }>;
     iteration_conditions?: string[];
     behavioral_tests?: BehavioralTest[];
+    feedback_loops?: FeedbackLoop[];
+    system_level?: SystemLevel;
   };
   skills?: Array<{ id: string; name: string; prompt: string; category: string; workspace?: Record<string, unknown> }>;
   rules?: Array<{ id: string; name: string; prompt: string; trigger: string }>;
@@ -54,6 +59,14 @@ export interface NuggetSpec {
   documentation?: {
     generate: boolean;
     focus: string;
+  };
+  runtime?: RuntimeConfig;
+  knowledge?: KnowledgeConfig;
+  composition?: {
+    parent_graph_id?: string;
+    node_id?: string;
+    provides?: Array<{ name: string; type: string }>;
+    requires?: Array<{ name: string; type: string }>;
   };
 }
 
@@ -162,7 +175,24 @@ export function interpretWorkspace(
       }
       case 'feature': {
         const text = (block.fields?.FEATURE_TEXT as string) ?? '';
-        spec.requirements.push({ type: 'feature', description: text });
+        const featureReqIndex = spec.requirements.length;
+        const featureReqId = `req_${featureReqIndex}`;
+        const featureTestBlocks = walkInputChain(block, 'TEST_SOCKET');
+        let featureLinkedTestId: string | undefined;
+        if (featureTestBlocks.length > 0) {
+          for (const tb of featureTestBlocks) {
+            if (tb.type === 'behavioral_test') {
+              const givenWhen = (tb.fields?.GIVEN_WHEN as string) ?? '';
+              const then = (tb.fields?.THEN as string) ?? '';
+              if (!spec.workflow.behavioral_tests) spec.workflow.behavioral_tests = [];
+              const testId = `test_${spec.workflow.behavioral_tests.length}`;
+              spec.workflow.behavioral_tests.push({ id: testId, when: givenWhen, then, requirement_id: featureReqId });
+              spec.workflow.testing_enabled = true;
+              if (!featureLinkedTestId) featureLinkedTestId = testId;
+            }
+          }
+        }
+        spec.requirements.push({ type: 'feature', description: text, test_id: featureLinkedTestId });
         break;
       }
       case 'constraint': {
@@ -173,22 +203,50 @@ export function interpretWorkspace(
       case 'when_then': {
         const trigger = (block.fields?.TRIGGER_TEXT as string) ?? '';
         const action = (block.fields?.ACTION_TEXT as string) ?? '';
-        spec.requirements.push({ type: 'when_then', description: `When ${trigger} happens, ${action} should happen` });
+        const reqIndex = spec.requirements.length;
+        const reqId = `req_${reqIndex}`;
+        const testBlocks = walkInputChain(block, 'TEST_SOCKET');
+        let linkedTestId: string | undefined;
+        if (testBlocks.length > 0) {
+          for (const tb of testBlocks) {
+            if (tb.type === 'behavioral_test') {
+              const givenWhen = (tb.fields?.GIVEN_WHEN as string) ?? '';
+              const then = (tb.fields?.THEN as string) ?? '';
+              if (!spec.workflow.behavioral_tests) spec.workflow.behavioral_tests = [];
+              const testId = `test_${spec.workflow.behavioral_tests.length}`;
+              spec.workflow.behavioral_tests.push({ id: testId, when: givenWhen, then, requirement_id: reqId });
+              spec.workflow.testing_enabled = true;
+              if (!linkedTestId) linkedTestId = testId;
+            }
+          }
+        }
+        spec.requirements.push({ type: 'when_then', description: `When ${trigger} happens, ${action} should happen`, test_id: linkedTestId });
         break;
       }
       case 'has_data': {
         const text = (block.fields?.DATA_TEXT as string) ?? '';
-        spec.requirements.push({ type: 'data', description: text });
+        const dataReqIndex = spec.requirements.length;
+        const dataReqId = `req_${dataReqIndex}`;
+        const dataTestBlocks = walkInputChain(block, 'TEST_SOCKET');
+        let dataLinkedTestId: string | undefined;
+        if (dataTestBlocks.length > 0) {
+          for (const tb of dataTestBlocks) {
+            if (tb.type === 'behavioral_test') {
+              const givenWhen = (tb.fields?.GIVEN_WHEN as string) ?? '';
+              const then = (tb.fields?.THEN as string) ?? '';
+              if (!spec.workflow.behavioral_tests) spec.workflow.behavioral_tests = [];
+              const testId = `test_${spec.workflow.behavioral_tests.length}`;
+              spec.workflow.behavioral_tests.push({ id: testId, when: givenWhen, then, requirement_id: dataReqId });
+              spec.workflow.testing_enabled = true;
+              if (!dataLinkedTestId) dataLinkedTestId = testId;
+            }
+          }
+        }
+        spec.requirements.push({ type: 'data', description: text, test_id: dataLinkedTestId });
         break;
       }
-      case 'behavioral_test': {
-        const givenWhen = (block.fields?.GIVEN_WHEN as string) ?? '';
-        const then = (block.fields?.THEN as string) ?? '';
-        if (!spec.workflow.behavioral_tests) spec.workflow.behavioral_tests = [];
-        spec.workflow.behavioral_tests.push({ when: givenWhen, then });
-        spec.workflow.testing_enabled = true;
-        break;
-      }
+      // behavioral_test blocks are now handled inside when_then via TEST_SOCKET input.
+      // They cannot appear in the main chain (typed connection: test_check).
       case 'look_like': {
         const preset = (block.fields?.STYLE_PRESET as string) ?? '';
         if (!spec.style) spec.style = { visual: null, personality: null };
@@ -348,6 +406,105 @@ export function interpretWorkspace(
           generate: true,
           focus: String(block.fields?.GUIDE_FOCUS ?? 'all'),
         };
+        break;
+      }
+      // --- Systems Thinking: feedback loop block ---
+      case 'feedback_loop': {
+        const id = (block.fields?.LOOP_ID as string) ?? '';
+        const trigger = (block.fields?.TRIGGER as string) ?? 'test_failure';
+        const exitCondition = (block.fields?.EXIT_CONDITION as string) ?? '';
+        const maxIterations = (block.fields?.MAX_ITERATIONS as number) ?? 3;
+        const connectsFrom = (block.fields?.CONNECTS_FROM as string) ?? '';
+        const connectsTo = (block.fields?.CONNECTS_TO as string) ?? '';
+        if (!spec.workflow.feedback_loops) spec.workflow.feedback_loops = [];
+        spec.workflow.feedback_loops.push({
+          id,
+          trigger: trigger as 'test_failure' | 'review_rejection' | 'custom',
+          exit_condition: exitCondition,
+          max_iterations: maxIterations,
+          connects_from: connectsFrom,
+          connects_to: connectsTo,
+        });
+        break;
+      }
+      // --- Systems Thinking: composition interface blocks ---
+      case 'nugget_provides': {
+        const name = (block.fields?.INTERFACE_NAME as string) ?? 'user_data';
+        const type = (block.fields?.INTERFACE_TYPE as string) ?? 'data';
+        if (!spec.composition) spec.composition = { provides: [], requires: [] };
+        if (!spec.composition.provides) spec.composition.provides = [];
+        spec.composition.provides.push({ name, type });
+        break;
+      }
+      case 'nugget_requires': {
+        const name = (block.fields?.INTERFACE_NAME as string) ?? 'user_data';
+        const type = (block.fields?.INTERFACE_TYPE as string) ?? 'data';
+        if (!spec.composition) spec.composition = { provides: [], requires: [] };
+        if (!spec.composition.requires) spec.composition.requires = [];
+        spec.composition.requires.push({ name, type });
+        break;
+      }
+      // --- Systems Thinking: system level block ---
+      case 'system_level': {
+        const level = (block.fields?.LEVEL as string) ?? 'explorer';
+        spec.workflow.system_level = level as 'explorer' | 'builder' | 'architect';
+        break;
+      }
+      // --- PRD-001: runtime config block ---
+      case 'runtime_config': {
+        spec.runtime = {
+          agent_name: (block.fields?.AGENT_NAME as string) || undefined,
+          greeting: (block.fields?.GREETING as string) || undefined,
+          fallback_response: (block.fields?.FALLBACK_RESPONSE as string) || undefined,
+          voice: (block.fields?.VOICE as string) || undefined,
+          display_theme: (block.fields?.DISPLAY_THEME as string) || undefined,
+        };
+        break;
+      }
+      // --- PRD-001: agent backpack declaration block ---
+      case 'agent_backpack': {
+        if (!spec.knowledge) spec.knowledge = {};
+        if (!spec.knowledge.backpack_sources) spec.knowledge.backpack_sources = [];
+        break;
+      }
+      // --- PRD-001: backpack source block ---
+      case 'backpack_source': {
+        const sourceId = (block.fields?.SOURCE_ID as string) ?? '';
+        const sourceType = (block.fields?.SOURCE_TYPE as string) ?? 'url';
+        const title = (block.fields?.TITLE as string) ?? '';
+        const uri = (block.fields?.URI as string) || undefined;
+        if (!spec.knowledge) spec.knowledge = {};
+        if (!spec.knowledge.backpack_sources) spec.knowledge.backpack_sources = [];
+        spec.knowledge.backpack_sources.push({
+          id: sourceId,
+          type: sourceType as 'pdf' | 'url' | 'youtube' | 'drive' | 'topic_pack' | 'sports_feed' | 'news_feed' | 'custom_feed',
+          title,
+          uri,
+        });
+        break;
+      }
+      // --- PRD-001: study mode block ---
+      case 'study_mode': {
+        const enabled = (block.fields?.ENABLED as boolean) ?? true;
+        const style = (block.fields?.STYLE as string) ?? 'explain';
+        const difficulty = (block.fields?.DIFFICULTY as string) ?? 'medium';
+        const rawFreq = block.fields?.QUIZ_FREQUENCY;
+        const quizFrequency = typeof rawFreq === 'number' ? rawFreq : Number(rawFreq) || 5;
+        if (!spec.knowledge) spec.knowledge = {};
+        spec.knowledge.study_mode = {
+          enabled,
+          style: style as 'explain' | 'quiz_me' | 'flashcards' | 'socratic',
+          difficulty: difficulty as 'easy' | 'medium' | 'hard',
+          quiz_frequency: quizFrequency,
+        };
+        break;
+      }
+      // --- PRD-002: deploy runtime block ---
+      case 'deploy_runtime': {
+        const runtimeUrl = (block.fields?.RUNTIME_URL as string) || undefined;
+        spec.deployment.provision_runtime = true;
+        if (runtimeUrl) spec.deployment.runtime_url = runtimeUrl;
+        hasWeb = true;
         break;
       }
       case 'deploy_web':

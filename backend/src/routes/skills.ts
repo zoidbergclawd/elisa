@@ -5,7 +5,9 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { AgentRunner } from '../services/agentRunner.js';
 import { SkillRunner } from '../services/skillRunner.js';
+import type { SkillPlan } from '../models/skillPlan.js';
 import type { SessionStore } from '../services/sessionStore.js';
+import type { WSEvent } from '../services/phases/types.js';
 
 // --- Zod schemas for SkillPlan and SkillSpec validation ---
 
@@ -86,7 +88,7 @@ const SkillRunBodySchema = z.object({
 
 interface SkillRouterDeps {
   store: SessionStore;
-  sendEvent: (sessionId: string, event: Record<string, any>) => Promise<void>;
+  sendEvent: (sessionId: string, event: WSEvent) => Promise<void>;
 }
 
 export function createSkillRouter({ store, sendEvent }: SkillRouterDeps): Router {
@@ -119,7 +121,7 @@ export function createSkillRouter({ store, sendEvent }: SkillRouterDeps): Router
     entry.skillRunner = runner;
 
     // Run async
-    runner.execute(plan).catch((err) => {
+    runner.execute(plan as SkillPlan).catch((err) => {
       console.error('SkillRunner error:', err);
     }).finally(() => {
       entry.session.state = 'done';

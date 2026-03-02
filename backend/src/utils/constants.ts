@@ -44,3 +44,18 @@ export const MAX_TURNS_DEFAULT = 25;
 
 /** Additional turns granted per retry attempt. */
 export const MAX_TURNS_RETRY_INCREMENT = 10;
+
+/** Meeting agent response timeout in milliseconds. */
+export const MEETING_AGENT_TIMEOUT_MS = 30_000;
+
+/** Meeting chat call max tokens (2-4 sentences of conversational text). */
+export const MEETING_CHAT_MAX_TOKENS = 300;
+
+/** Meeting canvas call max tokens (draw code for multiple elements). */
+export const MEETING_CANVAS_MAX_TOKENS = 4096;
+
+/** Default narrator/meeting-agent model. */
+export const NARRATOR_MODEL_DEFAULT = 'claude-haiku-4-5-20251001';
+
+/** Timeout for meeting blocks on task execution (auto-proceed after timeout). */
+export const MEETING_BLOCK_TIMEOUT_MS = 300_000;

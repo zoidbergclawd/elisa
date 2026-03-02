@@ -42,7 +42,13 @@ afterEach(async () => {
     await flushAndClose(logger);
   }
   vi.restoreAllMocks();
-  fs.rmSync(tmpDir, { recursive: true, force: true });
+  // Windows may still hold file handles briefly after stream close; retry once.
+  try {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  } catch {
+    await new Promise((r) => setTimeout(r, 100));
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 });
 
 describe('SessionLogger', () => {

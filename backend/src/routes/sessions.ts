@@ -14,16 +14,25 @@ import { validateWorkspacePath } from '../utils/pathValidator.js';
 import type { HardwareService } from '../services/hardwareService.js';
 import type { SessionStore } from '../services/sessionStore.js';
 import type { DeviceRegistry } from '../services/deviceRegistry.js';
+import type { MeetingRegistry } from '../services/meetingRegistry.js';
+import type { MeetingService } from '../services/meetingService.js';
+import type { RuntimeProvisioner } from '../services/runtimeProvisioner.js';
+import type { SpecGraphService } from '../services/specGraph.js';
 import type { SkillSpec } from '../models/skillPlan.js';
+import type { WSEvent } from '../services/phases/types.js';
 
 interface SessionRouterDeps {
   store: SessionStore;
-  sendEvent: (sessionId: string, event: Record<string, any>) => Promise<void>;
+  sendEvent: (sessionId: string, event: WSEvent) => Promise<void>;
   hardwareService?: HardwareService;
   deviceRegistry?: DeviceRegistry;
+  meetingRegistry?: MeetingRegistry;
+  meetingService?: MeetingService;
+  runtimeProvisioner?: RuntimeProvisioner;
+  specGraphService?: SpecGraphService;
 }
 
-export function createSessionRouter({ store, sendEvent, hardwareService, deviceRegistry }: SessionRouterDeps): Router {
+export function createSessionRouter({ store, sendEvent, hardwareService, deviceRegistry, meetingRegistry, meetingService, runtimeProvisioner, specGraphService }: SessionRouterDeps): Router {
   const router = Router();
 
   // Create session
@@ -92,8 +101,9 @@ export function createSessionRouter({ store, sendEvent, hardwareService, deviceR
             const result = await runner.execute(plan);
             skill.prompt = result;
             skill.category = 'agent';
-          } catch (err: any) {
-            console.warn(`Failed to pre-execute composite skill "${skill.name}":`, err.message);
+          } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : String(err);
+            console.warn(`Failed to pre-execute composite skill "${skill.name}":`, message);
           }
         }
       }
@@ -114,8 +124,9 @@ export function createSessionRouter({ store, sendEvent, hardwareService, deviceR
       }
       try {
         fs.mkdirSync(validation.resolved, { recursive: true });
-      } catch (err: any) {
-        res.status(400).json({ detail: `Cannot create workspace directory: ${err.message}` });
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        res.status(400).json({ detail: `Cannot create workspace directory: ${message}` });
         return;
       }
       workspacePath = validation.resolved;
@@ -142,6 +153,10 @@ export function createSessionRouter({ store, sendEvent, hardwareService, deviceR
       hardwareService,
       workspacePath,
       deviceRegistry,
+      meetingRegistry,
+      runtimeProvisioner,
+      specGraphService,
+      meetingService,
     );
     entry.orchestrator = orchestrator;
 

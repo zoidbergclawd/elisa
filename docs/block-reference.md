@@ -2,7 +2,7 @@
 
 Complete guide to Elisa's block palette. Blocks snap together on the canvas to produce a [NuggetSpec](api-reference.md#nuggetspec-schema) that drives the build.
 
-Categories: [Goals](#goals) | [Requirements](#requirements) | [Style](#style) | [Skills](#skills) | [Rules](#rules) | [Skill Flow](#skill-flow) | [Portals](#portals) | [Minions](#minions) | [Flow](#flow) | [Deploy](#deploy) | [Devices](#devices)
+Categories: [Goals](#goals) | [Requirements](#requirements) | [Tests](#tests) | [Style](#style) | [Skills](#skills) | [Rules](#rules) | [Skill Flow](#skill-flow) | [Portals](#portals) | [Knowledge](#knowledge) | [Minions](#minions) | [Flow](#flow) | [System](#system) | [Composition](#composition) | [Deploy](#deploy) | [Devices](#devices)
 
 ---
 
@@ -14,8 +14,11 @@ Define what you're building. Every project needs at least one goal block.
 |-------|--------|--------------------|
 | **Nugget Goal** | `GOAL_TEXT` (text input) | `nugget.goal`, `nugget.description` |
 | **Nugget Template** | `TEMPLATE_TYPE` (dropdown) | `nugget.type` |
+| **Write Guide** | `GUIDE_FOCUS` (dropdown) | `documentation.generate`, `documentation.focus` |
 
 **Template types**: `game`, `website`, `hardware`, `story`, `tool`
+
+**Guide focus options**: `how_it_works`, `setup`, `parts`, `all`
 
 ---
 
@@ -31,6 +34,20 @@ Describe what the project should do.
 | **Has Data** | `DATA_TEXT` (text) | `requirements[]` with `type: "data"` |
 
 **Example**: A "Feature" block with "multiplayer support" produces `{ type: "feature", description: "multiplayer support" }`.
+
+---
+
+## Tests
+
+Behavioral tests that verify requirements. Test blocks attach inside Feature, When/Then, and Has Data blocks via their test socket.
+
+| Block | Fields | NuggetSpec Output |
+|-------|--------|--------------------|
+| **Behavioral Test** | `GIVEN_WHEN` (text), `THEN` (text) | `workflow.behavioral_tests[]` with `when`, `then`, `requirement_id` |
+
+Test blocks connect to the `TEST_SOCKET` inside requirement blocks. When a test is attached to a Feature block, its `requirement_id` links it to that feature's requirement entry in the spec.
+
+**Example**: Attaching a Behavioral Test with "the user clicks play" / "the game starts" to a Feature block produces `{ id: "test_0", when: "the user clicks play", then: "the game starts", requirement_id: "req_0" }`.
 
 ---
 
@@ -126,6 +143,27 @@ Connect to external hardware and services. Portal dropdowns are dynamically popu
 
 ---
 
+## Knowledge
+
+Give your agent knowledge to reference and configure study/tutoring modes.
+
+| Block | Fields | NuggetSpec Output |
+|-------|--------|--------------------|
+| **Agent Backpack** | *(none)* | `knowledge.backpack_sources` (initialized as empty array) |
+| **Study Mode** | `STYLE` (dropdown), `DIFFICULTY` (dropdown), `QUIZ_FREQUENCY` (dropdown) | `knowledge.study_mode` |
+
+**Agent Backpack** declares that your agent uses a knowledge backpack. Backpack sources (PDFs, URLs, topic packs, etc.) are added separately.
+
+**Study Mode** turns your agent into a tutor that quizzes you on its backpack knowledge.
+
+**Study styles**: `quiz_me`, `explain`, `flashcards`, `socratic`
+
+**Difficulty levels**: `easy`, `medium`, `hard`
+
+**Quiz frequency** (turns between quizzes): `3`, `5`, `10`
+
+---
+
 ## Minions
 
 Configure the AI minions that will build your project. If no minion blocks are placed, defaults are used.
@@ -150,10 +188,47 @@ Control execution order. These are container blocks that hold other blocks insid
 | **First/Then** | `FIRST_BLOCKS`, `THEN_BLOCKS` (statement slots) | `workflow.flow_hints[]` with `type: "sequential"` |
 | **At Same Time** | `PARALLEL_BLOCKS` (statement slot) | `workflow.flow_hints[]` with `type: "parallel"` |
 | **Keep Improving** | `CONDITION_TEXT` (text) | `workflow.iteration_conditions[]` |
+| **Feedback Loop** | `LOOP_ID` (text), `TRIGGER` (dropdown), `EXIT_CONDITION` (text), `MAX_ITERATIONS` (number, 1-10, default 3), `CONNECTS_FROM` (text), `CONNECTS_TO` (text) | `workflow.feedback_loops[]` |
 | **Check With Me** | `GATE_DESCRIPTION` (text) | `workflow.human_gates[]` |
 | **Timer Every** | `INTERVAL` (number, default 5), `ACTION_BLOCKS` (statement slot) | `workflow.timers[]` |
 
-**First/Then** runs blocks in the first slot before blocks in the second. **At Same Time** runs contained blocks concurrently. **Keep Improving** loops until a condition is met. **Check With Me** pauses the build and asks the user for approval. **Timer Every** runs contained blocks on a recurring interval.
+**First/Then** runs blocks in the first slot before blocks in the second. **At Same Time** runs contained blocks concurrently. **Keep Improving** loops until a condition is met. **Feedback Loop** retries tasks when something goes wrong, connecting two tasks via `CONNECTS_FROM` and `CONNECTS_TO` and looping until the exit condition is met or max iterations are reached. **Check With Me** pauses the build and asks the user for approval. **Timer Every** runs contained blocks on a recurring interval.
+
+**Feedback Loop triggers**: `test_failure`, `review_rejection`, `custom`
+
+---
+
+## System
+
+Configure system-level settings that affect the overall build experience.
+
+| Block | Fields | NuggetSpec Output |
+|-------|--------|--------------------|
+| **System Level** | `LEVEL` (dropdown) | `workflow.system_level` |
+
+Sets the mastery level, which controls how much automation and explanation the system provides.
+
+**Levels**:
+- `explorer` — "Explorer - See how systems work" — everything is automatic and explained
+- `builder` — "Builder - Understand and control systems" — you control more
+- `architect` — "Architect - Design your own systems" — you design everything yourself
+
+---
+
+## Composition
+
+Declare interfaces for connecting nuggets together in multi-nugget systems.
+
+| Block | Fields | NuggetSpec Output |
+|-------|--------|--------------------|
+| **Nugget Provides** | `INTERFACE_NAME` (text), `INTERFACE_TYPE` (dropdown) | `composition.provides[]` with `name`, `type` |
+| **Nugget Requires** | `INTERFACE_NAME` (text), `INTERFACE_TYPE` (dropdown) | `composition.requires[]` with `name`, `type` |
+
+**Nugget Provides** declares an interface this nugget exposes for other nuggets to consume. **Nugget Requires** declares an interface this nugget needs from another nugget.
+
+**Interface types**: `data`, `event`, `function`, `stream`
+
+**Example**: A nugget that provides user data and requires a notification stream would use a Provides block with name "user_data" / type "Data" and a Requires block with name "alerts" / type "Stream".
 
 ---
 

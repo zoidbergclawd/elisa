@@ -11,6 +11,15 @@ import { withTimeout } from '../utils/withTimeout.js';
 
 const execFileAsync = promisify(execFile);
 
+/** Error subtype augmented with child process stdout/stderr for diagnostics. */
+interface ExecError extends Error {
+  stdout?: string;
+  stderr?: string;
+  code?: string;
+  killed?: boolean;
+  status?: number;
+}
+
 /** Resolve the full path to mpremote, checking PATH then common install locations. */
 function findMpremote(): string {
   const home = process.env.USERPROFILE || process.env.HOME || '';
@@ -58,9 +67,10 @@ export class HardwareService {
     for (const filepath of pyFiles) {
       try {
         await execFileAsync('python', ['-m', 'py_compile', filepath], { env: safeEnv() });
-      } catch (err: any) {
-        const stderr = (err.stderr || '').trim();
-        const msg = stderr || err.message;
+      } catch (err: unknown) {
+        const stderr = (err instanceof Error && 'stderr' in err ? String((err as Record<string, unknown>).stderr) : '').trim();
+        const message = err instanceof Error ? err.message : String(err);
+        const msg = stderr || message;
         console.log(`[elisa] py_compile failed for ${path.basename(filepath)}: ${msg}`);
         // Only count actual syntax errors (py_compile outputs "SyntaxError" or "Error")
         // Skip generic "Command failed" which means python itself had issues
@@ -163,9 +173,10 @@ export class HardwareService {
       const execPromise = new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
         childProc = execFile(cmd[0], cmd.slice(1), { env: safeEnv() }, (err, stdout, stderr) => {
           if (err) {
-            if (stdout != null) (err as any).stdout = stdout;
-            if (stderr != null) (err as any).stderr = stderr;
-            reject(err);
+            const execErr = err as ExecError;
+            if (stdout != null) execErr.stdout = stdout;
+            if (stderr != null) execErr.stderr = stderr;
+            reject(execErr);
           } else {
             resolve({ stdout: stdout ?? '', stderr: stderr ?? '' });
           }
@@ -180,15 +191,17 @@ export class HardwareService {
         success: true,
         message: `Flashed ${pyFiles.length} file(s) to ${port}`,
       };
-    } catch (err: any) {
-      if (err.message === 'Timed out') {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message === 'Timed out') {
         return { success: false, message: 'Flash timed out after 60 seconds' };
       }
-      if (err.code === 'ENOENT') {
+      const errObj = err as Record<string, unknown>;
+      if (errObj.code === 'ENOENT') {
         return { success: false, message: 'mpremote not found. Install it with: pip install mpremote' };
       }
-      const errorMsg = err.stderr?.trim() || 'Unknown error';
-      return { success: false, message: `Flash failed: ${errorMsg}` };
+      const errorMsg = typeof errObj.stderr === 'string' ? errObj.stderr.trim() : 'Unknown error';
+      return { success: false, message: `Flash failed: ${errorMsg || 'Unknown error'}` };
     }
   }
 
@@ -448,9 +461,10 @@ print('FLASH_OK')
       const result = await new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
         execFile('python', [scriptPath, port, manifestPath], { timeout: 60_000, env: safeEnv() }, (err, stdout, stderr) => {
           if (err) {
-            (err as any).stdout = stdout;
-            (err as any).stderr = stderr;
-            reject(err);
+            const execErr = err as ExecError;
+            execErr.stdout = stdout;
+            execErr.stderr = stderr;
+            reject(execErr);
           } else {
             resolve({ stdout: stdout ?? '', stderr: stderr ?? '' });
           }
@@ -470,14 +484,16 @@ print('FLASH_OK')
         success: false,
         message: `Flash script finished without confirmation: ${result.stdout.trim().substring(0, 200)}`,
       };
-    } catch (err: any) {
-      const stderr = err.stderr?.trim() || '';
-      const stdout = err.stdout?.trim() || '';
+    } catch (err: unknown) {
+      const errObj = err as Record<string, unknown>;
+      const stderr = typeof errObj.stderr === 'string' ? errObj.stderr.trim() : '';
+      const stdout = typeof errObj.stdout === 'string' ? errObj.stdout.trim() : '';
+      const message = err instanceof Error ? err.message : String(err);
       console.log(`[elisa] flash failed stdout: ${stdout}`);
       console.log(`[elisa] flash failed stderr: ${stderr}`);
       return {
         success: false,
-        message: `Serial paste mode failed: ${stderr || stdout || err.message}`,
+        message: `Serial paste mode failed: ${stderr || stdout || message}`,
       };
     } finally {
       try { fs.unlinkSync(scriptPath); } catch { /* ignore */ }
@@ -508,8 +524,9 @@ print('FLASH_OK')
           }
         }
       }
-    } catch (err: any) {
-      console.error(`[elisa] detectBoardFast error: ${err.message}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[elisa] detectBoardFast error: ${message}`);
     }
     return null;
   }
@@ -539,8 +556,9 @@ print('FLASH_OK')
           return { port: portInfo.path, boardType: 'MicroPython Board' };
         }
       }
-    } catch (err: any) {
-      console.error(`[elisa] detectBoard error: ${err.message}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[elisa] detectBoard error: ${message}`);
     }
     return null;
   }
@@ -627,9 +645,10 @@ print('FLASH_OK')
         flashed++;
         console.log(`[flashFiles] ${file} flashed OK (${flashed}/${files.length})`);
         onProgress?.(flashed, files.length, file);
-      } catch (err: any) {
-        console.error(`[flashFiles] FAILED to flash ${file}:`, err.message);
-        return { success: false, message: `Failed to flash ${file}: ${err.message}` };
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`[flashFiles] FAILED to flash ${file}:`, message);
+        return { success: false, message: `Failed to flash ${file}: ${message}` };
       }
     }
     if (flashed === 0) {
@@ -671,15 +690,17 @@ print('FLASH_OK')
           await execFileAsync(mpremote, ['rm', `:${file}`], { timeout: 10000 });
           removed.push(file);
           console.log(`[wipeBoard] removed ${file}`);
-        } catch (err: any) {
-          console.log(`[wipeBoard] failed to remove ${file}: ${err.message}`);
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : String(err);
+          console.log(`[wipeBoard] failed to remove ${file}: ${message}`);
         }
       }
 
       console.log(`[wipeBoard] removed ${removed.length}/${toRemove.length} files`);
       return { success: true, removed };
-    } catch (err: any) {
-      console.error(`[wipeBoard] failed to list files: ${err.message}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[wipeBoard] failed to list files: ${message}`);
       return { success: false, removed: [] };
     }
   }
@@ -693,9 +714,10 @@ print('FLASH_OK')
     try {
       await execFileAsync(mpremote, ['reset'], { timeout: 10000 });
       console.log('[resetBoard] reset command sent');
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Non-fatal: board may disconnect during reset causing an error
-      console.log(`[resetBoard] reset returned (may be expected): ${err.message}`);
+      const message = err instanceof Error ? err.message : String(err);
+      console.log(`[resetBoard] reset returned (may be expected): ${message}`);
     }
   }
 
@@ -722,8 +744,9 @@ print('FLASH_OK')
           try { serialPort.close(); } catch { /* ignore */ }
         },
       };
-    } catch (err: any) {
-      await callback(`[Error] Could not open serial port: ${err.message}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      await callback(`[Error] Could not open serial port: ${message}`);
       return { close: () => {} };
     }
   }

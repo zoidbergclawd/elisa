@@ -1,0 +1,424 @@
+/** Generates agent responses for meeting conversations using two parallel Claude API calls:
+ *  one for chat text (never JSON) and one for canvas data (always JSON). */
+
+import Anthropic from '@anthropic-ai/sdk';
+import type { MeetingType, MeetingMessage } from '../models/meeting.js';
+import { getAnthropicClient } from '../utils/anthropicClient.js';
+import { withTimeout } from '../utils/withTimeout.js';
+import { MEETING_AGENT_TIMEOUT_MS, MEETING_CHAT_MAX_TOKENS, MEETING_CANVAS_MAX_TOKENS, NARRATOR_MODEL_DEFAULT } from '../utils/constants.js';
+
+export interface MeetingBuildContext {
+  goal: string;
+  requirements: string[];
+  tasks: Array<{ id: string; title: string; agent: string; status: string }>;
+  agents: Array<{ name: string; role: string }>;
+  devices: Array<{ type: string; name: string }>;
+  phase: string;
+  testsPassing?: number;
+  testsTotal?: number;
+  healthScore?: number;
+  healthGrade?: string;
+}
+
+interface AgentResponse {
+  text: string;
+  canvasUpdate?: Record<string, unknown>;
+}
+
+const CANVAS_INSTRUCTIONS: Record<string, string> = {
+  blueprint:
+    'ALWAYS include a ```canvas JSON block when discussing the build status. ' +
+    'Required fields: tasks (array of {id, title, status}), requirements (array of strings), total_tasks (number), tasks_done (number), tests_passing (number), tests_total (number), health_score (number 0-100).',
+  'theme-picker':
+    'ALWAYS include a ```canvas JSON block when suggesting a theme. ' +
+    'Required fields: currentTheme (one of: "default", "forest", "sunset", "pixel").',
+  campaign:
+    'ALWAYS include a ```canvas JSON block when suggesting creative assets. ' +
+    'Required fields: poster_title (string), tagline (string), headline (string for social card), storyboard_panels (array of scene description strings).',
+  'explain-it':
+    'ALWAYS include a ```canvas JSON block when suggesting documentation content. ' +
+    'Required fields: title (string -- document title), content (string -- the COMPLETE markdown body text of the entire document so far, ' +
+    'including everything previously written PLUS any new additions; never send just the new paragraph, always send the full accumulated document), ' +
+    'suggestions (array of {id, text} for additional content ideas).',
+  'launch-pad':
+    'ALWAYS include a ```canvas JSON block when suggesting a launch page design. ' +
+    'Required fields: template (one of: "hero-features", "centered-minimal", "split-image-text", "full-banner"), headline (string -- project name), description (string -- tagline), primary_color (hex string), accent_color (hex string).',
+  'interface-designer':
+    'ALWAYS include a ```canvas JSON block when suggesting interface contracts. ' +
+    'Required fields: provides (array of {name, type} where type is "data"|"event"|"function"|"stream"), requires (array of {name, type} with same type options).',
+  'bug-detective':
+    'ALWAYS include a ```canvas JSON block when analyzing a bug. ' +
+    'Required fields: test_name (string), when (string -- trigger condition), then_expected (string -- what should happen), then_actual (string -- what actually happened), diagnosis_notes (array of strings with analysis steps).',
+  'design-preview':
+    'ALWAYS include a ```canvas JSON block with EVERY message so the kid sees the design evolve live. ' +
+    'Required fields: scene_title (string), description (string), ' +
+    'background (CSS color or gradient, e.g. "#0a0a2e" or "linear-gradient(135deg, #0a0a2e, #1a1a4e)"), ' +
+    'palette (array of 3-6 hex color strings), ' +
+    'elements (array ordered background-first, then foreground, then UI. Each object has: ' +
+    'name (string), description (string), color (hex string from palette), ' +
+    'draw (string -- Canvas 2D JavaScript code. Variables: ctx (CanvasRenderingContext2D), w (canvas width), h (canvas height), color (hex string). ' +
+    'Use ctx.fillStyle, ctx.beginPath, ctx.arc, ctx.moveTo, ctx.lineTo, ctx.fill, ctx.stroke, ctx.save, ctx.restore, ' +
+    'ctx.shadowBlur, ctx.shadowColor, ctx.createLinearGradient, ctx.fillRect, ctx.font, ctx.fillText, etc. ' +
+    'Draw the element so it looks like the actual game asset. Background elements fill the canvas; sprites draw at a representative position; UI elements draw at edges.)). ' +
+    'Update the canvas with every message so the kid sees their design evolve in real time.',
+};
+
+const MEETING_TOPIC_DESCRIPTIONS: Record<string, string> = {
+  blueprint:
+    'This meeting is about reviewing the architecture and build health of the kid\'s project.',
+  campaign:
+    'This meeting is about creating marketing materials (posters, social cards, storyboards) for the kid\'s project -- NOT about designing the project itself.',
+  'explain-it':
+    'This meeting is about writing documentation that explains what the kid built.',
+  'launch-pad':
+    'This meeting is about designing an awesome launch page for the kid\'s web project.',
+  'theme-picker':
+    'This meeting is about choosing visual themes and colors for the kid\'s BOX-3 device.',
+  'interface-designer':
+    'This meeting is about designing how the kid\'s nuggets connect and communicate.',
+  'bug-detective':
+    'This meeting is about diagnosing and understanding a bug in the kid\'s project.',
+  'design-preview':
+    'This meeting is about collaboratively designing visual elements (sprites, backgrounds, UI) for the kid\'s project.',
+};
+
+export { MEETING_TOPIC_DESCRIPTIONS };
+
+export class MeetingAgentService {
+  private client: Anthropic | null = null;
+  private model: string;
+
+  constructor(model?: string) {
+    this.model = model ?? process.env.NARRATOR_MODEL ?? NARRATOR_MODEL_DEFAULT;
+  }
+
+  async generateResponse(
+    meetingType: MeetingType,
+    messages: MeetingMessage[],
+    buildContext: MeetingBuildContext,
+    options?: { focusContext?: string; previousDesigns?: string[] },
+  ): Promise<AgentResponse> {
+    if (!this.client) {
+      this.client = getAnthropicClient();
+    }
+
+    const claudeMessages = this.toClaudeMessages(messages);
+    const canvasInstructions = CANVAS_INSTRUCTIONS[meetingType.canvasType];
+
+    // Build both calls
+    const chatPromise = this.callChat(meetingType, claudeMessages, buildContext, options);
+    const canvasPromise = canvasInstructions
+      ? this.callCanvas(meetingType, claudeMessages, buildContext, canvasInstructions, options)
+      : Promise.resolve(undefined);
+
+    // Run in parallel, graceful failure for each
+    const [chatResult, canvasResult] = await Promise.allSettled([chatPromise, canvasPromise]);
+
+    const text = chatResult.status === 'fulfilled'
+      ? chatResult.value
+      : "Hmm, let me think about that... Can you ask me again?";
+
+    if (chatResult.status === 'rejected') {
+      console.error('[meetingAgent] chat call failed:', chatResult.reason instanceof Error ? chatResult.reason.message : chatResult.reason);
+    }
+
+    const canvasUpdate = canvasResult.status === 'fulfilled'
+      ? canvasResult.value
+      : undefined;
+
+    if (canvasResult.status === 'rejected') {
+      console.error('[meetingAgent] canvas call failed:', canvasResult.reason instanceof Error ? canvasResult.reason.message : canvasResult.reason);
+    }
+
+    return { text, canvasUpdate };
+  }
+
+  private async callChat(
+    meetingType: MeetingType,
+    claudeMessages: Array<{ role: 'user' | 'assistant'; content: string }>,
+    ctx: MeetingBuildContext,
+    options?: { focusContext?: string; previousDesigns?: string[] },
+  ): Promise<string> {
+    const systemPrompt = this.buildChatSystemPrompt(meetingType, ctx, options);
+
+    const response = await withTimeout(
+      this.client!.messages.create({
+        model: this.model,
+        max_tokens: MEETING_CHAT_MAX_TOKENS,
+        system: systemPrompt,
+        messages: claudeMessages,
+      }),
+      MEETING_AGENT_TIMEOUT_MS,
+    );
+
+    return response.content[0]?.type === 'text' ? response.content[0].text : '';
+  }
+
+  private async callCanvas(
+    meetingType: MeetingType,
+    claudeMessages: Array<{ role: 'user' | 'assistant'; content: string }>,
+    ctx: MeetingBuildContext,
+    canvasInstructions: string,
+    options?: { focusContext?: string; previousDesigns?: string[] },
+  ): Promise<Record<string, unknown> | undefined> {
+    const systemPrompt = this.buildCanvasSystemPrompt(meetingType, ctx, canvasInstructions, claudeMessages, options);
+
+    const response = await withTimeout(
+      this.client!.messages.create({
+        model: this.model,
+        max_tokens: MEETING_CANVAS_MAX_TOKENS,
+        system: systemPrompt,
+        messages: claudeMessages,
+      }),
+      MEETING_AGENT_TIMEOUT_MS,
+    );
+
+    const raw = response.content[0]?.type === 'text' ? response.content[0].text : '';
+    return this.parseCanvasResponse(raw);
+  }
+
+  private buildChatSystemPrompt(
+    meetingType: MeetingType,
+    ctx: MeetingBuildContext,
+    options?: { focusContext?: string; previousDesigns?: string[] },
+  ): string {
+    const parts: string[] = [];
+
+    parts.push(`You are ${meetingType.agentName}, a meeting agent in a kids' coding app called Elisa.`);
+    parts.push(`Your persona: ${meetingType.persona}`);
+
+    const topicDescription = MEETING_TOPIC_DESCRIPTIONS[meetingType.canvasType];
+    if (topicDescription) {
+      parts.push(`\n## Meeting Topic\n${topicDescription}`);
+    }
+
+    parts.push('\n## Current Build Context');
+    parts.push(`Goal: ${ctx.goal || 'Not set yet'}`);
+    parts.push(`Phase: ${ctx.phase}`);
+
+    if (ctx.requirements.length > 0) {
+      parts.push(`Requirements: ${ctx.requirements.slice(0, 5).join('; ')}`);
+    }
+
+    if (ctx.tasks.length > 0) {
+      const taskList = ctx.tasks.slice(0, 8).map(t =>
+        `- ${t.title} (${t.agent}, ${t.status})`
+      ).join('\n');
+      parts.push(`Tasks:\n${taskList}`);
+    }
+
+    if (ctx.agents.length > 0) {
+      parts.push(`Agents: ${ctx.agents.map(a => `${a.name} (${a.role})`).join(', ')}`);
+    }
+
+    if (ctx.devices.length > 0) {
+      parts.push(`Devices: ${ctx.devices.map(d => `${d.name} (${d.type})`).join(', ')}`);
+    }
+
+    if (options?.focusContext) {
+      parts.push(`\n## Your Focus`);
+      parts.push(`Design ONLY elements for this task: ${options.focusContext}`);
+      parts.push('Do NOT redesign previous elements.');
+    }
+
+    if (options?.previousDesigns && options.previousDesigns.length > 0) {
+      parts.push(`\n## Already Designed`);
+      parts.push(options.previousDesigns.join('; '));
+      parts.push('Reference these for consistency but do not include them in canvas data.');
+    }
+
+    parts.push('\n## Rules');
+    parts.push('- Keep responses to 2-4 sentences. Kids have short attention spans.');
+    parts.push('- Use simple, kid-friendly language (ages 8-14).');
+    parts.push('- Stay in character as your persona.');
+    parts.push('- Be encouraging and excited about their project.');
+    parts.push('- Reference specific parts of their build when possible.');
+    parts.push('- NEVER output JSON, code blocks, structured data, or backtick-fenced content. Plain conversational text ONLY.');
+
+    return parts.join('\n');
+  }
+
+  private buildCanvasSystemPrompt(
+    meetingType: MeetingType,
+    ctx: MeetingBuildContext,
+    canvasInstructions: string,
+    claudeMessages?: Array<{ role: 'user' | 'assistant'; content: string }>,
+    options?: { focusContext?: string; previousDesigns?: string[] },
+  ): string {
+    const parts: string[] = [];
+
+    parts.push(`You are generating canvas data for ${meetingType.agentName} in a kids' coding app.`);
+
+    parts.push('\n## Build Context');
+    parts.push(`Goal: ${ctx.goal || 'Not set yet'}`);
+    parts.push(`Phase: ${ctx.phase}`);
+
+    if (ctx.requirements.length > 0) {
+      parts.push(`Requirements: ${ctx.requirements.slice(0, 5).join('; ')}`);
+    }
+
+    if (ctx.tasks.length > 0) {
+      const taskList = ctx.tasks.slice(0, 8).map(t =>
+        `- ${t.title} (${t.agent}, ${t.status})`
+      ).join('\n');
+      parts.push(`Tasks:\n${taskList}`);
+    }
+
+    parts.push('\n## Canvas Schema');
+    parts.push(canvasInstructions);
+
+    if (claudeMessages && claudeMessages.length > 0) {
+      const recentUserMessages = claudeMessages
+        .filter(m => m.role === 'user' && m.content !== '[Meeting started]')
+        .slice(-3)
+        .map(m => m.content);
+      if (recentUserMessages.length > 0) {
+        parts.push('\n## Recent Conversation');
+        parts.push(`The user has been discussing: ${recentUserMessages.join('; ')}`);
+        parts.push('Generate canvas data that reflects this conversation.');
+      }
+    }
+
+    if (options?.focusContext) {
+      parts.push(`\n## Scope`);
+      parts.push(`Generate data ONLY for: ${options.focusContext}`);
+    }
+
+    if (options?.previousDesigns && options.previousDesigns.length > 0) {
+      parts.push(`\n## Previously Designed`);
+      parts.push(options.previousDesigns.join('; '));
+      parts.push('Do NOT include these elements in your output.');
+    }
+
+    parts.push('\n## Output Format');
+    parts.push('Output ONLY a valid JSON object. No markdown, no code fences, no explanation text. Just the raw JSON object.');
+
+    return parts.join('\n');
+  }
+
+  private toClaudeMessages(messages: MeetingMessage[]): Array<{ role: 'user' | 'assistant'; content: string }> {
+    const result: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+
+    for (const m of messages) {
+      const role = m.role === 'kid' ? 'user' as const : 'assistant' as const;
+
+      // Merge consecutive same-role messages (Claude API rejects them)
+      if (result.length > 0 && result[result.length - 1].role === role) {
+        result[result.length - 1].content += '\n' + m.content;
+        continue;
+      }
+
+      result.push({ role, content: m.content });
+    }
+
+    // Claude API requires first message to be 'user' role
+    if (result.length > 0 && result[0].role === 'assistant') {
+      result.unshift({ role: 'user', content: '[Meeting started]' });
+    }
+
+    // If messages array was empty, provide a default user message
+    if (result.length === 0) {
+      result.push({ role: 'user', content: '[Meeting started]' });
+    }
+
+    return result;
+  }
+
+  /**
+   * Parse the canvas call response. Handles: raw JSON, fenced JSON anywhere
+   * in the text, and unfenced JSON mixed with prose. Each extraction is tried
+   * with sanitizeJsonStrings fallback for literal newlines in draw code.
+   */
+  private parseCanvasResponse(raw: string): Record<string, unknown> | undefined {
+    if (!raw.trim()) return undefined;
+
+    const cleaned = raw.trim();
+
+    // 1. Try the whole response as raw JSON (model followed instructions perfectly)
+    const rawResult = this.tryParseCanvasJson(cleaned);
+    if (rawResult) return rawResult;
+
+    // 2. Try extracting fenced block from ANYWHERE in the response
+    const fenceMatch = cleaned.match(/```(?:json|canvas)?\s*\n?([\s\S]*?)\n?```/);
+    if (fenceMatch) {
+      const result = this.tryParseCanvasJson(fenceMatch[1].trim());
+      if (result) return result;
+    }
+
+    // 3. Try extracting unfenced JSON object from the text
+    const jsonStart = cleaned.indexOf('{');
+    if (jsonStart !== -1) {
+      const jsonEnd = cleaned.lastIndexOf('}');
+      if (jsonEnd > jsonStart) {
+        const candidate = cleaned.slice(jsonStart, jsonEnd + 1);
+        const result = this.tryParseCanvasJson(candidate);
+        if (result) return result;
+      }
+    }
+
+    console.warn('[meetingAgent] canvas response could not be parsed:', raw.slice(0, 200));
+    return undefined;
+  }
+
+  /** Try JSON.parse with sanitizeJsonStrings fallback for literal newlines. */
+  private tryParseCanvasJson(text: string): Record<string, unknown> | undefined {
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+    } catch {
+      // Fall through to sanitized parse
+    }
+    try {
+      const sanitized = this.sanitizeJsonStrings(text);
+      const parsed = JSON.parse(sanitized);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+    } catch {
+      // Give up
+    }
+    return undefined;
+  }
+
+  /**
+   * Fix literal newlines inside JSON string values.
+   * LLMs often output multi-line strings without proper \n escaping.
+   */
+  private sanitizeJsonStrings(text: string): string {
+    let result = '';
+    let inString = false;
+    let escaped = false;
+
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+
+      if (escaped) {
+        result += ch;
+        escaped = false;
+        continue;
+      }
+
+      if (ch === '\\' && inString) {
+        result += ch;
+        escaped = true;
+        continue;
+      }
+
+      if (ch === '"') {
+        inString = !inString;
+        result += ch;
+        continue;
+      }
+
+      if (inString && ch === '\n') {
+        result += '\\n';
+        continue;
+      }
+      if (inString && ch === '\r') {
+        continue; // skip CR
+      }
+
+      result += ch;
+    }
+
+    return result;
+  }
+}

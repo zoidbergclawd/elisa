@@ -7,17 +7,23 @@ import MainTabBar, { type MainTab } from './components/shared/MainTabBar';
 import WorkspaceSidebar from './components/BlockCanvas/WorkspaceSidebar';
 import MissionControlPanel from './components/MissionControl/MissionControlPanel';
 import TeachingToast from './components/shared/TeachingToast';
+import MeetingInviteToast from './components/shared/MeetingInviteToast';
+import MeetingInviteCard from './components/shared/MeetingInviteCard';
+import MeetingModal from './components/Meeting/MeetingModal';
 import ReadinessBadge from './components/shared/ReadinessBadge';
+import LevelBadge from './components/shared/LevelBadge';
 import ModalHost from './components/shared/ModalHost';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useBuildSession } from './hooks/useBuildSession';
+import { useMeetingSession } from './hooks/useMeetingSession';
 import { useHealthCheck } from './hooks/useHealthCheck';
 import { useBoardDetect } from './hooks/useBoardDetect';
 import { useWorkspaceIO } from './hooks/useWorkspaceIO';
+import { useSystemLevel } from './hooks/useSystemLevel';
 import { setAuthToken, authFetch } from './lib/apiClient';
 import { registerDeviceBlocks, type DeviceManifest } from './lib/deviceBlocks';
 import { playChime } from './lib/playChime';
-import type { TeachingMoment } from './types';
+import type { TeachingMoment, WSEvent } from './types';
 import elisaLogo from '../assets/elisa.svg';
 
 export default function App() {
@@ -29,11 +35,27 @@ export default function App() {
     teachingMoments, testResults, coveragePct, tokenUsage,
     serialLines, deployProgress, deployChecklist, deployUrls, gateRequest, questionRequest,
     nuggetDir, errorNotification, narratorMessages, isPlanning,
-    flashWizardState,
+    flashWizardState, contextFlows, traceability, correctionCycles,
+    decomposition, impactEstimate, healthUpdate, healthSummary, healthHistory, boundaryAnalysis,
     handleEvent, startBuild, stopBuild, clearGateRequest, clearQuestionRequest,
     clearErrorNotification, resetToDesign,
   } = useBuildSession();
-  const { waitForOpen } = useWebSocket({ sessionId, onEvent: handleEvent });
+
+  const {
+    inviteQueue, nextInvite, activeMeeting, messages: meetingMessages, canvasState: meetingCanvasState,
+    handleMeetingEvent, acceptInvite, declineInvite,
+    sendMessage: sendMeetingMessage, endMeeting, updateCanvas: updateMeetingCanvas,
+    materializeArtifacts: materializeMeetingArtifacts,
+    resetMeetings,
+  } = useMeetingSession(sessionId);
+
+  // Route WS events to both build session and meeting session handlers
+  const handleAllEvents = useCallback((event: WSEvent) => {
+    handleMeetingEvent(event);
+    handleEvent(event);
+  }, [handleMeetingEvent, handleEvent]);
+
+  const { waitForOpen } = useWebSocket({ sessionId, onEvent: handleAllEvents });
   const { health, loading: healthLoading } = useHealthCheck(uiState === 'design');
 
   // Fetch auth token on mount
@@ -79,6 +101,9 @@ export default function App() {
     handleDirPickerSelect, handleDirPickerCancel,
     ensureWorkspacePath, reinterpretWorkspace,
   } = useWorkspaceIO({ blockCanvasRef, sessionId, deviceManifests });
+
+  // System level from current spec
+  const systemLevel = useSystemLevel(spec);
 
   // Main tab state
   const [activeMainTab, setActiveMainTab] = useState<MainTab>('workspace');
@@ -185,6 +210,7 @@ export default function App() {
           />
         </div>
         <div className="flex items-center gap-3">
+          {spec && <LevelBadge level={systemLevel} />}
           <GoButton
             disabled={uiState !== 'design' || !spec?.nugget.goal || health.status !== 'ready'}
             onClick={handleGo}
@@ -245,6 +271,9 @@ export default function App() {
               spec={spec}
               uiState={uiState}
               isPlanning={isPlanning}
+              contextFlows={contextFlows}
+              correctionCycles={correctionCycles}
+              impactEstimate={impactEstimate}
             />
           </div>
         )}
@@ -264,6 +293,13 @@ export default function App() {
         deployChecklist={deployChecklist ?? null}
         tokenUsage={tokenUsage}
         boardInfo={boardInfo}
+        traceability={traceability}
+        boundaryAnalysis={boundaryAnalysis}
+        healthUpdate={healthUpdate}
+        healthSummary={healthSummary}
+        healthHistory={healthHistory}
+        systemLevel={systemLevel}
+        correctionCycles={correctionCycles}
       />
 
       {/* All modals */}
@@ -330,10 +366,10 @@ export default function App() {
         </div>
       )}
 
-      {/* Done mode overlay */}
-      {uiState === 'done' && (
+      {/* Done mode overlay -- hidden when a meeting modal is active (z-50 > z-40) */}
+      {uiState === 'done' && !activeMeeting && (
         <div className="fixed inset-0 modal-backdrop z-40 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="done-modal-title">
-          <div className="glass-elevated rounded-2xl shadow-2xl p-8 max-w-md mx-4 text-center animate-float-in">
+          <div className={`glass-elevated rounded-2xl shadow-2xl p-8 mx-4 text-center animate-float-in ${inviteQueue.length > 0 ? 'max-w-lg' : 'max-w-md'}`}>
             <h2 id="done-modal-title" className="text-2xl font-display font-bold mb-4 gradient-text-warm">Nugget Complete!</h2>
             <p className="text-atelier-text-secondary mb-4">
               {events.find(e => e.type === 'session_complete')?.type === 'session_complete'
@@ -348,6 +384,22 @@ export default function App() {
                     <li key={i}>- {m.headline}</li>
                   ))}
                 </ul>
+              </div>
+            )}
+            {/* Meeting invite cards embedded in done modal */}
+            {inviteQueue.length > 0 && (
+              <div className="mb-4">
+                <h3 className="text-sm font-semibold text-accent-sky mb-3">Your agents want to meet!</h3>
+                <div className="flex gap-3 justify-center flex-wrap">
+                  {inviteQueue.map(invite => (
+                    <MeetingInviteCard
+                      key={invite.meetingId}
+                      invite={invite}
+                      onAccept={acceptInvite}
+                      onDecline={declineInvite}
+                    />
+                  ))}
+                </div>
               </div>
             )}
             <div className="flex flex-col items-center gap-2">
@@ -375,6 +427,7 @@ export default function App() {
               </button>
               <button
                 onClick={() => {
+                  resetMeetings();
                   resetToDesign();
                   setActiveMainTab('workspace');
                 }}
@@ -389,6 +442,31 @@ export default function App() {
 
       {/* Teaching toast overlay */}
       <TeachingToast moment={currentToast} onDismiss={handleDismissToast} />
+
+      {/* Meeting invite toast -- shown during builds, hidden at completion (cards shown in done modal instead) */}
+      {uiState !== 'done' && (
+        <MeetingInviteToast
+          invite={nextInvite}
+          onAccept={acceptInvite}
+          onDecline={declineInvite}
+          pauseAutoDismiss={!!activeMeeting}
+        />
+      )}
+
+      {/* Active meeting modal */}
+      {activeMeeting && (
+        <MeetingModal
+          meetingId={activeMeeting.meetingId}
+          agentName={activeMeeting.agentName}
+          canvasType={activeMeeting.canvasType}
+          canvasState={meetingCanvasState}
+          messages={meetingMessages}
+          onSendMessage={sendMeetingMessage}
+          onCanvasUpdate={updateMeetingCanvas}
+          onEndMeeting={endMeeting}
+          onMaterialize={materializeMeetingArtifacts}
+        />
+      )}
     </div>
   );
 }

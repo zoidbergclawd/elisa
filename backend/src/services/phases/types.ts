@@ -4,6 +4,15 @@ import type { BuildSession, Agent, Task, CommitInfo, QuestionPayload } from '../
 import type { SessionLogger } from '../../utils/sessionLogger.js';
 import type { TeachingEngine } from '../teachingEngine.js';
 
+/** Response from a human gate prompt (approve/reject with optional feedback). */
+export interface GateResponse {
+  approved: boolean;
+  feedback?: string;
+}
+
+/** User-provided answers to an agent question. Keys are question IDs or headers. */
+export type QuestionAnswers = Record<string, unknown>;
+
 /** Discriminated union for all WebSocket events sent from backend to frontend. */
 export type WSEvent =
   | { type: 'session_started'; session_id: string }
@@ -27,7 +36,7 @@ export type WSEvent =
   | { type: 'budget_warning'; total_tokens: number; max_budget: number; cost_usd: number }
   | { type: 'serial_data'; line: string; timestamp: string }
   | { type: 'human_gate'; task_id: string; question: string; context: string }
-  | { type: 'user_question'; task_id: string; questions: QuestionPayload[] | Record<string, any> }
+  | { type: 'user_question'; task_id: string; questions: QuestionPayload[] | Record<string, unknown> }
   | { type: 'skill_started'; skill_id: string; skill_name: string }
   | { type: 'skill_step'; skill_id: string; step_id: string; step_type: string; status: 'started' | 'completed' | 'failed' }
   | { type: 'skill_question'; skill_id: string; step_id: string; questions: QuestionPayload[] }
@@ -43,7 +52,27 @@ export type WSEvent =
   | { type: 'flash_prompt'; device_role: string; message: string }
   | { type: 'flash_progress'; device_role: string; step: string; progress: number }
   | { type: 'flash_complete'; device_role: string; success: boolean; message?: string }
-  | { type: 'documentation_ready'; file_path: string };
+  | { type: 'context_flow'; from_task_id: string; to_task_ids: string[]; summary_preview: string }
+  | { type: 'documentation_ready'; file_path: string }
+  | { type: 'meeting_invite'; meetingTypeId: string; meetingId: string; agentName: string; title: string; description: string }
+  | { type: 'meeting_started'; meetingId: string; meetingTypeId: string; agentName: string; canvasType: string }
+  | { type: 'meeting_message'; meetingId: string; role: 'agent' | 'kid'; content: string }
+  | { type: 'meeting_canvas_update'; meetingId: string; canvasType: string; data: Record<string, unknown> }
+  | { type: 'meeting_outcome'; meetingId: string; outcomeType: string; data: Record<string, unknown> }
+  | { type: 'meeting_ended'; meetingId: string; outcomes: Array<{ type: string; data: Record<string, unknown> }> }
+  | { type: 'traceability_update'; requirement_id: string; test_id: string; status: 'untested' | 'passing' | 'failing' }
+  | { type: 'traceability_summary'; coverage: number; requirements: Array<{ requirement_id: string; description: string; test_id?: string; test_name?: string; status: 'untested' | 'passing' | 'failing' }> }
+  | { type: 'correction_cycle_started'; task_id: string; attempt_number: number; failure_reason: string; max_attempts: number }
+  | { type: 'correction_cycle_progress'; task_id: string; attempt_number: number; step: 'diagnosing' | 'fixing' | 'retesting' }
+  | { type: 'convergence_update'; task_id: string; attempts_so_far: number; tests_passing: number; tests_total: number; trend: 'improving' | 'stalled' | 'diverging'; converged: boolean; attempts: Array<{ attempt_number: number; status: string; tests_passing?: number; tests_total?: number }> }
+  | { type: 'decomposition_narrated'; goal: string; subtasks: string[]; explanation: string }
+  | { type: 'impact_estimate'; estimated_tasks: number; complexity: 'simple' | 'moderate' | 'complex'; heaviest_requirements: string[]; requirement_details: Array<{ description: string; estimated_task_count: number; test_linked: boolean; weight: number; dependents: number }> }
+  | { type: 'system_health_update'; tasks_done: number; tasks_total: number; tests_passing: number; tests_total: number; tokens_used: number; health_score: number }
+  | { type: 'system_health_summary'; health_score: number; grade: 'A' | 'B' | 'C' | 'D' | 'F'; breakdown: { tasks_score: number; tests_score: number; corrections_score: number; budget_score: number } }
+  | { type: 'boundary_analysis'; inputs: Array<{ name: string; type: string; source?: string }>; outputs: Array<{ name: string; type: string; source?: string }>; boundary_portals: string[] }
+  | { type: 'composition_impact'; graph_id: string; changed_node_id: string; affected_nodes: Array<{ node_id: string; label: string; reason: string }>; severity: string }
+  | { type: 'composition_started'; graph_id: string; node_ids: string[] }
+  | { type: 'health_history'; entries: Array<{ timestamp: string; goal: string; score: number; grade: 'A' | 'B' | 'C' | 'D' | 'F'; breakdown: { tasks: number; tests: number; corrections: number; budget: number } }> };
 
 export type SendEvent = (event: WSEvent) => Promise<void>;
 

@@ -28,8 +28,9 @@ export function createWorkspaceRouter(): Router {
     const resolved = validation.resolved;
     try {
       fs.mkdirSync(resolved, { recursive: true });
-    } catch (err: any) {
-      res.status(400).json({ detail: `Cannot create directory: ${err.message}` });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      res.status(400).json({ detail: `Cannot create directory: ${message}` });
       return;
     }
 
@@ -44,8 +45,9 @@ export function createWorkspaceRouter(): Router {
       for (const [name, content] of Object.entries(artifacts)) {
         fs.writeFileSync(path.join(resolved, name), content, 'utf-8');
       }
-    } catch (err: any) {
-      res.status(500).json({ detail: `Failed to write files: ${err.message}` });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      res.status(500).json({ detail: `Failed to write files: ${message}` });
       return;
     }
 

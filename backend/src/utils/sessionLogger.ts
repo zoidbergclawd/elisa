@@ -9,7 +9,7 @@ interface LogEntry {
   timestamp: string;
   level: LogLevel;
   event: string;
-  data?: Record<string, any>;
+  data?: Record<string, unknown>;
 }
 
 export class SessionLogger {
@@ -29,7 +29,7 @@ export class SessionLogger {
   }
 
   /** Write a structured log entry. */
-  log(level: LogLevel, event: string, data?: Record<string, any>): void {
+  log(level: LogLevel, event: string, data?: Record<string, unknown>): void {
     const timestamp = new Date().toISOString();
     const entry: LogEntry = { timestamp, level, event, ...(data !== undefined ? { data } : {}) };
 
@@ -56,15 +56,15 @@ export class SessionLogger {
     }
   }
 
-  info(event: string, data?: Record<string, any>): void {
+  info(event: string, data?: Record<string, unknown>): void {
     this.log('info', event, data);
   }
 
-  warn(event: string, data?: Record<string, any>): void {
+  warn(event: string, data?: Record<string, unknown>): void {
     this.log('warn', event, data);
   }
 
-  error(event: string, data?: Record<string, any>): void {
+  error(event: string, data?: Record<string, unknown>): void {
     this.log('error', event, data);
   }
 
@@ -131,7 +131,7 @@ export class SessionLogger {
   }
 
   /** Format data object for human-readable log line. */
-  private formatData(data: Record<string, any>): string {
+  private formatData(data: Record<string, unknown>): string {
     const parts: string[] = [];
     for (const [key, value] of Object.entries(data)) {
       if (key === 'content' && typeof value === 'string' && value.length > 200) {

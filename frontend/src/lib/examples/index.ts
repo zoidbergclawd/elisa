@@ -7,6 +7,7 @@ import { spaceDodge } from './spaceDodge';
 import { skillShowcase } from './skillShowcase';
 import { rulesShowcase } from './rulesShowcase';
 import { iotSensorNetwork } from './iotSensorNetwork';
+import { s3BoxAgent } from './s3BoxAgent';
 
 export interface ExampleNugget {
   id: string;
@@ -19,12 +20,14 @@ export interface ExampleNugget {
   skills: Skill[];
   rules: Rule[];
   portals: Portal[];
+  requiredDevices?: string[];
 }
 
 export const EXAMPLE_NUGGETS: ExampleNugget[] = [
   simpleWebApp,
   hardwareBlink,
   iotSensorNetwork,
+  s3BoxAgent,
   teamBuild,
   spaceDodge,
   skillShowcase,

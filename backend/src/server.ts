@@ -16,12 +16,94 @@ import { createSkillRouter } from './routes/skills.js';
 import { createWorkspaceRouter } from './routes/workspace.js';
 import { DeviceRegistry } from './services/deviceRegistry.js';
 import { createDeviceRouter } from './routes/devices.js';
+import { MeetingRegistry } from './services/meetingRegistry.js';
+import { MeetingService } from './services/meetingService.js';
+import { MeetingAgentService } from './services/meetingAgentService.js';
+import { createMeetingRouter } from './routes/meetings.js';
+import { AgentStore } from './services/runtime/agentStore.js';
+import { ConversationManager } from './services/runtime/conversationManager.js';
+import { ConsentManager } from './services/runtime/consentManager.js';
+import { TurnPipeline } from './services/runtime/turnPipeline.js';
+import { KnowledgeBackpack } from './services/runtime/knowledgeBackpack.js';
+import { StudyMode } from './services/runtime/studyMode.js';
+import { GapDetector } from './services/runtime/gapDetector.js';
+import { LocalRuntimeProvisioner } from './services/runtimeProvisioner.js';
+import { createRuntimeRouter } from './routes/runtime.js';
+import { SpecGraphService } from './services/specGraph.js';
+import { createSpecGraphRouter } from './routes/specGraph.js';
+import { getAnthropicClient } from './utils/anthropicClient.js';
+import type { WSEvent } from './services/phases/types.js';
 
 // -- State --
 
 const store = new SessionStore();
 const hardwareService = new HardwareService();
 const deviceRegistry = new DeviceRegistry(path.resolve(import.meta.dirname, '../../devices'));
+const meetingRegistry = new MeetingRegistry();
+const meetingService = new MeetingService(meetingRegistry);
+const meetingAgentService = new MeetingAgentService();
+
+// Register default meeting types
+meetingRegistry.register({
+  id: 'debug-convergence',
+  name: 'Bug Detective Meeting',
+  agentName: 'Bug Detective',
+  canvasType: 'bug-detective',
+  triggerConditions: [{ event: 'convergence_stalled' }],
+  persona: 'A friendly debugging expert who helps kids figure out why code is not working. Patient, curious, and encouraging.',
+});
+
+// Register Art Agent meeting type (BOX-3 theme customization)
+import { registerArtAgentMeeting } from './services/artAgentMeeting.js';
+registerArtAgentMeeting(meetingRegistry);
+
+// Register Documentation Agent meeting type (post-build documentation)
+import { registerDocAgentMeeting } from './services/docAgentMeeting.js';
+registerDocAgentMeeting(meetingRegistry);
+
+// Register Web Designer Agent meeting type (web deploy launch pages)
+import { registerWebDesignAgentMeeting } from './services/webDesignAgentMeeting.js';
+registerWebDesignAgentMeeting(meetingRegistry);
+
+// Register Media Agent meeting type (visual assets and marketing)
+import { registerMediaAgentMeeting } from './services/mediaAgentMeeting.js';
+registerMediaAgentMeeting(meetingRegistry);
+
+// Register Architecture Agent meeting type (system understanding capstone)
+import { registerArchitectureAgentMeeting } from './services/architectureAgentMeeting.js';
+registerArchitectureAgentMeeting(meetingRegistry);
+
+// Register Integration Agent meeting type (cross-nugget composition)
+import { registerIntegrationAgentMeeting } from './services/integrationAgentMeeting.js';
+registerIntegrationAgentMeeting(meetingRegistry);
+
+// Register task-level meeting types (design review before art tasks)
+import { registerTaskMeetingTypes } from './services/taskMeetingTypes.js';
+registerTaskMeetingTypes(meetingRegistry);
+
+// Spec Graph
+const specGraphService = new SpecGraphService();
+
+// Composition Service (cross-nugget composition + impact detection)
+import { CompositionService } from './services/compositionService.js';
+const compositionService = new CompositionService(specGraphService);
+
+// Agent Runtime (PRD-001)
+const agentStore = new AgentStore();
+const consentManager = new ConsentManager();
+const conversationManager = new ConversationManager(undefined, consentManager);
+const knowledgeBackpack = new KnowledgeBackpack();
+const studyMode = new StudyMode(knowledgeBackpack);
+const gapDetector = new GapDetector();
+const runtimeProvisioner = new LocalRuntimeProvisioner(agentStore);
+const turnPipeline = new TurnPipeline({
+  agentStore,
+  conversationManager,
+  getClient: getAnthropicClient,
+  knowledgeBackpack,
+  consentManager,
+  gapDetector,
+});
 
 // -- Health --
 
@@ -54,9 +136,9 @@ async function validateStartupHealth(): Promise<void> {
   try {
     await new Anthropic().models.list({ limit: 1 });
     healthStatus.apiKey = 'valid';
-  } catch (err: any) {
+  } catch (err: unknown) {
     healthStatus.apiKey = 'invalid';
-    healthStatus.apiKeyError = err.message ?? String(err);
+    healthStatus.apiKeyError = err instanceof Error ? err.message : String(err);
   }
 }
 
@@ -76,7 +158,7 @@ class ConnectionManager {
     this.connections.get(sessionId)?.delete(ws);
   }
 
-  async sendEvent(sessionId: string, event: Record<string, any>): Promise<void> {
+  async sendEvent(sessionId: string, event: WSEvent): Promise<void> {
     const conns = this.connections.get(sessionId);
     if (!conns) return;
     const data = JSON.stringify(event);
@@ -104,8 +186,14 @@ class ConnectionManager {
 
 const manager = new ConnectionManager();
 
-// Wire up WebSocket cleanup when sessions are removed
-store.onCleanup = (sessionId: string) => manager.cleanup(sessionId);
+// Wire up WebSocket + meeting cleanup when sessions are removed
+store.onCleanup = (sessionId: string) => {
+  // Send meeting_ended for any pending invites/active meetings before closing connections
+  const sendForSession = (event: WSEvent) => manager.sendEvent(sessionId, event);
+  meetingService.cleanupSession(sessionId, sendForSession)
+    .catch(() => { /* ignore */ })
+    .finally(() => { manager.cleanup(sessionId); });
+};
 
 // -- Express App --
 
@@ -137,9 +225,9 @@ function createApp(staticDir?: string, authToken?: string) {
         await new Anthropic().models.list({ limit: 1 });
         healthStatus.apiKey = 'valid';
         healthStatus.apiKeyError = undefined;
-      } catch (err: any) {
+      } catch (err: unknown) {
         healthStatus.apiKey = 'invalid';
-        healthStatus.apiKeyError = err.message ?? String(err);
+        healthStatus.apiKeyError = err instanceof Error ? err.message : String(err);
       }
     }
 
@@ -179,23 +267,28 @@ function createApp(staticDir?: string, authToken?: string) {
         await new Anthropic().models.list({ limit: 1 });
         healthStatus.apiKey = 'valid';
         healthStatus.apiKeyError = undefined;
-      } catch (err: any) {
+      } catch (err: unknown) {
         healthStatus.apiKey = 'invalid';
-        healthStatus.apiKeyError = err.message ?? String(err);
+        healthStatus.apiKeyError = err instanceof Error ? err.message : String(err);
       }
       res.json({ apiKey: healthStatus.apiKey });
     });
   }
 
   // Route modules
-  const sendEvent = (sessionId: string, event: Record<string, any>) =>
+  const sendEvent = (sessionId: string, event: WSEvent) =>
     manager.sendEvent(sessionId, event);
 
-  app.use('/api/sessions', createSessionRouter({ store, sendEvent, hardwareService, deviceRegistry }));
+  app.use('/api/sessions', createSessionRouter({ store, sendEvent, hardwareService, deviceRegistry, meetingRegistry, meetingService, runtimeProvisioner, specGraphService }));
   app.use('/api/skills', createSkillRouter({ store, sendEvent }));
   app.use('/api/hardware', createHardwareRouter({ store, hardwareService }));
   app.use('/api/workspace', createWorkspaceRouter());
   app.use('/api/devices', createDeviceRouter({ registry: deviceRegistry }));
+  app.use('/api/sessions/:sessionId/meetings', createMeetingRouter({ store, meetingService, meetingAgentService, sendEvent }));
+  app.use('/api/spec-graph', createSpecGraphRouter({ specGraphService, compositionService, sendEvent }));
+
+  // Agent Runtime (PRD-001) — mounted at /v1/* with its own api-key auth
+  app.use('/v1', createRuntimeRouter({ agentStore, conversationManager, turnPipeline, knowledgeBackpack, studyMode, gapDetector }));
 
   // Templates
   app.get('/api/templates', (_req, res) => {
@@ -209,11 +302,11 @@ function createApp(staticDir?: string, authToken?: string) {
       res.status(400).json({ detail: 'description is required' });
       return;
     }
-    const suggested: Record<string, any> = {
-      name: description.slice(0, 40),
+    const suggested = {
+      name: (description as string).slice(0, 40),
       description,
       mechanism: mechanism ?? 'auto',
-      capabilities: [],
+      capabilities: [] as string[],
     };
     res.json(suggested);
   });
@@ -255,35 +348,82 @@ export function startServer(
   const server = http.createServer(app);
   const wss = new WebSocketServer({ noServer: true });
 
-  // Handle WebSocket upgrades on /ws/session/:id
+  // WebSocket server for Agent Runtime streaming (/v1/agents/:id/stream)
+  const runtimeWss = new WebSocketServer({ noServer: true });
+
+  // Handle WebSocket upgrades
   server.on('upgrade', (request, socket, head) => {
     const url = new URL(request.url ?? '', `http://${request.headers.host}`);
-    const match = url.pathname.match(/^\/ws\/session\/(.+)$/);
-    if (!match) {
-      socket.destroy();
-      return;
-    }
 
-    // Check auth token from query parameter
-    const wsToken = url.searchParams.get('token');
-    if (wsToken !== token) {
-      socket.destroy();
-      return;
-    }
+    // ── Build session WebSocket: /ws/session/:id ──────────────────────
+    const sessionMatch = url.pathname.match(/^\/ws\/session\/(.+)$/);
+    if (sessionMatch) {
+      const wsToken = url.searchParams.get('token');
+      if (wsToken !== token) {
+        socket.destroy();
+        return;
+      }
 
-    const sessionId = match[1];
-    if (!store.has(sessionId)) {
-      socket.destroy();
-      return;
-    }
+      const sessionId = sessionMatch[1];
+      if (!store.has(sessionId)) {
+        socket.destroy();
+        return;
+      }
 
-    wss.handleUpgrade(request, socket, head, (ws) => {
-      manager.connect(sessionId, ws);
-      ws.on('close', () => manager.disconnect(sessionId, ws));
-      ws.on('message', () => {
-        // Client keepalive; ignore content
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        manager.connect(sessionId, ws);
+        ws.on('close', () => manager.disconnect(sessionId, ws));
+        ws.on('message', () => {
+          // Client keepalive; ignore content
+        });
       });
-    });
+      return;
+    }
+
+    // ── Agent Runtime streaming: /v1/agents/:id/stream ────────────────
+    const agentMatch = url.pathname.match(/^\/v1\/agents\/([^/]+)\/stream$/);
+    if (agentMatch) {
+      const wsAgentId = agentMatch[1];
+      const apiKey = url.searchParams.get('api_key');
+
+      if (!apiKey || !agentStore.validateApiKey(wsAgentId, apiKey)) {
+        socket.destroy();
+        return;
+      }
+
+      runtimeWss.handleUpgrade(request, socket, head, (ws) => {
+        ws.on('message', async (raw) => {
+          try {
+            const msg = JSON.parse(String(raw));
+            if (msg.type !== 'turn' || !msg.text) {
+              ws.send(JSON.stringify({ type: 'error', detail: 'Expected { type: "turn", text: string, session_id?: string }' }));
+              return;
+            }
+
+            for await (const chunk of turnPipeline.receiveStreamingTurn(wsAgentId, {
+              text: msg.text,
+              session_id: msg.session_id,
+            })) {
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify(chunk));
+              }
+            }
+          } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : String(err);
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'error', detail: message }));
+            }
+          }
+        });
+
+        // Send ready signal
+        ws.send(JSON.stringify({ type: 'connected', agent_id: wsAgentId }));
+      });
+      return;
+    }
+
+    // Unknown WebSocket path
+    socket.destroy();
   });
 
   // Graceful shutdown handler

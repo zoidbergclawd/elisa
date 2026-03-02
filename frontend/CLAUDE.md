@@ -20,11 +20,12 @@ src/
     AgentTeam/               Full-width agent cards + comms feed panel (Agents tab)
     TaskMap/                 Full-width interactive task DAG panel (Tasks tab)
     MissionControl/          MissionControlPanel (layout), MinionSquadPanel, NarratorFeed, TaskDAG, CommsFeed, MetricsPanel
-    BottomBar/               Bottom tabs: timeline, tests, board, learn, progress, tokens
+    BottomBar/               Resizable bottom tabs with contextual visibility: timeline, tests, trace, board, learn, progress, system, health, tokens
     Skills/                  Skills editor modal + template library + SkillFlowEditor (visual flow editor)
     Rules/                   Rules editor modal + template library
     Portals/                 Portals editor modal + registry
-    shared/                  MainTabBar, GoButton, ModalHost, HumanGateModal, QuestionModal, TeachingToast, AgentAvatar, ReadinessBadge, ExamplePickerModal, DirectoryPickerModal, FlashWizardModal
+    Meeting/                 Agent Meeting framework: MeetingModal, canvasRegistry, DefaultCanvas, ThemePickerCanvas, BugDetectiveCanvas, BlueprintCanvas, CampaignCanvas, ExplainItCanvas, InterfaceDesignerCanvas, LaunchPadCanvas
+    shared/                  MainTabBar, GoButton, ModalHost, HumanGateModal, QuestionModal, TeachingToast, AgentAvatar, ReadinessBadge, ExamplePickerModal, DirectoryPickerModal, FlashWizardModal, MeetingInviteToast, MeetingInviteCard, DisplayThemePreview, EsptoolFlashStep, ImpactPreview
   hooks/
     useBuildSession.ts       Build session state via useReducer (typed actions + reducer)
     useWorkspaceIO.ts        Workspace file I/O: open/save/load nugget, open folder, select example, syncDesignToStorage
@@ -32,13 +33,15 @@ src/
     useBoardDetect.ts        ESP32 board detection polling via /api/hardware/detect
     useHealthCheck.ts        Polls /api/health for backend readiness (API key + SDK status)
     useWebSocket.ts          WebSocket connection with auto-reconnect (3s interval)
+    useMeetingSession.ts     Meeting session state via useReducer + WebSocket events
+    useSystemLevel.ts        Extract system level from NuggetSpec for feature gating
   lib/
     nuggetFile.ts            .elisa nugget file save/load utilities (JSZip-based)
     playChime.ts             Web Audio API two-tone chime for board detection events
     skillTemplates.ts        Pre-built skill and rule templates for template library
     terminology.ts           Kid-friendly term mappings (technical -> friendly labels)
     deviceBlocks.ts          Dynamic Blockly block registration from device plugin manifests
-    examples/                Bundled example nuggets (ES modules, offline-ready)
+    examples/                Bundled example nuggets (ES modules, offline-ready, device-gated via requiredDevices)
   types/
     index.ts                 All TypeScript interfaces (NuggetSpec, Task, Agent, WSEvent, etc.)
 ```

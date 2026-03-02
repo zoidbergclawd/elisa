@@ -196,11 +196,13 @@ export class CliPortalAdapter implements PortalAdapter {
         env: this.env ? { ...safeEnv(), ...this.env } : safeEnv(),
       });
       return { success: true, stdout, stderr };
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errObj = err as Record<string, unknown>;
+      const message = err instanceof Error ? err.message : String(err);
       return {
         success: false,
-        stdout: err.stdout ?? '',
-        stderr: err.stderr ?? err.message ?? String(err),
+        stdout: typeof errObj.stdout === 'string' ? errObj.stdout : '',
+        stderr: typeof errObj.stderr === 'string' ? errObj.stderr : message,
       };
     }
   }

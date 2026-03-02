@@ -2,7 +2,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { NARRATOR_SYSTEM_PROMPT, narratorUserPrompt } from '../prompts/narratorAgent.js';
-import { NARRATOR_TIMEOUT_MS, RATE_LIMIT_DELAY_MS } from '../utils/constants.js';
+import { NARRATOR_TIMEOUT_MS, RATE_LIMIT_DELAY_MS, NARRATOR_MODEL_DEFAULT } from '../utils/constants.js';
 import { getAnthropicClient } from '../utils/anthropicClient.js';
 
 export interface NarratorMessage {
@@ -71,7 +71,7 @@ export class NarratorService {
   private fallbackIndex = 0;
 
   constructor(model?: string) {
-    this.model = model ?? process.env.NARRATOR_MODEL ?? 'claude-haiku-4-5-20241022';
+    this.model = model ?? process.env.NARRATOR_MODEL ?? NARRATOR_MODEL_DEFAULT;
   }
 
   isTranslatable(eventType: string): boolean {

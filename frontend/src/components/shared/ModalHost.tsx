@@ -128,6 +128,11 @@ export default function ModalHost({
           isFlashing={flashWizardState.isFlashing}
           progress={flashWizardState.progress}
           deviceName={flashWizardState.deviceName}
+          flashMethod={flashWizardState.flashMethod}
+          agentName={flashWizardState.agentName}
+          wakeWord={flashWizardState.wakeWord}
+          agentId={flashWizardState.agentId}
+          preFlashChecklist={flashWizardState.preFlashChecklist}
           onReady={() => {
             authFetch(`/api/sessions/${sessionId}/gate`, {
               method: 'POST',
@@ -196,6 +201,7 @@ export default function ModalHost({
       {examplePickerOpen && (
         <ExamplePickerModal
           examples={EXAMPLE_NUGGETS}
+          availableDeviceIds={deviceManifests.map(m => m.id)}
           onSelect={onSelectExample}
           onClose={onCloseExamplePicker}
         />

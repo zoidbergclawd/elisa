@@ -379,6 +379,58 @@ describe('validate() edge cases', () => {
 });
 
 // ============================================================
+// Graph context injection
+// ============================================================
+
+describe('graph context injection', () => {
+  it('plan() works without graphContext (backward compatible)', async () => {
+    const planner = new MetaPlanner();
+    configureValidResponse();
+
+    const result = await planner.plan({ nugget: { goal: 'test', type: 'software' } });
+
+    expect(result.tasks).toHaveLength(1);
+    // System prompt should NOT contain graph context markers
+    const callArgs = mockCreate.mock.calls[0][0];
+    expect(callArgs.system).not.toContain('## Spec Graph Context');
+  });
+
+  it('plan() with graphContext appends it to the system prompt', async () => {
+    const planner = new MetaPlanner();
+    configureValidResponse();
+
+    const graphContext = '## Spec Graph Context\n\n### Existing Nuggets (2)\n- **Weather App** [abc12345]: Build a weather app\n- **Dashboard** [def67890]: Build a dashboard';
+
+    await planner.plan({ nugget: { goal: 'test', type: 'software' } }, graphContext);
+
+    const callArgs = mockCreate.mock.calls[0][0];
+    expect(callArgs.system).toContain('## Spec Graph Context');
+    expect(callArgs.system).toContain('Weather App');
+    expect(callArgs.system).toContain('Dashboard');
+  });
+
+  it('plan() with empty string graphContext does not alter the prompt', async () => {
+    const planner = new MetaPlanner();
+    configureValidResponse();
+
+    await planner.plan({ nugget: { goal: 'test', type: 'software' } }, '');
+
+    const callArgs = mockCreate.mock.calls[0][0];
+    expect(callArgs.system).not.toContain('## Spec Graph Context');
+  });
+
+  it('plan() with undefined graphContext does not alter the prompt', async () => {
+    const planner = new MetaPlanner();
+    configureValidResponse();
+
+    await planner.plan({ nugget: { goal: 'test', type: 'software' } }, undefined);
+
+    const callArgs = mockCreate.mock.calls[0][0];
+    expect(callArgs.system).not.toContain('## Spec Graph Context');
+  });
+});
+
+// ============================================================
 // API error handling
 // ============================================================
 

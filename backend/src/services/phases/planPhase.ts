@@ -8,8 +8,12 @@ import { MetaPlanner } from '../metaPlanner.js';
 import { TeachingEngine } from '../teachingEngine.js';
 import { TaskDAG } from '../../utils/dag.js';
 import type { DeviceRegistry } from '../deviceRegistry.js';
+import type { SpecGraphService } from '../specGraph.js';
 import { resolveDeployOrder } from './deployOrder.js';
 import type { Task, Agent } from '../../models/session.js';
+import type { NuggetSpec } from '../../utils/specValidator.js';
+import { estimate as estimateImpact } from '../impactEstimator.js';
+import { analyze as analyzeBoundary } from '../boundaryAnalyzer.js';
 
 export interface PlanResult {
   tasks: Task[];
@@ -24,21 +28,34 @@ export class PlanPhase {
   private metaPlanner: MetaPlanner;
   private teachingEngine: TeachingEngine;
   private deviceRegistry?: DeviceRegistry;
+  private specGraphService?: SpecGraphService;
 
-  constructor(metaPlanner: MetaPlanner, teachingEngine: TeachingEngine, deviceRegistry?: DeviceRegistry) {
+  constructor(metaPlanner: MetaPlanner, teachingEngine: TeachingEngine, deviceRegistry?: DeviceRegistry, specGraphService?: SpecGraphService) {
     this.metaPlanner = metaPlanner;
     this.teachingEngine = teachingEngine;
     this.deviceRegistry = deviceRegistry;
+    this.specGraphService = specGraphService;
   }
 
-  async execute(ctx: PhaseContext, spec: Record<string, any>): Promise<PlanResult> {
+  async execute(ctx: PhaseContext, spec: NuggetSpec): Promise<PlanResult> {
     ctx.session.state = 'planning';
     ctx.logger?.phase('planning');
     await ctx.send({ type: 'planning_started' });
 
     const nuggetType = (ctx.session.spec ?? {}).nugget?.type ?? 'software';
 
-    const plan = await this.metaPlanner.plan(spec);
+    // Inject Spec Graph context when the spec belongs to a graph
+    let graphContext: string | undefined;
+    const graphId = spec.composition?.parent_graph_id;
+    if (graphId && this.specGraphService) {
+      try {
+        graphContext = this.specGraphService.buildGraphContext(graphId, spec.composition?.node_id);
+      } catch {
+        // Graph not found or unavailable -- proceed without context
+      }
+    }
+
+    const plan = await this.metaPlanner.plan(spec, graphContext);
 
     const tasks: Task[] = plan.tasks;
     const agents: Agent[] = plan.agents;
@@ -87,6 +104,7 @@ export class PlanPhase {
         const manifest = this.deviceRegistry.getDevice(device.pluginId);
         if (manifest) manifests.set(device.pluginId, manifest);
       }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- manifests Map has local `any` values from heterogeneous device.json schemas
       const ordered = resolveDeployOrder(devices, manifests as any);
       deploySteps = ordered
         .map(d => {
@@ -108,6 +126,45 @@ export class PlanPhase {
     await ctx.send(planReadyEvent);
 
     await maybeTeach(this.teachingEngine, ctx, 'plan_ready', planExplanation, nuggetType);
+
+    // Emit decomposition_narrated events for each task
+    const goal = spec.nugget?.goal ?? 'Build something awesome';
+    await ctx.send({
+      type: 'decomposition_narrated',
+      goal: String(goal),
+      subtasks: tasks.map((t: Task) => t.name ?? t.id),
+      explanation: planExplanation || `Let me break "${goal}" into pieces so the team can work on it.`,
+    });
+
+    // Emit impact_estimate for pre-execution preview
+    const impact = estimateImpact(spec);
+    await ctx.send({
+      type: 'impact_estimate',
+      estimated_tasks: impact.estimated_tasks,
+      complexity: impact.complexity,
+      heaviest_requirements: impact.heaviest_requirements,
+      requirement_details: impact.requirement_details,
+    });
+
+    // Emit boundary_analysis
+    const boundary = analyzeBoundary(spec);
+    await ctx.send({
+      type: 'boundary_analysis',
+      inputs: boundary.inputs,
+      outputs: boundary.outputs,
+      boundary_portals: boundary.boundary_portals,
+    });
+
+    // Add dependency explanations (why_blocked_by) as narrated events
+    for (const task of tasks) {
+      if (task.dependencies && task.dependencies.length > 0) {
+        const depNames = task.dependencies
+          .map((depId: string) => taskMap[depId]?.name ?? depId)
+          .join(', ');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- runtime augmentation for frontend display; Task type lacks why_blocked_by
+        (task as any).why_blocked_by = `"${task.name}" needs ${depNames} to finish first.`;
+      }
+    }
 
     if (spec.skills?.length) await maybeTeach(this.teachingEngine, ctx, 'skill_used', '', nuggetType);
     if (spec.rules?.length) await maybeTeach(this.teachingEngine, ctx, 'rule_used', '', nuggetType);

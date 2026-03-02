@@ -11,8 +11,7 @@ import type {
   SkillSpec,
 } from '../models/skillPlan.js';
 import type { AgentRunner } from './agentRunner.js';
-
-type SendEvent = (event: Record<string, any>) => Promise<void>;
+import type { SendEvent } from './phases/types.js';
 
 const MAX_DEPTH = 10;
 
@@ -54,7 +53,7 @@ export class SkillRunner {
   private allSkills: SkillSpec[];
   private agentRunner: AgentRunner;
   private workingDir: string;
-  private questionResolvers = new Map<string, (answers: Record<string, any>) => void>();
+  private questionResolvers = new Map<string, (answers: Record<string, unknown>) => void>();
   private callStack: string[] = [];
 
   constructor(
@@ -105,11 +104,12 @@ export class SkillRunner {
         skill_id: plan.skillId,
         result,
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
       await this.send({
         type: 'skill_error',
         skill_id: plan.skillId,
-        message: String(err.message || err),
+        message,
       });
       throw err;
     } finally {
@@ -119,7 +119,7 @@ export class SkillRunner {
     return result;
   }
 
-  respondToQuestion(stepId: string, answers: Record<string, any>): void {
+  respondToQuestion(stepId: string, answers: Record<string, unknown>): void {
     const resolver = this.questionResolvers.get(stepId);
     if (resolver) {
       resolver(answers);
@@ -166,7 +166,7 @@ export class SkillRunner {
             });
 
             // Block until answer arrives (5-minute timeout)
-            const answers = await new Promise<Record<string, any>>((resolve, reject) => {
+            const answers = await new Promise<Record<string, unknown>>((resolve, reject) => {
               const timeout = setTimeout(() => {
                 this.questionResolvers.delete(step.id);
                 reject(new Error(`ask_user step "${step.id}" timed out after 5 minutes waiting for a response`));
@@ -178,7 +178,7 @@ export class SkillRunner {
             });
 
             // Store the answer -- use header as key, fall back to storeAs key, then first value
-            const answer = answers[step.header] ?? answers[step.storeAs] ?? Object.values(answers)[0] ?? '';
+            const answer = (answers[step.header] ?? answers[step.storeAs] ?? Object.values(answers)[0] ?? '') as string;
             context.entries[step.storeAs] = answer;
             break;
           }
@@ -273,7 +273,7 @@ export class SkillRunner {
           step_type: step.type,
           status: 'completed',
         });
-      } catch (err: any) {
+      } catch (err: unknown) {
         await this.send({
           type: 'skill_step',
           skill_id: skillId,
@@ -291,6 +291,7 @@ export class SkillRunner {
   /** Interpret a composite skill's workspace JSON into a SkillPlan on the backend.
    *  This is a simplified version of the frontend's skillInterpreter -- same logic, no Blockly dependency. */
   interpretWorkspaceOnBackend(skill: SkillSpec): SkillPlan {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- workspace is untyped Blockly JSON; no schema exists
     const ws = skill.workspace as any;
     const topBlocks = ws?.blocks?.blocks ?? [];
     const startBlock = topBlocks.find((b: any) => b.type === 'skill_flow_start');

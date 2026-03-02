@@ -3,10 +3,10 @@
 import type { PhaseContext } from './types.js';
 import { maybeTeach } from './types.js';
 import { TeachingEngine } from '../teachingEngine.js';
-import { TestRunner } from '../testRunner.js';
+import { TestRunner, type TestRunResult } from '../testRunner.js';
 
 export interface TestResult {
-  testResults: Record<string, any>;
+  testResults: TestRunResult;
 }
 
 export class TestPhase {
@@ -42,7 +42,7 @@ export class TestPhase {
       await ctx.send({
         type: 'coverage_update',
         percentage: results.coverage_pct,
-        details: results.coverage_details ?? {},
+        details: results.coverage_details?.files,
       });
       await maybeTeach(this.teachingEngine, ctx, 'coverage_update', `${results.coverage_pct}% coverage`);
     }

@@ -33,8 +33,9 @@ export interface AgentRunnerParams {
   onOutput: (taskId: string, content: string) => Promise<void>;
   onQuestion?: (
     taskId: string,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- payload shape depends on SDK tool_use events; no stable schema
     payload: Record<string, any>,
-  ) => Promise<Record<string, any>>;
+  ) => Promise<Record<string, unknown>>;
   workingDir: string;
   timeout?: number;
   model?: string;
@@ -82,10 +83,11 @@ export class AgentRunner {
         this.runQuery(prompt, systemPrompt, workingDir, taskId, onOutput, model, maxTurns, mcpConfig, abortController, allowedTools),
         timeout * 1000,
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Ensure the query is aborted on timeout or any error
       abortController.abort();
-      if (err.message === 'Timed out') {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message === 'Timed out') {
         return {
           success: false,
           summary: `Agent timed out after ${timeout} seconds`,
@@ -96,7 +98,7 @@ export class AgentRunner {
       }
       return {
         success: false,
-        summary: String(err.message || err),
+        summary: message,
         costUsd: 0,
         inputTokens: 0,
         outputTokens: 0,
@@ -112,6 +114,7 @@ export class AgentRunner {
     onOutput: (taskId: string, content: string) => Promise<void>,
     model: string,
     maxTurns: number,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- MCP server config shape varies; passed directly to SDK query()
     mcpConfig?: Record<string, any>,
     abortController?: AbortController,
     allowedTools?: string[],

@@ -7,6 +7,7 @@ export const hardwareBlink: ExampleNugget = {
   category: 'hardware',
   color: 'bg-green-100',
   accentColor: 'text-green-700',
+  requiredDevices: ['heltec-blink'],
   workspace: {
     blocks: {
       languageVersion: 0,

@@ -43,8 +43,9 @@ export class DeviceRegistry {
 
         this.devices.set(result.data.id, result.data);
         this.pluginDirs.set(result.data.id, pluginDir);
-      } catch (err: any) {
-        console.warn(`[DeviceRegistry] Skipping ${entry.name}/ — ${err.message}`);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn(`[DeviceRegistry] Skipping ${entry.name}/ — ${message}`);
       }
     }
   }

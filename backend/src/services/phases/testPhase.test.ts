@@ -74,7 +74,7 @@ describe('TestPhase', () => {
       failed: 0,
       total: 1,
       coverage_pct: 85,
-      coverage_details: { lines: 85 },
+      coverage_details: { total_statements: 100, covered_statements: 85, files: { 'main.py': { statements: 100, covered: 85, percentage: 85 } } },
     });
 
     const ctx = makeCtx();
@@ -85,7 +85,7 @@ describe('TestPhase', () => {
       .find(([ev]) => ev.type === 'coverage_update');
     expect(coverageEvent).toBeDefined();
     expect(coverageEvent![0].percentage).toBe(85);
-    expect(coverageEvent![0].details).toEqual({ lines: 85 });
+    expect(coverageEvent![0].details).toEqual({ 'main.py': { statements: 100, covered: 85, percentage: 85 } });
   });
 
   it('does NOT send coverage_update when coverage_pct is null', async () => {

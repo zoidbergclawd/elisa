@@ -20,7 +20,7 @@ const blockDefs = [
   },
   {
     type: 'feature',
-    message0: 'It should be able to... %1',
+    message0: 'It should %1',
     args0: [
       {
         type: 'field_input',
@@ -28,10 +28,18 @@ const blockDefs = [
         text: 'do something cool',
       },
     ],
+    message1: '%1',
+    args1: [
+      {
+        type: 'input_statement',
+        name: 'TEST_SOCKET',
+        check: 'test_check',
+      },
+    ],
     previousStatement: null,
     nextStatement: null,
     colour: 135,
-    tooltip: 'Add a feature requirement',
+    tooltip: 'Add a feature requirement — attach a behavioral test to verify it',
     helpUrl: '',
   },
   {
@@ -149,15 +157,23 @@ const blockDefs = [
         text: 'something else',
       },
     ],
+    message1: '%1',
+    args1: [
+      {
+        type: 'input_statement',
+        name: 'TEST_SOCKET',
+        check: 'test_check',
+      },
+    ],
     previousStatement: null,
     nextStatement: null,
     colour: 135,
-    tooltip: 'Add a when/then rule',
+    tooltip: 'Add a when/then rule — attach a behavioral test to verify it',
     helpUrl: '',
   },
   {
     type: 'has_data',
-    message0: 'It needs to know about... %1',
+    message0: 'It stores/tracks %1',
     args0: [
       {
         type: 'field_input',
@@ -165,10 +181,18 @@ const blockDefs = [
         text: 'some information',
       },
     ],
+    message1: '%1',
+    args1: [
+      {
+        type: 'input_statement',
+        name: 'TEST_SOCKET',
+        check: 'test_check',
+      },
+    ],
     previousStatement: null,
     nextStatement: null,
     colour: 135,
-    tooltip: 'Add data the nugget needs',
+    tooltip: 'Add data the nugget needs — attach a behavioral test to verify it',
     helpUrl: '',
   },
   // Tests category (colour 30, red family — same as Minions/testing)
@@ -179,10 +203,10 @@ const blockDefs = [
       { type: 'field_input', name: 'GIVEN_WHEN', text: 'the user clicks play' },
       { type: 'field_input', name: 'THEN', text: 'the game starts' },
     ],
-    previousStatement: null,
-    nextStatement: null,
+    previousStatement: 'test_check',
+    nextStatement: 'test_check',
     colour: 30,
-    tooltip: 'Add a behavioral test — the tester will verify this works',
+    tooltip: 'Add a behavioral test — attach to a When/Then block to verify it',
     helpUrl: '',
   },
   // Style category (NEW - colour 270)
@@ -354,6 +378,103 @@ const blockDefs = [
     tooltip: 'Add a review checkpoint',
     helpUrl: '',
   },
+  // Flow category: feedback loop (Systems Thinking)
+  {
+    type: 'feedback_loop',
+    message0: 'Feedback loop %1 triggered by %2 exit when %3 max tries %4 from %5 to %6',
+    args0: [
+      {
+        type: 'field_input',
+        name: 'LOOP_ID',
+        text: 'loop-1',
+      },
+      {
+        type: 'field_dropdown',
+        name: 'TRIGGER',
+        options: [
+          ['Test Failure', 'test_failure'],
+          ['Review Rejection', 'review_rejection'],
+          ['Custom', 'custom'],
+        ],
+      },
+      {
+        type: 'field_input',
+        name: 'EXIT_CONDITION',
+        text: 'all tests pass',
+      },
+      {
+        type: 'field_number',
+        name: 'MAX_ITERATIONS',
+        value: 3,
+        min: 1,
+        max: 10,
+      },
+      {
+        type: 'field_input',
+        name: 'CONNECTS_FROM',
+        text: 'task-id',
+      },
+      {
+        type: 'field_input',
+        name: 'CONNECTS_TO',
+        text: 'task-id',
+      },
+    ],
+    previousStatement: null,
+    nextStatement: null,
+    colour: 135,
+    tooltip: 'Add a feedback loop that retries tasks when something goes wrong',
+    helpUrl: '',
+  },
+  // Knowledge category (NEW - colour 160, green)
+  {
+    type: 'agent_backpack',
+    message0: 'Agent Backpack',
+    previousStatement: null,
+    nextStatement: null,
+    colour: 160,
+    tooltip: 'Give your agent a backpack of knowledge to reference',
+    helpUrl: '',
+  },
+  {
+    type: 'study_mode',
+    message0: 'Study Mode  Style: %1  Difficulty: %2  Quiz every: %3 turns',
+    args0: [
+      {
+        type: 'field_dropdown',
+        name: 'STYLE',
+        options: [
+          ['Quiz Me', 'quiz_me'],
+          ['Explain', 'explain'],
+          ['Flashcards', 'flashcards'],
+          ['Socratic', 'socratic'],
+        ],
+      },
+      {
+        type: 'field_dropdown',
+        name: 'DIFFICULTY',
+        options: [
+          ['Easy', 'easy'],
+          ['Medium', 'medium'],
+          ['Hard', 'hard'],
+        ],
+      },
+      {
+        type: 'field_dropdown',
+        name: 'QUIZ_FREQUENCY',
+        options: [
+          ['3', '3'],
+          ['5', '5'],
+          ['10', '10'],
+        ],
+      },
+    ],
+    previousStatement: null,
+    nextStatement: null,
+    colour: 160,
+    tooltip: 'Turn your agent into a tutor that quizzes you on its backpack knowledge',
+    helpUrl: '',
+  },
   // Deploy category additions
   {
     type: 'deploy_both',
@@ -490,6 +611,80 @@ const blockDefs = [
     nextStatement: null,
     colour: 210,
     tooltip: 'Generate a kid-friendly guide about your project',
+  },
+  // Composition category (colour 180, teal — systems thinking interfaces)
+  {
+    type: 'nugget_provides',
+    message0: 'This nugget provides %1 of type %2',
+    args0: [
+      {
+        type: 'field_input',
+        name: 'INTERFACE_NAME',
+        text: 'user_data',
+      },
+      {
+        type: 'field_dropdown',
+        name: 'INTERFACE_TYPE',
+        options: [
+          ['Data', 'data'],
+          ['Event', 'event'],
+          ['Function', 'function'],
+          ['Stream', 'stream'],
+        ],
+      },
+    ],
+    previousStatement: null,
+    nextStatement: null,
+    colour: 180,
+    tooltip: 'Declare an interface this nugget provides to others',
+    helpUrl: '',
+  },
+  {
+    type: 'nugget_requires',
+    message0: 'This nugget requires %1 of type %2',
+    args0: [
+      {
+        type: 'field_input',
+        name: 'INTERFACE_NAME',
+        text: 'user_data',
+      },
+      {
+        type: 'field_dropdown',
+        name: 'INTERFACE_TYPE',
+        options: [
+          ['Data', 'data'],
+          ['Event', 'event'],
+          ['Function', 'function'],
+          ['Stream', 'stream'],
+        ],
+      },
+    ],
+    previousStatement: null,
+    nextStatement: null,
+    colour: 180,
+    tooltip: 'Declare an interface this nugget needs from another',
+    helpUrl: '',
+  },
+  // System category (NEW - colour 290, purple)
+  {
+    type: 'system_level',
+    message0: 'My level: %1',
+    args0: [
+      {
+        type: 'field_dropdown',
+        name: 'LEVEL',
+        options: [
+          ['Explorer - See how systems work', 'explorer'],
+          ['Builder - Understand and control systems', 'builder'],
+          ['Architect - Design your own systems', 'architect'],
+        ],
+      },
+    ],
+    previousStatement: null,
+    nextStatement: null,
+    colour: 290,
+    tooltip: 'Choose your mastery level. Explorer: everything is automatic and explained. Builder: you control more. Architect: you design everything yourself.',
+    helpUrl: '',
   },
 ];
 

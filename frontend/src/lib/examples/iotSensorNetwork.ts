@@ -7,6 +7,7 @@ export const iotSensorNetwork: ExampleNugget = {
   category: 'hardware',
   color: 'bg-emerald-100',
   accentColor: 'text-emerald-700',
+  requiredDevices: ['heltec-sensor-node', 'heltec-gateway', 'cloud-dashboard'],
   workspace: {
     blocks: {
       languageVersion: 0,

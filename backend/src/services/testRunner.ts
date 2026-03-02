@@ -8,6 +8,15 @@ import { safeEnv } from '../utils/safeEnv.js';
 import { withTimeout } from '../utils/withTimeout.js';
 import { TEST_TIMEOUT_MS } from '../utils/constants.js';
 
+/** Error subtype augmented with child process stdout/stderr for diagnostics. */
+interface ExecError extends Error {
+  stdout?: string;
+  stderr?: string;
+  code?: string;
+  killed?: boolean;
+  status?: number;
+}
+
 /** Detect which test file types exist in a directory. */
 function detectTestTypes(testsDir: string): { hasPython: boolean; hasJs: boolean } {
   const entries = fs.readdirSync(testsDir);
@@ -96,9 +105,10 @@ export class TestRunner {
         const execPromise = new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
           childProc = execFile('node', [filePath], { cwd: workDir, env: safeEnv() }, (err, stdout, stderr) => {
             if (err) {
-              if (stdout != null) (err as any).stdout = stdout;
-              if (stderr != null) (err as any).stderr = stderr;
-              reject(err);
+              const execErr = err as ExecError;
+              if (stdout != null) execErr.stdout = stdout;
+              if (stderr != null) execErr.stderr = stderr;
+              reject(execErr);
             } else {
               resolve({ stdout: stdout ?? '', stderr: stderr ?? '' });
             }
@@ -110,20 +120,22 @@ export class TestRunner {
           { childProcess: childProc },
         );
         stdout = result.stdout ?? '';
-      } catch (err: any) {
-        if (err.message === 'Timed out') {
+      } catch (err: unknown) {
+        const execErr = err as ExecError;
+        const message = err instanceof Error ? err.message : String(err);
+        if (message === 'Timed out') {
           tests.push({ test_name: file, passed: false, details: 'Test run timed out' });
           failedCount++;
           continue;
         }
-        if (err.code === 'ENOENT') {
+        if (execErr.code === 'ENOENT') {
           tests.push({ test_name: file, passed: false, details: 'node not found' });
           failedCount++;
           continue;
         }
         // Non-zero exit code -- test failure
-        stdout = err.stdout ?? '';
-        exitCode = err.status ?? 1;
+        stdout = execErr.stdout ?? '';
+        exitCode = execErr.status ?? 1;
       }
 
       // Try to parse granular test output
@@ -167,9 +179,10 @@ export class TestRunner {
       const execPromise = new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
         childProc = execFile('python', args, { cwd: workDir, env: safeEnv() }, (err, stdoutBuf, stderrBuf) => {
           if (err) {
-            if (stdoutBuf != null) (err as any).stdout = stdoutBuf;
-            if (stderrBuf != null) (err as any).stderr = stderrBuf;
-            reject(err);
+            const execErr = err as ExecError;
+            if (stdoutBuf != null) execErr.stdout = stdoutBuf;
+            if (stderrBuf != null) execErr.stderr = stderrBuf;
+            reject(execErr);
           } else {
             resolve({ stdout: stdoutBuf ?? '', stderr: stderrBuf ?? '' });
           }
@@ -182,23 +195,25 @@ export class TestRunner {
       );
       stdout = result.stdout ?? '';
       stderr = result.stderr ?? '';
-    } catch (err: any) {
-      if (err.message === 'Timed out') {
+    } catch (err: unknown) {
+      const execErr = err as ExecError;
+      const message = err instanceof Error ? err.message : String(err);
+      if (message === 'Timed out') {
         this.cleanupCovFile(covJsonPath);
         return {
           tests: [{ test_name: 'pytest', passed: false, details: 'Test run timed out' }],
           passed: 0, failed: 1, total: 1, coverage_pct: null, coverage_details: null,
         };
       }
-      if (err.code === 'ENOENT') {
+      if (execErr.code === 'ENOENT') {
         return {
           tests: [{ test_name: 'pytest', passed: false, details: 'pytest not found' }],
           passed: 0, failed: 1, total: 1, coverage_pct: null, coverage_details: null,
         };
       }
       // pytest returns exit code 1 on test failures -- that's normal
-      stdout = err.stdout ?? '';
-      stderr = err.stderr ?? '';
+      stdout = execErr.stdout ?? '';
+      stderr = execErr.stderr ?? '';
     }
 
     // Check for import errors
@@ -236,7 +251,8 @@ export class TestRunner {
         const covData = JSON.parse(fs.readFileSync(covJsonPath, 'utf-8'));
         const totals = covData.totals ?? {};
         coveragePct = totals.percent_covered ?? null;
-        const filesReport: Record<string, any> = {};
+        const filesReport: CoverageDetails['files'] = {};
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- covData.files is untyped JSON from pytest coverage output
         for (const [filepath, fileData] of Object.entries<any>(covData.files ?? {})) {
           const summary = fileData.summary ?? {};
           filesReport[filepath] = {

@@ -1,5 +1,7 @@
 /** Prompt templates for the meta-planner agent. */
 
+import type { NuggetSpec } from '../utils/specValidator.js';
+
 const META_PLANNER_BASE = `\
 You are the Meta-Planner for Elisa, a kid-friendly IDE that orchestrates AI agents \
 to build real software nuggets. A child has described their nugget using visual blocks, \
@@ -49,7 +51,8 @@ All generated content (code, comments, text, file names) must be appropriate for
       "acceptance_criteria": ["Criterion 1", "Criterion 2"],
       "dependencies": [],
       "agent_name": "Builder Bot",
-      "complexity": "simple"
+      "complexity": "simple",
+      "requirement_ids": ["req-0"]
     }
   ],
   "agents": [
@@ -70,6 +73,7 @@ All generated content (code, comments, text, file names) must be appropriate for
 
 - task.id: "task-N" format, sequential from 1
 - task.complexity: "simple" (< 1 min), "medium" (1-3 min), "complex" (3-5 min)
+- task.requirement_ids: list of requirement indices (e.g. "req-0", "req-1") this task addresses, based on position in the requirements array. Omit or use empty array for tasks that don't directly map to a requirement (e.g. scaffolding, review).
 - task.dependencies: list of task IDs that must complete before this task starts
 - agents[].role: one of "builder", "tester", "reviewer"
 - agents[].allowed_paths: directories this agent may write to
@@ -251,7 +255,7 @@ const META_PLANNER_FOOTER = `\
  * Build the meta-planner system prompt, conditionally including hardware/portal
  * sections only when the nugget spec indicates they are relevant.
  */
-export function buildMetaPlannerSystem(spec: Record<string, any>): string {
+export function buildMetaPlannerSystem(spec: NuggetSpec): string {
   const nuggetType = spec.nugget?.type ?? 'software';
   const deployTarget = spec.deployment?.target ?? 'preview';
   const hasPortals = Array.isArray(spec.portals) && spec.portals.length > 0;

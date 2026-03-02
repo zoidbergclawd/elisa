@@ -1,5 +1,7 @@
 /** Session, Task, Agent models -- ported from Python backend. */
 
+import type { NuggetSpec } from '../utils/specValidator.js';
+
 export type SessionState =
   | 'idle'
   | 'planning'
@@ -19,6 +21,7 @@ export interface Task {
   agent_name: string;
   dependencies: string[];
   acceptance_criteria: string[];
+  requirement_ids?: string[];
 }
 
 export type AgentRole = 'builder' | 'tester' | 'reviewer' | 'custom';
@@ -44,9 +47,11 @@ export interface MetaPlannerPlan {
 export interface BuildSession {
   id: string;
   state: SessionState;
-  spec: Record<string, any> | null;
+  spec: NuggetSpec | null;
   tasks: Task[];
   agents: Agent[];
+  testResults?: { passed: number; total: number };
+  healthSummary?: { score: number; grade: string };
 }
 
 export interface AgentResult {

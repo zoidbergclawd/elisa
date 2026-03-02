@@ -83,6 +83,15 @@ export const toolbox = {
     },
     {
       kind: 'category',
+      name: 'Knowledge',
+      colour: '160',
+      contents: [
+        { kind: 'block', type: 'agent_backpack' },
+        { kind: 'block', type: 'study_mode' },
+      ],
+    },
+    {
+      kind: 'category',
       name: 'Minions',
       colour: '30',
       contents: [
@@ -100,8 +109,26 @@ export const toolbox = {
         { kind: 'block', type: 'first_then' },
         { kind: 'block', type: 'at_same_time' },
         { kind: 'block', type: 'keep_improving' },
+        { kind: 'block', type: 'feedback_loop' },
         { kind: 'block', type: 'check_with_me' },
         { kind: 'block', type: 'timer_every' },
+      ],
+    },
+    {
+      kind: 'category',
+      name: 'System',
+      colour: '290',
+      contents: [
+        { kind: 'block', type: 'system_level' },
+      ],
+    },
+    {
+      kind: 'category',
+      name: 'Composition',
+      colour: '180',
+      contents: [
+        { kind: 'block', type: 'nugget_provides' },
+        { kind: 'block', type: 'nugget_requires' },
       ],
     },
     {

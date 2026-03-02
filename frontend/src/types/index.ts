@@ -1,6 +1,52 @@
 export interface BehavioralTest {
+  id?: string;
   when: string;
   then: string;
+  requirement_id?: string;
+}
+
+export interface FeedbackLoop {
+  id: string;
+  trigger: 'test_failure' | 'review_rejection' | 'custom';
+  exit_condition: string;
+  max_iterations: number;
+  connects_from: string;
+  connects_to: string;
+}
+
+export type SystemLevel = 'explorer' | 'builder' | 'architect';
+
+export interface RuntimeConfig {
+  agent_name?: string;
+  greeting?: string;
+  fallback_response?: string;
+  voice?: string;
+  display_theme?: string;
+}
+
+export type BackpackSourceType = 'pdf' | 'url' | 'youtube' | 'drive' | 'topic_pack' | 'sports_feed' | 'news_feed' | 'custom_feed';
+
+export interface BackpackSource {
+  id: string;
+  type: BackpackSourceType;
+  title: string;
+  uri?: string;
+  config?: Record<string, unknown>;
+}
+
+export type StudyStyle = 'explain' | 'quiz_me' | 'flashcards' | 'socratic';
+export type StudyDifficulty = 'easy' | 'medium' | 'hard';
+
+export interface StudyMode {
+  enabled: boolean;
+  style: StudyStyle;
+  difficulty: StudyDifficulty;
+  quiz_frequency: number;
+}
+
+export interface KnowledgeConfig {
+  backpack_sources?: BackpackSource[];
+  study_mode?: StudyMode;
 }
 
 export type UIState = 'design' | 'building' | 'review' | 'deploy' | 'done';
@@ -13,6 +59,8 @@ export interface Task {
   agent_name: string;
   dependencies: string[];
   acceptance_criteria?: string[];
+  requirement_ids?: string[];
+  why_blocked_by?: string;
 }
 
 export interface Agent {
@@ -88,6 +136,45 @@ export interface DeviceInstance {
   fields: Record<string, unknown>;
 }
 
+export type CorrectionStep = 'diagnosing' | 'fixing' | 'retesting';
+
+export type ConvergenceTrend = 'improving' | 'stalled' | 'diverging';
+
+export interface CorrectionAttempt {
+  attempt_number: number;
+  status: string;
+  tests_passing?: number;
+  tests_total?: number;
+}
+
+export interface CorrectionCycleState {
+  task_id: string;
+  attempt_number: number;
+  max_attempts: number;
+  step?: CorrectionStep;
+  failure_reason?: string;
+  trend?: ConvergenceTrend;
+  converged: boolean;
+  attempts: CorrectionAttempt[];
+  tests_passing?: number;
+  tests_total?: number;
+}
+
+export type TraceabilityStatus = 'untested' | 'passing' | 'failing';
+
+export interface TraceabilityRequirement {
+  requirement_id: string;
+  description: string;
+  test_id?: string;
+  test_name?: string;
+  status: TraceabilityStatus;
+}
+
+export interface TraceabilitySummary {
+  coverage: number;
+  requirements: TraceabilityRequirement[];
+}
+
 export type WSEvent =
   | { type: 'session_started'; session_id: string }
   | { type: 'planning_started' }
@@ -126,4 +213,37 @@ export type WSEvent =
   | { type: 'flash_prompt'; device_role: string; message: string }
   | { type: 'flash_progress'; device_role: string; step: string; progress: number }
   | { type: 'flash_complete'; device_role: string; success: boolean; message?: string }
-  | { type: 'documentation_ready'; file_path: string };
+  | { type: 'context_flow'; from_task_id: string; to_task_ids: string[]; summary_preview: string }
+  | { type: 'documentation_ready'; file_path: string }
+  | { type: 'meeting_invite'; meetingTypeId: string; meetingId: string; agentName: string; title: string; description: string }
+  | { type: 'meeting_started'; meetingId: string; meetingTypeId: string; agentName: string; canvasType: string }
+  | { type: 'meeting_message'; meetingId: string; role: 'agent' | 'kid'; content: string }
+  | { type: 'meeting_canvas_update'; meetingId: string; canvasType: string; data: Record<string, unknown> }
+  | { type: 'meeting_outcome'; meetingId: string; outcomeType: string; data: Record<string, unknown> }
+  | { type: 'meeting_ended'; meetingId: string; outcomes: Array<{ type: string; data: Record<string, unknown> }> }
+  | { type: 'correction_cycle_started'; task_id: string; attempt_number: number; failure_reason: string; max_attempts: number }
+  | { type: 'correction_cycle_progress'; task_id: string; attempt_number: number; step: 'diagnosing' | 'fixing' | 'retesting' }
+  | { type: 'convergence_update'; task_id: string; attempts_so_far: number; tests_passing: number; tests_total: number; trend: 'improving' | 'stalled' | 'diverging'; converged: boolean; attempts: Array<{ attempt_number: number; status: string; tests_passing?: number; tests_total?: number }> }
+  | { type: 'traceability_update'; requirement_id: string; test_id: string; status: TraceabilityStatus }
+  | { type: 'traceability_summary'; coverage: number; requirements: TraceabilityRequirement[] }
+  | { type: 'decomposition_narrated'; goal: string; subtasks: string[]; explanation: string }
+  | { type: 'impact_estimate'; estimated_tasks: number; complexity: 'simple' | 'moderate' | 'complex'; heaviest_requirements: string[]; requirement_details: Array<{ description: string; estimated_task_count: number; test_linked: boolean; weight: number; dependents: number }> }
+  | { type: 'system_health_update'; tasks_done: number; tasks_total: number; tests_passing: number; tests_total: number; tokens_used: number; health_score: number }
+  | { type: 'system_health_summary'; health_score: number; grade: 'A' | 'B' | 'C' | 'D' | 'F'; breakdown: { tasks_score: number; tests_score: number; corrections_score: number; budget_score: number } }
+  | { type: 'boundary_analysis'; inputs: Array<{ name: string; type: string; source?: string }>; outputs: Array<{ name: string; type: string; source?: string }>; boundary_portals: string[] }
+  | { type: 'composition_started'; graph_id: string; node_ids: string[] }
+  | { type: 'composition_impact'; graph_id: string; changed_node_id: string; affected_nodes: Array<{ node_id: string; label: string; reason: string }>; severity: string }
+  | { type: 'health_history'; entries: HealthHistoryEntry[] };
+
+export interface HealthHistoryEntry {
+  timestamp: string;
+  goal: string;
+  score: number;
+  grade: 'A' | 'B' | 'C' | 'D' | 'F';
+  breakdown: {
+    tasks: number;
+    tests: number;
+    corrections: number;
+    budget: number;
+  };
+}

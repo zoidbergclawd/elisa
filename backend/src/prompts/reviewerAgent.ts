@@ -1,5 +1,7 @@
 /** Prompt templates for reviewer agents. */
 
+import type { Task } from '../models/session.js';
+import type { NuggetSpec } from '../utils/specValidator.js';
 import { formatStyle } from './builderAgent.js';
 
 export const SYSTEM_PROMPT = `\
@@ -104,10 +106,10 @@ export function formatTaskPrompt(params: {
   agentName: string;
   role: string;
   persona: string;
-  task: Record<string, any>;
-  spec: Record<string, any>;
+  task: Task;
+  spec: NuggetSpec;
   predecessors: string[];
-  style?: Record<string, any> | null;
+  style?: NuggetSpec['style'];
 }): string {
   const { task, spec, predecessors, style } = params;
   const parts: string[] = [

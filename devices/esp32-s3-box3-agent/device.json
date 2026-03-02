@@ -1,0 +1,114 @@
+{
+  "id": "esp32-s3-box3-agent",
+  "name": "ESP32-S3-BOX-3 Voice Agent",
+  "version": "1.0.0",
+  "description": "AI voice agent on ESP32-S3-BOX-3 with touchscreen, microphone, and speaker",
+  "icon": "🗣️",
+  "colour": 280,
+
+  "board": {
+    "type": "esp32-s3",
+    "variant": "box-3",
+    "connection": "wifi",
+    "detection": {
+      "usb_vid": "0x303A",
+      "usb_pid": "0x1001"
+    }
+  },
+
+  "capabilities": [
+    { "id": "microphone", "name": "Dual MEMS Microphone", "kind": "sensor", "params": [] },
+    { "id": "speaker", "name": "1W Speaker", "kind": "actuator", "params": [] },
+    { "id": "touchscreen", "name": "2.4\" IPS Touchscreen", "kind": "display", "params": [
+      { "name": "width", "type": "number", "default": 320 },
+      { "name": "height", "type": "number", "default": 240 }
+    ]},
+    { "id": "wifi", "name": "WiFi (2.4GHz)", "kind": "network", "params": [
+      { "name": "ssid", "type": "string", "default": "" },
+      { "name": "password", "type": "string", "default": "" }
+    ]},
+    { "id": "gpio", "name": "GPIO Pins", "kind": "actuator", "params": [] },
+    { "id": "wake_word", "name": "Wake Word Engine (ESP-SR, offline)", "kind": "compute", "params": [
+      { "name": "wake_word", "type": "string", "default": "hey_elisa" }
+    ]},
+    { "id": "runtime_client", "name": "Elisa Agent Runtime Client", "kind": "compute", "params": [
+      { "name": "agent_id", "type": "string", "default": "" },
+      { "name": "api_key", "type": "string", "default": "" },
+      { "name": "runtime_url", "type": "string", "default": "" }
+    ]}
+  ],
+
+  "blocks": [
+    {
+      "type": "esp32_s3_box3_agent",
+      "message": "S3 BOX Voice Agent %1 Agent Name %2 Wake Word %3 Voice %4 WiFi Network %5 WiFi Password %6",
+      "args": [
+        { "type": "input_dummy" },
+        { "type": "field_input", "name": "AGENT_NAME", "text": "My Agent" },
+        { "type": "field_dropdown", "name": "WAKE_WORD", "options": [
+          ["Hey Elisa", "hey_elisa"],
+          ["Hey Box", "hey_box"],
+          ["Hi Alex", "hi_alex"],
+          ["Hey Computer", "hey_computer"]
+        ]},
+        { "type": "field_dropdown", "name": "TTS_VOICE", "options": [
+          ["Nova (friendly)", "nova"],
+          ["Onyx (deep)", "onyx"],
+          ["Shimmer (bright)", "shimmer"],
+          ["Echo (clear)", "echo"]
+        ]},
+        { "type": "field_input", "name": "WIFI_SSID", "text": "" },
+        { "type": "field_input", "name": "WIFI_PASSWORD", "text": "" }
+      ],
+      "tooltip": "Configure your physical AI voice agent on the ESP32-S3-BOX-3"
+    },
+    {
+      "type": "esp32_s3_box3_display",
+      "message": "BOX Display %1 Theme %2 Show listening indicator %3 Show transcription %4",
+      "args": [
+        { "type": "input_dummy" },
+        { "type": "field_dropdown", "name": "DISPLAY_THEME", "options": [
+          ["Space (dark)", "space"],
+          ["Nature (green)", "nature"],
+          ["Tech (blue)", "tech"],
+          ["Candy (colorful)", "candy"],
+          ["Plain (minimal)", "plain"]
+        ]},
+        { "type": "field_checkbox", "name": "SHOW_LISTENING", "checked": true },
+        { "type": "field_checkbox", "name": "SHOW_TRANSCRIPTION", "checked": true }
+      ],
+      "tooltip": "Customize what your agent looks like on the touchscreen"
+    }
+  ],
+
+  "deploy": {
+    "method": "esptool",
+    "provides": ["box3_agent_endpoint"],
+    "requires": ["agent_id", "api_key", "runtime_url"],
+    "esptool": {
+      "firmware_file": "firmware/box3-agent.bin",
+      "flash_offset": "0x0",
+      "baud_rate": 460800,
+      "chip": "esp32s3",
+      "prompt_message": "Connect your ESP32-S3-BOX-3 via USB-C, then click Ready"
+    },
+    "runtime_provision": {
+      "required": true,
+      "config_fields": ["WIFI_SSID", "WIFI_PASSWORD", "WAKE_WORD"]
+    }
+  },
+
+  "spec_mapping": {
+    "role": "voice_agent_device",
+    "extract_fields": {
+      "agent.name": "AGENT_NAME",
+      "agent.wake_word": "WAKE_WORD",
+      "agent.voice": "TTS_VOICE",
+      "wifi.ssid": "WIFI_SSID",
+      "wifi.password": "WIFI_PASSWORD",
+      "display.theme": "DISPLAY_THEME",
+      "display.show_listening": "SHOW_LISTENING",
+      "display.show_transcription": "SHOW_TRANSCRIPTION"
+    }
+  }
+}

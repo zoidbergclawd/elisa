@@ -60,13 +60,16 @@ const RuleSchema = z.object({
 }).strict();
 
 const BehavioralTestSchema = z.object({
+  id: z.string().max(200).optional(),
   when: z.string().max(500),
   then: z.string().max(500),
+  requirement_id: z.string().max(200).optional(),
 }).strict();
 
 const RequirementSchema = z.object({
   type: z.string().max(100).optional(),
   description: z.string().max(2000).optional(),
+  test_id: z.string().max(200).optional(),
 }).strict();
 
 const AgentSchema = z.object({
@@ -84,6 +87,75 @@ export const DeviceInstanceSchema = z.object({
   instanceId: z.string().max(100),
   fields: z.record(z.string(), z.unknown()),
 });
+
+// --- Systems Thinking: Feedback loop schema ---
+
+const FeedbackLoopSchema = z.object({
+  id: z.string().max(200),
+  trigger: z.enum(['test_failure', 'review_rejection', 'custom']),
+  exit_condition: z.string().max(500),
+  max_iterations: z.number().int().min(1).max(10),
+  connects_from: z.string().max(200),
+  connects_to: z.string().max(200),
+}).strict();
+
+// --- PRD-001: Agent runtime configuration ---
+
+const RuntimeConfigSchema = z.object({
+  agent_name: z.string().max(100).optional(),
+  greeting: z.string().max(500).optional(),
+  fallback_response: z.string().max(500).optional(),
+  voice: z.string().max(50).optional(),
+  display_theme: z.string().max(50).optional(),
+}).strict();
+
+// --- PRD-001: Knowledge backpack source ---
+
+const BackpackSourceSchema = z.object({
+  id: z.string().max(100),
+  type: z.enum(['pdf', 'url', 'youtube', 'drive', 'topic_pack', 'sports_feed', 'news_feed', 'custom_feed']),
+  title: z.string().max(200),
+  uri: z.string().max(2000).optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
+}).strict();
+
+// --- PRD-001: Study mode configuration ---
+
+const StudyModeSchema = z.object({
+  enabled: z.boolean(),
+  style: z.enum(['explain', 'quiz_me', 'flashcards', 'socratic']),
+  difficulty: z.enum(['easy', 'medium', 'hard']),
+  quiz_frequency: z.number().int().min(1).max(20),
+}).strict();
+
+// --- PRD-001: Knowledge configuration ---
+
+const KnowledgeConfigSchema = z.object({
+  backpack_sources: z.array(BackpackSourceSchema).max(50).optional(),
+  study_mode: StudyModeSchema.optional(),
+}).strict();
+
+// --- Spec Graph: Composition schema ---
+
+const InterfaceProvideSchema = z.object({
+  name: z.string().max(200),
+  type: z.string().max(100),
+  description: z.string().max(500).optional(),
+}).strict();
+
+const InterfaceRequireSchema = z.object({
+  name: z.string().max(200),
+  type: z.string().max(100),
+  from_node_id: z.string().max(100).optional(),
+  description: z.string().max(500).optional(),
+}).strict();
+
+const CompositionSchema = z.object({
+  parent_graph_id: z.string().max(100).optional(),
+  node_id: z.string().max(100).optional(),
+  provides: z.array(InterfaceProvideSchema).max(20).optional(),
+  requires: z.array(InterfaceRequireSchema).max(20).optional(),
+}).strict();
 
 export const NuggetSpecSchema = z.object({
   nugget: z.object({
@@ -104,6 +176,8 @@ export const NuggetSpecSchema = z.object({
   deployment: z.object({
     target: z.string().max(100).optional(),
     auto_flash: z.boolean().optional(),
+    runtime_url: z.string().max(500).optional(),
+    provision_runtime: z.boolean().optional(),
   }).strict().optional(),
   workflow: z.object({
     review_enabled: z.boolean().optional(),
@@ -112,6 +186,8 @@ export const NuggetSpecSchema = z.object({
     flow_hints: z.array(z.record(z.string(), z.unknown())).max(50).optional(),
     iteration_conditions: z.array(z.record(z.string(), z.unknown())).max(20).optional(),
     behavioral_tests: z.array(BehavioralTestSchema).max(20).optional(),
+    feedback_loops: z.array(FeedbackLoopSchema).max(10).optional(),
+    system_level: z.enum(['explorer', 'builder', 'architect']).optional(),
   }).strict().optional(),
   skills: z.array(SkillSchema).max(50).optional(),
   rules: z.array(RuleSchema).max(50).optional(),
@@ -123,4 +199,10 @@ export const NuggetSpecSchema = z.object({
     allow_network: z.boolean().optional(),
     escalation_threshold: z.number().int().min(1).max(10).optional(),
   }).strict().optional(),
+  runtime: RuntimeConfigSchema.optional(),
+  knowledge: KnowledgeConfigSchema.optional(),
+  composition: CompositionSchema.optional(),
 }).strict();
+
+/** Inferred TypeScript type from the NuggetSpec Zod schema. */
+export type NuggetSpec = z.infer<typeof NuggetSpecSchema>;
