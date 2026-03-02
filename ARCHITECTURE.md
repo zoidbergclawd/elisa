@@ -17,19 +17,19 @@ frontend/ (React 19 + Vite)         backend/ (Express 5 + TypeScript)
 | (BlockCanvas)         |---------->| POST /api/sessions/:id/*  |
 |                       |           |                           |
 | MissionControl        |  WS      | Orchestrator              |
-| (TaskDAG, CommsFeed,  |<---------|  -> MetaPlanner (Claude)   |
-|  Metrics, Deploy)     |  events  |  -> AgentRunner (SDK)      |
-|                       |           |  -> TestRunner (pytest)    |
-| BottomBar             |           |  -> GitService (simple-git)|
-| (Timeline, Tests,     |           |  -> HardwareService       |
-|  Trace, Board, Learn, |           |  -> TeachingEngine         |
-|  Progress, System,    |           |                           |
-|  Health, Tokens —     |           |                           |
-|  contextual           |           |                           |
-|  visibility)          |           |                           |
-|                       |           |  -> DeviceRegistry         |
-| FlashWizardModal      |           |     (plugin manifests)     |
-| (multi-device flash)  |           |                           |
+| (TaskDAG, CommsFeed,  |<---------|  -> AutoTestMatcher        |
+|  Metrics, Deploy)     |  events  |  -> MetaPlanner (Claude)   |
+|                       |           |  -> MeetingTriggerWiring   |
+| BottomBar             |           |  -> PortalService (MCP/CLI)|
+| (Timeline, Tests,     |           |  -> AgentRunner (SDK)      |
+|  Trace, Board, Learn, |           |  -> TestRunner (pytest/node)|
+|  Progress, System,    |           |  -> GitService (simple-git)|
+|  Health, Tokens —     |           |  -> HardwareService       |
+|  contextual           |           |  -> TeachingEngine         |
+|  visibility)          |           |  -> HealthTracker          |
+|                       |           |  -> TraceabilityTracker    |
+| FlashWizardModal      |           |  -> DeviceRegistry         |
+| (multi-device flash)  |           |     (plugin manifests)     |
 +-----------------------+           +---------------------------+
                                               |
                                     runs agents via SDK query() API
@@ -60,18 +60,30 @@ Root `package.json` manages Electron and build tooling. Frontend and backend rem
 2. Click GO -> blockInterpreter converts workspace to NuggetSpec JSON
 3. POST /api/sessions (create) -> POST /api/sessions/:id/start (with spec)
 4. Backend Orchestrator.run():
-   a. PLAN:    MetaPlanner calls Claude API to decompose spec into task DAG
-   a2. MEETING TRIGGERS: Evaluate plan_ready triggers (Architecture, Media, Art agents)
-   b. EXECUTE: Streaming-parallel pool (Promise.race, up to 3 concurrent tasks)
+   a. AUTO-TEST: autoMatchTests() auto-generates behavioral tests for when_then
+                 requirements missing test_id (Explorer level only; no-op at Builder/Architect)
+   b. PLAN:     MetaPlanner calls Claude API to decompose spec into task DAG
+   c. MEETINGS: evaluateAndInvite('plan_ready') checks meeting triggers
+                (currently no meetings fire at plan_ready; all moved to per-task/deploy events)
+   d. TRACE:    Build traceability map from spec requirements <-> behavioral tests
+   e. PORTALS:  Initialize MCP/CLI portal adapters if spec declares portals
+   f. EXECUTE:  Streaming-parallel pool (Promise.race, up to 3 concurrent tasks)
                 Each agent gets: role prompt + task description + context from prior tasks
                 Agent output streams via SDK -> WebSocket events to frontend
                 Git commit after each completed task (serialized via mutex)
                 Token budget tracked per agent; warning at 80%, halt on exceed
-   c. TEST:    TestRunner executes pytest, parses results + coverage
-   d. DEPLOY:  Surface before_deploy rules as deploy_checklist event
+                Per-task meeting triggers: design review (task_starting), mid-build
+                  meetings at 25%/50%/60% completion (task_completed)
+   g. TEST:    TestRunner executes pytest/node, parses results + coverage
+               Traceability tracker updates requirement-test status
+   h. HEALTH:  HealthTracker computes score (0-100) and grade (A-F)
+               HealthHistoryService persists trend data for Architect level
+   i. DEPLOY:  Surface before_deploy rules as deploy_checklist event
+               evaluateAndInvite('deploy_started') for device/web deploy meetings
                If web: build -> find serve dir -> start local HTTP server -> open browser
                If devices: resolveDeployOrder -> flash wizard per device
                If CLI portals: execute via CliPortalAdapter (no shell)
+   j. COMPLETE: evaluateAndInvite('session_complete') -> Architecture agent meeting
 5. session_complete event with summary
 ```
 
@@ -104,7 +116,7 @@ In dev mode, Vite (port 5173) proxies `/api/*` and `/ws/*` to backend (port 8000
 ## Core Abstractions
 
 ### NuggetSpec
-JSON schema produced by blockInterpreter from Blockly workspace. Drives the entire pipeline. Contains: goal, requirements, style, agents, deployment target, workflow flags, skills, rules, portals, devices.
+JSON schema produced by blockInterpreter from Blockly workspace. Drives the entire pipeline. Contains: goal, requirements (with test traceability), style, agents, deployment target, workflow flags (feedback loops, system level, behavioral tests), skills, rules, portals, devices, runtime config (agent name, voice, greeting), knowledge (backpack sources, study mode), composition (provides/requires interfaces for Spec Graph).
 
 ### Task DAG
 Directed acyclic graph of tasks with dependencies. Generated by MetaPlanner. Executed in topological order by Orchestrator. Uses Kahn's algorithm (`utils/dag.ts`).
@@ -140,7 +152,7 @@ Note: `reviewing` is a transient state during human gate pauses within execution
 - **Context chain**: After each task, a summary is written to `.elisa/context/nugget_context.md`. Subsequent agents receive this as input, creating a chain of context.
 - **Graceful degradation**: Missing tools (git, pytest, mpremote, serialport) cause warnings, not crashes.
 - **Bearer token auth**: Server generates a random auth token on startup. All `/api/*` routes (except `/api/health`) require `Authorization: Bearer <token>`. WebSocket upgrades require `?token=<token>` query param. In Electron, token is shared to renderer via IPC.
-- **Content safety**: All agent prompts include a Content Safety section enforcing age-appropriate output (ages 8-14). User-controlled placeholder values are sanitized before prompt interpolation.
+- **Content safety**: All agent prompts include a Content Safety section enforcing age-appropriate output (ages 8-14). User-controlled placeholder values are sanitized before prompt interpolation. Runtime responses are post-processed through a mandatory content filter (PII redaction, inappropriate topic blocking) before delivery.
 - **Abort propagation**: Orchestrator's AbortController signal is forwarded to each agent's SDK `query()` call. On cancel or error, agents are aborted immediately.
 - **API key management**: In dev, read from `ANTHROPIC_API_KEY` env var. In Electron, encrypted via OS keychain (`safeStorage`) and stored locally. Child processes (test runners, flash scripts, builds) receive sanitized env without the API key.
 
@@ -157,12 +169,12 @@ Note: `reviewing` is a transient state during human gate pauses within execution
 After a build deploys an agent to a target device (BOX-3, web, etc.), the Agent Runtime manages live conversations. Services live in `backend/src/services/runtime/`:
 
 - **AgentStore** — Provisions agent identities from NuggetSpec (system prompt, greeting, tools, API key)
-- **ConversationManager** — Per-agent conversation sessions with windowed turn history
+- **ConversationManager** — Per-agent conversation sessions with windowed turn history and TTL-based cleanup (30-min stale session sweep)
 - **TurnPipeline** — Core text loop: load identity + history -> Claude API -> store turn -> track usage
 - **SafetyGuardrails** — Safety prompt injected into every agent system prompt
 - **KnowledgeBackpack** — Per-agent document store with TF-IDF search for context injection
 - **StudyMode** — Spaced-repetition quiz generation from backpack sources
-- **ContentFilter** — PII redaction and inappropriate topic flagging (regex-based)
+- **ContentFilter** — Mandatory post-response PII redaction and inappropriate topic blocking (regex-based). Blocks responses containing inappropriate topics by replacing with agent's fallback response.
 - **UsageLimiter** — Tiered usage limits (free/basic/unlimited) with daily turn and monthly token caps
 - **ConsentManager** — COPPA parental consent tracking (full_transcripts / session_summaries / no_history)
 - **DisplayManager** — BOX-3 display command generator (idle, conversation, thinking, error, status, menu screens)
