@@ -70,6 +70,17 @@ describe('NarratorFeed', () => {
     expect(screen.getByTestId('comms-feed')).toBeInTheDocument();
   });
 
+  it('has aria-live="polite" on the message container', () => {
+    const messages: NarratorMessage[] = [
+      { from: 'Elisa', text: 'Adventure time!', mood: 'excited', timestamp: Date.now() },
+    ];
+    render(<NarratorFeed narratorMessages={messages} events={[]} />);
+    const messageText = screen.getByText('Adventure time!');
+    const container = messageText.closest('[aria-live]');
+    expect(container).not.toBeNull();
+    expect(container!.getAttribute('aria-live')).toBe('polite');
+  });
+
   it('renders MinionAvatar for each message', () => {
     const messages: NarratorMessage[] = [
       { from: 'Elisa', text: 'Hello!', mood: 'encouraging', timestamp: Date.now() },

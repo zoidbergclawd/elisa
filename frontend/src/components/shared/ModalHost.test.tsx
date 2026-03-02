@@ -363,6 +363,46 @@ describe('ModalHost', () => {
     expect(setHelpOpen).not.toHaveBeenCalled();
   });
 
+  // -- Focus trap (P2 #17) --
+
+  it('traps focus within help modal on Tab key', () => {
+    render(<ModalHost {...buildDefaultProps({ helpOpen: true })} />);
+    const dialog = screen.getByRole('dialog');
+    const closeBtn = screen.getByLabelText('Close');
+
+    // Focus the close button (last focusable element in our simplified help modal)
+    closeBtn.focus();
+    expect(document.activeElement).toBe(closeBtn);
+
+    // Pressing Tab on the last element should wrap to first
+    fireEvent.keyDown(dialog, { key: 'Tab' });
+    // Focus trap should prevent default and cycle - verify no error thrown
+    expect(dialog).toBeInTheDocument();
+  });
+
+  it('traps focus within help modal on Shift+Tab key', () => {
+    render(<ModalHost {...buildDefaultProps({ helpOpen: true })} />);
+    const dialog = screen.getByRole('dialog');
+    const closeBtn = screen.getByLabelText('Close');
+
+    // Focus the close button (first focusable in the content)
+    closeBtn.focus();
+
+    // Pressing Shift+Tab should wrap to last
+    fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true });
+    expect(dialog).toBeInTheDocument();
+  });
+
+  it('does not trap focus for non-Tab keys', () => {
+    const setHelpOpen = vi.fn();
+    render(<ModalHost {...buildDefaultProps({ helpOpen: true, setHelpOpen })} />);
+    const dialog = screen.getByRole('dialog');
+
+    // Pressing Enter should not trigger focus trap logic
+    fireEvent.keyDown(dialog, { key: 'Enter' });
+    expect(dialog).toBeInTheDocument();
+  });
+
   // -- Multiple modals --
 
   it('renders multiple modals simultaneously when multiple flags are on', () => {

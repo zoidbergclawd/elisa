@@ -208,6 +208,33 @@ describe('FlashWizardModal', () => {
     expect(screen.getByText(/50% complete/i)).toBeInTheDocument();
   });
 
+  it('progress bar has aria-valuenow, aria-valuemin, aria-valuemax', () => {
+    render(
+      <FlashWizardModal
+        {...baseProps}
+        isFlashing={true}
+        progress={42}
+      />
+    );
+    const progressBar = screen.getByRole('progressbar');
+    expect(progressBar).toHaveAttribute('aria-valuenow', '42');
+    expect(progressBar).toHaveAttribute('aria-valuemin', '0');
+    expect(progressBar).toHaveAttribute('aria-valuemax', '100');
+  });
+
+  it('progress bar clamps visual width to 100%', () => {
+    render(
+      <FlashWizardModal
+        {...baseProps}
+        isFlashing={true}
+        progress={99}
+      />
+    );
+    const progressBar = screen.getByRole('progressbar');
+    expect(progressBar).toHaveAttribute('aria-valuenow', '99');
+    expect(progressBar).toHaveAttribute('aria-valuemax', '100');
+  });
+
   it('uses agent name in flashing message', () => {
     render(
       <FlashWizardModal

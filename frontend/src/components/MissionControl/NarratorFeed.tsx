@@ -59,7 +59,7 @@ export default function NarratorFeed({ narratorMessages, events, isPlanning = fa
       {mode === 'story' ? (
         <div className="flex flex-col flex-1 overflow-hidden">
           {/* Story messages */}
-          <div ref={feedRef} className="flex-1 overflow-y-auto p-3 space-y-2">
+          <div ref={feedRef} className="flex-1 overflow-y-auto p-3 space-y-2" aria-live="polite">
             {narratorMessages.length === 0 ? (
               <div className="text-sm text-atelier-text-muted text-center py-4">
                 {isPlanning ? (

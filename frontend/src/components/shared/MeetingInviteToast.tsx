@@ -43,9 +43,10 @@ export default function MeetingInviteToast({ invite, onAccept, onDecline, pauseA
 
   if (!invite) return null;
 
+  // z-index hierarchy: error modals z-[100] > regular modals z-50 > toasts z-40
   return (
     <div
-      className="fixed right-4 top-20 w-80 glass-elevated rounded-xl shadow-lg p-4 z-[60] animate-float-in border-l-2 border-l-accent-sky"
+      className="fixed right-4 top-20 w-80 glass-elevated rounded-xl shadow-lg p-4 z-40 animate-float-in border-l-2 border-l-accent-sky"
       role="alert"
       aria-label="Meeting invite"
     >

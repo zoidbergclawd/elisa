@@ -277,6 +277,7 @@ function TaskDAGInner({
         return {
           id: node.id,
           position: { x: node.x || 0, y: node.y || 0 },
+          ariaLabel: `${task.name}, status: ${task.status}, agent: ${task.agent_name}`,
           data: {
             label: truncate(task.name, 25),
             agentName: task.agent_name,

@@ -1,3 +1,4 @@
+import { useRef, useCallback, type KeyboardEvent } from 'react';
 import HumanGateModal from './HumanGateModal';
 import QuestionModal from './QuestionModal';
 import FlashWizardModal from './FlashWizardModal';
@@ -97,6 +98,31 @@ export default function ModalHost({
   helpOpen,
   setHelpOpen,
 }: ModalHostProps) {
+  const helpModalRef = useRef<HTMLDivElement>(null);
+
+  const handleFocusTrap = useCallback((e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Tab') return;
+    const modal = helpModalRef.current;
+    if (!modal) return;
+    const focusable = modal.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    );
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey) {
+      if (document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      }
+    } else {
+      if (document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  }, []);
+
   return (
     <>
       {/* Human gate modal */}
@@ -209,7 +235,7 @@ export default function ModalHost({
 
       {/* Help modal */}
       {helpOpen && (
-        <div className="fixed inset-0 modal-backdrop z-50 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="help-modal-title" onClick={() => setHelpOpen(false)}>
+        <div ref={helpModalRef} className="fixed inset-0 modal-backdrop z-50 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="help-modal-title" onClick={() => setHelpOpen(false)} onKeyDown={handleFocusTrap}>
           <div className="glass-elevated rounded-2xl shadow-2xl p-6 max-w-md mx-4 animate-float-in" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 id="help-modal-title" className="text-lg font-display font-bold gradient-text-warm">Getting Started</h2>

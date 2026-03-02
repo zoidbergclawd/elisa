@@ -180,23 +180,23 @@ export type WSEvent =
   | { type: 'planning_started' }
   | { type: 'plan_ready'; tasks: Task[]; agents: Agent[]; explanation: string; deployment_target?: string; deploy_steps?: Array<{ id: string; name: string; method: string }> }
   | { type: 'task_started'; task_id: string; agent_name: string }
-  | { type: 'task_completed'; task_id: string; summary: string }
+  | { type: 'task_completed'; task_id: string; summary: string; agent_name?: string }
   | { type: 'task_failed'; task_id: string; error: string; retry_count: number }
   | { type: 'agent_output'; task_id: string; agent_name: string; content: string }
   | { type: 'agent_status'; agent: Agent }
   | { type: 'agent_message'; from: string; to: string; content: string }
   | { type: 'deploy_started'; target: string }
-  | { type: 'deploy_progress'; step: string; progress: number }
+  | { type: 'deploy_progress'; step: string; progress: number; device_role?: string }
   | { type: 'deploy_complete'; target: string; url?: string }
   | { type: 'teaching_moment'; concept: string; headline: string; explanation: string; tell_me_more?: string; related_concepts?: string[] }
   | { type: 'commit_created'; sha: string; message: string; agent_name: string; task_id: string; timestamp: string; files_changed: string[] }
   | { type: 'test_result'; test_name: string; passed: boolean; details: string }
-  | { type: 'coverage_update'; percentage: number; details?: CoverageReport }
+  | { type: 'coverage_update'; percentage: number; details?: Record<string, { statements: number; covered: number; percentage: number }> }
   | { type: 'token_usage'; agent_name: string; input_tokens: number; output_tokens: number; cost_usd: number }
   | { type: 'budget_warning'; total_tokens: number; max_budget: number; cost_usd: number }
   | { type: 'serial_data'; line: string; timestamp: string }
   | { type: 'human_gate'; task_id: string; question: string; context: string }
-  | { type: 'user_question'; task_id: string; questions: QuestionPayload[] }
+  | { type: 'user_question'; task_id: string; questions: QuestionPayload[] | Record<string, unknown> }
   | { type: 'skill_started'; skill_id: string; skill_name: string }
   | { type: 'skill_step'; skill_id: string; step_id: string; step_type: string; status: 'started' | 'completed' | 'failed' }
   | { type: 'skill_question'; skill_id: string; step_id: string; questions: QuestionPayload[] }

@@ -111,6 +111,15 @@ describe('MeetingInviteToast', () => {
     expect(onDecline).not.toHaveBeenCalled();
   });
 
+  it('renders with z-40 (below modals at z-50) not z-60', () => {
+    render(
+      <MeetingInviteToast invite={mockInvite} onAccept={vi.fn()} onDecline={vi.fn()} />,
+    );
+    const toast = screen.getByRole('alert');
+    expect(toast.className).toContain('z-40');
+    expect(toast.className).not.toContain('z-[60]');
+  });
+
   it('resumes auto-dismiss when pauseAutoDismiss changes to false', () => {
     const onDecline = vi.fn();
     const { rerender } = render(

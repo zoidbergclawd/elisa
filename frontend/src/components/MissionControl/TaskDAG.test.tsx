@@ -146,6 +146,20 @@ describe('TaskDAG', () => {
     expect(screen.queryByTestId('context-flow-animation')).not.toBeInTheDocument();
   });
 
+  it('sets ariaLabel on nodes with task name, status, and agent', async () => {
+    const tasks: Task[] = [
+      { id: '1', name: 'Build UI', description: '', status: 'in_progress', agent_name: 'Builder', dependencies: [] },
+    ];
+    render(<TaskDAG tasks={tasks} />);
+    await waitFor(() => {
+      const nodes = (lastReactFlowProps.nodes as Array<{ ariaLabel?: string }>);
+      expect(nodes).toBeDefined();
+      if (nodes && nodes.length > 0) {
+        expect(nodes[0].ariaLabel).toBe('Build UI, status: in_progress, agent: Builder');
+      }
+    });
+  });
+
   it('shows simplified agent-level nodes in explorer mode', async () => {
     const tasks: Task[] = [
       { id: '1', name: 'Scaffold', description: '', status: 'done', agent_name: 'Builder Bot', dependencies: [] },

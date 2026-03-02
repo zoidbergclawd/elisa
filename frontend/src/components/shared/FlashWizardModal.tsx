@@ -309,7 +309,13 @@ export default function FlashWizardModal({
                 <p className="text-sm text-atelier-text-secondary mb-2">
                   {displayName} is loading...
                 </p>
-                <div className="w-full bg-atelier-surface rounded-full h-3">
+                <div
+                  className="w-full bg-atelier-surface rounded-full h-3"
+                  role="progressbar"
+                  aria-valuenow={Math.min(progress, 100)}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                >
                   <div
                     className="bg-accent-sky h-3 rounded-full transition-all duration-300"
                     style={{ width: `${Math.min(progress, 100)}%` }}
