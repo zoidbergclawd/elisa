@@ -21,10 +21,11 @@ describe('MeetingInviteCard', () => {
     expect(screen.getByText('Let me help you write great docs!')).toBeInTheDocument();
   });
 
-  it('shows agent initial in avatar circle', () => {
+  it('shows fallback agent initial for unknown agent', () => {
     render(
       <MeetingInviteCard invite={mockInvite} onAccept={vi.fn()} onDecline={vi.fn()} />,
     );
+    // "Doc" is not a known agent, so fallback letter circle renders
     expect(screen.getByText('D')).toBeInTheDocument();
   });
 

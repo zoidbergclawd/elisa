@@ -601,6 +601,99 @@ describe('useMeetingSession', () => {
     });
   });
 
+  describe('resetMeetings', () => {
+    it('clears all invites and active meeting', () => {
+      const { result } = renderHook(() => useMeetingSession('session-1'));
+
+      // Add invites
+      act(() => {
+        result.current.handleMeetingEvent({
+          type: 'meeting_invite',
+          meetingId: 'meeting-1',
+          meetingTypeId: 'doc-agent',
+          agentName: 'Doc',
+          title: 'Doc',
+          description: 'Docs!',
+        });
+      });
+
+      // Start a meeting
+      act(() => {
+        result.current.handleMeetingEvent({
+          type: 'meeting_started',
+          meetingId: 'meeting-2',
+          meetingTypeId: 'test-type',
+          agentName: 'Pixel',
+          canvasType: 'debug-canvas',
+        });
+      });
+
+      expect(result.current.activeMeeting).not.toBeNull();
+
+      // Reset
+      act(() => {
+        result.current.resetMeetings();
+      });
+
+      expect(result.current.inviteQueue).toEqual([]);
+      expect(result.current.activeMeeting).toBeNull();
+      expect(result.current.nextInvite).toBeNull();
+    });
+  });
+
+  describe('clearAllInvites', () => {
+    it('clears all invites but preserves active meeting', () => {
+      const { result } = renderHook(() => useMeetingSession('session-1'));
+
+      // Add invites
+      act(() => {
+        result.current.handleMeetingEvent({
+          type: 'meeting_invite',
+          meetingId: 'meeting-1',
+          meetingTypeId: 'doc-agent',
+          agentName: 'Doc',
+          title: 'Doc',
+          description: 'Docs!',
+        });
+      });
+
+      act(() => {
+        result.current.handleMeetingEvent({
+          type: 'meeting_invite',
+          meetingId: 'meeting-2',
+          meetingTypeId: 'arch-agent',
+          agentName: 'Archie',
+          title: 'Arch',
+          description: 'Arch!',
+        });
+      });
+
+      // Start a meeting (different from invites)
+      act(() => {
+        result.current.handleMeetingEvent({
+          type: 'meeting_started',
+          meetingId: 'meeting-3',
+          meetingTypeId: 'test-type',
+          agentName: 'Pixel',
+          canvasType: 'debug-canvas',
+        });
+      });
+
+      expect(result.current.inviteQueue).toHaveLength(2);
+      expect(result.current.activeMeeting).not.toBeNull();
+
+      // Clear invites only
+      act(() => {
+        result.current.clearAllInvites();
+      });
+
+      expect(result.current.inviteQueue).toEqual([]);
+      expect(result.current.nextInvite).toBeNull();
+      // Active meeting should still exist
+      expect(result.current.activeMeeting).not.toBeNull();
+    });
+  });
+
   describe('full lifecycle via WS events', () => {
     it('invite -> accept -> messages -> outcome -> end', async () => {
       const { result } = renderHook(() => useMeetingSession('session-1'));

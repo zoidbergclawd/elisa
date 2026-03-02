@@ -10,7 +10,12 @@ export const MEDIA_AGENT_MEETING: MeetingType = {
   canvasType: 'campaign',
   triggerConditions: [
     {
-      event: 'plan_ready',
+      event: 'task_completed',
+      filter: (data) => {
+        const done = (data.tasks_done as number) ?? 0;
+        const total = (data.tasks_total as number) ?? 1;
+        return done >= Math.ceil(total * 0.25);
+      },
     },
   ],
   persona:

@@ -142,6 +142,8 @@ export class ExecutePhase {
           const success = await this.executeOneTask(ctx, taskId, completed, meetingDesignContext.get(taskId));
           if (success) {
             completed.add(taskId);
+            // Evaluate mid-build meeting triggers after each successful task
+            await this.evaluateTaskCompletedMeetings(ctx, completed.size);
           } else {
             failed.add(taskId);
           }
@@ -337,6 +339,34 @@ export class ExecutePhase {
     }
 
     meetingBlocked.delete(taskId);
+  }
+
+  /**
+   * Evaluate task_completed meeting triggers after a task finishes.
+   * Passes progress (tasks_done, tasks_total) and deploy target so
+   * meeting filters can gate on build progress and deployment type.
+   */
+  private async evaluateTaskCompletedMeetings(
+    ctx: PhaseContext,
+    tasksDone: number,
+  ): Promise<void> {
+    const { meetingTriggerWiring, sessionId, systemLevel } = this.deps;
+    if (!meetingTriggerWiring || !sessionId || !systemLevel) return;
+
+    const spec = ctx.session.spec ?? {};
+    const deployTarget = spec.deployment?.target ?? 'preview';
+
+    await meetingTriggerWiring.evaluateAndInvite(
+      'task_completed',
+      {
+        tasks_done: tasksDone,
+        tasks_total: this.deps.tasks.length,
+        deploy_target: deployTarget,
+      },
+      sessionId,
+      ctx.send,
+      systemLevel,
+    );
   }
 
   /**

@@ -46,6 +46,7 @@ export default function App() {
     handleMeetingEvent, acceptInvite, declineInvite,
     sendMessage: sendMeetingMessage, endMeeting, updateCanvas: updateMeetingCanvas,
     materializeArtifacts: materializeMeetingArtifacts,
+    resetMeetings,
   } = useMeetingSession(sessionId);
 
   // Route WS events to both build session and meeting session handlers
@@ -426,6 +427,7 @@ export default function App() {
               </button>
               <button
                 onClick={() => {
+                  resetMeetings();
                   resetToDesign();
                   setActiveMainTab('workspace');
                 }}

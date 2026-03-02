@@ -36,11 +36,11 @@ describe('MeetingInviteToast', () => {
     expect(screen.getByText('Let me help you find the bug!')).toBeInTheDocument();
   });
 
-  it('shows agent initial in avatar', () => {
+  it('shows agent avatar', () => {
     render(
       <MeetingInviteToast invite={mockInvite} onAccept={vi.fn()} onDecline={vi.fn()} />,
     );
-    expect(screen.getByText('P')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Pixel avatar' })).toBeInTheDocument();
   });
 
   it('calls onAccept with meetingId when Join Meeting is clicked', () => {

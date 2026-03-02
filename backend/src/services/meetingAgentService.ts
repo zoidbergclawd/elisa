@@ -63,6 +63,27 @@ const CANVAS_INSTRUCTIONS: Record<string, string> = {
     'Update the canvas with every message so the kid sees their design evolve in real time.',
 };
 
+const MEETING_TOPIC_DESCRIPTIONS: Record<string, string> = {
+  blueprint:
+    'This meeting is about reviewing the architecture and build health of the kid\'s project.',
+  campaign:
+    'This meeting is about creating marketing materials (posters, social cards, storyboards) for the kid\'s project -- NOT about designing the project itself.',
+  'explain-it':
+    'This meeting is about writing documentation that explains what the kid built.',
+  'launch-pad':
+    'This meeting is about designing an awesome launch page for the kid\'s web project.',
+  'theme-picker':
+    'This meeting is about choosing visual themes and colors for the kid\'s BOX-3 device.',
+  'interface-designer':
+    'This meeting is about designing how the kid\'s nuggets connect and communicate.',
+  'bug-detective':
+    'This meeting is about diagnosing and understanding a bug in the kid\'s project.',
+  'design-preview':
+    'This meeting is about collaboratively designing visual elements (sprites, backgrounds, UI) for the kid\'s project.',
+};
+
+export { MEETING_TOPIC_DESCRIPTIONS };
+
 export class MeetingAgentService {
   private client: Anthropic | null = null;
   private model: string;
@@ -137,7 +158,7 @@ export class MeetingAgentService {
     ctx: MeetingBuildContext,
     canvasInstructions: string,
   ): Promise<Record<string, unknown> | undefined> {
-    const systemPrompt = this.buildCanvasSystemPrompt(meetingType, ctx, canvasInstructions);
+    const systemPrompt = this.buildCanvasSystemPrompt(meetingType, ctx, canvasInstructions, claudeMessages);
 
     const response = await withTimeout(
       this.client!.messages.create({
@@ -158,6 +179,11 @@ export class MeetingAgentService {
 
     parts.push(`You are ${meetingType.agentName}, a meeting agent in a kids' coding app called Elisa.`);
     parts.push(`Your persona: ${meetingType.persona}`);
+
+    const topicDescription = MEETING_TOPIC_DESCRIPTIONS[meetingType.canvasType];
+    if (topicDescription) {
+      parts.push(`\n## Meeting Topic\n${topicDescription}`);
+    }
 
     parts.push('\n## Current Build Context');
     parts.push(`Goal: ${ctx.goal || 'Not set yet'}`);
@@ -197,6 +223,7 @@ export class MeetingAgentService {
     meetingType: MeetingType,
     ctx: MeetingBuildContext,
     canvasInstructions: string,
+    claudeMessages?: Array<{ role: 'user' | 'assistant'; content: string }>,
   ): string {
     const parts: string[] = [];
 
@@ -219,6 +246,18 @@ export class MeetingAgentService {
 
     parts.push('\n## Canvas Schema');
     parts.push(canvasInstructions);
+
+    if (claudeMessages && claudeMessages.length > 0) {
+      const recentUserMessages = claudeMessages
+        .filter(m => m.role === 'user' && m.content !== '[Meeting started]')
+        .slice(-3)
+        .map(m => m.content);
+      if (recentUserMessages.length > 0) {
+        parts.push('\n## Recent Conversation');
+        parts.push(`The user has been discussing: ${recentUserMessages.join('; ')}`);
+        parts.push('Generate canvas data that reflects this conversation.');
+      }
+    }
 
     parts.push('\n## Output Format');
     parts.push('Output ONLY a valid JSON object. No markdown, no code fences, no explanation text. Just the raw JSON object.');
@@ -285,6 +324,7 @@ export class MeetingAgentService {
       // Give up
     }
 
+    console.warn('[meetingAgent] canvas response could not be parsed:', raw.slice(0, 200));
     return undefined;
   }
 

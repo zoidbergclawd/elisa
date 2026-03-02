@@ -1,6 +1,7 @@
 /** Floating notification toast when a meeting invite arrives. */
 
 import { useEffect, useRef } from 'react';
+import AgentAvatar from '../Meeting/AgentAvatar';
 
 export interface MeetingInvite {
   meetingId: string;
@@ -50,9 +51,7 @@ export default function MeetingInviteToast({ invite, onAccept, onDecline, pauseA
     >
       <div className="flex items-start gap-3">
         {/* Agent avatar */}
-        <div className="w-10 h-10 rounded-full bg-accent-sky/20 flex items-center justify-center text-accent-sky font-bold text-sm shrink-0">
-          {invite.agentName.charAt(0).toUpperCase()}
-        </div>
+        <AgentAvatar agentName={invite.agentName} size={40} />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-atelier-text">{invite.agentName}</p>
           <p className="text-sm font-medium text-atelier-text mt-0.5">{invite.title}</p>

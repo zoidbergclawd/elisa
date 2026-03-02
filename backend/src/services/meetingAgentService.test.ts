@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { MeetingType, MeetingMessage } from '../models/meeting.js';
 import type { MeetingBuildContext } from './meetingAgentService.js';
+import { MEETING_TOPIC_DESCRIPTIONS } from './meetingAgentService.js';
 
 const mockCreate = vi.fn();
 
@@ -394,5 +395,111 @@ describe('MeetingAgentService (dual-call)', () => {
     expect(result.canvasUpdate?.scene_title).toBe('Game');
     expect(result.text).toBe('Check it!');
     expect(result.text).not.toContain('"scene_title"');
+  });
+
+  it('chat prompt includes topic description for known canvas types', async () => {
+    mockCreate
+      .mockResolvedValueOnce({ content: [{ type: 'text', text: 'Hi!' }] })
+      .mockResolvedValueOnce({ content: [{ type: 'text', text: '{}' }] });
+
+    await service.generateResponse(
+      meetingType, // canvasType: 'blueprint'
+      [{ role: 'kid', content: 'Hi', timestamp: 1 }],
+      buildContext,
+    );
+
+    const chatArgs = mockCreate.mock.calls[0][0];
+    expect(chatArgs.system).toContain('## Meeting Topic');
+    expect(chatArgs.system).toContain('reviewing the architecture and build health');
+  });
+
+  it('chat prompt includes "NOT about designing the project" for campaign type', async () => {
+    const campaignType: MeetingType = {
+      id: 'campaign-agent',
+      name: 'Campaign Agent',
+      agentName: 'Canvas',
+      canvasType: 'campaign',
+      triggerConditions: [{ event: 'plan_ready' }],
+      persona: 'A creative marketing agent.',
+    };
+
+    mockCreate
+      .mockResolvedValueOnce({ content: [{ type: 'text', text: 'Marketing!' }] })
+      .mockResolvedValueOnce({ content: [{ type: 'text', text: '{}' }] });
+
+    await service.generateResponse(
+      campaignType,
+      [{ role: 'kid', content: 'Hi', timestamp: 1 }],
+      buildContext,
+    );
+
+    const chatArgs = mockCreate.mock.calls[0][0];
+    expect(chatArgs.system).toContain('NOT about designing the project');
+  });
+
+  it('canvas prompt includes recent user messages when provided', async () => {
+    mockCreate
+      .mockResolvedValueOnce({ content: [{ type: 'text', text: 'Nice!' }] })
+      .mockResolvedValueOnce({ content: [{ type: 'text', text: '{}' }] });
+
+    const messages: MeetingMessage[] = [
+      { role: 'kid', content: 'I want a space theme', timestamp: 1000 },
+      { role: 'agent', content: 'Great idea!', timestamp: 2000 },
+      { role: 'kid', content: 'With purple stars', timestamp: 3000 },
+    ];
+
+    await service.generateResponse(meetingType, messages, buildContext);
+
+    // Second call is canvas
+    const canvasArgs = mockCreate.mock.calls[1][0];
+    expect(canvasArgs.system).toContain('## Recent Conversation');
+    expect(canvasArgs.system).toContain('I want a space theme');
+    expect(canvasArgs.system).toContain('With purple stars');
+    expect(canvasArgs.system).toContain('Generate canvas data that reflects this conversation');
+  });
+
+  it('canvas prompt excludes [Meeting started] synthetic message from recent conversation', async () => {
+    mockCreate
+      .mockResolvedValueOnce({ content: [{ type: 'text', text: 'Hi!' }] })
+      .mockResolvedValueOnce({ content: [{ type: 'text', text: '{}' }] });
+
+    // Only agent messages -- toClaudeMessages will prepend [Meeting started]
+    const messages: MeetingMessage[] = [
+      { role: 'agent', content: 'Welcome!', timestamp: 1000 },
+    ];
+
+    await service.generateResponse(meetingType, messages, buildContext);
+
+    const canvasArgs = mockCreate.mock.calls[1][0];
+    // Should NOT include the synthetic message in the topic summary
+    expect(canvasArgs.system).not.toContain('Meeting started');
+  });
+
+  it('parseCanvasResponse logs warning on unparseable input', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    mockCreate
+      .mockResolvedValueOnce({ content: [{ type: 'text', text: 'Oops!' }] })
+      .mockResolvedValueOnce({ content: [{ type: 'text', text: 'totally not json {{{' }] });
+
+    const result = await service.generateResponse(
+      meetingType,
+      [{ role: 'kid', content: 'Hi', timestamp: 1 }],
+      buildContext,
+    );
+
+    expect(result.canvasUpdate).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[meetingAgent] canvas response could not be parsed:',
+      expect.stringContaining('totally not json'),
+    );
+    warnSpy.mockRestore();
+  });
+
+  it('MEETING_TOPIC_DESCRIPTIONS covers all CANVAS_INSTRUCTIONS keys', () => {
+    const canvasKeys = ['blueprint', 'theme-picker', 'campaign', 'explain-it', 'launch-pad', 'interface-designer', 'bug-detective', 'design-preview'];
+    for (const key of canvasKeys) {
+      expect(MEETING_TOPIC_DESCRIPTIONS[key]).toBeDefined();
+    }
   });
 });

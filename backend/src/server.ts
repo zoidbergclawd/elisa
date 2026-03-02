@@ -188,8 +188,11 @@ const manager = new ConnectionManager();
 
 // Wire up WebSocket + meeting cleanup when sessions are removed
 store.onCleanup = (sessionId: string) => {
-  manager.cleanup(sessionId);
-  meetingService.cleanupSession(sessionId);
+  // Send meeting_ended for any pending invites/active meetings before closing connections
+  const sendForSession = (event: WSEvent) => manager.sendEvent(sessionId, event);
+  meetingService.cleanupSession(sessionId, sendForSession)
+    .catch(() => { /* ignore */ })
+    .finally(() => { manager.cleanup(sessionId); });
 };
 
 // -- Express App --

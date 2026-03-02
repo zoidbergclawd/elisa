@@ -133,4 +133,50 @@ describe('MeetingTriggerWiring', () => {
     const invites = vi.mocked(send).mock.calls.filter(([ev]) => ev.type === 'meeting_invite');
     expect(invites).toHaveLength(2);
   });
+
+  it('deduplicates: does not create a second invite for the same meeting type in the same session', async () => {
+    const meeting = makeDeployMeeting('media-agent', 'task_completed', (data) => {
+      return ((data.tasks_done as number) ?? 0) >= 1;
+    });
+    registry.register(meeting);
+
+    const send = makeSend();
+    // First call: tasks_done=1, should create invite
+    await wiring.evaluateAndInvite('task_completed', { tasks_done: 1, tasks_total: 4 }, 'session-1', send, 'explorer');
+    // Second call: tasks_done=2, filter still matches but should be deduped
+    await wiring.evaluateAndInvite('task_completed', { tasks_done: 2, tasks_total: 4 }, 'session-1', send, 'explorer');
+    // Third call: tasks_done=3, still deduped
+    await wiring.evaluateAndInvite('task_completed', { tasks_done: 3, tasks_total: 4 }, 'session-1', send, 'explorer');
+
+    const invites = vi.mocked(send).mock.calls.filter(([ev]) => ev.type === 'meeting_invite');
+    expect(invites).toHaveLength(1);
+  });
+
+  it('dedup is per-session: different sessions get their own invites', async () => {
+    const meeting = makeDeployMeeting('media-agent', 'task_completed');
+    registry.register(meeting);
+
+    const send = makeSend();
+    await wiring.evaluateAndInvite('task_completed', { tasks_done: 1, tasks_total: 4 }, 'session-1', send, 'explorer');
+    await wiring.evaluateAndInvite('task_completed', { tasks_done: 1, tasks_total: 4 }, 'session-2', send, 'explorer');
+
+    const invites = vi.mocked(send).mock.calls.filter(([ev]) => ev.type === 'meeting_invite');
+    expect(invites).toHaveLength(2);
+  });
+
+  it('clearSession removes dedup state for that session', async () => {
+    const meeting = makeDeployMeeting('media-agent', 'task_completed');
+    registry.register(meeting);
+
+    const send = makeSend();
+    await wiring.evaluateAndInvite('task_completed', { tasks_done: 1, tasks_total: 4 }, 'session-1', send, 'explorer');
+
+    wiring.clearSession('session-1');
+
+    // After clearing, same meeting type can be invited again
+    await wiring.evaluateAndInvite('task_completed', { tasks_done: 2, tasks_total: 4 }, 'session-1', send, 'explorer');
+
+    const invites = vi.mocked(send).mock.calls.filter(([ev]) => ev.type === 'meeting_invite');
+    expect(invites).toHaveLength(2);
+  });
 });

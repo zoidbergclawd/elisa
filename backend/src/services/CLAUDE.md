@@ -136,7 +136,7 @@ Claude-powered agent responses for meeting conversations. Uses Anthropic SDK (Ha
 Pure functions that materialize meeting canvas data into real files in the nugget workspace. Dispatches by canvas type: `explain-it` -> markdown doc, `launch-pad` -> self-contained HTML (4 template variants), `campaign` -> poster.html/social-card.html, `interface-designer` -> interfaces.json, `theme-picker` -> theme-config.json, `design-preview` -> design spec JSON (includes optional `color` and `draw` fields per element). Blueprint and bug-detective produce no files. Top-level `materialize(canvasType, data, nuggetDir)` writes files and returns `{ files, primaryFile }`.
 
 ### meetingTriggerWiring.ts (meeting trigger wiring)
-Wraps `MeetingTriggerEngine` + `MeetingService` for the orchestrator. `evaluateAndInvite(event, context, session, send)` checks system-level gating via `shouldAutoInviteMeetings()`, evaluates build events against registered meeting trigger conditions, and creates meeting invites for matching types. `evaluateAndInviteForTask()` evaluates `task_starting` triggers and returns created meeting IDs for task blocking. Wired into orchestrator at `plan_ready`, `deploy_started`, `session_complete`, and pre-task events.
+Wraps `MeetingTriggerEngine` + `MeetingService` for the orchestrator. `evaluateAndInvite(event, context, session, send)` checks system-level gating via `shouldAutoInviteMeetings()`, evaluates build events against registered meeting trigger conditions, and creates meeting invites for matching types. Deduplicates per meeting type per session: once invited, subsequent matching events are ignored. `evaluateAndInviteForTask()` evaluates `task_starting` triggers and returns created meeting IDs for task blocking. `clearSession()` removes dedup state. Wired into orchestrator at `plan_ready`, `task_completed` (via ExecutePhase), `deploy_started`, `session_complete`, and pre-task events.
 
 ### taskMeetingTypes.ts (task-level meeting types)
 Registers meeting types with `event: 'task_starting'` and keyword-based filter functions. Currently registers `design-task-agent` (Design Review) which triggers before tasks with visual/design keywords (sprite, art, icon, theme, logo, etc.). Uses `design-preview` canvas for live visual design collaboration. `registerTaskMeetingTypes(registry)` called at startup.
@@ -145,16 +145,16 @@ Registers meeting types with `event: 'task_starting'` and keyword-based filter f
 Registers the `architecture-agent` meeting type with `canvasType: 'blueprint'`. Triggers on `session_complete` (post-build, after tests and health summary). Agent persona is "Blueprint". Frontend canvas: `BlueprintCanvas.tsx`. `registerArchitectureAgentMeeting(registry)` called at startup.
 
 ### docAgentMeeting.ts (documentation agent meeting type)
-Registers the `doc-agent` meeting type with `canvasType: 'explain-it'`. Triggers on `deploy_started` (after execution completes, during deployment). Agent persona is "Scribe". Frontend canvas: `ExplainItCanvas.tsx`. `registerDocAgentMeeting(registry)` called at startup.
+Registers the `doc-agent` meeting type with `canvasType: 'explain-it'`. Triggers on `task_completed` when >= 50% of tasks are done (mid-build). Agent persona is "Scribe". Frontend canvas: `ExplainItCanvas.tsx`. `registerDocAgentMeeting(registry)` called at startup.
 
 ### mediaAgentMeeting.ts (media agent meeting type)
-Registers the `media-agent` meeting type with `canvasType: 'campaign'`. Triggers on `plan_ready` (mid-build, after planning). Agent persona is "Canvas". Frontend canvas: `CampaignCanvas.tsx`. `registerMediaAgentMeeting(registry)` called at startup.
+Registers the `media-agent` meeting type with `canvasType: 'campaign'`. Triggers on `task_completed` when >= 25% of tasks are done (early mid-build). Agent persona is "Canvas". Frontend canvas: `CampaignCanvas.tsx`. `registerMediaAgentMeeting(registry)` called at startup.
 
 ### webDesignAgentMeeting.ts (web designer agent meeting type)
-Registers the `web-design-agent` meeting type with `canvasType: 'launch-pad'`. Triggers on `deploy_started` when target is `web`. Agent persona is "Styler". Frontend canvas: `LaunchPadCanvas.tsx`. `registerWebDesignAgentMeeting(registry)` called at startup.
+Registers the `web-design-agent` meeting type with `canvasType: 'launch-pad'`. Triggers on `task_completed` when >= 60% of tasks are done AND `deploy_target` is `web`. Agent persona is "Styler". Frontend canvas: `LaunchPadCanvas.tsx`. `registerWebDesignAgentMeeting(registry)` called at startup.
 
 ### artAgentMeeting.ts (art agent meeting type)
-Registers the `art-agent` meeting type with `canvasType: 'theme-picker'`. Triggers on both `plan_ready` (when BOX-3 in device_types) and `deploy_started` (when BOX-3 present). Agent persona is "Pixel" (Art Director). Frontend canvas: `ThemePickerCanvas.tsx`. `registerArtAgentMeeting(registry)` called at startup.
+Registers the `art-agent` meeting type with `canvasType: 'theme-picker'`. Triggers on `deploy_started` when BOX-3 device is present. Agent persona is "Pixel" (Art Director). Frontend canvas: `ThemePickerCanvas.tsx`. `registerArtAgentMeeting(registry)` called at startup.
 
 ### specGraph.ts (spec graph service)
 Manages a persistent directed graph of NuggetSpecs. In-memory `Map<string, SpecGraph>` with JSON persistence to `.elisa/spec-graph.json`. Nodes wrap NuggetSpecs with labels and timestamps. Edges represent `depends_on`, `provides_to`, `shares_interface`, or `composes_into` relationships. Validates no self-edges or duplicate edges. DFS cycle detection with 3-color marking. Atomic save (write .tmp, rename). `buildGraphContext(graphId, excludeNodeId?)` generates human-readable summary for MetaPlanner prompt injection. Methods: `create()`, `load()`, `save()`, `addNode()`, `removeNode()` (cascades edges), `updateNode()`, `addEdge()`, `removeEdge()`, `getNeighbors()`, `detectCycles()`, `buildGraphContext()`, `getGraph()`, `deleteGraph()`. Types in `models/specGraph.ts`.
@@ -174,13 +174,16 @@ Interface for agent provisioning during deploy. `StubRuntimeProvisioner`: return
 Orchestrator.run(spec)
   |-> autoMatchTests(spec, send)        Explorer: auto-generate tests for when_then reqs
   |-> PlanPhase.execute(ctx, spec)      returns tasks, agents, DAG
-  |-> evaluateAndInvite('plan_ready')  triggers mid-build meetings (Architecture, Media, Art)
+  |-> evaluateAndInvite('plan_ready')   (no meetings fire here anymore)
   |-> ExecutePhase.execute(ctx)
   |     streaming-parallel pool of ready tasks (up to 3 concurrent):
   |       AgentRunner.execute(prompt)   returns result + tokens
   |       GitService.commit()           serialized via mutex
   |       TeachingEngine.check()        returns teaching moment (if any)
   |       ContextManager.update()       writes summary + structural digest
+  |       evaluateAndInvite('task_completed')  staggered mid-build meetings (25%/50%/60%)
   |-> TestPhase.execute(ctx)            returns test results + coverage
   |-> DeployPhase.deploy*(ctx)          web preview, device flash, or portal deploy
+  |     evaluateAndInvite('deploy_started')   Art agent (BOX-3 only)
+  |-> evaluateAndInvite('session_complete')   Architecture agent (Blueprint)
 ```

@@ -47,6 +47,7 @@ type MeetingAction =
   | { type: 'MEETING_OUTCOME'; meetingId: string; outcomeType: string; data: Record<string, unknown> }
   | { type: 'MEETING_ENDED'; meetingId: string; outcomes: Array<{ type: string; data: Record<string, unknown> }> }
   | { type: 'CLEAR_INVITE'; meetingId: string }
+  | { type: 'CLEAR_ALL_INVITES' }
   | { type: 'RESET' };
 
 // -- Reducer --
@@ -129,6 +130,9 @@ function meetingReducer(state: MeetingSessionState, action: MeetingAction): Meet
 
     case 'CLEAR_INVITE':
       return { ...state, inviteQueue: state.inviteQueue.filter(inv => inv.meetingId !== action.meetingId) };
+
+    case 'CLEAR_ALL_INVITES':
+      return { ...state, inviteQueue: [] };
 
     case 'RESET':
       return initialState;
@@ -289,6 +293,16 @@ export function useMeetingSession(sessionId: string | null) {
     }
   }, [sessionId, state.activeMeeting]);
 
+  /** Clear all meeting state (invites + active meeting). Used on session reset. */
+  const resetMeetings = useCallback(() => {
+    dispatch({ type: 'RESET' });
+  }, []);
+
+  /** Clear only pending invites (e.g. stale mid-build invites). */
+  const clearAllInvites = useCallback(() => {
+    dispatch({ type: 'CLEAR_ALL_INVITES' });
+  }, []);
+
   /** First invite in queue (for toast display). */
   const nextInvite = useMemo(() => state.inviteQueue[0] ?? null, [state.inviteQueue]);
 
@@ -305,5 +319,7 @@ export function useMeetingSession(sessionId: string | null) {
     endMeeting,
     updateCanvas,
     materializeArtifacts,
+    resetMeetings,
+    clearAllInvites,
   };
 }

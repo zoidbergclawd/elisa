@@ -4,6 +4,9 @@
  * Evaluates build events against registered meeting types and creates
  * meeting invites when matches are found. Respects system level gating:
  * auto-invites only fire at Explorer level (shouldAutoInviteMeetings).
+ *
+ * Deduplicates per meeting type per session: once a meeting type has been
+ * invited in a session, subsequent matching events are ignored.
  */
 
 import { MeetingTriggerEngine } from './meetingRegistry.js';
@@ -16,6 +19,8 @@ import { shouldAutoInviteMeetings } from './systemLevelService.js';
 export class MeetingTriggerWiring {
   private triggerEngine: MeetingTriggerEngine;
   private meetingService: MeetingService;
+  /** Tracks which meeting type IDs have already been invited per session. */
+  private invitedTypes = new Map<string, Set<string>>();
 
   constructor(registry: MeetingRegistry, meetingService: MeetingService) {
     this.triggerEngine = new MeetingTriggerEngine(registry);
@@ -25,6 +30,7 @@ export class MeetingTriggerWiring {
   /**
    * Evaluate a build event and create meeting invites for any matching types.
    * No-ops if the system level does not allow auto-invites.
+   * Deduplicates: each meeting type fires at most once per session.
    */
   async evaluateAndInvite(
     eventType: string,
@@ -37,11 +43,14 @@ export class MeetingTriggerWiring {
 
     const matches = this.triggerEngine.evaluate(eventType, eventData);
     for (const match of matches) {
+      if (this.hasBeenInvited(sessionId, match.meetingType.id)) continue;
+
       await this.meetingService.createInvite(
         match.meetingType.id,
         sessionId,
         send,
       );
+      this.markInvited(sessionId, match.meetingType.id);
     }
   }
 
@@ -82,5 +91,23 @@ export class MeetingTriggerWiring {
     }
 
     return meetingIds;
+  }
+
+  /**
+   * Clear dedup state for a session (call on session cleanup).
+   */
+  clearSession(sessionId: string): void {
+    this.invitedTypes.delete(sessionId);
+  }
+
+  private hasBeenInvited(sessionId: string, meetingTypeId: string): boolean {
+    return this.invitedTypes.get(sessionId)?.has(meetingTypeId) ?? false;
+  }
+
+  private markInvited(sessionId: string, meetingTypeId: string): void {
+    if (!this.invitedTypes.has(sessionId)) {
+      this.invitedTypes.set(sessionId, new Set());
+    }
+    this.invitedTypes.get(sessionId)!.add(meetingTypeId);
   }
 }

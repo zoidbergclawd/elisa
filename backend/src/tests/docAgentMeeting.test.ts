@@ -29,23 +29,48 @@ describe('registerDocAgentMeeting', () => {
 });
 
 describe('Doc Agent trigger conditions', () => {
-  it('matches deploy_started event', () => {
+  it('matches task_completed at 50% progress (2 of 4 tasks)', () => {
     const registry = new MeetingRegistry();
     registerDocAgentMeeting(registry);
     const engine = new MeetingTriggerEngine(registry);
 
-    const matches = engine.evaluate('deploy_started', {});
+    const matches = engine.evaluate('task_completed', { tasks_done: 2, tasks_total: 4 });
     expect(matches).toHaveLength(1);
     expect(matches[0].meetingType.id).toBe('doc-agent');
   });
 
-  it('does not match non-deploy_started events', () => {
+  it('matches task_completed above 50% progress (3 of 4 tasks)', () => {
+    const registry = new MeetingRegistry();
+    registerDocAgentMeeting(registry);
+    const engine = new MeetingTriggerEngine(registry);
+
+    const matches = engine.evaluate('task_completed', { tasks_done: 3, tasks_total: 4 });
+    expect(matches).toHaveLength(1);
+  });
+
+  it('does not match task_completed below 50% progress (1 of 4 tasks)', () => {
+    const registry = new MeetingRegistry();
+    registerDocAgentMeeting(registry);
+    const engine = new MeetingTriggerEngine(registry);
+
+    const matches = engine.evaluate('task_completed', { tasks_done: 1, tasks_total: 4 });
+    expect(matches).toHaveLength(0);
+  });
+
+  it('does not match deploy_started', () => {
+    const registry = new MeetingRegistry();
+    registerDocAgentMeeting(registry);
+    const engine = new MeetingTriggerEngine(registry);
+
+    expect(engine.evaluate('deploy_started', {})).toHaveLength(0);
+  });
+
+  it('does not match plan_ready or session_complete', () => {
     const registry = new MeetingRegistry();
     registerDocAgentMeeting(registry);
     const engine = new MeetingTriggerEngine(registry);
 
     expect(engine.evaluate('plan_ready', {})).toHaveLength(0);
-    expect(engine.evaluate('task_completed', {})).toHaveLength(0);
     expect(engine.evaluate('session_complete', {})).toHaveLength(0);
   });
 });

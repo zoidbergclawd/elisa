@@ -300,11 +300,21 @@ export class MeetingService {
 
   /**
    * Clean up all meetings for a session.
+   * Sends `meeting_ended` events for any invited or active meetings so the frontend can clear UI state.
    */
-  cleanupSession(sessionId: string): void {
+  async cleanupSession(sessionId: string, send?: SendEvent): Promise<void> {
     const ids = this.sessionIndex.get(sessionId);
     if (!ids) return;
     for (const id of ids) {
+      const meeting = this.meetings.get(id);
+      if (meeting && send && (meeting.status === 'invited' || meeting.status === 'active')) {
+        meeting.status = 'completed';
+        await send({
+          type: 'meeting_ended',
+          meetingId: id,
+          outcomes: meeting.outcomes,
+        });
+      }
       this.meetings.delete(id);
     }
     this.sessionIndex.delete(sessionId);

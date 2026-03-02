@@ -29,24 +29,57 @@ describe('registerMediaAgentMeeting', () => {
 });
 
 describe('Media Agent trigger conditions', () => {
-  it('matches plan_ready event', () => {
+  it('matches task_completed at 25% progress (1 of 4 tasks)', () => {
     const registry = new MeetingRegistry();
     registerMediaAgentMeeting(registry);
     const engine = new MeetingTriggerEngine(registry);
 
-    const matches = engine.evaluate('plan_ready', {});
+    const matches = engine.evaluate('task_completed', { tasks_done: 1, tasks_total: 4 });
     expect(matches).toHaveLength(1);
     expect(matches[0].meetingType.id).toBe('media-agent');
   });
 
-  it('does not match non-plan_ready events', () => {
+  it('matches task_completed above 25% progress (3 of 4 tasks)', () => {
     const registry = new MeetingRegistry();
     registerMediaAgentMeeting(registry);
     const engine = new MeetingTriggerEngine(registry);
 
-    expect(engine.evaluate('session_complete', {})).toHaveLength(0);
+    const matches = engine.evaluate('task_completed', { tasks_done: 3, tasks_total: 4 });
+    expect(matches).toHaveLength(1);
+  });
+
+  it('does not match task_completed below 25% progress (0 of 4 tasks)', () => {
+    const registry = new MeetingRegistry();
+    registerMediaAgentMeeting(registry);
+    const engine = new MeetingTriggerEngine(registry);
+
+    const matches = engine.evaluate('task_completed', { tasks_done: 0, tasks_total: 4 });
+    expect(matches).toHaveLength(0);
+  });
+
+  it('matches with a single task (1 of 1 is 100%)', () => {
+    const registry = new MeetingRegistry();
+    registerMediaAgentMeeting(registry);
+    const engine = new MeetingTriggerEngine(registry);
+
+    const matches = engine.evaluate('task_completed', { tasks_done: 1, tasks_total: 1 });
+    expect(matches).toHaveLength(1);
+  });
+
+  it('does not match plan_ready', () => {
+    const registry = new MeetingRegistry();
+    registerMediaAgentMeeting(registry);
+    const engine = new MeetingTriggerEngine(registry);
+
+    expect(engine.evaluate('plan_ready', {})).toHaveLength(0);
+  });
+
+  it('does not match deploy_started or session_complete', () => {
+    const registry = new MeetingRegistry();
+    registerMediaAgentMeeting(registry);
+    const engine = new MeetingTriggerEngine(registry);
+
     expect(engine.evaluate('deploy_started', {})).toHaveLength(0);
-    expect(engine.evaluate('task_completed', {})).toHaveLength(0);
-    expect(engine.evaluate('task_started', {})).toHaveLength(0);
+    expect(engine.evaluate('session_complete', {})).toHaveLength(0);
   });
 });

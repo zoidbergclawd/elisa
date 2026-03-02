@@ -73,12 +73,24 @@ describe('Art Agent trigger conditions', () => {
     expect(matches).toHaveLength(0);
   });
 
-  it('does not match non-deploy events', () => {
+  it('does not match plan_ready (removed trigger)', () => {
+    const registry = new MeetingRegistry();
+    registerArtAgentMeeting(registry);
+    const engine = new MeetingTriggerEngine(registry);
+
+    expect(engine.evaluate('plan_ready', { device_types: ['box-3'] })).toHaveLength(0);
+  });
+
+  it('does not match task_completed', () => {
     const registry = new MeetingRegistry();
     registerArtAgentMeeting(registry);
     const engine = new MeetingTriggerEngine(registry);
 
     expect(engine.evaluate('task_completed', { device_type: 'box-3' })).toHaveLength(0);
-    expect(engine.evaluate('task_started', { devices: [{ type: 'box-3' }] })).toHaveLength(0);
+  });
+
+  it('has only one trigger condition (deploy_started)', () => {
+    expect(ART_AGENT_MEETING.triggerConditions).toHaveLength(1);
+    expect(ART_AGENT_MEETING.triggerConditions[0].event).toBe('deploy_started');
   });
 });

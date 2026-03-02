@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { getCanvas } from './canvasRegistry';
 import DefaultCanvas from './DefaultCanvas';
+import AgentAvatar from './AgentAvatar';
 import type { CanvasProps } from './canvasRegistry';
 
 // Import canvas modules to trigger their registerCanvas() side-effects
@@ -75,9 +76,7 @@ export default function MeetingModal({
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-border-subtle">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-accent-sky/20 flex items-center justify-center text-accent-sky font-bold text-sm">
-              {agentName.charAt(0).toUpperCase()}
-            </div>
+            <AgentAvatar agentName={agentName} size={36} />
             <h2 id="meeting-modal-title" className="text-lg font-display font-bold text-atelier-text">
               Meeting with {agentName}
             </h2>

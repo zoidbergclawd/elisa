@@ -10,7 +10,12 @@ export const DOC_AGENT_MEETING: MeetingType = {
   canvasType: 'explain-it',
   triggerConditions: [
     {
-      event: 'deploy_started',
+      event: 'task_completed',
+      filter: (data) => {
+        const done = (data.tasks_done as number) ?? 0;
+        const total = (data.tasks_total as number) ?? 1;
+        return done >= Math.ceil(total * 0.5);
+      },
     },
   ],
   persona:

@@ -19,9 +19,9 @@ describe('MeetingModal', () => {
     expect(screen.getByText('Meeting with Pixel')).toBeInTheDocument();
   });
 
-  it('renders the agent avatar initial', () => {
+  it('renders the agent avatar', () => {
     render(<MeetingModal {...defaultProps} />);
-    expect(screen.getByText('P')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Pixel avatar' })).toBeInTheDocument();
   });
 
   it('renders messages', () => {

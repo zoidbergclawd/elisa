@@ -310,14 +310,54 @@ describe('MeetingService', () => {
       await service.createInvite('test-meeting', 'session-1', send);
       await service.createInvite('test-meeting', 'session-2', send);
 
-      service.cleanupSession('session-1');
+      await service.cleanupSession('session-1');
       expect(service.getMeetingsForSession('session-1')).toHaveLength(0);
       expect(service.getMeetingsForSession('session-2')).toHaveLength(1);
     });
 
-    it('is a no-op for unknown session', () => {
-      service.cleanupSession('unknown');
+    it('is a no-op for unknown session', async () => {
+      await service.cleanupSession('unknown');
       // Should not throw
+    });
+
+    it('sends meeting_ended events for invited meetings when send is provided', async () => {
+      await service.createInvite('test-meeting', 'session-1', send);
+      await service.createInvite('test-meeting', 'session-1', send);
+      sentEvents = [];
+
+      await service.cleanupSession('session-1', send);
+      const endedEvents = sentEvents.filter(e => e.type === 'meeting_ended');
+      expect(endedEvents).toHaveLength(2);
+    });
+
+    it('sends meeting_ended events for active meetings when send is provided', async () => {
+      const meeting = await service.createInvite('test-meeting', 'session-1', send);
+      await service.acceptMeeting(meeting!.id, send);
+      sentEvents = [];
+
+      await service.cleanupSession('session-1', send);
+      const endedEvents = sentEvents.filter(e => e.type === 'meeting_ended');
+      expect(endedEvents).toHaveLength(1);
+    });
+
+    it('does not send events for already-completed meetings', async () => {
+      const meeting = await service.createInvite('test-meeting', 'session-1', send);
+      await service.acceptMeeting(meeting!.id, send);
+      await service.endMeeting(meeting!.id, send);
+      sentEvents = [];
+
+      await service.cleanupSession('session-1', send);
+      const endedEvents = sentEvents.filter(e => e.type === 'meeting_ended');
+      expect(endedEvents).toHaveLength(0);
+    });
+
+    it('does not send events when no send function is provided', async () => {
+      await service.createInvite('test-meeting', 'session-1', send);
+      sentEvents = [];
+
+      await service.cleanupSession('session-1');
+      expect(sentEvents).toHaveLength(0);
+      expect(service.getMeetingsForSession('session-1')).toHaveLength(0);
     });
   });
 });

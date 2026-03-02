@@ -10,10 +10,12 @@ export const WEB_DESIGN_AGENT_MEETING: MeetingType = {
   canvasType: 'launch-pad',
   triggerConditions: [
     {
-      event: 'deploy_started',
+      event: 'task_completed',
       filter: (data) => {
-        const target = data.target as string | undefined;
-        return target === 'web';
+        const done = (data.tasks_done as number) ?? 0;
+        const total = (data.tasks_total as number) ?? 1;
+        const target = data.deploy_target as string | undefined;
+        return target === 'web' && done >= Math.ceil(total * 0.6);
       },
     },
   ],
