@@ -294,37 +294,56 @@ export class MeetingAgentService {
   }
 
   /**
-   * Parse the canvas call response: strip accidental fencing, try JSON.parse,
-   * fallback sanitizeJsonStrings for literal newlines in draw code.
+   * Parse the canvas call response. Handles: raw JSON, fenced JSON anywhere
+   * in the text, and unfenced JSON mixed with prose. Each extraction is tried
+   * with sanitizeJsonStrings fallback for literal newlines in draw code.
    */
   private parseCanvasResponse(raw: string): Record<string, unknown> | undefined {
     if (!raw.trim()) return undefined;
 
-    // Strip accidental code fencing the model might add despite instructions
-    let cleaned = raw.trim();
-    const fenceMatch = cleaned.match(/^```(?:json|canvas)?\s*\n?([\s\S]*?)\n?```$/);
+    const cleaned = raw.trim();
+
+    // 1. Try the whole response as raw JSON (model followed instructions perfectly)
+    const rawResult = this.tryParseCanvasJson(cleaned);
+    if (rawResult) return rawResult;
+
+    // 2. Try extracting fenced block from ANYWHERE in the response
+    const fenceMatch = cleaned.match(/```(?:json|canvas)?\s*\n?([\s\S]*?)\n?```/);
     if (fenceMatch) {
-      cleaned = fenceMatch[1].trim();
+      const result = this.tryParseCanvasJson(fenceMatch[1].trim());
+      if (result) return result;
     }
 
-    // First attempt: direct parse
+    // 3. Try extracting unfenced JSON object from the text
+    const jsonStart = cleaned.indexOf('{');
+    if (jsonStart !== -1) {
+      const jsonEnd = cleaned.lastIndexOf('}');
+      if (jsonEnd > jsonStart) {
+        const candidate = cleaned.slice(jsonStart, jsonEnd + 1);
+        const result = this.tryParseCanvasJson(candidate);
+        if (result) return result;
+      }
+    }
+
+    console.warn('[meetingAgent] canvas response could not be parsed:', raw.slice(0, 200));
+    return undefined;
+  }
+
+  /** Try JSON.parse with sanitizeJsonStrings fallback for literal newlines. */
+  private tryParseCanvasJson(text: string): Record<string, unknown> | undefined {
     try {
-      const parsed = JSON.parse(cleaned);
+      const parsed = JSON.parse(text);
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
     } catch {
       // Fall through to sanitized parse
     }
-
-    // Second attempt: fix literal newlines inside JSON string values (draw code)
     try {
-      const sanitized = this.sanitizeJsonStrings(cleaned);
+      const sanitized = this.sanitizeJsonStrings(text);
       const parsed = JSON.parse(sanitized);
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
     } catch {
       // Give up
     }
-
-    console.warn('[meetingAgent] canvas response could not be parsed:', raw.slice(0, 200));
     return undefined;
   }
 

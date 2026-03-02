@@ -38,6 +38,22 @@ describe('isClosingQuestion', () => {
     expect(isClosingQuestion('Great choices! Are you ready to build?')).toBe(true);
   });
 
+  it('matches "Ready to see your UFO come to life?"', () => {
+    expect(isClosingQuestion('Ready to see your UFO come to life?')).toBe(true);
+  });
+
+  it('matches "Want to start building?"', () => {
+    expect(isClosingQuestion('Want to start building?')).toBe(true);
+  });
+
+  it('matches "Should we tell Star Builder to code these?"', () => {
+    expect(isClosingQuestion('Should we tell Star Builder to code these?')).toBe(true);
+  });
+
+  it('matches "Time to build!"', () => {
+    expect(isClosingQuestion('Time to build!')).toBe(true);
+  });
+
   it('does not match unrelated messages', () => {
     expect(isClosingQuestion('What color do you want?')).toBe(false);
     expect(isClosingQuestion('Tell me more about your project')).toBe(false);

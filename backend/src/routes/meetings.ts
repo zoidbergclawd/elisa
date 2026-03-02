@@ -11,12 +11,14 @@ import { materialize, getMaterializableTypes } from '../services/meetingMaterial
 /** Check if an agent message contains a closing question (e.g. "Ready to build?"). */
 export function isClosingQuestion(text: string): boolean {
   const patterns = [
-    /ready to (build|start|go|code|create)/i,
-    /shall we (start|begin|get started|build)/i,
-    /want to see it come to life/i,
-    /should we (tell|get|let|have) .* (start|build|code)/i,
-    /let'?s (build|start|do) (it|this)/i,
+    /ready to (build|start|go|code|create|see)/i,
+    /shall we (start|begin|get started|build|go|tell)/i,
+    /want to (see|start|begin|build|code|create)/i,
+    /should we (tell|get|let|have|start|begin|go)/i,
+    /let'?s (build|start|do|get|go) /i,
     /want me to (save|wrap|finish)/i,
+    /time to (build|start|code|create)/i,
+    /come to life/i,
   ];
   return patterns.some(p => p.test(text));
 }
@@ -211,7 +213,7 @@ export function createMeetingRouter({ store, meetingService, meetingAgentService
           if (response.text) {
             await meetingService.sendMessage(meetingId, 'agent', response.text, makeSend(sessionId));
           }
-          if (response.canvasUpdate) {
+          if (response.canvasUpdate && Object.keys(response.canvasUpdate).length > 0) {
             await meetingService.updateCanvas(meetingId, response.canvasUpdate, makeSend(sessionId));
           }
 

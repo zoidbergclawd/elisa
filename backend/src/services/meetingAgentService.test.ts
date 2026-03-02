@@ -502,4 +502,51 @@ describe('MeetingAgentService (dual-call)', () => {
       expect(MEETING_TOPIC_DESCRIPTIONS[key]).toBeDefined();
     }
   });
+
+  it('parses canvas JSON preceded by explanatory text', async () => {
+    const canvasResponse = 'Here is the design for your game:\n\n```json\n{"scene_title":"Space Dodge","palette":["#fff"]}\n```\nHope you like it!';
+    mockCreate
+      .mockResolvedValueOnce({ content: [{ type: 'text', text: 'Cool!' }] })
+      .mockResolvedValueOnce({ content: [{ type: 'text', text: canvasResponse }] });
+
+    const result = await service.generateResponse(
+      meetingType,
+      [{ role: 'kid', content: 'Design', timestamp: 1 }],
+      buildContext,
+    );
+
+    expect(result.canvasUpdate).toBeDefined();
+    expect(result.canvasUpdate?.scene_title).toBe('Space Dodge');
+  });
+
+  it('parses unfenced JSON mixed with prose text', async () => {
+    const canvasResponse = 'Here is your data: {"health_score": 95, "tasks": []} and that is it.';
+    mockCreate
+      .mockResolvedValueOnce({ content: [{ type: 'text', text: 'Update!' }] })
+      .mockResolvedValueOnce({ content: [{ type: 'text', text: canvasResponse }] });
+
+    const result = await service.generateResponse(
+      meetingType,
+      [{ role: 'kid', content: 'Status', timestamp: 1 }],
+      buildContext,
+    );
+
+    expect(result.canvasUpdate).toEqual({ health_score: 95, tasks: [] });
+  });
+
+  it('parses canvas fenced block with text before and literal newlines in draw code', async () => {
+    const canvasResponse = "Let me show you the design:\n\n```canvas\n{\"scene_title\":\"Game\",\"elements\":[{\"name\":\"bg\",\"draw\":\"ctx.fillStyle='#000';\nctx.fillRect(0,0,w,h);\"}]}\n```";
+    mockCreate
+      .mockResolvedValueOnce({ content: [{ type: 'text', text: 'Check it out!' }] })
+      .mockResolvedValueOnce({ content: [{ type: 'text', text: canvasResponse }] });
+
+    const result = await service.generateResponse(
+      meetingType,
+      [{ role: 'kid', content: 'Draw', timestamp: 1 }],
+      buildContext,
+    );
+
+    expect(result.canvasUpdate).toBeDefined();
+    expect(result.canvasUpdate?.scene_title).toBe('Game');
+  });
 });
