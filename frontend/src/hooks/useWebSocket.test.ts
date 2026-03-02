@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useWebSocket } from './useWebSocket';
+import { useWebSocket, MAX_RETRIES } from './useWebSocket';
 
 // Minimal mock WebSocket that lets tests trigger lifecycle events
 class MockWebSocket {
@@ -193,5 +193,114 @@ describe('useWebSocket', () => {
     act(() => MockWebSocket.instances[MockWebSocket.instances.length - 1].simulateClose());
     act(() => { vi.advanceTimersByTime(30_000); });
     expect(MockWebSocket.instances).toHaveLength(countBefore + 1);
+  });
+
+  // === P1 #5 regression: dispatch error on max retries ===
+
+  it('dispatches non-recoverable error event after MAX_RETRIES (P1 #5)', () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const onEvent = vi.fn();
+    renderHook(() => useWebSocket({ sessionId: 'sess-1', onEvent }));
+
+    // Exhaust all retries
+    for (let i = 0; i < MAX_RETRIES; i++) {
+      act(() => MockWebSocket.instances[MockWebSocket.instances.length - 1].simulateClose());
+      act(() => { vi.advanceTimersByTime(30_000); });
+    }
+
+    // The final close after max retries should dispatch an error event
+    act(() => MockWebSocket.instances[MockWebSocket.instances.length - 1].simulateClose());
+
+    expect(onEvent).toHaveBeenCalledWith({
+      type: 'error',
+      message: 'WebSocket connection failed after max retries',
+      recoverable: false,
+    });
+  });
+
+  // === P1 #4 regression: reconnect fetches session state ===
+
+  it('fetches session state on reconnect to resync (P1 #4)', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        tasks: [{ id: 't1', name: 'Task', description: '', status: 'in_progress', agent_name: 'Sparky', dependencies: [] }],
+        agents: [{ name: 'Sparky', role: 'builder', persona: '', status: 'working' }],
+      }),
+    });
+    globalThis.fetch = fetchMock;
+
+    const onEvent = vi.fn();
+    renderHook(() => useWebSocket({ sessionId: 'sess-1', onEvent }));
+
+    // First open - not a reconnect, no fetch
+    act(() => MockWebSocket.instances[0].simulateOpen());
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    // Close and reconnect
+    act(() => MockWebSocket.instances[0].simulateClose());
+    act(() => { vi.advanceTimersByTime(1000); });
+
+    // Second open - IS a reconnect, should fetch session state
+    await act(async () => {
+      MockWebSocket.instances[1].simulateOpen();
+      // Allow fetch promise to resolve
+      await vi.runAllTimersAsync();
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/sessions/sess-1',
+      expect.objectContaining({ headers: expect.any(Object) }),
+    );
+
+    // Should dispatch plan_ready with restored state
+    expect(onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'plan_ready',
+        tasks: expect.arrayContaining([expect.objectContaining({ id: 't1' })]),
+        agents: expect.arrayContaining([expect.objectContaining({ name: 'Sparky' })]),
+      }),
+    );
+
+    globalThis.fetch = globalThis.fetch; // cleanup
+  });
+
+  it('does not fetch session state on initial connect (P1 #4)', () => {
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock;
+
+    const onEvent = vi.fn();
+    renderHook(() => useWebSocket({ sessionId: 'sess-1', onEvent }));
+
+    act(() => MockWebSocket.instances[0].simulateOpen());
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    globalThis.fetch = globalThis.fetch;
+  });
+
+  it('handles reconnect sync failure gracefully (P1 #4)', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error('Network error'));
+    globalThis.fetch = fetchMock;
+
+    const onEvent = vi.fn();
+    renderHook(() => useWebSocket({ sessionId: 'sess-1', onEvent }));
+
+    // First open
+    act(() => MockWebSocket.instances[0].simulateOpen());
+
+    // Reconnect
+    act(() => MockWebSocket.instances[0].simulateClose());
+    act(() => { vi.advanceTimersByTime(1000); });
+
+    // Should not throw even if fetch fails
+    await act(async () => {
+      MockWebSocket.instances[1].simulateOpen();
+      await vi.runAllTimersAsync();
+    });
+
+    // session_started should still be dispatched
+    expect(onEvent).toHaveBeenCalledWith({ type: 'session_started', session_id: 'sess-1' });
+
+    globalThis.fetch = globalThis.fetch;
   });
 });

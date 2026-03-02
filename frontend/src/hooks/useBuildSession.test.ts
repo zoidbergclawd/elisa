@@ -239,6 +239,83 @@ describe('useBuildSession', () => {
 
   // === commit_created ===
 
+  // === P0 #3 regression: agent_output, agent_status, agent_message handlers ===
+
+  describe('agent_output', () => {
+    it('appends content to per-task agentOutputs', () => {
+      const { result } = renderHook(() => useBuildSession());
+      act(() => result.current.handleEvent(makePlanReady()));
+
+      act(() => {
+        result.current.handleEvent({ type: 'agent_output', task_id: 't1', agent_name: 'Sparky', content: 'Building login...' });
+        result.current.handleEvent({ type: 'agent_output', task_id: 't1', agent_name: 'Sparky', content: 'Login component done' });
+      });
+
+      expect(result.current.agentOutputs['t1']).toEqual(['Building login...', 'Login component done']);
+    });
+
+    it('tracks outputs separately per task', () => {
+      const { result } = renderHook(() => useBuildSession());
+      act(() => result.current.handleEvent(makePlanWithMultipleTasks()));
+
+      act(() => {
+        result.current.handleEvent({ type: 'agent_output', task_id: 't1', agent_name: 'Sparky', content: 'Working on t1' });
+        result.current.handleEvent({ type: 'agent_output', task_id: 't2', agent_name: 'Checkers', content: 'Working on t2' });
+      });
+
+      expect(result.current.agentOutputs['t1']).toEqual(['Working on t1']);
+      expect(result.current.agentOutputs['t2']).toEqual(['Working on t2']);
+    });
+
+    it('is appended to events array', () => {
+      const { result } = renderHook(() => useBuildSession());
+      const event: WSEvent = { type: 'agent_output', task_id: 't1', agent_name: 'Sparky', content: 'hello' };
+      act(() => result.current.handleEvent(event));
+      expect(result.current.events).toContainEqual(event);
+    });
+  });
+
+  describe('agent_status', () => {
+    it('updates agent in agents array', () => {
+      const { result } = renderHook(() => useBuildSession());
+      act(() => result.current.handleEvent(makePlanReady()));
+      expect(result.current.agents[0].status).toBe('idle');
+
+      act(() => {
+        result.current.handleEvent({
+          type: 'agent_status',
+          agent: { name: 'Sparky', role: 'builder', persona: 'A builder', status: 'working' },
+        });
+      });
+
+      expect(result.current.agents[0].status).toBe('working');
+    });
+
+    it('does not affect other agents', () => {
+      const { result } = renderHook(() => useBuildSession());
+      act(() => result.current.handleEvent(makePlanWithMultipleTasks()));
+
+      act(() => {
+        result.current.handleEvent({
+          type: 'agent_status',
+          agent: { name: 'Sparky', role: 'builder', persona: '', status: 'error' },
+        });
+      });
+
+      expect(result.current.agents[0].status).toBe('error');
+      expect(result.current.agents[1].status).toBe('idle');
+    });
+  });
+
+  describe('agent_message', () => {
+    it('is appended to events array', () => {
+      const { result } = renderHook(() => useBuildSession());
+      const event: WSEvent = { type: 'agent_message', from: 'Sparky', to: 'Checkers', content: 'Review please' };
+      act(() => result.current.handleEvent(event));
+      expect(result.current.events).toContainEqual(event);
+    });
+  });
+
   describe('commit_created', () => {
     it('appends commit with all fields', () => {
       const { result } = renderHook(() => useBuildSession());
@@ -1121,6 +1198,28 @@ describe('useBuildSession', () => {
 
       expect(result.current.uiState).toBe('design');
       expect(result.current.errorNotification!.message).toBe('Server overloaded');
+    });
+
+    it('surfaces Zod validation errors on session creation (P1 #9)', async () => {
+      globalThis.fetch = vi.fn()
+        .mockResolvedValueOnce({
+          ok: false,
+          json: async () => ({
+            detail: 'Invalid request',
+            errors: [
+              { path: 'api_key', message: 'Required' },
+            ],
+          }),
+        });
+
+      const { result } = renderHook(() => useBuildSession());
+      await act(async () => {
+        await result.current.startBuild({ nugget: { goal: 'x' } } as never);
+      });
+
+      expect(result.current.uiState).toBe('design');
+      expect(result.current.errorNotification!.message).toContain('Invalid request');
+      expect(result.current.errorNotification!.message).toContain('api_key: Required');
     });
 
     it('falls back to statusText when json parsing fails on session creation', async () => {

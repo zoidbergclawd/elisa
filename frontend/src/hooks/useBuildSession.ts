@@ -97,6 +97,7 @@ export interface BuildSessionState {
   compositionStarted: { graph_id: string; node_ids: string[] } | null;
   compositionImpacts: Array<{ graph_id: string; changed_node_id: string; affected_nodes: Array<{ node_id: string; label: string; reason: string }>; severity: string }>;
   healthHistory: HealthHistoryEntry[];
+  agentOutputs: Record<string, string[]>;
 }
 
 const INITIAL_TOKEN_USAGE: TokenUsage = { input: 0, output: 0, total: 0, costUsd: 0, maxBudget: 500_000, perAgent: {} };
@@ -135,6 +136,7 @@ export const initialState: BuildSessionState = {
   compositionStarted: null,
   compositionImpacts: [],
   healthHistory: [],
+  agentOutputs: {},
 };
 
 // -- Actions --
@@ -252,6 +254,30 @@ function handleWSEvent(state: BuildSessionState, event: WSEvent, deploySteps: Ar
           : state.agents,
       };
     }
+
+    case 'agent_output': {
+      const taskOutputs = state.agentOutputs[event.task_id] ?? [];
+      return {
+        ...state,
+        events,
+        agentOutputs: {
+          ...state.agentOutputs,
+          [event.task_id]: [...taskOutputs, event.content],
+        },
+      };
+    }
+
+    case 'agent_status':
+      return {
+        ...state,
+        events,
+        agents: state.agents.map(a =>
+          a.name === event.agent.name ? { ...event.agent } : a
+        ),
+      };
+
+    case 'agent_message':
+      return { ...state, events };
 
     case 'commit_created':
       return {
@@ -787,8 +813,15 @@ export function useBuildSession() {
     const res = await authFetch('/api/sessions', { method: 'POST' });
     if (!res.ok) {
       const body = await res.json().catch(() => ({ detail: res.statusText }));
+      let message = body.detail || 'Elisa couldn\'t get ready to build. Try again!';
+      if (Array.isArray(body.errors) && body.errors.length > 0) {
+        const fieldErrors = body.errors.map((e: { path: string; message: string }) =>
+          e.path ? `${e.path}: ${e.message}` : e.message
+        );
+        message += '\n' + fieldErrors.join('\n');
+      }
       dispatch({ type: 'SET_UI_STATE', uiState: 'design' });
-      dispatch({ type: 'SET_ERROR', message: body.detail || 'Elisa couldn\'t get ready to build. Try again!', recoverable: true });
+      dispatch({ type: 'SET_ERROR', message, recoverable: true });
       return;
     }
     const { session_id } = await res.json();
@@ -879,6 +912,7 @@ export function useBuildSession() {
     compositionStarted: state.compositionStarted,
     compositionImpacts: state.compositionImpacts,
     healthHistory: state.healthHistory,
+    agentOutputs: state.agentOutputs,
     handleEvent,
     startBuild,
     stopBuild,
