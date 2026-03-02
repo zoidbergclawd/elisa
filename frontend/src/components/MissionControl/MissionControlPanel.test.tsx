@@ -1,7 +1,18 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import MissionControlPanel from './MissionControlPanel';
-import type { Task, Agent, WSEvent, NarratorMessage, UIState } from '../../types';
+import type { Task, Agent } from '../../types';
+import { useBuildSessionContext } from '../../contexts/BuildSessionContext';
+import { useWorkspaceContext } from '../../contexts/WorkspaceContext';
+import { defaultBuildSessionValue, defaultWorkspaceValue } from '../../test-utils/renderWithProviders';
+
+vi.mock('../../contexts/BuildSessionContext', () => ({
+  useBuildSessionContext: vi.fn(() => defaultBuildSessionValue),
+}));
+
+vi.mock('../../contexts/WorkspaceContext', () => ({
+  useWorkspaceContext: vi.fn(() => defaultWorkspaceValue),
+}));
 
 vi.mock('./TaskDAG', () => ({
   default: vi.fn(({ tasks }: { tasks: Task[] }) => (
@@ -25,24 +36,38 @@ vi.mock('../shared/ImpactPreview', () => ({
   )),
 }));
 
-const defaultProps = {
-  tasks: [] as Task[],
-  agents: [] as Agent[],
-  events: [] as WSEvent[],
-  narratorMessages: [] as NarratorMessage[],
-  spec: null,
-  uiState: 'design' as UIState,
-};
+function renderPanel(overrides?: {
+  buildSession?: Partial<typeof defaultBuildSessionValue>;
+  workspace?: Partial<typeof defaultWorkspaceValue>;
+}) {
+  if (overrides?.buildSession) {
+    vi.mocked(useBuildSessionContext).mockReturnValue({
+      ...defaultBuildSessionValue,
+      ...overrides.buildSession,
+    });
+  } else {
+    vi.mocked(useBuildSessionContext).mockReturnValue({ ...defaultBuildSessionValue });
+  }
+  if (overrides?.workspace) {
+    vi.mocked(useWorkspaceContext).mockReturnValue({
+      ...defaultWorkspaceValue,
+      ...overrides.workspace,
+    });
+  } else {
+    vi.mocked(useWorkspaceContext).mockReturnValue({ ...defaultWorkspaceValue });
+  }
+  return render(<MissionControlPanel />);
+}
 
 describe('MissionControlPanel', () => {
   it('renders without crashing', () => {
-    render(<MissionControlPanel {...defaultProps} />);
+    renderPanel();
     expect(screen.getByTestId('minion-squad')).toBeInTheDocument();
     expect(screen.getByTestId('narrator-feed')).toBeInTheDocument();
   });
 
   it('shows empty state message when no tasks', () => {
-    render(<MissionControlPanel {...defaultProps} />);
+    renderPanel();
     expect(screen.getByText(/Mission Control will light up/)).toBeInTheDocument();
   });
 
@@ -50,7 +75,7 @@ describe('MissionControlPanel', () => {
     const tasks: Task[] = [
       { id: '1', name: 'Build UI', description: '', status: 'pending', agent_name: 'Builder', dependencies: [] },
     ];
-    render(<MissionControlPanel {...defaultProps} tasks={tasks} />);
+    renderPanel({ buildSession: { tasks } });
     expect(screen.getByTestId('task-dag')).toBeInTheDocument();
     expect(screen.getByText('TaskDAG (1 tasks)')).toBeInTheDocument();
   });
@@ -60,12 +85,12 @@ describe('MissionControlPanel', () => {
       { name: 'Builder', role: 'builder', persona: '', status: 'idle' },
       { name: 'Tester', role: 'tester', persona: '', status: 'working' },
     ];
-    render(<MissionControlPanel {...defaultProps} agents={agents} />);
+    renderPanel({ buildSession: { agents } });
     expect(screen.getByText('MinionSquad (2 agents)')).toBeInTheDocument();
   });
 
   it('renders NarratorFeed subcomponent', () => {
-    render(<MissionControlPanel {...defaultProps} />);
+    renderPanel();
     expect(screen.getByTestId('narrator-feed')).toBeInTheDocument();
   });
 
@@ -77,13 +102,7 @@ describe('MissionControlPanel', () => {
       complexity: 'moderate' as const,
       heaviest_requirements: ['Build game board'],
     };
-    render(
-      <MissionControlPanel
-        {...defaultProps}
-        isPlanning={true}
-        impactEstimate={impactEstimate}
-      />,
-    );
+    renderPanel({ buildSession: { isPlanning: true, impactEstimate } });
     expect(screen.getByTestId('impact-preview')).toBeInTheDocument();
     expect(screen.getByText(/~5 tasks/)).toBeInTheDocument();
   });
@@ -94,34 +113,17 @@ describe('MissionControlPanel', () => {
       complexity: 'moderate' as const,
       heaviest_requirements: ['Build game board'],
     };
-    render(
-      <MissionControlPanel
-        {...defaultProps}
-        isPlanning={false}
-        impactEstimate={impactEstimate}
-      />,
-    );
+    renderPanel({ buildSession: { isPlanning: false, impactEstimate } });
     expect(screen.queryByTestId('impact-preview')).not.toBeInTheDocument();
   });
 
   it('does NOT render ImpactPreview when impactEstimate is null', () => {
-    render(
-      <MissionControlPanel
-        {...defaultProps}
-        isPlanning={true}
-        impactEstimate={null}
-      />,
-    );
+    renderPanel({ buildSession: { isPlanning: true, impactEstimate: null } });
     expect(screen.queryByTestId('impact-preview')).not.toBeInTheDocument();
   });
 
   it('does NOT render ImpactPreview when impactEstimate is undefined (default)', () => {
-    render(
-      <MissionControlPanel
-        {...defaultProps}
-        isPlanning={true}
-      />,
-    );
+    renderPanel({ buildSession: { isPlanning: true } });
     expect(screen.queryByTestId('impact-preview')).not.toBeInTheDocument();
   });
 });

@@ -2,11 +2,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import ModalHost from './ModalHost';
 import type { ModalHostProps } from './ModalHost';
-import type { Skill, Rule } from '../Skills/types';
-import type { Portal } from '../Portals/types';
 import type { GateRequest, QuestionRequest, FlashWizardState } from '../../hooks/useBuildSession';
 import type { BoardInfo } from '../../hooks/useBoardDetect';
-import type { DeviceManifest } from '../../lib/deviceBlocks';
+import { useBuildSessionContext } from '../../contexts/BuildSessionContext';
+import { useWorkspaceContext } from '../../contexts/WorkspaceContext';
+import { defaultBuildSessionValue, defaultWorkspaceValue } from '../../test-utils/renderWithProviders';
+
+// Mock context hooks
+vi.mock('../../contexts/BuildSessionContext', () => ({
+  useBuildSessionContext: vi.fn(() => defaultBuildSessionValue),
+}));
+
+vi.mock('../../contexts/WorkspaceContext', () => ({
+  useWorkspaceContext: vi.fn(() => defaultWorkspaceValue),
+}));
 
 // Mock all child modal components to keep tests focused on conditional rendering
 vi.mock('./HumanGateModal', () => ({
@@ -92,47 +101,49 @@ vi.mock('../../lib/examples', () => ({
 
 function buildDefaultProps(overrides: Partial<ModalHostProps> = {}): ModalHostProps {
   return {
-    sessionId: null,
-    gateRequest: null,
-    clearGateRequest: vi.fn(),
-    questionRequest: null,
-    clearQuestionRequest: vi.fn(),
-    flashWizardState: null,
     skillsModalOpen: false,
     setSkillsModalOpen: vi.fn(),
-    skills: [] as Skill[],
-    onSkillsChange: vi.fn(),
     rulesModalOpen: false,
     setRulesModalOpen: vi.fn(),
-    rules: [] as Rule[],
-    onRulesChange: vi.fn(),
     portalsModalOpen: false,
     setPortalsModalOpen: vi.fn(),
-    portals: [] as Portal[],
-    onPortalsChange: vi.fn(),
-    dirPickerOpen: false,
-    onDirPickerSelect: vi.fn(),
-    onDirPickerCancel: vi.fn(),
     boardDetectedModalOpen: false,
     boardInfo: null,
-    deviceManifests: [] as DeviceManifest[],
     onBoardDismiss: vi.fn(),
-    examplePickerOpen: false,
-    onSelectExample: vi.fn(),
-    onCloseExamplePicker: vi.fn(),
     helpOpen: false,
     setHelpOpen: vi.fn(),
     ...overrides,
   };
 }
 
+function renderModalHost(
+  propOverrides?: Partial<ModalHostProps>,
+  contextOverrides?: {
+    buildSession?: Partial<typeof defaultBuildSessionValue>;
+    workspace?: Partial<typeof defaultWorkspaceValue>;
+  },
+) {
+  vi.mocked(useBuildSessionContext).mockReturnValue({
+    ...defaultBuildSessionValue,
+    ...contextOverrides?.buildSession,
+  });
+  vi.mocked(useWorkspaceContext).mockReturnValue({
+    ...defaultWorkspaceValue,
+    ...contextOverrides?.workspace,
+  });
+  return render(<ModalHost {...buildDefaultProps(propOverrides)} />);
+}
+
 describe('ModalHost', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    // Re-apply context mocks after restoreAllMocks clears them
+    vi.mocked(useBuildSessionContext).mockReturnValue({ ...defaultBuildSessionValue });
+    vi.mocked(useWorkspaceContext).mockReturnValue({ ...defaultWorkspaceValue });
   });
 
   it('renders nothing when all modal flags are off', () => {
-    const { container } = render(<ModalHost {...buildDefaultProps()} />);
+    const { container } = renderModalHost();
     expect(container.innerHTML).toBe('');
   });
 
@@ -140,19 +151,19 @@ describe('ModalHost', () => {
 
   it('renders HumanGateModal when gateRequest and sessionId are provided', () => {
     const gate: GateRequest = { task_id: 't1', question: 'Approve?', context: 'Built the thing' };
-    render(<ModalHost {...buildDefaultProps({ gateRequest: gate, sessionId: 'sess-1' })} />);
+    renderModalHost({}, { buildSession: { gateRequest: gate, sessionId: 'sess-1' } });
     expect(screen.getByTestId('human-gate-modal')).toBeInTheDocument();
     expect(screen.getByText('Gate: Approve?')).toBeInTheDocument();
   });
 
   it('does not render HumanGateModal when sessionId is null', () => {
     const gate: GateRequest = { task_id: 't1', question: 'Approve?', context: 'ctx' };
-    render(<ModalHost {...buildDefaultProps({ gateRequest: gate, sessionId: null })} />);
+    renderModalHost({}, { buildSession: { gateRequest: gate, sessionId: null } });
     expect(screen.queryByTestId('human-gate-modal')).not.toBeInTheDocument();
   });
 
   it('does not render HumanGateModal when gateRequest is null', () => {
-    render(<ModalHost {...buildDefaultProps({ gateRequest: null, sessionId: 'sess-1' })} />);
+    renderModalHost({}, { buildSession: { gateRequest: null, sessionId: 'sess-1' } });
     expect(screen.queryByTestId('human-gate-modal')).not.toBeInTheDocument();
   });
 
@@ -160,14 +171,14 @@ describe('ModalHost', () => {
 
   it('renders QuestionModal when questionRequest and sessionId are provided', () => {
     const qr: QuestionRequest = { task_id: 'task-q', questions: [] };
-    render(<ModalHost {...buildDefaultProps({ questionRequest: qr, sessionId: 'sess-2' })} />);
+    renderModalHost({}, { buildSession: { questionRequest: qr, sessionId: 'sess-2' } });
     expect(screen.getByTestId('question-modal')).toBeInTheDocument();
     expect(screen.getByText('Question: task-q')).toBeInTheDocument();
   });
 
   it('does not render QuestionModal when sessionId is null', () => {
     const qr: QuestionRequest = { task_id: 'task-q', questions: [] };
-    render(<ModalHost {...buildDefaultProps({ questionRequest: qr, sessionId: null })} />);
+    renderModalHost({}, { buildSession: { questionRequest: qr, sessionId: null } });
     expect(screen.queryByTestId('question-modal')).not.toBeInTheDocument();
   });
 
@@ -177,7 +188,7 @@ describe('ModalHost', () => {
     const fws: FlashWizardState = {
       visible: true, deviceRole: 'sensor', message: 'Flashing...', isFlashing: true, progress: 50,
     };
-    render(<ModalHost {...buildDefaultProps({ flashWizardState: fws, sessionId: 'sess-3' })} />);
+    renderModalHost({}, { buildSession: { flashWizardState: fws, sessionId: 'sess-3' } });
     expect(screen.getByTestId('flash-wizard-modal')).toBeInTheDocument();
     expect(screen.getByText('Flash: sensor')).toBeInTheDocument();
   });
@@ -186,7 +197,7 @@ describe('ModalHost', () => {
     const fws: FlashWizardState = {
       visible: false, deviceRole: 'sensor', message: '', isFlashing: false, progress: 0,
     };
-    render(<ModalHost {...buildDefaultProps({ flashWizardState: fws, sessionId: 'sess-3' })} />);
+    renderModalHost({}, { buildSession: { flashWizardState: fws, sessionId: 'sess-3' } });
     expect(screen.queryByTestId('flash-wizard-modal')).not.toBeInTheDocument();
   });
 
@@ -194,25 +205,25 @@ describe('ModalHost', () => {
     const fws: FlashWizardState = {
       visible: true, deviceRole: 'sensor', message: '', isFlashing: false, progress: 0,
     };
-    render(<ModalHost {...buildDefaultProps({ flashWizardState: fws, sessionId: null })} />);
+    renderModalHost({}, { buildSession: { flashWizardState: fws, sessionId: null } });
     expect(screen.queryByTestId('flash-wizard-modal')).not.toBeInTheDocument();
   });
 
   // -- SkillsModal --
 
   it('renders SkillsModal when skillsModalOpen is true', () => {
-    render(<ModalHost {...buildDefaultProps({ skillsModalOpen: true })} />);
+    renderModalHost({ skillsModalOpen: true });
     expect(screen.getByTestId('skills-modal')).toBeInTheDocument();
   });
 
   it('does not render SkillsModal when skillsModalOpen is false', () => {
-    render(<ModalHost {...buildDefaultProps({ skillsModalOpen: false })} />);
+    renderModalHost({ skillsModalOpen: false });
     expect(screen.queryByTestId('skills-modal')).not.toBeInTheDocument();
   });
 
   it('closing SkillsModal calls setSkillsModalOpen(false)', () => {
     const setSkillsModalOpen = vi.fn();
-    render(<ModalHost {...buildDefaultProps({ skillsModalOpen: true, setSkillsModalOpen })} />);
+    renderModalHost({ skillsModalOpen: true, setSkillsModalOpen });
     fireEvent.click(screen.getByText('Close Skills'));
     expect(setSkillsModalOpen).toHaveBeenCalledWith(false);
   });
@@ -220,18 +231,18 @@ describe('ModalHost', () => {
   // -- RulesModal --
 
   it('renders RulesModal when rulesModalOpen is true', () => {
-    render(<ModalHost {...buildDefaultProps({ rulesModalOpen: true })} />);
+    renderModalHost({ rulesModalOpen: true });
     expect(screen.getByTestId('rules-modal')).toBeInTheDocument();
   });
 
   it('does not render RulesModal when rulesModalOpen is false', () => {
-    render(<ModalHost {...buildDefaultProps({ rulesModalOpen: false })} />);
+    renderModalHost({ rulesModalOpen: false });
     expect(screen.queryByTestId('rules-modal')).not.toBeInTheDocument();
   });
 
   it('closing RulesModal calls setRulesModalOpen(false)', () => {
     const setRulesModalOpen = vi.fn();
-    render(<ModalHost {...buildDefaultProps({ rulesModalOpen: true, setRulesModalOpen })} />);
+    renderModalHost({ rulesModalOpen: true, setRulesModalOpen });
     fireEvent.click(screen.getByText('Close Rules'));
     expect(setRulesModalOpen).toHaveBeenCalledWith(false);
   });
@@ -239,13 +250,13 @@ describe('ModalHost', () => {
   // -- PortalsModal --
 
   it('renders PortalsModal when portalsModalOpen is true', () => {
-    render(<ModalHost {...buildDefaultProps({ portalsModalOpen: true })} />);
+    renderModalHost({ portalsModalOpen: true });
     expect(screen.getByTestId('portals-modal')).toBeInTheDocument();
   });
 
   it('closing PortalsModal calls setPortalsModalOpen(false)', () => {
     const setPortalsModalOpen = vi.fn();
-    render(<ModalHost {...buildDefaultProps({ portalsModalOpen: true, setPortalsModalOpen })} />);
+    renderModalHost({ portalsModalOpen: true, setPortalsModalOpen });
     fireEvent.click(screen.getByText('Close Portals'));
     expect(setPortalsModalOpen).toHaveBeenCalledWith(false);
   });
@@ -253,52 +264,52 @@ describe('ModalHost', () => {
   // -- DirectoryPickerModal --
 
   it('renders DirectoryPickerModal when dirPickerOpen is true', () => {
-    render(<ModalHost {...buildDefaultProps({ dirPickerOpen: true })} />);
+    renderModalHost({}, { workspace: { dirPickerOpen: true } });
     expect(screen.getByTestId('dir-picker-modal')).toBeInTheDocument();
   });
 
   it('does not render DirectoryPickerModal when dirPickerOpen is false', () => {
-    render(<ModalHost {...buildDefaultProps({ dirPickerOpen: false })} />);
+    renderModalHost({}, { workspace: { dirPickerOpen: false } });
     expect(screen.queryByTestId('dir-picker-modal')).not.toBeInTheDocument();
   });
 
   it('selecting a directory calls onDirPickerSelect', () => {
-    const onDirPickerSelect = vi.fn();
-    render(<ModalHost {...buildDefaultProps({ dirPickerOpen: true, onDirPickerSelect })} />);
+    const handleDirPickerSelect = vi.fn();
+    renderModalHost({}, { workspace: { dirPickerOpen: true, handleDirPickerSelect } });
     fireEvent.click(screen.getByText('Select Dir'));
-    expect(onDirPickerSelect).toHaveBeenCalledWith('/some/dir');
+    expect(handleDirPickerSelect).toHaveBeenCalledWith('/some/dir');
   });
 
   it('cancelling directory picker calls onDirPickerCancel', () => {
-    const onDirPickerCancel = vi.fn();
-    render(<ModalHost {...buildDefaultProps({ dirPickerOpen: true, onDirPickerCancel })} />);
+    const handleDirPickerCancel = vi.fn();
+    renderModalHost({}, { workspace: { dirPickerOpen: true, handleDirPickerCancel } });
     fireEvent.click(screen.getByText('Cancel Dir'));
-    expect(onDirPickerCancel).toHaveBeenCalled();
+    expect(handleDirPickerCancel).toHaveBeenCalled();
   });
 
   // -- BoardDetectedModal --
 
   it('renders BoardDetectedModal when open and boardInfo is provided', () => {
     const boardInfo: BoardInfo = { port: 'COM3', boardType: 'esp32-s3' };
-    render(<ModalHost {...buildDefaultProps({ boardDetectedModalOpen: true, boardInfo })} />);
+    renderModalHost({ boardDetectedModalOpen: true, boardInfo });
     expect(screen.getByTestId('board-detected-modal')).toBeInTheDocument();
   });
 
   it('does not render BoardDetectedModal when boardInfo is null', () => {
-    render(<ModalHost {...buildDefaultProps({ boardDetectedModalOpen: true, boardInfo: null })} />);
+    renderModalHost({ boardDetectedModalOpen: true, boardInfo: null });
     expect(screen.queryByTestId('board-detected-modal')).not.toBeInTheDocument();
   });
 
   it('does not render BoardDetectedModal when open is false', () => {
     const boardInfo: BoardInfo = { port: 'COM3', boardType: 'esp32-s3' };
-    render(<ModalHost {...buildDefaultProps({ boardDetectedModalOpen: false, boardInfo })} />);
+    renderModalHost({ boardDetectedModalOpen: false, boardInfo });
     expect(screen.queryByTestId('board-detected-modal')).not.toBeInTheDocument();
   });
 
   it('dismissing BoardDetectedModal calls onBoardDismiss', () => {
     const onBoardDismiss = vi.fn();
     const boardInfo: BoardInfo = { port: 'COM3', boardType: 'esp32-s3' };
-    render(<ModalHost {...buildDefaultProps({ boardDetectedModalOpen: true, boardInfo, onBoardDismiss })} />);
+    renderModalHost({ boardDetectedModalOpen: true, boardInfo, onBoardDismiss });
     fireEvent.click(screen.getByText('Dismiss Board'));
     expect(onBoardDismiss).toHaveBeenCalled();
   });
@@ -306,37 +317,37 @@ describe('ModalHost', () => {
   // -- ExamplePickerModal --
 
   it('renders ExamplePickerModal when examplePickerOpen is true', () => {
-    render(<ModalHost {...buildDefaultProps({ examplePickerOpen: true })} />);
+    renderModalHost({}, { workspace: { examplePickerOpen: true } });
     expect(screen.getByTestId('example-picker-modal')).toBeInTheDocument();
   });
 
   it('does not render ExamplePickerModal when examplePickerOpen is false', () => {
-    render(<ModalHost {...buildDefaultProps({ examplePickerOpen: false })} />);
+    renderModalHost({}, { workspace: { examplePickerOpen: false } });
     expect(screen.queryByTestId('example-picker-modal')).not.toBeInTheDocument();
   });
 
-  it('closing ExamplePickerModal calls onCloseExamplePicker', () => {
-    const onCloseExamplePicker = vi.fn();
-    render(<ModalHost {...buildDefaultProps({ examplePickerOpen: true, onCloseExamplePicker })} />);
+  it('closing ExamplePickerModal calls setExamplePickerOpen(false)', () => {
+    const setExamplePickerOpen = vi.fn();
+    renderModalHost({}, { workspace: { examplePickerOpen: true, setExamplePickerOpen } });
     fireEvent.click(screen.getByText('Close Examples'));
-    expect(onCloseExamplePicker).toHaveBeenCalled();
+    expect(setExamplePickerOpen).toHaveBeenCalledWith(false);
   });
 
   // -- Help modal (inline, not a mocked child) --
 
   it('renders help modal when helpOpen is true', () => {
-    render(<ModalHost {...buildDefaultProps({ helpOpen: true })} />);
+    renderModalHost({ helpOpen: true });
     expect(screen.getByText('Getting Started')).toBeInTheDocument();
     expect(screen.getByRole('dialog')).toHaveAttribute('aria-modal', 'true');
   });
 
   it('does not render help modal when helpOpen is false', () => {
-    render(<ModalHost {...buildDefaultProps({ helpOpen: false })} />);
+    renderModalHost({ helpOpen: false });
     expect(screen.queryByText('Getting Started')).not.toBeInTheDocument();
   });
 
   it('help modal shows instructions', () => {
-    render(<ModalHost {...buildDefaultProps({ helpOpen: true })} />);
+    renderModalHost({ helpOpen: true });
     expect(screen.getByText('1. Design your nugget')).toBeInTheDocument();
     expect(screen.getByText('2. Add skills and rules')).toBeInTheDocument();
     expect(screen.getByText('3. Press GO')).toBeInTheDocument();
@@ -344,21 +355,21 @@ describe('ModalHost', () => {
 
   it('clicking close button in help modal calls setHelpOpen(false)', () => {
     const setHelpOpen = vi.fn();
-    render(<ModalHost {...buildDefaultProps({ helpOpen: true, setHelpOpen })} />);
+    renderModalHost({ helpOpen: true, setHelpOpen });
     fireEvent.click(screen.getByLabelText('Close'));
     expect(setHelpOpen).toHaveBeenCalledWith(false);
   });
 
   it('clicking help modal backdrop calls setHelpOpen(false)', () => {
     const setHelpOpen = vi.fn();
-    render(<ModalHost {...buildDefaultProps({ helpOpen: true, setHelpOpen })} />);
+    renderModalHost({ helpOpen: true, setHelpOpen });
     fireEvent.click(screen.getByRole('dialog'));
     expect(setHelpOpen).toHaveBeenCalledWith(false);
   });
 
   it('clicking inside help modal content does not close it', () => {
     const setHelpOpen = vi.fn();
-    render(<ModalHost {...buildDefaultProps({ helpOpen: true, setHelpOpen })} />);
+    renderModalHost({ helpOpen: true, setHelpOpen });
     fireEvent.click(screen.getByText('Getting Started'));
     expect(setHelpOpen).not.toHaveBeenCalled();
   });
@@ -366,39 +377,33 @@ describe('ModalHost', () => {
   // -- Focus trap (P2 #17) --
 
   it('traps focus within help modal on Tab key', () => {
-    render(<ModalHost {...buildDefaultProps({ helpOpen: true })} />);
+    renderModalHost({ helpOpen: true });
     const dialog = screen.getByRole('dialog');
     const closeBtn = screen.getByLabelText('Close');
 
-    // Focus the close button (last focusable element in our simplified help modal)
     closeBtn.focus();
     expect(document.activeElement).toBe(closeBtn);
 
-    // Pressing Tab on the last element should wrap to first
     fireEvent.keyDown(dialog, { key: 'Tab' });
-    // Focus trap should prevent default and cycle - verify no error thrown
     expect(dialog).toBeInTheDocument();
   });
 
   it('traps focus within help modal on Shift+Tab key', () => {
-    render(<ModalHost {...buildDefaultProps({ helpOpen: true })} />);
+    renderModalHost({ helpOpen: true });
     const dialog = screen.getByRole('dialog');
     const closeBtn = screen.getByLabelText('Close');
 
-    // Focus the close button (first focusable in the content)
     closeBtn.focus();
 
-    // Pressing Shift+Tab should wrap to last
     fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true });
     expect(dialog).toBeInTheDocument();
   });
 
   it('does not trap focus for non-Tab keys', () => {
     const setHelpOpen = vi.fn();
-    render(<ModalHost {...buildDefaultProps({ helpOpen: true, setHelpOpen })} />);
+    renderModalHost({ helpOpen: true, setHelpOpen });
     const dialog = screen.getByRole('dialog');
 
-    // Pressing Enter should not trigger focus trap logic
     fireEvent.keyDown(dialog, { key: 'Enter' });
     expect(dialog).toBeInTheDocument();
   });
@@ -406,14 +411,9 @@ describe('ModalHost', () => {
   // -- Multiple modals --
 
   it('renders multiple modals simultaneously when multiple flags are on', () => {
-    render(
-      <ModalHost
-        {...buildDefaultProps({
-          skillsModalOpen: true,
-          helpOpen: true,
-          dirPickerOpen: true,
-        })}
-      />,
+    renderModalHost(
+      { skillsModalOpen: true, helpOpen: true },
+      { workspace: { dirPickerOpen: true } },
     );
     expect(screen.getByTestId('skills-modal')).toBeInTheDocument();
     expect(screen.getByTestId('dir-picker-modal')).toBeInTheDocument();

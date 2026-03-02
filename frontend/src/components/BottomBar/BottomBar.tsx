@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import type { Commit, TestResult, TeachingMoment, UIState, Task, Agent, TokenUsage, TraceabilitySummary, CorrectionCycleState, HealthHistoryEntry, SystemLevel } from '../../types';
-import type { SerialLine, DeployProgress } from '../../hooks/useBuildSession';
 import type { BoardInfo } from '../../hooks/useBoardDetect';
+import { useBuildSessionContext } from '../../contexts/BuildSessionContext';
+import { useWorkspaceContext } from '../../contexts/WorkspaceContext';
 import GitTimeline from './GitTimeline';
 import TestResults from './TestResults';
 import TeachingSidebar from './TeachingSidebar';
@@ -14,25 +14,7 @@ import MetricsPanel from '../MissionControl/MetricsPanel';
 import ConvergencePanel from '../MissionControl/ConvergencePanel';
 
 interface Props {
-  commits: Commit[];
-  testResults: TestResult[];
-  coveragePct: number | null;
-  teachingMoments: TeachingMoment[];
-  serialLines: SerialLine[];
-  uiState: UIState;
-  tasks: Task[];
-  agents: Agent[];
-  deployProgress: DeployProgress | null;
-  deployChecklist: Array<{ name: string; prompt: string }> | null;
-  tokenUsage: TokenUsage;
   boardInfo: BoardInfo | null;
-  traceability: TraceabilitySummary | null;
-  boundaryAnalysis: { inputs: Array<{ name: string; type: string; source?: string }>; outputs: Array<{ name: string; type: string; source?: string }>; boundary_portals: string[] } | null;
-  healthUpdate: { tasks_done: number; tasks_total: number; tests_passing: number; tests_total: number; tokens_used: number; health_score: number } | null;
-  healthSummary: { health_score: number; grade: 'A' | 'B' | 'C' | 'D' | 'F'; breakdown: { tasks_score: number; tests_score: number; corrections_score: number; budget_score: number } } | null;
-  healthHistory?: HealthHistoryEntry[];
-  systemLevel?: SystemLevel;
-  correctionCycles?: Record<string, CorrectionCycleState>;
 }
 
 type Tab = 'Timeline' | 'Tests' | 'Trace' | 'Board' | 'Learn' | 'Progress' | 'System' | 'Health' | 'Tokens';
@@ -53,12 +35,14 @@ function getStoredHeight(): number {
   return DEFAULT_HEIGHT;
 }
 
-export default function BottomBar({
-  commits, testResults, coveragePct, teachingMoments, serialLines,
-  uiState, tasks, agents, deployProgress, deployChecklist, tokenUsage, boardInfo,
-  traceability, boundaryAnalysis, healthUpdate, healthSummary, healthHistory = [], systemLevel,
-  correctionCycles = {},
-}: Props) {
+export default function BottomBar({ boardInfo }: Props) {
+  const {
+    commits, testResults, coveragePct, teachingMoments, serialLines,
+    uiState, tasks, agents, deployProgress, deployChecklist, tokenUsage,
+    traceability, boundaryAnalysis, healthUpdate, healthSummary, healthHistory,
+    correctionCycles,
+  } = useBuildSessionContext();
+  const { systemLevel } = useWorkspaceContext();
   const [activeTab, setActiveTab] = useState<Tab>('Tests');
   const [panelHeight, setPanelHeight] = useState<number>(getStoredHeight);
   const isDragging = useRef(false);

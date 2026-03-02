@@ -1,7 +1,5 @@
-import type { Task, Agent, WSEvent, NarratorMessage, UIState, CorrectionCycleState } from '../../types';
-import type { NuggetSpec } from '../BlockCanvas/blockInterpreter';
-import type { ContextFlow } from '../../hooks/useBuildSession';
-import type { BuildSessionState } from '../../hooks/useBuildSession';
+import { useBuildSessionContext } from '../../contexts/BuildSessionContext';
+import { useWorkspaceContext } from '../../contexts/WorkspaceContext';
 import TaskDAG from './TaskDAG';
 import MinionSquadPanel from './MinionSquadPanel';
 import NarratorFeed from './NarratorFeed';
@@ -9,31 +7,12 @@ import PlanningIndicator from './PlanningIndicator';
 import FeedbackLoopIndicator from './FeedbackLoopIndicator';
 import ImpactPreview from '../shared/ImpactPreview';
 
-interface MissionControlPanelProps {
-  tasks: Task[];
-  agents: Agent[];
-  events: WSEvent[];
-  narratorMessages: NarratorMessage[];
-  spec: NuggetSpec | null;
-  uiState: UIState;
-  isPlanning?: boolean;
-  contextFlows?: ContextFlow[];
-  correctionCycles?: Record<string, CorrectionCycleState>;
-  impactEstimate?: BuildSessionState['impactEstimate'];
-}
-
-export default function MissionControlPanel({
-  tasks,
-  agents,
-  events,
-  narratorMessages,
-  spec,
-  uiState,
-  isPlanning = false,
-  contextFlows,
-  correctionCycles = {},
-  impactEstimate,
-}: MissionControlPanelProps) {
+export default function MissionControlPanel() {
+  const {
+    tasks, agents, events, narratorMessages,
+    uiState, isPlanning, contextFlows, correctionCycles, impactEstimate,
+  } = useBuildSessionContext();
+  const { spec } = useWorkspaceContext();
   const hasContent = tasks.length > 0;
   const isComplete = uiState === 'done';
   const systemLevel = spec?.workflow?.system_level;

@@ -8,58 +8,25 @@ import PortalsModal from '../Portals/PortalsModal';
 import DirectoryPickerModal from './DirectoryPickerModal';
 import BoardDetectedModal from './BoardDetectedModal';
 import ExamplePickerModal from './ExamplePickerModal';
-import type { GateRequest, QuestionRequest, FlashWizardState } from '../../hooks/useBuildSession';
-import type { Skill, Rule } from '../Skills/types';
-import type { Portal } from '../Portals/types';
-import type { DeviceManifest } from '../../lib/deviceBlocks';
 import type { BoardInfo } from '../../hooks/useBoardDetect';
+import { useBuildSessionContext } from '../../contexts/BuildSessionContext';
+import { useWorkspaceContext } from '../../contexts/WorkspaceContext';
 import { EXAMPLE_NUGGETS } from '../../lib/examples';
 import { authFetch } from '../../lib/apiClient';
 
 export interface ModalHostProps {
-  // Session
-  sessionId: string | null;
-
-  // Gate + question modals
-  gateRequest: GateRequest | null;
-  clearGateRequest: () => void;
-  questionRequest: QuestionRequest | null;
-  clearQuestionRequest: () => void;
-
-  // Flash wizard
-  flashWizardState: FlashWizardState | null;
-
-  // Skills/rules/portals modals
+  // Local modal toggles (managed in App.tsx)
   skillsModalOpen: boolean;
   setSkillsModalOpen: (open: boolean) => void;
-  skills: Skill[];
-  onSkillsChange: (skills: Skill[]) => void;
-
   rulesModalOpen: boolean;
   setRulesModalOpen: (open: boolean) => void;
-  rules: Rule[];
-  onRulesChange: (rules: Rule[]) => void;
-
   portalsModalOpen: boolean;
   setPortalsModalOpen: (open: boolean) => void;
-  portals: Portal[];
-  onPortalsChange: (portals: Portal[]) => void;
-
-  // Directory picker
-  dirPickerOpen: boolean;
-  onDirPickerSelect: (dir: string) => void;
-  onDirPickerCancel: () => void;
 
   // Board detected
   boardDetectedModalOpen: boolean;
   boardInfo: BoardInfo | null;
-  deviceManifests: DeviceManifest[];
   onBoardDismiss: () => void;
-
-  // Example picker
-  examplePickerOpen: boolean;
-  onSelectExample: (example: typeof EXAMPLE_NUGGETS[number]) => void;
-  onCloseExamplePicker: () => void;
 
   // Help
   helpOpen: boolean;
@@ -67,37 +34,30 @@ export interface ModalHostProps {
 }
 
 export default function ModalHost({
-  sessionId,
-  gateRequest,
-  clearGateRequest,
-  questionRequest,
-  clearQuestionRequest,
-  flashWizardState,
   skillsModalOpen,
   setSkillsModalOpen,
-  skills,
-  onSkillsChange,
   rulesModalOpen,
   setRulesModalOpen,
-  rules,
-  onRulesChange,
   portalsModalOpen,
   setPortalsModalOpen,
-  portals,
-  onPortalsChange,
-  dirPickerOpen,
-  onDirPickerSelect,
-  onDirPickerCancel,
   boardDetectedModalOpen,
   boardInfo,
-  deviceManifests,
   onBoardDismiss,
-  examplePickerOpen,
-  onSelectExample,
-  onCloseExamplePicker,
   helpOpen,
   setHelpOpen,
 }: ModalHostProps) {
+  const {
+    sessionId, gateRequest, clearGateRequest,
+    questionRequest, clearQuestionRequest, flashWizardState,
+  } = useBuildSessionContext();
+  const {
+    skills, setSkills: onSkillsChange,
+    rules, setRules: onRulesChange,
+    portals, setPortals: onPortalsChange,
+    dirPickerOpen, handleDirPickerSelect: onDirPickerSelect, handleDirPickerCancel: onDirPickerCancel,
+    examplePickerOpen, handleSelectExample: onSelectExample, setExamplePickerOpen,
+    deviceManifests,
+  } = useWorkspaceContext();
   const helpModalRef = useRef<HTMLDivElement>(null);
 
   const handleFocusTrap = useCallback((e: KeyboardEvent<HTMLDivElement>) => {
@@ -229,7 +189,7 @@ export default function ModalHost({
           examples={EXAMPLE_NUGGETS}
           availableDeviceIds={deviceManifests.map(m => m.id)}
           onSelect={onSelectExample}
-          onClose={onCloseExamplePicker}
+          onClose={() => setExamplePickerOpen(false)}
         />
       )}
 

@@ -14,49 +14,22 @@ import ReadinessBadge from './components/shared/ReadinessBadge';
 import LevelBadge from './components/shared/LevelBadge';
 import ModalHost from './components/shared/ModalHost';
 import { useWebSocket } from './hooks/useWebSocket';
-import { useBuildSession } from './hooks/useBuildSession';
-import { useMeetingSession } from './hooks/useMeetingSession';
 import { useHealthCheck } from './hooks/useHealthCheck';
 import { useBoardDetect } from './hooks/useBoardDetect';
-import { useWorkspaceIO } from './hooks/useWorkspaceIO';
-import { useSystemLevel } from './hooks/useSystemLevel';
 import { setAuthToken, authFetch } from './lib/apiClient';
 import { registerDeviceBlocks, type DeviceManifest } from './lib/deviceBlocks';
 import { playChime } from './lib/playChime';
+import { BuildSessionProvider } from './contexts/BuildSessionContext';
+import { useBuildSessionContext } from './contexts/BuildSessionContext';
+import { MeetingProvider } from './contexts/MeetingContext';
+import { useMeetingContext } from './contexts/MeetingContext';
+import { WorkspaceProvider } from './contexts/WorkspaceContext';
+import { useWorkspaceContext } from './contexts/WorkspaceContext';
 import type { TeachingMoment, WSEvent } from './types';
 import elisaLogo from '../assets/elisa.svg';
 
 export default function App() {
   const blockCanvasRef = useRef<BlockCanvasHandle>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const {
-    uiState, tasks, agents, commits, events, sessionId,
-    teachingMoments, testResults, coveragePct, tokenUsage,
-    serialLines, deployProgress, deployChecklist, deployUrls, gateRequest, questionRequest,
-    nuggetDir, errorNotification, narratorMessages, isPlanning,
-    flashWizardState, contextFlows, traceability, correctionCycles,
-    impactEstimate, healthUpdate, healthSummary, healthHistory, boundaryAnalysis,
-    handleEvent, startBuild, stopBuild, clearGateRequest, clearQuestionRequest,
-    clearErrorNotification, resetToDesign,
-  } = useBuildSession();
-
-  const {
-    inviteQueue, nextInvite, activeMeeting, isAgentThinking, messages: meetingMessages, canvasState: meetingCanvasState,
-    handleMeetingEvent, acceptInvite, declineInvite,
-    sendMessage: sendMeetingMessage, endMeeting, updateCanvas: updateMeetingCanvas,
-    materializeArtifacts: materializeMeetingArtifacts,
-    resetMeetings,
-  } = useMeetingSession(sessionId);
-
-  // Route WS events to both build session and meeting session handlers
-  const handleAllEvents = useCallback((event: WSEvent) => {
-    handleMeetingEvent(event);
-    handleEvent(event);
-  }, [handleMeetingEvent, handleEvent]);
-
-  const { waitForOpen } = useWebSocket({ sessionId, onEvent: handleAllEvents });
-  const { health, loading: healthLoading } = useHealthCheck(uiState === 'design');
 
   // Fetch auth token on mount
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -75,8 +48,6 @@ export default function App() {
     }
   }, []);
 
-  const { boardInfo, justConnected, acknowledgeConnection } = useBoardDetect(uiState === 'design' && authReady);
-
   // Device manifests from backend plugin registry
   const [deviceManifests, setDeviceManifests] = useState<DeviceManifest[]>([]);
 
@@ -91,19 +62,84 @@ export default function App() {
       .catch(() => { /* device plugins unavailable -- not critical */ });
   }, [authReady]);
 
-  // Workspace I/O hook
-  const {
-    skills, setSkills, rules, setRules, portals, setPortals,
-    spec, workspacePath, workspaceJson, initialWorkspace,
-    dirPickerOpen, examplePickerOpen, setExamplePickerOpen,
-    handleWorkspaceChange, handleSaveNugget, handleOpenNugget,
-    handleOpenFolder, handleSelectExample,
-    handleDirPickerSelect, handleDirPickerCancel,
-    ensureWorkspacePath, reinterpretWorkspace,
-  } = useWorkspaceIO({ blockCanvasRef, sessionId, deviceManifests });
+  return (
+    <BuildSessionProvider>
+      <AppWithBuildSession
+        blockCanvasRef={blockCanvasRef}
+        authReady={authReady}
+        deviceManifests={deviceManifests}
+      />
+    </BuildSessionProvider>
+  );
+}
 
-  // System level from current spec
-  const systemLevel = useSystemLevel(spec);
+interface AppWithBuildSessionProps {
+  blockCanvasRef: React.RefObject<BlockCanvasHandle | null>;
+  authReady: boolean;
+  deviceManifests: DeviceManifest[];
+}
+
+function AppWithBuildSession({ blockCanvasRef, authReady, deviceManifests }: AppWithBuildSessionProps) {
+  const { sessionId, handleEvent } = useBuildSessionContext();
+
+  return (
+    <MeetingProvider sessionId={sessionId}>
+      <WorkspaceProvider
+        blockCanvasRef={blockCanvasRef}
+        deviceManifests={deviceManifests}
+        sessionId={sessionId}
+      >
+        <AppShell
+          blockCanvasRef={blockCanvasRef}
+          authReady={authReady}
+          handleBuildEvent={handleEvent}
+        />
+      </WorkspaceProvider>
+    </MeetingProvider>
+  );
+}
+
+interface AppShellProps {
+  blockCanvasRef: React.RefObject<BlockCanvasHandle | null>;
+  authReady: boolean;
+  handleBuildEvent: (event: WSEvent) => void;
+}
+
+function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const {
+    uiState, tasks, agents, events, sessionId,
+    teachingMoments, deployUrls, errorNotification,
+    nuggetDir, startBuild, stopBuild, clearErrorNotification, resetToDesign,
+  } = useBuildSessionContext();
+
+  const {
+    inviteQueue, nextInvite, activeMeeting, isAgentThinking,
+    messages: meetingMessages, canvasState: meetingCanvasState,
+    handleMeetingEvent, acceptInvite, declineInvite,
+    sendMessage: sendMeetingMessage, endMeeting, updateCanvas: updateMeetingCanvas,
+    materializeArtifacts: materializeMeetingArtifacts,
+    resetMeetings,
+  } = useMeetingContext();
+
+  const {
+    skills, rules, portals, spec, workspacePath, workspaceJson, initialWorkspace,
+    setExamplePickerOpen, handleWorkspaceChange, handleSaveNugget, handleOpenNugget,
+    handleOpenFolder, ensureWorkspacePath, reinterpretWorkspace, systemLevel,
+    deviceManifests,
+  } = useWorkspaceContext();
+
+  // Route WS events to both build session and meeting session handlers
+  const handleAllEvents = useCallback((event: WSEvent) => {
+    handleMeetingEvent(event);
+    handleBuildEvent(event);
+  }, [handleMeetingEvent, handleBuildEvent]);
+
+  const { waitForOpen } = useWebSocket({ sessionId, onEvent: handleAllEvents });
+  const { health, loading: healthLoading } = useHealthCheck(uiState === 'design');
+
+  const { boardInfo, justConnected, acknowledgeConnection } = useBoardDetect(uiState === 'design' && authReady);
 
   // Main tab state
   const [activeMainTab, setActiveMainTab] = useState<MainTab>('workspace');
@@ -177,7 +213,7 @@ export default function App() {
       }, 50);
       return () => clearTimeout(timer);
     }
-  }, [activeMainTab]);
+  }, [activeMainTab, blockCanvasRef]);
 
   const handleGo = async () => {
     if (!spec) return;
@@ -263,75 +299,25 @@ export default function App() {
         {/* Mission Control tab */}
         {activeMainTab === 'mission' && (
           <div className="w-full h-full">
-            <MissionControlPanel
-              tasks={tasks}
-              agents={agents}
-              events={events}
-              narratorMessages={narratorMessages}
-              spec={spec}
-              uiState={uiState}
-              isPlanning={isPlanning}
-              contextFlows={contextFlows}
-              correctionCycles={correctionCycles}
-              impactEstimate={impactEstimate}
-            />
+            <MissionControlPanel />
           </div>
         )}
       </main>
 
       {/* Bottom bar */}
-      <BottomBar
-        commits={commits}
-        testResults={testResults}
-        coveragePct={coveragePct}
-        teachingMoments={teachingMoments}
-        serialLines={serialLines}
-        uiState={uiState}
-        tasks={tasks}
-        agents={agents}
-        deployProgress={deployProgress ?? null}
-        deployChecklist={deployChecklist ?? null}
-        tokenUsage={tokenUsage}
-        boardInfo={boardInfo}
-        traceability={traceability}
-        boundaryAnalysis={boundaryAnalysis}
-        healthUpdate={healthUpdate}
-        healthSummary={healthSummary}
-        healthHistory={healthHistory}
-        systemLevel={systemLevel}
-        correctionCycles={correctionCycles}
-      />
+      <BottomBar boardInfo={boardInfo} />
 
       {/* All modals */}
       <ModalHost
-        sessionId={sessionId}
-        gateRequest={gateRequest}
-        clearGateRequest={clearGateRequest}
-        questionRequest={questionRequest}
-        clearQuestionRequest={clearQuestionRequest}
-        flashWizardState={flashWizardState}
         skillsModalOpen={skillsModalOpen}
         setSkillsModalOpen={setSkillsModalOpen}
-        skills={skills}
-        onSkillsChange={setSkills}
         rulesModalOpen={rulesModalOpen}
         setRulesModalOpen={setRulesModalOpen}
-        rules={rules}
-        onRulesChange={setRules}
         portalsModalOpen={portalsModalOpen}
         setPortalsModalOpen={setPortalsModalOpen}
-        portals={portals}
-        onPortalsChange={setPortals}
-        dirPickerOpen={dirPickerOpen}
-        onDirPickerSelect={handleDirPickerSelect}
-        onDirPickerCancel={handleDirPickerCancel}
         boardDetectedModalOpen={boardDetectedModalOpen}
         boardInfo={boardInfo}
-        deviceManifests={deviceManifests}
         onBoardDismiss={handleBoardDismiss}
-        examplePickerOpen={examplePickerOpen}
-        onSelectExample={handleSelectExample}
-        onCloseExamplePicker={() => setExamplePickerOpen(false)}
         helpOpen={helpOpen}
         setHelpOpen={setHelpOpen}
       />
