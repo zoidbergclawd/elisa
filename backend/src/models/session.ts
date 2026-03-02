@@ -11,7 +11,7 @@ export type SessionState =
   | 'reviewing'
   | 'done';
 
-export type TaskStatus = 'pending' | 'in_progress' | 'done' | 'failed';
+export type TaskStatus = 'pending' | 'in_progress' | 'done' | 'failed' | 'skipped';
 
 export interface Task {
   id: string;

@@ -72,7 +72,8 @@ export type WSEvent =
   | { type: 'boundary_analysis'; inputs: Array<{ name: string; type: string; source?: string }>; outputs: Array<{ name: string; type: string; source?: string }>; boundary_portals: string[] }
   | { type: 'composition_impact'; graph_id: string; changed_node_id: string; affected_nodes: Array<{ node_id: string; label: string; reason: string }>; severity: string }
   | { type: 'composition_started'; graph_id: string; node_ids: string[] }
-  | { type: 'health_history'; entries: Array<{ timestamp: string; goal: string; score: number; grade: 'A' | 'B' | 'C' | 'D' | 'F'; breakdown: { tasks: number; tests: number; corrections: number; budget: number } }> };
+  | { type: 'health_history'; entries: Array<{ timestamp: string; goal: string; score: number; grade: 'A' | 'B' | 'C' | 'D' | 'F'; breakdown: { tasks: number; tests: number; corrections: number; budget: number } }> }
+  | { type: 'spec_validation_warning'; truncated_fields: Array<{ path: string; max_length: number; actual_length: number }> };
 
 export type SendEvent = (event: WSEvent) => Promise<void>;
 

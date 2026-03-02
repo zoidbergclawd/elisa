@@ -264,7 +264,7 @@ describe('token budget pre-check', () => {
     const result = await executor.executeTask(task, agent, makeCtx(), options);
 
     expect(result).toBe(false);
-    expect(task.status).toBe('failed');
+    expect(task.status).toBe('skipped');
     expect(executeMock).not.toHaveBeenCalled();
 
     const failedEvents = events.filter((e) => e.type === 'task_failed');
@@ -576,6 +576,7 @@ describe('git commit', () => {
     };
     const gitService = {
       commit: vi.fn().mockResolvedValue(mockCommitInfo),
+      getWorkspaceDiff: vi.fn().mockResolvedValue(''),
     } as any;
     const deps = makeDeps(executeMock, { git: gitService });
     const executor = new TaskExecutor(deps);
@@ -601,6 +602,7 @@ describe('git commit', () => {
     const executeMock = makeExecuteMock();
     const gitService = {
       commit: vi.fn().mockRejectedValue(new Error('git error')),
+      getWorkspaceDiff: vi.fn().mockResolvedValue(''),
     } as any;
     const deps = makeDeps(executeMock, { git: gitService });
     const executor = new TaskExecutor(deps);
@@ -638,6 +640,7 @@ describe('git commit', () => {
         mutexCalls.push('commit');
         return { sha: 'abc', shortSha: 'abc', message: 'm', agentName: 'a', taskId: 't', timestamp: '', filesChanged: [] };
       }),
+      getWorkspaceDiff: vi.fn().mockResolvedValue(''),
     } as any;
     const deps = makeDeps(executeMock, { git: gitService });
     const executor = new TaskExecutor(deps);

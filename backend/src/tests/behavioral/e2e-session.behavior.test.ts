@@ -43,6 +43,7 @@ vi.mock('../../services/gitService.js', () => {
     timestamp: new Date().toISOString(),
     filesChanged: ['index.html'],
   });
+  GitService.prototype.getWorkspaceDiff = vi.fn().mockResolvedValue('');
   return { GitService };
 });
 

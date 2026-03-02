@@ -206,3 +206,87 @@ export const NuggetSpecSchema = z.object({
 
 /** Inferred TypeScript type from the NuggetSpec Zod schema. */
 export type NuggetSpec = z.infer<typeof NuggetSpecSchema>;
+
+/** A field whose string value exceeds a Zod `.max()` cap. */
+export interface TruncationWarning {
+  path: string;
+  maxLength: number;
+  actualLength: number;
+}
+
+/** Known string length caps from the NuggetSpec schema. Paths use dot notation. */
+const STRING_CAPS: Record<string, number> = {
+  'nugget.goal': 2000,
+  'nugget.type': 100,
+  'nugget.description': 2000,
+  'style.visual': 500,
+  'style.personality': 500,
+  'style.colors': 500,
+  'style.theme': 500,
+  'style.tone': 500,
+  'deployment.target': 100,
+  'deployment.runtime_url': 500,
+  'runtime.agent_name': 100,
+  'runtime.greeting': 500,
+  'runtime.fallback_response': 500,
+  'runtime.voice': 50,
+  'runtime.display_theme': 50,
+};
+
+/** Array-item string caps. The key is the array path; values are field->max pairs. */
+const ARRAY_ITEM_CAPS: Record<string, Record<string, number>> = {
+  skills: { id: 200, name: 200, category: 50, prompt: 5000, description: 2000 },
+  rules: { id: 200, name: 200, trigger: 100, prompt: 5000 },
+  requirements: { type: 100, description: 2000, test_id: 200 },
+  agents: { name: 200, role: 50, persona: 500 },
+  portals: { id: 200, name: 200, description: 2000, mechanism: 50 },
+};
+
+/**
+ * Detect fields in the raw NuggetSpec input that exceed Zod schema `.max()` caps.
+ * Returns an array of warnings for fields that would fail validation due to length.
+ */
+export function detectTruncations(rawSpec: unknown): TruncationWarning[] {
+  if (!rawSpec || typeof rawSpec !== 'object') return [];
+  const spec = rawSpec as Record<string, unknown>;
+  const warnings: TruncationWarning[] = [];
+
+  // Check top-level nested object fields
+  for (const [path, maxLen] of Object.entries(STRING_CAPS)) {
+    const parts = path.split('.');
+    let val: unknown = spec;
+    for (const part of parts) {
+      if (val && typeof val === 'object') {
+        val = (val as Record<string, unknown>)[part];
+      } else {
+        val = undefined;
+        break;
+      }
+    }
+    if (typeof val === 'string' && val.length > maxLen) {
+      warnings.push({ path, maxLength: maxLen, actualLength: val.length });
+    }
+  }
+
+  // Check array item fields
+  for (const [arrayPath, fieldCaps] of Object.entries(ARRAY_ITEM_CAPS)) {
+    const arr = spec[arrayPath];
+    if (!Array.isArray(arr)) continue;
+    for (let i = 0; i < arr.length; i++) {
+      const item = arr[i];
+      if (!item || typeof item !== 'object') continue;
+      for (const [field, maxLen] of Object.entries(fieldCaps)) {
+        const val = (item as Record<string, unknown>)[field];
+        if (typeof val === 'string' && val.length > maxLen) {
+          warnings.push({
+            path: `${arrayPath}[${i}].${field}`,
+            maxLength: maxLen,
+            actualLength: val.length,
+          });
+        }
+      }
+    }
+  }
+
+  return warnings;
+}

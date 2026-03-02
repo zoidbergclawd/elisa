@@ -153,7 +153,7 @@ export class TaskExecutor {
     if (this.deps.tokenTracker.budgetExceeded) {
       const total = this.deps.tokenTracker.total;
       const max = this.deps.tokenTracker.maxBudget;
-      task.status = 'failed';
+      task.status = 'skipped';
       if (agent) agent.status = 'idle';
       const msg = `Token budget exceeded (${total} / ${max}). Skipping remaining tasks.`;
       options.taskSummaries[taskId] = msg;
@@ -182,14 +182,43 @@ export class TaskExecutor {
           await this.deps.feedbackLoopTracker.markFixing(taskId);
         }
 
-        const retryContext = [
+        const retryParts = [
           `## Retry Attempt ${retryCount}`,
           'A previous attempt at this task did not complete successfully.',
           'The workspace already contains partial work from that attempt.',
           'Skip orientation — do NOT re-read files you can see in the manifest and digest.',
           'Go straight to implementation.',
-        ].join('\n');
-        prompt = retryContext + '\n\n' + prompt;
+        ];
+
+        // Include failure summary from previous attempt
+        const failureSummary = result?.summary;
+        if (failureSummary) {
+          retryParts.push('', '### Previous Failure', failureSummary);
+        }
+
+        // Include workspace diff so the agent sees what changed
+        if (this.deps.git) {
+          const diff = await this.deps.git.getWorkspaceDiff(options.nuggetDir);
+          if (diff) {
+            retryParts.push('', '### Workspace Changes Since Last Commit', '```diff', diff, '```');
+          }
+        }
+
+        // Include test output if available
+        const testOutputPath = path.join(options.nuggetDir, '.elisa', 'status', 'test_output.txt');
+        if (fs.existsSync(testOutputPath)) {
+          try {
+            let testOutput = fs.readFileSync(testOutputPath, 'utf-8');
+            if (testOutput.length > 2000) {
+              testOutput = testOutput.slice(-2000) + '\n[test output truncated]';
+            }
+            retryParts.push('', '### Test Output', '```', testOutput, '```');
+          } catch {
+            // Ignore read errors
+          }
+        }
+
+        prompt = retryParts.join('\n') + '\n\n' + prompt;
       }
       if (retryCount > 0 && retryRulesSuffix) {
         prompt += retryRulesSuffix;

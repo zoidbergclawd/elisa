@@ -82,4 +82,22 @@ export class GitService {
       filesChanged,
     };
   }
+
+  /** Returns a summary of uncommitted changes in the workspace (staged + unstaged). */
+  async getWorkspaceDiff(repoPath: string): Promise<string> {
+    try {
+      const git = simpleGit(repoPath);
+      await git.checkIsRepo();
+      const diff = await git.diff();
+      if (!diff) return '';
+      // Cap to avoid blowing up the prompt
+      const MAX_DIFF_CHARS = 3000;
+      if (diff.length > MAX_DIFF_CHARS) {
+        return diff.slice(0, MAX_DIFF_CHARS) + '\n[diff truncated]';
+      }
+      return diff;
+    } catch {
+      return '';
+    }
+  }
 }

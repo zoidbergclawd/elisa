@@ -706,8 +706,8 @@ describe('token budget enforcement', () => {
 
     await phase.execute(ctx);
 
-    // Task should be failed
-    expect(tasks[0].status).toBe('failed');
+    // Task should be skipped (budget-exceeded uses 'skipped', not 'failed')
+    expect(tasks[0].status).toBe('skipped');
 
     // Agent should NOT have been called
     expect(executeMock).not.toHaveBeenCalled();

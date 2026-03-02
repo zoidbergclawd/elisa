@@ -9,7 +9,7 @@ import { randomUUID } from 'node:crypto';
 import { Orchestrator } from '../services/orchestrator.js';
 import { AgentRunner } from '../services/agentRunner.js';
 import { SkillRunner } from '../services/skillRunner.js';
-import { NuggetSpecSchema } from '../utils/specValidator.js';
+import { NuggetSpecSchema, detectTruncations } from '../utils/specValidator.js';
 import { validateWorkspacePath } from '../utils/pathValidator.js';
 import type { HardwareService } from '../services/hardwareService.js';
 import type { SessionStore } from '../services/sessionStore.js';
@@ -70,6 +70,10 @@ export function createSessionRouter({ store, sendEvent, hardwareService, deviceR
     entry.session.state = 'planning';
 
     const rawSpec = req.body.spec;
+
+    // Detect fields that exceed Zod schema caps before validation
+    const truncationWarnings = detectTruncations(rawSpec);
+
     const parseResult = NuggetSpecSchema.safeParse(rawSpec);
     if (!parseResult.success) {
       entry.session.state = 'idle';
@@ -84,6 +88,18 @@ export function createSessionRouter({ store, sendEvent, hardwareService, deviceR
     }
     const spec = parseResult.data;
     entry.session.spec = spec;
+
+    // Emit truncation warnings so the frontend knows which fields were capped
+    if (truncationWarnings.length > 0) {
+      await sendEvent(req.params.id, {
+        type: 'spec_validation_warning',
+        truncated_fields: truncationWarnings.map((w) => ({
+          path: w.path,
+          max_length: w.maxLength,
+          actual_length: w.actualLength,
+        })),
+      });
+    }
 
     // Pre-execute composite skills
     if (spec.skills?.length) {

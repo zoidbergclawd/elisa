@@ -147,6 +147,7 @@ describe('git commit after task', () => {
     const executeMock = vi.fn().mockResolvedValue(makeSuccessResult());
     const mockGit = {
       initRepo: vi.fn().mockResolvedValue(undefined),
+      getWorkspaceDiff: vi.fn().mockResolvedValue(''),
       commit: vi.fn().mockResolvedValue({
         sha: 'abc123def456',
         shortSha: 'abc123d',
@@ -192,6 +193,7 @@ describe('git commit after task', () => {
     const mockGit = {
       initRepo: vi.fn().mockResolvedValue(undefined),
       commit: vi.fn(),
+      getWorkspaceDiff: vi.fn().mockResolvedValue(''),
     };
 
     const task = makeTask('task-1', 'Build UI', 'Builder Bot');
@@ -217,6 +219,7 @@ describe('git commit after task', () => {
     const mockGit = {
       initRepo: vi.fn().mockResolvedValue(undefined),
       commit: vi.fn().mockRejectedValue(new Error('git lock failed')),
+      getWorkspaceDiff: vi.fn().mockResolvedValue(''),
     };
 
     const task = makeTask('task-1', 'Build UI', 'Builder Bot');
@@ -245,6 +248,7 @@ describe('git commit after task', () => {
         timestamp: '',
         filesChanged: 0,
       }),
+      getWorkspaceDiff: vi.fn().mockResolvedValue(''),
     };
 
     const task = makeTask('task-1', 'Build UI', 'Builder Bot');
@@ -267,6 +271,7 @@ describe('git commit after task', () => {
     });
     const mockGit = {
       initRepo: vi.fn().mockResolvedValue(undefined),
+      getWorkspaceDiff: vi.fn().mockResolvedValue(''),
       commit: vi.fn().mockImplementation(async (_dir: string, msg: string) => {
         commitOrder.push(msg);
         await new Promise((r) => setTimeout(r, 20));
@@ -519,8 +524,8 @@ describe('token budget skips remaining tasks', () => {
     // Agent should never have been called
     expect(executeMock).not.toHaveBeenCalled();
 
-    // Both tasks should fail
-    expect(tasks[0].status).toBe('failed');
+    // Both tasks should be skipped (budget-exceeded uses 'skipped' status)
+    expect(tasks[0].status).toBe('skipped');
 
     const failedEvents = events.filter((e) => e.type === 'task_failed');
     expect(failedEvents.length).toBeGreaterThanOrEqual(1);
@@ -539,6 +544,7 @@ describe('execute return value', () => {
     );
     const mockGit = {
       initRepo: vi.fn().mockResolvedValue(undefined),
+      getWorkspaceDiff: vi.fn().mockResolvedValue(''),
       commit: vi.fn().mockResolvedValue({
         sha: 'abc123',
         shortSha: 'abc1',

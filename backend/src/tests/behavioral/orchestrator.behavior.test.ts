@@ -26,6 +26,7 @@ vi.mock('../../services/gitService.js', () => {
   const GitService = vi.fn();
   GitService.prototype.initRepo = vi.fn();
   GitService.prototype.commit = vi.fn();
+  GitService.prototype.getWorkspaceDiff = vi.fn().mockResolvedValue('');
   return { GitService };
 });
 

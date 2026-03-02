@@ -111,18 +111,23 @@ export class ExecutePhase {
     const meetingDesignContext = new Map<string, Record<string, unknown>>();
     const MAX_CONCURRENT = MAX_CONCURRENT_TASKS;
 
-    // For DAG readiness, treat both completed and failed as "done" so
+    // For DAG readiness, treat completed, failed, and skipped as "done" so
     // downstream tasks can detect the failure instead of blocking forever.
     const settled = () => {
       const s = new Set(completed);
       for (const id of failed) s.add(id);
+      for (const id of skipped) s.add(id);
       return s;
     };
 
-    const skipTask = async (taskId: string, reason: string) => {
+    const skipped = new Set<string>();
+
+    const skipTask = async (taskId: string, reason: string, isDependencyFailure = false) => {
       const task = this.deps.taskMap[taskId];
       const agentName: string = task?.agent_name ?? '';
-      task.status = 'failed';
+      // Dependency failures are real failures; budget/other skips use 'skipped'
+      // so downstream tasks are not cascade-failed.
+      task.status = isDependencyFailure ? 'failed' : 'skipped';
       const agent = this.deps.agentMap[agentName];
       if (agent) agent.status = 'idle';
       this.taskSummaries[taskId] = reason;
@@ -133,7 +138,11 @@ export class ExecutePhase {
         content: reason,
       });
       await ctx.send({ type: 'task_failed', task_id: taskId, error: reason, retry_count: 0 });
-      failed.add(taskId);
+      if (isDependencyFailure) {
+        failed.add(taskId);
+      } else {
+        skipped.add(taskId);
+      }
     };
 
     const launchTask = (taskId: string) => {
@@ -158,7 +167,7 @@ export class ExecutePhase {
       inFlight.set(taskId, promise);
     };
 
-    while (completed.size + failed.size < this.deps.tasks.length) {
+    while (completed.size + failed.size + skipped.size < this.deps.tasks.length) {
       if (ctx.abortSignal.aborted) {
         await ctx.send({
           type: 'error',
@@ -174,7 +183,7 @@ export class ExecutePhase {
       // Pre-pass: evaluate meetings for ready tasks not yet blocked or in-flight.
       // meetingEvaluated prevents re-triggering after a meeting ends for the same task.
       for (const taskId of ready) {
-        if (meetingBlocked.has(taskId) || meetingEvaluated.has(taskId) || failed.has(taskId)) continue;
+        if (meetingBlocked.has(taskId) || meetingEvaluated.has(taskId) || failed.has(taskId) || skipped.has(taskId)) continue;
         if (this.wouldTriggerMeeting(taskId)) {
           meetingEvaluated.add(taskId);
           meetingBlocked.add(taskId);
@@ -193,20 +202,20 @@ export class ExecutePhase {
         break;
       }
 
-      // Skip tasks whose dependencies have failed
+      // Skip tasks whose dependencies have failed (not merely skipped for budget)
       for (const taskId of ready) {
-        if (failed.has(taskId)) continue;
+        if (failed.has(taskId) || skipped.has(taskId)) continue;
         const deps = this.deps.dag.getDeps(taskId);
         for (const dep of deps) {
           if (failed.has(dep)) {
-            await skipTask(taskId, `Skipped: dependency '${dep}' failed`);
+            await skipTask(taskId, `Skipped: dependency '${dep}' failed`, true);
             break;
           }
         }
       }
 
-      // Filter: exclude failed, in-flight, and meeting-blocked tasks
-      const launchable = ready.filter((id) => !failed.has(id) && !inFlight.has(id) && !meetingBlocked.has(id));
+      // Filter: exclude failed, skipped, in-flight, and meeting-blocked tasks
+      const launchable = ready.filter((id) => !failed.has(id) && !skipped.has(id) && !inFlight.has(id) && !meetingBlocked.has(id));
 
       // Fill available slots with ready tasks (streaming-parallel)
       const slots = MAX_CONCURRENT - inFlight.size;
