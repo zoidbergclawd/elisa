@@ -58,7 +58,7 @@ function truncate(str: string, max: number): string {
 }
 
 /** Get the requirement color for a task based on its first requirement_id */
-function getRequirementColor(task: Task, _requirements?: Array<{ type: string; description: string }>): string | null {
+function getRequirementColor(task: Task): string | null {
   if (!task.requirement_ids || task.requirement_ids.length === 0) return null;
   const reqId = task.requirement_ids[0];
   const match = reqId.match(/req-(\d+)/);
@@ -263,7 +263,7 @@ function TaskDAGInner({
       const layoutNodes: Node[] = (layout.children || []).map(node => {
         const task = displayTasks.find(t => t.id === node.id)!;
         const isParallel = parallelTaskIds.has(task.id);
-        const reqColor = getRequirementColor(task, requirements);
+        const reqColor = getRequirementColor(task);
         const isHighlighted = hoveredReqId
           ? task.requirement_ids?.includes(hoveredReqId)
           : true;
@@ -332,7 +332,7 @@ function TaskDAGInner({
     } catch {
       // Layout failed, skip
     }
-  }, [displayTasks, agents, elkGraph, fitView, parallelTaskIds, requirements, hoveredReqId, isComplete]);
+  }, [displayTasks, agents, elkGraph, fitView, parallelTaskIds, hoveredReqId, isComplete]);
 
   useEffect(() => {
     layoutNodes(); // eslint-disable-line react-hooks/set-state-in-effect

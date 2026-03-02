@@ -36,7 +36,7 @@ export default function App() {
     serialLines, deployProgress, deployChecklist, deployUrls, gateRequest, questionRequest,
     nuggetDir, errorNotification, narratorMessages, isPlanning,
     flashWizardState, contextFlows, traceability, correctionCycles,
-    decomposition, impactEstimate, healthUpdate, healthSummary, healthHistory, boundaryAnalysis,
+    impactEstimate, healthUpdate, healthSummary, healthHistory, boundaryAnalysis,
     handleEvent, startBuild, stopBuild, clearGateRequest, clearQuestionRequest,
     clearErrorNotification, resetToDesign,
   } = useBuildSession();

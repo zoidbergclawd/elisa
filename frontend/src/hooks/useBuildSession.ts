@@ -1,6 +1,6 @@
 import { useReducer, useCallback, useRef } from 'react';
 import type { NuggetSpec } from '../components/BlockCanvas/blockInterpreter';
-import type { UIState, Task, Agent, Commit, WSEvent, TeachingMoment, TestResult, TokenUsage, QuestionPayload, NarratorMessage, TraceabilityRequirement, TraceabilitySummary, CorrectionCycleState, HealthHistoryEntry } from '../types';
+import type { UIState, Task, Agent, Commit, WSEvent, TeachingMoment, TestResult, TokenUsage, QuestionPayload, NarratorMessage, TraceabilitySummary, CorrectionCycleState, HealthHistoryEntry } from '../types';
 import { authFetch } from '../lib/apiClient';
 
 export const MAX_EVENTS = 500;

@@ -26,6 +26,7 @@ function LaunchPadCanvas({ canvasState, onCanvasUpdate, onMaterialize }: CanvasP
   const [materializeMsg, setMaterializeMsg] = useState('');
 
   // Sync from canvasState.data (agent-driven updates)
+  /* eslint-disable react-hooks/set-state-in-effect -- syncing external canvas state to local state */
   useEffect(() => {
     const d = canvasState.data;
     if (typeof d.template === 'string' && d.template !== selectedTemplate) {
@@ -44,6 +45,7 @@ function LaunchPadCanvas({ canvasState, onCanvasUpdate, onMaterialize }: CanvasP
       setAccentColor(d.accent_color);
     }
   }, [canvasState.data]); // eslint-disable-line react-hooks/exhaustive-deps
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const template = useMemo(
     () => LAYOUT_TEMPLATES.find((t) => t.id === selectedTemplate),

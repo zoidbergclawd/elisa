@@ -50,12 +50,14 @@ function ThemePickerCanvas({ canvasState, onCanvasUpdate, onMaterialize }: Canva
   );
 
   // Sync from canvasState.data (agent-driven updates)
+  /* eslint-disable react-hooks/set-state-in-effect -- syncing external canvas state to local state */
   useEffect(() => {
     const incoming = canvasState.data.currentTheme;
     if (typeof incoming === 'string' && incoming !== selectedId) {
       setSelectedId(incoming);
     }
   }, [canvasState.data.currentTheme]); // eslint-disable-line react-hooks/exhaustive-deps
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const selectedTheme = DEFAULT_THEMES.find((t) => t.id === selectedId);
 

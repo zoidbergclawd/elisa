@@ -14,6 +14,7 @@ function ExplainItCanvas({ canvasState, onCanvasUpdate, onMaterialize }: CanvasP
   const [materializeMsg, setMaterializeMsg] = useState('');
 
   // Sync title/content from canvasState.data (agent-driven updates)
+  /* eslint-disable react-hooks/set-state-in-effect -- syncing external canvas state to local state */
   useEffect(() => {
     const d = canvasState.data;
     if (typeof d.title === 'string' && d.title !== title) {
@@ -23,6 +24,7 @@ function ExplainItCanvas({ canvasState, onCanvasUpdate, onMaterialize }: CanvasP
       setContent(d.content);
     }
   }, [canvasState.data]); // eslint-disable-line react-hooks/exhaustive-deps
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Agent suggestions come from canvasState.data
   const suggestions = useMemo<Suggestion[]>(() => {

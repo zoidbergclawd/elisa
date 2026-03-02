@@ -53,6 +53,7 @@ function CampaignCanvas({ canvasState, onCanvasUpdate, onMaterialize }: CanvasPr
   ]);
 
   // Sync from canvasState.data (agent-driven updates)
+  /* eslint-disable react-hooks/set-state-in-effect -- syncing external canvas state to local state */
   useEffect(() => {
     const d = canvasState.data;
     if (typeof d.poster_title === 'string' && d.poster_title !== poster.title) {
@@ -73,6 +74,7 @@ function CampaignCanvas({ canvasState, onCanvasUpdate, onMaterialize }: CanvasPr
       }
     }
   }, [canvasState.data]); // eslint-disable-line react-hooks/exhaustive-deps
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleSave = async () => {
     const data = {

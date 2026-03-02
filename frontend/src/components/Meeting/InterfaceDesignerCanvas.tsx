@@ -29,6 +29,7 @@ function InterfaceDesignerCanvas({ canvasState, onCanvasUpdate, onMaterialize }:
   const [materializeMsg, setMaterializeMsg] = useState('');
 
   // Sync from canvasState.data (agent-driven updates)
+  /* eslint-disable react-hooks/set-state-in-effect -- syncing external canvas state to local state */
   useEffect(() => {
     const d = canvasState.data;
     if (Array.isArray(d.provides)) {
@@ -47,7 +48,8 @@ function InterfaceDesignerCanvas({ canvasState, onCanvasUpdate, onMaterialize }:
         .map((r) => ({ id: generateId(), name: r.name, type: r.type as InterfaceType }));
       if (incoming.length > 0) setRequires(incoming);
     }
-  }, [canvasState.data]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [canvasState.data]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const addProvide = () => {
     const trimmed = newProvideName.trim();

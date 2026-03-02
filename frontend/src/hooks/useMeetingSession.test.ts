@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useMeetingSession } from './useMeetingSession';
-import type { WSEvent } from '../types';
 
 // Mock authFetch
 vi.mock('../lib/apiClient', () => ({

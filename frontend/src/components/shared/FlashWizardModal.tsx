@@ -88,6 +88,8 @@ export default function FlashWizardModal({
     }
   }, [currentStep, allChecklistDone]);
 
+  /* eslint-disable react-hooks/set-state-in-effect -- flash wizard state machine transitions driven by prop changes */
+
   // Transition to flashing step
   useEffect(() => {
     if (isFlashing && currentStep === 'connect') {
@@ -143,6 +145,8 @@ export default function FlashWizardModal({
 
     return stopHeartbeat;
   }, [currentStep, agentId, stopHeartbeat]);
+
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleRetryHeartbeat = useCallback(() => {
     setHeartbeatStatus('polling');

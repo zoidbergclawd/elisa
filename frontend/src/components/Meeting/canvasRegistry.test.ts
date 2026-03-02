@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { registerCanvas, getCanvas, getRegisteredCanvasTypes } from './canvasRegistry';
 import type { ComponentType } from 'react';
 import type { CanvasProps } from './canvasRegistry';
