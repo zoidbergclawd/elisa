@@ -39,3 +39,7 @@ build/icon.icns
 
 # Worktrees
 .worktrees/
+
+# Firmware binaries (built locally via build-firmware.sh)
+devices/*/firmware/*.bin
+devices/*/firmware/partitions/
