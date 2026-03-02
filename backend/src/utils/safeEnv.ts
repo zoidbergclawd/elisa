@@ -2,5 +2,6 @@
 export function safeEnv(): NodeJS.ProcessEnv {
   const env = { ...process.env };
   delete env.ANTHROPIC_API_KEY;
+  delete env.OPENAI_API_KEY;
   return env;
 }
