@@ -59,6 +59,7 @@ export function MeetingProvider({ children, sessionId }: MeetingProviderProps) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useMeetingContext(): MeetingContextValue {
   const ctx = useContext(MeetingContext);
   if (!ctx) {

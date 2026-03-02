@@ -228,7 +228,7 @@ describe('useWebSocket', () => {
         agents: [{ name: 'Sparky', role: 'builder', persona: '', status: 'working' }],
       }),
     });
-    globalThis.fetch = fetchMock;
+    vi.stubGlobal('fetch', fetchMock);
 
     const onEvent = vi.fn();
     renderHook(() => useWebSocket({ sessionId: 'sess-1', onEvent }));
@@ -261,26 +261,22 @@ describe('useWebSocket', () => {
         agents: expect.arrayContaining([expect.objectContaining({ name: 'Sparky' })]),
       }),
     );
-
-    globalThis.fetch = globalThis.fetch; // cleanup
   });
 
   it('does not fetch session state on initial connect (P1 #4)', () => {
     const fetchMock = vi.fn();
-    globalThis.fetch = fetchMock;
+    vi.stubGlobal('fetch', fetchMock);
 
     const onEvent = vi.fn();
     renderHook(() => useWebSocket({ sessionId: 'sess-1', onEvent }));
 
     act(() => MockWebSocket.instances[0].simulateOpen());
     expect(fetchMock).not.toHaveBeenCalled();
-
-    globalThis.fetch = globalThis.fetch;
   });
 
   it('handles reconnect sync failure gracefully (P1 #4)', async () => {
     const fetchMock = vi.fn().mockRejectedValue(new Error('Network error'));
-    globalThis.fetch = fetchMock;
+    vi.stubGlobal('fetch', fetchMock);
 
     const onEvent = vi.fn();
     renderHook(() => useWebSocket({ sessionId: 'sess-1', onEvent }));
@@ -300,7 +296,5 @@ describe('useWebSocket', () => {
 
     // session_started should still be dispatched
     expect(onEvent).toHaveBeenCalledWith({ type: 'session_started', session_id: 'sess-1' });
-
-    globalThis.fetch = globalThis.fetch;
   });
 });
