@@ -43,5 +43,6 @@ export interface MeetingSession {
   agentName: string;
   title: string;
   description: string;
+  focusContext?: string;
   createdAt: number;
 }

@@ -13,7 +13,7 @@ export interface MaterializeResult {
 function materializeExplainIt(data: Record<string, unknown>): { files: Array<{ path: string; content: string }>; primaryFile: string } {
   const title = typeof data.title === 'string' ? data.title.trim() : 'README';
   const content = typeof data.content === 'string' ? data.content : '';
-  const filename = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '.md';
+  const filename = 'docs/' + title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '.md';
   const header = `# ${title}\n\n`;
   return {
     files: [{ path: filename, content: header + content }],
@@ -50,8 +50,8 @@ ${layoutHtml}
 </html>`;
 
   return {
-    files: [{ path: 'launch-page.html', content: html }],
-    primaryFile: 'launch-page.html',
+    files: [{ path: 'web/launch-page.html', content: html }],
+    primaryFile: 'web/launch-page.html',
   };
 }
 
@@ -125,7 +125,7 @@ function materializeCampaign(data: Record<string, unknown>): { files: Array<{ pa
   </div>
 </body>
 </html>`;
-    files.push({ path: 'poster.html', content: posterHtml });
+    files.push({ path: 'marketing/poster.html', content: posterHtml });
   }
 
   const headline = typeof data.headline === 'string' ? data.headline : '';
@@ -154,11 +154,11 @@ function materializeCampaign(data: Record<string, unknown>): { files: Array<{ pa
   </div>
 </body>
 </html>`;
-    files.push({ path: 'social-card.html', content: socialHtml });
+    files.push({ path: 'marketing/social-card.html', content: socialHtml });
   }
 
   if (files.length === 0) {
-    files.push({ path: 'poster.html', content: '<html><body><h1>Campaign</h1></body></html>' });
+    files.push({ path: 'marketing/poster.html', content: '<html><body><h1>Campaign</h1></body></html>' });
   }
 
   return { files, primaryFile: files[0].path };
@@ -171,8 +171,8 @@ function materializeInterfaceDesigner(data: Record<string, unknown>): { files: A
 
   const contract = JSON.stringify({ provides, requires, connections }, null, 2);
   return {
-    files: [{ path: 'interfaces.json', content: contract }],
-    primaryFile: 'interfaces.json',
+    files: [{ path: 'design/interfaces.json', content: contract }],
+    primaryFile: 'design/interfaces.json',
   };
 }
 
@@ -180,8 +180,8 @@ function materializeThemePicker(data: Record<string, unknown>): { files: Array<{
   const themeId = typeof data.theme_id === 'string' ? data.theme_id : typeof data.currentTheme === 'string' ? data.currentTheme : 'default';
   const config = JSON.stringify({ theme_id: themeId, selected_at: new Date().toISOString() }, null, 2);
   return {
-    files: [{ path: 'theme-config.json', content: config }],
-    primaryFile: 'theme-config.json',
+    files: [{ path: 'design/theme-config.json', content: config }],
+    primaryFile: 'design/theme-config.json',
   };
 }
 
@@ -210,7 +210,7 @@ function materializeDesignPreview(data: Record<string, unknown>): { files: Array
     exported_at: new Date().toISOString(),
   }, null, 2);
 
-  const filename = sceneTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-design.json';
+  const filename = 'design/' + sceneTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-design.json';
   return {
     files: [{ path: filename, content: spec }],
     primaryFile: filename,

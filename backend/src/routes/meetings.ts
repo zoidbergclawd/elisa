@@ -6,7 +6,35 @@ import type { MeetingAgentService, MeetingBuildContext } from '../services/meeti
 import type { SessionStore, SessionEntry } from '../services/sessionStore.js';
 import type { SendEvent, WSEvent } from '../services/phases/types.js';
 import type { MeetingMessage } from '../models/meeting.js';
+import type { MeetingSession } from '../models/meeting.js';
 import { materialize, getMaterializableTypes } from '../services/meetingMaterializer.js';
+
+/** Canvas types that are pre-populated with build data on accept and should not be overwritten. */
+const PRE_POPULATED_CANVAS_TYPES = new Set(['blueprint']);
+
+/**
+ * Build a list of previously designed element names/descriptions from completed
+ * or active design-task-agent meetings in this session (excluding the current meeting).
+ */
+function buildPreviousDesigns(meetingService: MeetingService, sessionId: string, currentMeetingId: string): string[] {
+  const allMeetings = meetingService.getMeetingsForSession(sessionId);
+  const previous: string[] = [];
+  for (const m of allMeetings) {
+    if (m.id === currentMeetingId) continue;
+    if (m.meetingTypeId !== 'design-task-agent') continue;
+    if (m.status !== 'completed' && m.status !== 'active') continue;
+    const elements = m.canvas?.data?.elements;
+    if (Array.isArray(elements)) {
+      for (const el of elements) {
+        const e = el as Record<string, unknown>;
+        const name = typeof e.name === 'string' ? e.name : '';
+        const desc = typeof e.description === 'string' ? e.description : '';
+        if (name) previous.push(desc ? `${name}: ${desc}` : name);
+      }
+    }
+  }
+  return previous;
+}
 
 /** Check if an agent message contains a closing question (e.g. "Ready to build?"). */
 export function isClosingQuestion(text: string): boolean {
@@ -127,12 +155,20 @@ export function createMeetingRouter({ store, meetingService, meetingAgentService
     // Fire-and-forget: generate a contextual agent follow-up after the canned greeting
     const meetingType = meetingService.getMeetingType(meeting.meetingTypeId);
     if (meetingType) {
-      meetingAgentService.generateResponse(meetingType, result.messages, buildContext)
+      const focusContext = meeting.focusContext;
+      const previousDesigns = buildPreviousDesigns(meetingService, sessionId, req.params.meetingId);
+      const agentOptions = (focusContext || previousDesigns.length > 0)
+        ? { focusContext, previousDesigns }
+        : undefined;
+      const hasPrePopulatedCanvas = Object.keys(result.canvas?.data ?? {}).length > 0;
+
+      meetingAgentService.generateResponse(meetingType, result.messages, buildContext, agentOptions)
         .then(async (response) => {
           if (response.text) {
             await meetingService.sendMessage(req.params.meetingId, 'agent', response.text, makeSend(sessionId));
           }
-          if (response.canvasUpdate) {
+          // Skip canvas update if meeting was pre-populated with build data
+          if (response.canvasUpdate && !hasPrePopulatedCanvas) {
             await meetingService.updateCanvas(req.params.meetingId, response.canvasUpdate, makeSend(sessionId));
           }
         })
@@ -208,12 +244,19 @@ export function createMeetingRouter({ store, meetingService, meetingAgentService
       const session = store.get(sessionId);
       const buildContext = buildMeetingContext(session);
       const currentMeeting = meetingService.getMeeting(meetingId);
-      meetingAgentService.generateResponse(meetingType, currentMeeting?.messages ?? [], buildContext)
+      const focusContext = currentMeeting?.focusContext;
+      const previousDesigns = buildPreviousDesigns(meetingService, sessionId, meetingId);
+      const agentOptions = (focusContext || previousDesigns.length > 0)
+        ? { focusContext, previousDesigns }
+        : undefined;
+      const skipCanvasUpdate = PRE_POPULATED_CANVAS_TYPES.has(currentMeeting?.canvas?.type ?? '');
+
+      meetingAgentService.generateResponse(meetingType, currentMeeting?.messages ?? [], buildContext, agentOptions)
         .then(async (response) => {
           if (response.text) {
             await meetingService.sendMessage(meetingId, 'agent', response.text, makeSend(sessionId));
           }
-          if (response.canvasUpdate && Object.keys(response.canvasUpdate).length > 0) {
+          if (response.canvasUpdate && Object.keys(response.canvasUpdate).length > 0 && !skipCanvasUpdate) {
             await meetingService.updateCanvas(meetingId, response.canvasUpdate, makeSend(sessionId));
           }
 

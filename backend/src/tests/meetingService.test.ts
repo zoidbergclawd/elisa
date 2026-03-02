@@ -61,6 +61,18 @@ describe('MeetingService', () => {
       expect(meeting!.title).toBe('Custom Title');
       expect(meeting!.description).toBe('Custom description');
     });
+
+    it('stores focusContext when provided', async () => {
+      const meeting = await service.createInvite('test-meeting', 'session-1', send, {
+        focusContext: 'Task: Implement spaceship\nDescription: Create the spaceship sprite',
+      });
+      expect(meeting!.focusContext).toBe('Task: Implement spaceship\nDescription: Create the spaceship sprite');
+    });
+
+    it('omits focusContext when not provided', async () => {
+      const meeting = await service.createInvite('test-meeting', 'session-1', send);
+      expect(meeting!.focusContext).toBeUndefined();
+    });
   });
 
   describe('acceptMeeting', () => {

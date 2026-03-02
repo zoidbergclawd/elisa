@@ -26,6 +26,7 @@ import { TaskDAG } from '../../utils/dag.js';
 import { MAX_CONCURRENT_TASKS, MEETING_BLOCK_TIMEOUT_MS } from '../../utils/constants.js';
 import type { MeetingTriggerWiring } from '../meetingTriggerWiring.js';
 import type { MeetingService } from '../meetingService.js';
+import { DESIGN_KEYWORDS, SCAFFOLD_SKIP_KEYWORDS } from '../taskMeetingTypes.js';
 import type { SystemLevel } from '../systemLevelService.js';
 import { PromptBuilder, sanitizePlaceholder } from './promptBuilder.js';
 import { TaskExecutor } from './taskExecutor.js';
@@ -256,7 +257,7 @@ export class ExecutePhase {
 
     // Quick keyword check -- the trigger filter is synchronous
     const text = `${task.name ?? ''} ${task.description ?? ''}`.toLowerCase();
-    const DESIGN_KEYWORDS = /sprite|art|icon|theme|logo|animation|design|visual|image|graphic|appearance|style|color|palette|layout/i;
+    if (SCAFFOLD_SKIP_KEYWORDS.test(text)) return false;
     return DESIGN_KEYWORDS.test(text);
   }
 

@@ -96,6 +96,7 @@ export class MeetingAgentService {
     meetingType: MeetingType,
     messages: MeetingMessage[],
     buildContext: MeetingBuildContext,
+    options?: { focusContext?: string; previousDesigns?: string[] },
   ): Promise<AgentResponse> {
     if (!this.client) {
       this.client = getAnthropicClient();
@@ -105,9 +106,9 @@ export class MeetingAgentService {
     const canvasInstructions = CANVAS_INSTRUCTIONS[meetingType.canvasType];
 
     // Build both calls
-    const chatPromise = this.callChat(meetingType, claudeMessages, buildContext);
+    const chatPromise = this.callChat(meetingType, claudeMessages, buildContext, options);
     const canvasPromise = canvasInstructions
-      ? this.callCanvas(meetingType, claudeMessages, buildContext, canvasInstructions)
+      ? this.callCanvas(meetingType, claudeMessages, buildContext, canvasInstructions, options)
       : Promise.resolve(undefined);
 
     // Run in parallel, graceful failure for each
@@ -136,8 +137,9 @@ export class MeetingAgentService {
     meetingType: MeetingType,
     claudeMessages: Array<{ role: 'user' | 'assistant'; content: string }>,
     ctx: MeetingBuildContext,
+    options?: { focusContext?: string; previousDesigns?: string[] },
   ): Promise<string> {
-    const systemPrompt = this.buildChatSystemPrompt(meetingType, ctx);
+    const systemPrompt = this.buildChatSystemPrompt(meetingType, ctx, options);
 
     const response = await withTimeout(
       this.client!.messages.create({
@@ -157,8 +159,9 @@ export class MeetingAgentService {
     claudeMessages: Array<{ role: 'user' | 'assistant'; content: string }>,
     ctx: MeetingBuildContext,
     canvasInstructions: string,
+    options?: { focusContext?: string; previousDesigns?: string[] },
   ): Promise<Record<string, unknown> | undefined> {
-    const systemPrompt = this.buildCanvasSystemPrompt(meetingType, ctx, canvasInstructions, claudeMessages);
+    const systemPrompt = this.buildCanvasSystemPrompt(meetingType, ctx, canvasInstructions, claudeMessages, options);
 
     const response = await withTimeout(
       this.client!.messages.create({
@@ -174,7 +177,11 @@ export class MeetingAgentService {
     return this.parseCanvasResponse(raw);
   }
 
-  private buildChatSystemPrompt(meetingType: MeetingType, ctx: MeetingBuildContext): string {
+  private buildChatSystemPrompt(
+    meetingType: MeetingType,
+    ctx: MeetingBuildContext,
+    options?: { focusContext?: string; previousDesigns?: string[] },
+  ): string {
     const parts: string[] = [];
 
     parts.push(`You are ${meetingType.agentName}, a meeting agent in a kids' coding app called Elisa.`);
@@ -208,6 +215,18 @@ export class MeetingAgentService {
       parts.push(`Devices: ${ctx.devices.map(d => `${d.name} (${d.type})`).join(', ')}`);
     }
 
+    if (options?.focusContext) {
+      parts.push(`\n## Your Focus`);
+      parts.push(`Design ONLY elements for this task: ${options.focusContext}`);
+      parts.push('Do NOT redesign previous elements.');
+    }
+
+    if (options?.previousDesigns && options.previousDesigns.length > 0) {
+      parts.push(`\n## Already Designed`);
+      parts.push(options.previousDesigns.join('; '));
+      parts.push('Reference these for consistency but do not include them in canvas data.');
+    }
+
     parts.push('\n## Rules');
     parts.push('- Keep responses to 2-4 sentences. Kids have short attention spans.');
     parts.push('- Use simple, kid-friendly language (ages 8-14).');
@@ -224,6 +243,7 @@ export class MeetingAgentService {
     ctx: MeetingBuildContext,
     canvasInstructions: string,
     claudeMessages?: Array<{ role: 'user' | 'assistant'; content: string }>,
+    options?: { focusContext?: string; previousDesigns?: string[] },
   ): string {
     const parts: string[] = [];
 
@@ -257,6 +277,17 @@ export class MeetingAgentService {
         parts.push(`The user has been discussing: ${recentUserMessages.join('; ')}`);
         parts.push('Generate canvas data that reflects this conversation.');
       }
+    }
+
+    if (options?.focusContext) {
+      parts.push(`\n## Scope`);
+      parts.push(`Generate data ONLY for: ${options.focusContext}`);
+    }
+
+    if (options?.previousDesigns && options.previousDesigns.length > 0) {
+      parts.push(`\n## Previously Designed`);
+      parts.push(options.previousDesigns.join('; '));
+      parts.push('Do NOT include these elements in your output.');
     }
 
     parts.push('\n## Output Format');

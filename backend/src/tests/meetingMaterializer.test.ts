@@ -43,7 +43,7 @@ describe('materialize design-preview', () => {
     }, dir);
 
     expect(result).not.toBeNull();
-    expect(result!.primaryFile).toBe('starfield-design.json');
+    expect(result!.primaryFile).toBe('design/starfield-design.json');
     expect(result!.files).toHaveLength(1);
 
     const content = JSON.parse(fs.readFileSync(path.join(dir, result!.primaryFile), 'utf-8'));
@@ -99,6 +99,58 @@ describe('materialize design-preview', () => {
     const content = JSON.parse(fs.readFileSync(path.join(dir, result!.primaryFile), 'utf-8'));
     expect(content.elements[0].color).toBeUndefined();
     expect(content.elements[0].draw).toBeUndefined();
+  });
+});
+
+describe('materialize subdirectory organization', () => {
+  it('explain-it writes to docs/ subdirectory', () => {
+    const dir = makeTmpDir();
+    const result = materialize('explain-it', { title: 'My Guide', content: 'Hello world' }, dir);
+    expect(result).not.toBeNull();
+    expect(result!.primaryFile).toBe('docs/my-guide.md');
+    expect(fs.existsSync(path.join(dir, 'docs', 'my-guide.md'))).toBe(true);
+  });
+
+  it('launch-pad writes to web/ subdirectory', () => {
+    const dir = makeTmpDir();
+    const result = materialize('launch-pad', { headline: 'Test', description: 'A test' }, dir);
+    expect(result).not.toBeNull();
+    expect(result!.primaryFile).toBe('web/launch-page.html');
+    expect(fs.existsSync(path.join(dir, 'web', 'launch-page.html'))).toBe(true);
+  });
+
+  it('campaign writes to marketing/ subdirectory', () => {
+    const dir = makeTmpDir();
+    const result = materialize('campaign', { poster_title: 'Big Launch', headline: 'Wow', tagline: 'Cool' }, dir);
+    expect(result).not.toBeNull();
+    expect(result!.files).toContain('marketing/poster.html');
+    expect(result!.files).toContain('marketing/social-card.html');
+    expect(fs.existsSync(path.join(dir, 'marketing', 'poster.html'))).toBe(true);
+    expect(fs.existsSync(path.join(dir, 'marketing', 'social-card.html'))).toBe(true);
+  });
+
+  it('design-preview writes to design/ subdirectory', () => {
+    const dir = makeTmpDir();
+    const result = materialize('design-preview', { scene_title: 'Ship', elements: [] }, dir);
+    expect(result).not.toBeNull();
+    expect(result!.primaryFile).toBe('design/ship-design.json');
+    expect(fs.existsSync(path.join(dir, 'design', 'ship-design.json'))).toBe(true);
+  });
+
+  it('theme-picker writes to design/ subdirectory', () => {
+    const dir = makeTmpDir();
+    const result = materialize('theme-picker', { currentTheme: 'forest' }, dir);
+    expect(result).not.toBeNull();
+    expect(result!.primaryFile).toBe('design/theme-config.json');
+    expect(fs.existsSync(path.join(dir, 'design', 'theme-config.json'))).toBe(true);
+  });
+
+  it('interface-designer writes to design/ subdirectory', () => {
+    const dir = makeTmpDir();
+    const result = materialize('interface-designer', { provides: [], requires: [] }, dir);
+    expect(result).not.toBeNull();
+    expect(result!.primaryFile).toBe('design/interfaces.json');
+    expect(fs.existsSync(path.join(dir, 'design', 'interfaces.json'))).toBe(true);
   });
 });
 

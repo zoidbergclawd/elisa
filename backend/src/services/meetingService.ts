@@ -33,7 +33,7 @@ export class MeetingService {
     meetingTypeId: string,
     sessionId: string,
     send: SendEvent,
-    overrides?: { title?: string; description?: string },
+    overrides?: { title?: string; description?: string; focusContext?: string },
   ): Promise<MeetingSession | null> {
     const meetingType = this.registry.getById(meetingTypeId);
     if (!meetingType) {
@@ -56,6 +56,7 @@ export class MeetingService {
       agentName: meetingType.agentName,
       title,
       description,
+      ...(overrides?.focusContext ? { focusContext: overrides.focusContext } : {}),
       createdAt: Date.now(),
     };
 

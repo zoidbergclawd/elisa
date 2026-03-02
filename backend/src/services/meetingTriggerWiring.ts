@@ -83,6 +83,7 @@ export class MeetingTriggerWiring {
         {
           title: `${match.meetingType.name}: ${taskData.task_title}`,
           description: `${match.meetingType.agentName} wants to help design "${taskData.task_title}" before building it!`,
+          focusContext: `Task: ${taskData.task_title}\nDescription: ${taskData.task_description}`,
         },
       );
       if (meeting) {
