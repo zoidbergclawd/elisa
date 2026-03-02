@@ -5,6 +5,7 @@ import canvasSvg from '../../../assets/canvas.svg';
 import scribeSvg from '../../../assets/scribe.svg';
 import stylerSvg from '../../../assets/styler.svg';
 import interfaceDesignerSvg from '../../../assets/interface-designer.svg';
+import blueprintSvg from '../../../assets/blueprint.svg';
 import bugDetectiveSvg from '../../../assets/bug-detective.svg';
 
 interface AgentAvatarProps {
@@ -17,7 +18,7 @@ const AGENT_AVATARS: Record<string, string> = {
   canvas: canvasSvg,
   scribe: scribeSvg,
   styler: stylerSvg,
-  blueprint: '', // no custom SVG yet
+  blueprint: blueprintSvg,
   'interface designer': interfaceDesignerSvg,
   'bug detective': bugDetectiveSvg,
 };

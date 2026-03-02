@@ -10,9 +10,11 @@ describe('AgentAvatar', () => {
     expect(img.tagName).toBe('IMG');
   });
 
-  it('renders fallback letter circle for Blueprint (no SVG file)', () => {
+  it('renders img avatar for Blueprint', () => {
     render(<AgentAvatar agentName="Blueprint" />);
-    expect(screen.getByText('B')).toBeInTheDocument();
+    const img = screen.getByRole('img', { name: 'Blueprint avatar' });
+    expect(img).toBeInTheDocument();
+    expect(img.tagName).toBe('IMG');
   });
 
   it('renders img avatar for Bug Detective', () => {
@@ -48,7 +50,7 @@ describe('AgentAvatar', () => {
   });
 
   it('renders all agents with SVG files as img elements', () => {
-    const svgAgents = ['Pixel', 'Canvas', 'Scribe', 'Styler', 'Interface Designer', 'Bug Detective'];
+    const svgAgents = ['Pixel', 'Canvas', 'Scribe', 'Styler', 'Blueprint', 'Interface Designer', 'Bug Detective'];
     for (const agent of svgAgents) {
       const { unmount } = render(<AgentAvatar agentName={agent} />);
       const img = screen.getByRole('img', { name: `${agent} avatar` });
@@ -57,10 +59,10 @@ describe('AgentAvatar', () => {
     }
   });
 
-  it('Blueprint falls back to colored letter circle', () => {
-    const { container } = render(<AgentAvatar agentName="Blueprint" />);
+  it('unknown agent falls back to colored letter circle', () => {
+    const { container } = render(<AgentAvatar agentName="Mystery" />);
     const div = container.firstElementChild as HTMLElement;
-    expect(div.style.backgroundColor).toBe('rgb(59, 130, 246)');
-    expect(screen.getByText('B')).toBeInTheDocument();
+    expect(screen.getByText('M')).toBeInTheDocument();
+    expect(div.tagName).toBe('DIV');
   });
 });
