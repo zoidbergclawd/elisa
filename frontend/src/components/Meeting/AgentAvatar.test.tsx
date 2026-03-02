@@ -3,21 +3,23 @@ import { render, screen } from '@testing-library/react';
 import AgentAvatar from './AgentAvatar';
 
 describe('AgentAvatar', () => {
-  it('renders SVG avatar for known agent (Pixel)', () => {
+  it('renders img avatar for known agent with SVG (Pixel)', () => {
     render(<AgentAvatar agentName="Pixel" />);
-    const svg = screen.getByRole('img', { name: 'Pixel avatar' });
-    expect(svg).toBeInTheDocument();
-    expect(svg.tagName).toBe('svg');
+    const img = screen.getByRole('img', { name: 'Pixel avatar' });
+    expect(img).toBeInTheDocument();
+    expect(img.tagName).toBe('IMG');
   });
 
-  it('renders SVG avatar for known agent (Blueprint)', () => {
+  it('renders fallback letter circle for Blueprint (no SVG file)', () => {
     render(<AgentAvatar agentName="Blueprint" />);
-    expect(screen.getByRole('img', { name: 'Blueprint avatar' })).toBeInTheDocument();
+    expect(screen.getByText('B')).toBeInTheDocument();
   });
 
-  it('renders SVG avatar for known agent (Bug Detective)', () => {
+  it('renders img avatar for Bug Detective', () => {
     render(<AgentAvatar agentName="Bug Detective" />);
-    expect(screen.getByRole('img', { name: 'Bug Detective avatar' })).toBeInTheDocument();
+    const img = screen.getByRole('img', { name: 'Bug Detective avatar' });
+    expect(img).toBeInTheDocument();
+    expect(img.tagName).toBe('IMG');
   });
 
   it('renders fallback letter circle for unknown agent', () => {
@@ -31,33 +33,34 @@ describe('AgentAvatar', () => {
     expect(screen.getByRole('img', { name: 'pixel avatar' })).toBeInTheDocument();
   });
 
-  it('applies custom size', () => {
+  it('applies custom size to img', () => {
     render(<AgentAvatar agentName="Scribe" size={24} />);
-    const svg = screen.getByRole('img', { name: 'Scribe avatar' });
-    expect(svg.getAttribute('width')).toBe('24');
-    expect(svg.getAttribute('height')).toBe('24');
+    const img = screen.getByRole('img', { name: 'Scribe avatar' });
+    expect(img.getAttribute('width')).toBe('24');
+    expect(img.getAttribute('height')).toBe('24');
   });
 
   it('applies default size of 40', () => {
     render(<AgentAvatar agentName="Canvas" />);
-    const svg = screen.getByRole('img', { name: 'Canvas avatar' });
-    expect(svg.getAttribute('width')).toBe('40');
-    expect(svg.getAttribute('height')).toBe('40');
+    const img = screen.getByRole('img', { name: 'Canvas avatar' });
+    expect(img.getAttribute('width')).toBe('40');
+    expect(img.getAttribute('height')).toBe('40');
   });
 
-  it('renders all known agents without errors', () => {
-    const agents = ['Pixel', 'Canvas', 'Scribe', 'Styler', 'Blueprint', 'Interface Designer', 'Bug Detective'];
-    for (const agent of agents) {
+  it('renders all agents with SVG files as img elements', () => {
+    const svgAgents = ['Pixel', 'Canvas', 'Scribe', 'Styler', 'Interface Designer', 'Bug Detective'];
+    for (const agent of svgAgents) {
       const { unmount } = render(<AgentAvatar agentName={agent} />);
-      expect(screen.getByRole('img', { name: `${agent} avatar` })).toBeInTheDocument();
+      const img = screen.getByRole('img', { name: `${agent} avatar` });
+      expect(img.tagName).toBe('IMG');
       unmount();
     }
   });
 
-  it('renders correct color for agent circle', () => {
-    render(<AgentAvatar agentName="Pixel" />);
-    const svg = screen.getByRole('img', { name: 'Pixel avatar' });
-    const circle = svg.querySelector('circle');
-    expect(circle?.getAttribute('fill')).toBe('#8B5CF6');
+  it('Blueprint falls back to colored letter circle', () => {
+    const { container } = render(<AgentAvatar agentName="Blueprint" />);
+    const div = container.firstElementChild as HTMLElement;
+    expect(div.style.backgroundColor).toBe('rgb(59, 130, 246)');
+    expect(screen.getByText('B')).toBeInTheDocument();
   });
 });
