@@ -30,11 +30,14 @@ export interface ActiveMeeting {
 export interface MeetingSessionState {
   inviteQueue: MeetingInvite[];
   activeMeeting: ActiveMeeting | null;
+  /** True when waiting for an agent response after sending a kid message. */
+  isAgentThinking: boolean;
 }
 
 const initialState: MeetingSessionState = {
   inviteQueue: [],
   activeMeeting: null,
+  isAgentThinking: false,
 };
 
 // -- Actions --
@@ -92,6 +95,8 @@ function meetingReducer(state: MeetingSessionState, action: MeetingAction): Meet
       if (!state.activeMeeting || state.activeMeeting.meetingId !== action.meetingId) return state;
       return {
         ...state,
+        // Kid message -> agent is thinking; agent message -> agent is done thinking
+        isAgentThinking: action.role === 'kid',
         activeMeeting: {
           ...state.activeMeeting,
           messages: [...state.activeMeeting.messages, { role: action.role, content: action.content }],
@@ -126,6 +131,7 @@ function meetingReducer(state: MeetingSessionState, action: MeetingAction): Meet
       return {
         ...state,
         activeMeeting: null,
+        isAgentThinking: false,
       };
 
     case 'CLEAR_INVITE':
@@ -310,6 +316,7 @@ export function useMeetingSession(sessionId: string | null) {
     inviteQueue: state.inviteQueue,
     nextInvite,
     activeMeeting: state.activeMeeting,
+    isAgentThinking: state.isAgentThinking,
     messages: state.activeMeeting?.messages ?? [],
     canvasState: state.activeMeeting?.canvasState ?? { type: '', data: {} },
     handleMeetingEvent,

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { TestRunner, parseJsTestOutput } from './testRunner.js';
+import { TimeoutError } from '../utils/withTimeout.js';
 
 // Mock child_process
 vi.mock('node:child_process', () => ({
@@ -188,8 +189,8 @@ describe('TestRunner', () => {
       fs.writeFileSync(path.join(testsDir, 'test_slow.js'), '');
 
       mockExecFile((_cmd: string, _args: string[], _opts: any, cb: Function) => {
-        // Simulate the promisified withTimeout rejecting
-        const err: any = new Error('Timed out');
+        // Simulate the promisified withTimeout rejecting with TimeoutError
+        const err: any = new TimeoutError();
         cb(err);
       });
 

@@ -154,14 +154,23 @@ describe('contentFilter', () => {
       expect(result.flags).not.toContain('topic:violence_against_people');
     });
 
-    // ── Topic flags do not modify content ───────────────────────────
+    // ── Topic flags block response (P2 #11: enforced post-response) ──
 
-    it('topic flags do not redact content (only PII is redacted)', () => {
+    it('topic flags replace content with fallback (not just flagged)', () => {
       const input = 'how to make a bomb';
       const result = filterAgentResponse(input);
 
-      // Content stays the same for topic flags (logged for review, not redacted)
-      expect(result.content).toBe(input);
+      // Content should be replaced with the default fallback when no custom fallback provided
+      expect(result.content).toBe("I'm not sure about that — let me think...");
+      expect(result.content).not.toBe(input);
+      expect(result.flagged).toBe(true);
+    });
+
+    it('topic flags replace content with custom fallback when provided', () => {
+      const input = 'how to make a bomb';
+      const result = filterAgentResponse(input, 'Ask me something else!');
+
+      expect(result.content).toBe('Ask me something else!');
       expect(result.flagged).toBe(true);
     });
   });

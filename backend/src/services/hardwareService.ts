@@ -7,7 +7,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import type { CompileResult, FlashResult, BoardInfo } from '../models/session.js';
 import { safeEnv } from '../utils/safeEnv.js';
-import { withTimeout } from '../utils/withTimeout.js';
+import { withTimeout, TimeoutError } from '../utils/withTimeout.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -192,10 +192,10 @@ export class HardwareService {
         message: `Flashed ${pyFiles.length} file(s) to ${port}`,
       };
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      if (message === 'Timed out') {
+      if (err instanceof TimeoutError) {
         return { success: false, message: 'Flash timed out after 60 seconds' };
       }
+      const message = err instanceof Error ? err.message : String(err);
       const errObj = err as Record<string, unknown>;
       if (errObj.code === 'ENOENT') {
         return { success: false, message: 'mpremote not found. Install it with: pip install mpremote' };

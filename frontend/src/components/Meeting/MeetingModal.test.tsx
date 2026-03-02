@@ -104,4 +104,28 @@ describe('MeetingModal', () => {
     fireEvent.change(input, { target: { value: 'hello' } });
     expect(screen.getByText('Send')).not.toBeDisabled();
   });
+
+  describe('typing indicator (P2 #19 regression)', () => {
+    it('shows thinking indicator when isAgentThinking is true', () => {
+      render(<MeetingModal {...defaultProps} isAgentThinking={true} />);
+      expect(screen.getByTestId('agent-thinking-indicator')).toBeInTheDocument();
+      expect(screen.getByText('thinking...')).toBeInTheDocument();
+    });
+
+    it('hides thinking indicator when isAgentThinking is false', () => {
+      render(<MeetingModal {...defaultProps} isAgentThinking={false} />);
+      expect(screen.queryByTestId('agent-thinking-indicator')).not.toBeInTheDocument();
+    });
+
+    it('hides thinking indicator by default', () => {
+      render(<MeetingModal {...defaultProps} />);
+      expect(screen.queryByTestId('agent-thinking-indicator')).not.toBeInTheDocument();
+    });
+
+    it('shows agent name in thinking indicator', () => {
+      render(<MeetingModal {...defaultProps} isAgentThinking={true} />);
+      const indicator = screen.getByTestId('agent-thinking-indicator');
+      expect(indicator).toHaveTextContent('Pixel');
+    });
+  });
 });

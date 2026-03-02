@@ -42,7 +42,7 @@ export default function App() {
   } = useBuildSession();
 
   const {
-    inviteQueue, nextInvite, activeMeeting, messages: meetingMessages, canvasState: meetingCanvasState,
+    inviteQueue, nextInvite, activeMeeting, isAgentThinking, messages: meetingMessages, canvasState: meetingCanvasState,
     handleMeetingEvent, acceptInvite, declineInvite,
     sendMessage: sendMeetingMessage, endMeeting, updateCanvas: updateMeetingCanvas,
     materializeArtifacts: materializeMeetingArtifacts,
@@ -461,6 +461,7 @@ export default function App() {
           canvasType={activeMeeting.canvasType}
           canvasState={meetingCanvasState}
           messages={meetingMessages}
+          isAgentThinking={isAgentThinking}
           onSendMessage={sendMeetingMessage}
           onCanvasUpdate={updateMeetingCanvas}
           onEndMeeting={endMeeting}

@@ -7,7 +7,7 @@
 
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentResult } from '../models/session.js';
-import { withTimeout } from '../utils/withTimeout.js';
+import { withTimeout, TimeoutError } from '../utils/withTimeout.js';
 import { MAX_TURNS_DEFAULT } from '../utils/constants.js';
 
 /** SDK assistant message shape (subset we consume). */
@@ -86,8 +86,7 @@ export class AgentRunner {
     } catch (err: unknown) {
       // Ensure the query is aborted on timeout or any error
       abortController.abort();
-      const message = err instanceof Error ? err.message : String(err);
-      if (message === 'Timed out') {
+      if (err instanceof TimeoutError) {
         return {
           success: false,
           summary: `Agent timed out after ${timeout} seconds`,
@@ -98,7 +97,7 @@ export class AgentRunner {
       }
       return {
         success: false,
-        summary: message,
+        summary: err instanceof Error ? err.message : String(err),
         costUsd: 0,
         inputTokens: 0,
         outputTokens: 0,
@@ -146,7 +145,7 @@ export class AgentRunner {
         for (const block of assistantMsg.message?.content ?? []) {
           if (block.type === 'text' && block.text) {
             accumulatedText.push(block.text);
-            onOutput(taskId, block.text).catch(() => {});
+            onOutput(taskId, block.text).catch((err) => { console.error('[agentRunner] onOutput failed:', err instanceof Error ? err.message : err); });
           }
         }
       }

@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { safeEnv } from '../utils/safeEnv.js';
-import { withTimeout } from '../utils/withTimeout.js';
+import { withTimeout, TimeoutError } from '../utils/withTimeout.js';
 import { TEST_TIMEOUT_MS } from '../utils/constants.js';
 
 /** Error subtype augmented with child process stdout/stderr for diagnostics. */
@@ -122,8 +122,7 @@ export class TestRunner {
         stdout = result.stdout ?? '';
       } catch (err: unknown) {
         const execErr = err as ExecError;
-        const message = err instanceof Error ? err.message : String(err);
-        if (message === 'Timed out') {
+        if (err instanceof TimeoutError) {
           tests.push({ test_name: file, passed: false, details: 'Test run timed out' });
           failedCount++;
           continue;
@@ -197,8 +196,7 @@ export class TestRunner {
       stderr = result.stderr ?? '';
     } catch (err: unknown) {
       const execErr = err as ExecError;
-      const message = err instanceof Error ? err.message : String(err);
-      if (message === 'Timed out') {
+      if (err instanceof TimeoutError) {
         this.cleanupCovFile(covJsonPath);
         return {
           tests: [{ test_name: 'pytest', passed: false, details: 'Test run timed out' }],

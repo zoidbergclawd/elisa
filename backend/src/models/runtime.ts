@@ -47,6 +47,8 @@ export interface ConversationSession {
   agent_id: string;
   turns: ConversationTurn[];
   created_at: number;
+  /** Timestamp of last activity (turn added). Used for TTL-based cleanup. */
+  last_active_at?: number;
 }
 
 // ── Usage Metering ────────────────────────────────────────────────────

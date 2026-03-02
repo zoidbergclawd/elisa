@@ -2,6 +2,7 @@
 
 import type { Task } from '../models/session.js';
 import type { NuggetSpec } from '../utils/specValidator.js';
+import { sanitizePlaceholder } from '../services/phases/promptBuilder.js';
 
 export const SYSTEM_PROMPT = `\
 You are {agent_name}, a builder agent working on a kid's nugget in Elisa.
@@ -87,8 +88,8 @@ export function formatTaskPrompt(params: {
 }): string {
   const { agentName, role, persona, task, spec, predecessors, style } = params;
   const parts: string[] = [
-    `# Task: ${task.name}`,
-    `\n## Description\n${task.description}`,
+    `# Task: ${sanitizePlaceholder(task.name)}`,
+    `\n## Description\n${sanitizePlaceholder(task.description)}`,
   ];
 
   if (task.acceptance_criteria?.length) {

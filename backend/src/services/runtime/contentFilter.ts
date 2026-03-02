@@ -81,11 +81,11 @@ const REDACTION_MARKER = '***';
 /**
  * Filter agent response content for PII and inappropriate topics.
  *
- * PII is redacted in the output. Inappropriate topics are flagged
- * but content is not modified (the flag can be used for logging
- * and parental dashboard reporting).
+ * PII is redacted in the output. Inappropriate topics cause the
+ * entire response to be replaced with a safe fallback message.
+ * Flags are always returned for logging and parental dashboard.
  */
-export function filterAgentResponse(content: string): FilterResult {
+export function filterAgentResponse(content: string, fallbackResponse?: string): FilterResult {
   const flags: string[] = [];
   let filtered = content;
 
@@ -101,12 +101,18 @@ export function filterAgentResponse(content: string): FilterResult {
     }
   }
 
-  // 2. Check for inappropriate topic indicators (flag only, don't redact)
+  // 2. Check for inappropriate topic indicators — block the entire response
+  let topicBlocked = false;
   for (const { pattern, label } of INAPPROPRIATE_TOPICS) {
     pattern.lastIndex = 0;
     if (pattern.test(content)) {
       flags.push(`topic:${label}`);
+      topicBlocked = true;
     }
+  }
+
+  if (topicBlocked) {
+    filtered = fallbackResponse ?? "I'm not sure about that — let me think...";
   }
 
   return {

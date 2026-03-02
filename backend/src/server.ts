@@ -462,7 +462,9 @@ export function startServer(
   return new Promise((resolve) => {
     server.listen(port, '127.0.0.1', () => {
       console.log(`Elisa backend listening on 127.0.0.1:${port}`);
-      console.log(`Auth token: ${token}`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`Auth token: ${token}`);
+      }
       validateStartupHealth().then(() => {
         console.log(`Health: API key=${healthStatus.apiKey}, SDK=${healthStatus.agentSdk}`);
       });
@@ -481,7 +483,9 @@ if (isDirectRun) {
   const port = Number(process.env.PORT ?? 8000);
   const devToken = process.env.ELISA_AUTH_TOKEN ?? 'dev-token';
   startServer(port, undefined, devToken).then(({ authToken: t }) => {
-    console.log(`Dev auth token: ${t}`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`Dev auth token: ${t}`);
+    }
   }).catch((err) => {
     console.error('Failed to start server:', err.message);
     process.exit(1);

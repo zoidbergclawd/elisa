@@ -26,6 +26,7 @@ export interface MeetingModalProps {
   canvasType: string;
   canvasState: { type: string; data: Record<string, unknown> };
   messages: MeetingMessage[];
+  isAgentThinking?: boolean;
   onSendMessage: (content: string) => void;
   onCanvasUpdate: (data: Record<string, unknown>) => void;
   onEndMeeting: () => void;
@@ -38,6 +39,7 @@ export default function MeetingModal({
   canvasType,
   canvasState,
   messages,
+  isAgentThinking = false,
   onSendMessage,
   onCanvasUpdate,
   onEndMeeting,
@@ -117,6 +119,19 @@ export default function MeetingModal({
                   </div>
                 </div>
               ))}
+              {isAgentThinking && (
+                <div className="flex justify-start" data-testid="agent-thinking-indicator">
+                  <div className="max-w-[85%] rounded-xl px-3 py-2 text-sm bg-atelier-surface text-atelier-text-secondary">
+                    <p className="text-xs font-semibold text-accent-sky mb-1">{agentName}</p>
+                    <p className="flex items-center gap-1">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-accent-sky animate-pulse" />
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-accent-sky animate-pulse [animation-delay:150ms]" />
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-accent-sky animate-pulse [animation-delay:300ms]" />
+                      <span className="ml-2 text-atelier-text-secondary/60 text-xs">thinking...</span>
+                    </p>
+                  </div>
+                </div>
+              )}
               <div ref={messagesEndRef} />
             </div>
 

@@ -18,6 +18,12 @@ const TRUNCATION_RATIO = 0.6;
 /** Number of oldest turns to summarize when the window overflows. */
 const SUMMARIZE_BATCH_SIZE = 10;
 
+/** Default session TTL in milliseconds (30 minutes). */
+const DEFAULT_SESSION_TTL_MS = 30 * 60 * 1000;
+
+/** Default cleanup sweep interval in milliseconds (5 minutes). */
+const DEFAULT_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
+
 export class ConversationManager {
   private sessions = new Map<string, ConversationSession>();
   /** Index: agentId -> set of sessionIds */
@@ -25,15 +31,62 @@ export class ConversationManager {
   private maxWindow: number;
   private consentManager?: ConsentManager;
   private useSummarization: boolean;
+  private sessionTtlMs: number;
+  private sweepTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     maxWindow = DEFAULT_MAX_WINDOW,
     consentManager?: ConsentManager,
     useSummarization = true,
+    sessionTtlMs = DEFAULT_SESSION_TTL_MS,
   ) {
     this.maxWindow = maxWindow;
     this.consentManager = consentManager;
     this.useSummarization = useSummarization;
+    this.sessionTtlMs = sessionTtlMs;
+  }
+
+  /**
+   * Start periodic sweep to remove stale sessions.
+   * Call this once at startup. Safe to call multiple times (idempotent).
+   */
+  startSweep(intervalMs = DEFAULT_SWEEP_INTERVAL_MS): void {
+    if (this.sweepTimer) return;
+    this.sweepTimer = setInterval(() => this.sweepStaleSessions(), intervalMs);
+    // Allow the process to exit even if the timer is still running
+    if (this.sweepTimer && typeof this.sweepTimer === 'object' && 'unref' in this.sweepTimer) {
+      this.sweepTimer.unref();
+    }
+  }
+
+  /**
+   * Stop the periodic sweep timer.
+   */
+  stopSweep(): void {
+    if (this.sweepTimer) {
+      clearInterval(this.sweepTimer);
+      this.sweepTimer = null;
+    }
+  }
+
+  /**
+   * Remove sessions that have been inactive longer than the TTL.
+   * Returns the number of sessions removed.
+   */
+  sweepStaleSessions(): number {
+    const now = Date.now();
+    const cutoff = now - this.sessionTtlMs;
+    let removed = 0;
+
+    for (const [sessionId, session] of this.sessions) {
+      const lastActive = session.last_active_at ?? session.created_at;
+      if (lastActive < cutoff) {
+        this.deleteSession(sessionId);
+        removed++;
+      }
+    }
+
+    return removed;
   }
 
   /**
@@ -41,11 +94,13 @@ export class ConversationManager {
    */
   createSession(agentId: string): ConversationSession {
     const sessionId = randomUUID();
+    const now = Date.now();
     const session: ConversationSession = {
       session_id: sessionId,
       agent_id: agentId,
       turns: [],
-      created_at: Date.now(),
+      created_at: now,
+      last_active_at: now,
     };
 
     this.sessions.set(sessionId, session);
@@ -100,6 +155,7 @@ export class ConversationManager {
     }
 
     session.turns.push(turn);
+    session.last_active_at = Date.now();
 
     // Window management: summarize or truncate older turns when context gets too long.
     if (session.turns.length > this.maxWindow) {

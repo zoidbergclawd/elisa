@@ -1,6 +1,14 @@
-/** Generic timeout wrapper. Rejects with 'Timed out' if the promise doesn't settle within ms. */
+/** Generic timeout wrapper. Rejects with TimeoutError if the promise doesn't settle within ms. */
 
 import type { ChildProcess } from 'node:child_process';
+
+/** Custom error class for timeout detection via instanceof. */
+export class TimeoutError extends Error {
+  constructor(message = 'Timed out') {
+    super(message);
+    this.name = 'TimeoutError';
+  }
+}
 
 export interface WithTimeoutOptions {
   /** If provided, the child process is killed on timeout so it doesn't leak. */
@@ -17,7 +25,7 @@ export function withTimeout<T>(
       if (options?.childProcess) {
         try { options.childProcess.kill(); } catch { /* best-effort */ }
       }
-      reject(new Error('Timed out'));
+      reject(new TimeoutError());
     }, ms);
     promise.then(
       (val) => { clearTimeout(timer); resolve(val); },

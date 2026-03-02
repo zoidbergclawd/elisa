@@ -251,8 +251,8 @@ export class TurnPipeline {
       responseText = identity.fallback_response;
     }
 
-    // 5b. Content filter post-processing
-    const filterResult = filterAgentResponse(responseText);
+    // 5b. Content filter post-processing (mandatory — blocks inappropriate topics)
+    const filterResult = filterAgentResponse(responseText, identity.fallback_response);
     responseText = filterResult.content;
     if (filterResult.flagged) {
       console.warn(`[TurnPipeline] Content filter flagged agent ${agentId}:`, filterResult.flags);
@@ -379,8 +379,8 @@ export class TurnPipeline {
       yield { type: 'text_delta', text: responseText };
     }
 
-    // 5b. Content filter
-    const filterResult = filterAgentResponse(responseText);
+    // 5b. Content filter (mandatory — blocks inappropriate topics)
+    const filterResult = filterAgentResponse(responseText, identity.fallback_response);
     responseText = filterResult.content;
     if (filterResult.flagged) {
       console.warn(`[TurnPipeline] Content filter flagged agent ${agentId}:`, filterResult.flags);

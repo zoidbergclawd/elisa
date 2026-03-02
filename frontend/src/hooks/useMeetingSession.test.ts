@@ -693,6 +693,109 @@ describe('useMeetingSession', () => {
     });
   });
 
+  describe('isAgentThinking (P2 #19 regression)', () => {
+    it('starts as false', () => {
+      const { result } = renderHook(() => useMeetingSession('session-1'));
+      expect(result.current.isAgentThinking).toBe(false);
+    });
+
+    it('becomes true when kid sends a message', () => {
+      const { result } = renderHook(() => useMeetingSession('session-1'));
+
+      act(() => {
+        result.current.handleMeetingEvent({
+          type: 'meeting_started',
+          meetingId: 'meeting-1',
+          meetingTypeId: 'test-type',
+          agentName: 'Pixel',
+          canvasType: 'debug-canvas',
+        });
+      });
+
+      act(() => {
+        result.current.handleMeetingEvent({
+          type: 'meeting_message',
+          meetingId: 'meeting-1',
+          role: 'kid',
+          content: 'Help me fix this bug',
+        });
+      });
+
+      expect(result.current.isAgentThinking).toBe(true);
+    });
+
+    it('becomes false when agent responds', () => {
+      const { result } = renderHook(() => useMeetingSession('session-1'));
+
+      act(() => {
+        result.current.handleMeetingEvent({
+          type: 'meeting_started',
+          meetingId: 'meeting-1',
+          meetingTypeId: 'test-type',
+          agentName: 'Pixel',
+          canvasType: 'debug-canvas',
+        });
+      });
+
+      // Kid sends message
+      act(() => {
+        result.current.handleMeetingEvent({
+          type: 'meeting_message',
+          meetingId: 'meeting-1',
+          role: 'kid',
+          content: 'Help!',
+        });
+      });
+      expect(result.current.isAgentThinking).toBe(true);
+
+      // Agent responds
+      act(() => {
+        result.current.handleMeetingEvent({
+          type: 'meeting_message',
+          meetingId: 'meeting-1',
+          role: 'agent',
+          content: 'Sure, let me look at that.',
+        });
+      });
+      expect(result.current.isAgentThinking).toBe(false);
+    });
+
+    it('resets to false when meeting ends', () => {
+      const { result } = renderHook(() => useMeetingSession('session-1'));
+
+      act(() => {
+        result.current.handleMeetingEvent({
+          type: 'meeting_started',
+          meetingId: 'meeting-1',
+          meetingTypeId: 'test-type',
+          agentName: 'Pixel',
+          canvasType: 'debug-canvas',
+        });
+      });
+
+      // Kid sends message (thinking = true)
+      act(() => {
+        result.current.handleMeetingEvent({
+          type: 'meeting_message',
+          meetingId: 'meeting-1',
+          role: 'kid',
+          content: 'Help!',
+        });
+      });
+      expect(result.current.isAgentThinking).toBe(true);
+
+      // Meeting ends
+      act(() => {
+        result.current.handleMeetingEvent({
+          type: 'meeting_ended',
+          meetingId: 'meeting-1',
+          outcomes: [],
+        });
+      });
+      expect(result.current.isAgentThinking).toBe(false);
+    });
+  });
+
   describe('full lifecycle via WS events', () => {
     it('invite -> accept -> messages -> outcome -> end', async () => {
       const { result } = renderHook(() => useMeetingSession('session-1'));

@@ -46,7 +46,7 @@ export const MAX_TURNS_DEFAULT = 25;
 export const MAX_TURNS_RETRY_INCREMENT = 10;
 
 /** Meeting agent response timeout in milliseconds. */
-export const MEETING_AGENT_TIMEOUT_MS = 30_000;
+export const MEETING_AGENT_TIMEOUT_MS = 15_000;
 
 /** Meeting chat call max tokens (2-4 sentences of conversational text). */
 export const MEETING_CHAT_MAX_TOKENS = 300;
