@@ -111,6 +111,22 @@ describe('Deployment target inference from device manifest', () => {
     deploy: { method: 'cloud' },
   };
 
+  const esptoolManifest: DeviceManifest = {
+    id: 'esptool-device',
+    name: 'Esptool Device',
+    version: '1.0.0',
+    description: 'A device that deploys via esptool (e.g. BOX-3)',
+    colour: 280,
+    board: null,
+    capabilities: [],
+    blocks: [{
+      type: 'esptool_device_block',
+      message: 'Esptool Device %1',
+      args: [{ type: 'input_dummy' }],
+    }],
+    deploy: { method: 'esptool' },
+  };
+
   const noMethodManifest: DeviceManifest = {
     id: 'no-method-device',
     name: 'No Method Device',
@@ -149,6 +165,24 @@ describe('Deployment target inference from device manifest', () => {
     const goalBlock = makeBlock('nugget_goal', { GOAL_TEXT: 'test' }, flashBlock);
     const ws = makeWorkspace([goalBlock]);
     const spec = interpretWorkspace(ws, [], [], [], [flashManifest, cloudManifest]);
+    expect(spec.deployment.target).toBe('both');
+  });
+
+  it('sets deployment target to esp32 for esptool device (e.g. BOX-3)', () => {
+    const deviceBlock = makeBlock('esptool_device_block', {});
+    const goalBlock = makeBlock('nugget_goal', { GOAL_TEXT: 'test' }, deviceBlock);
+    const ws = makeWorkspace([goalBlock]);
+    const spec = interpretWorkspace(ws, [], [], [], [esptoolManifest]);
+    expect(spec.deployment.target).toBe('esp32');
+    expect(spec.deployment.auto_flash).toBe(true);
+  });
+
+  it('sets deployment target to both when esptool + cloud devices combined', () => {
+    const cloudBlock = makeBlock('cloud_device_block', {});
+    const esptoolBlock = makeBlock('esptool_device_block', {}, cloudBlock);
+    const goalBlock = makeBlock('nugget_goal', { GOAL_TEXT: 'test' }, esptoolBlock);
+    const ws = makeWorkspace([goalBlock]);
+    const spec = interpretWorkspace(ws, [], [], [], [esptoolManifest, cloudManifest]);
     expect(spec.deployment.target).toBe('both');
   });
 

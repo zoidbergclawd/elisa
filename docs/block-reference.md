@@ -256,6 +256,8 @@ Device blocks are loaded dynamically from plugins in the `devices/` folder. The 
 | **Sensor Node** | heltec-sensor-node | DHT22 (checkbox), Reed Switch (checkbox), PIR (checkbox), OLED (checkbox), LoRa Channel (number), Interval in seconds (number) |
 | **Gateway Node** | heltec-gateway | LoRa Channel (number), WiFi SSID (text), WiFi Password (text) |
 | **Cloud Dashboard** | cloud-dashboard | GCP Project ID (text) |
+| **S3 BOX Voice Agent** | esp32-s3-box3-agent | Agent Name (text), Wake Word (dropdown), Voice (dropdown), WiFi Network (text), WiFi Password (text) |
+| **BOX Display** | esp32-s3-box3-agent | Theme (dropdown), Show listening indicator (checkbox), Show transcription (checkbox) |
 
 Device blocks produce `devices` entries in the NuggetSpec, which are processed by the corresponding plugin during the deploy phase.
 

@@ -5,7 +5,7 @@ Express 5 + TypeScript server. Orchestrates AI agent teams via the Claude Agent 
 ## Stack
 
 - Express 5, TypeScript 5.9, Node.js (ES modules)
-- ws 8 (WebSocket), simple-git 3, serialport 12, @anthropic-ai/sdk, @anthropic-ai/claude-agent-sdk
+- ws 8 (WebSocket), simple-git 3, serialport 12, @anthropic-ai/sdk, @anthropic-ai/claude-agent-sdk, openai (STT/TTS)
 - Zod 4 (NuggetSpec validation)
 - archiver 7 (zip streaming for nugget export)
 - Vitest (tests)
@@ -28,7 +28,7 @@ src/
     session.ts           Type definitions: Session, Task, Agent, BuildPhase, WSEvent
     meeting.ts           Meeting framework types: MeetingType, MeetingSession, CanvasState, etc.
     display.ts           BOX-3 display protocol types: DisplayCommand, TouchEvent, DisplayTheme, constraints
-    runtime.ts           Agent Runtime types: AgentIdentity, ConversationTurn, UsageRecord, ProvisionResult, StudyModeConfig, QuizQuestion, BackpackSource
+    runtime.ts           Agent Runtime types: AgentIdentity, ConversationTurn, UsageRecord, ProvisionResult, StudyModeConfig, QuizQuestion, BackpackSource, AudioTurnResult, AudioTurnRequest
     specGraph.ts         Spec Graph types: SpecGraphNode, SpecGraphEdge, SpecGraph, SpecGraphPersistence
     composition.ts       Composition types: ComposeResult, EmergentBehavior, InterfaceContract, ImpactResult
     parentDashboard.ts   Parent Dashboard types: ParentDashboardData, UsageSummary, SafetyReport (Phase 2)
@@ -86,6 +86,7 @@ src/
       agentStore.ts      In-memory agent identity store (NuggetSpec -> AgentIdentity)
       conversationManager.ts  Per-agent conversation session and turn history
       turnPipeline.ts    Core conversation loop: input -> Claude API -> response
+      audioPipeline.ts   Audio conversation turns: mic -> OpenAI Whisper STT -> Claude text turn -> OpenAI TTS -> audio
       safetyGuardrails.ts  Safety prompt generator (PRD-001 Section 6.3)
       knowledgeBackpack.ts  In-memory TF-IDF keyword search, per-agent document store
       studyMode.ts       Quiz generation from backpack sources, progress tracking
@@ -152,6 +153,7 @@ src/
 | PUT | /v1/agents/:id | Update agent config (x-api-key auth) |
 | DELETE | /v1/agents/:id | Deprovision agent (x-api-key auth) |
 | POST | /v1/agents/:id/turn/text | Text conversation turn (x-api-key auth) |
+| POST | /v1/agents/:id/turn/audio | Audio conversation turn via OpenAI STT/TTS (x-api-key auth, 501 without OPENAI_API_KEY) |
 | GET | /v1/agents/:id/history | Conversation history (x-api-key auth) |
 | GET | /v1/agents/:id/gaps | Knowledge gap list (x-api-key auth) |
 | GET | /v1/agents/:id/heartbeat | Agent health check (no auth) |
@@ -163,7 +165,7 @@ src/
 | GET | /v1/agents/:id/study | Get study progress (x-api-key auth) |
 | POST | /v1/agents/:id/study/quiz | Generate quiz (x-api-key auth) |
 | POST | /v1/agents/:id/study/answer | Submit quiz answer (x-api-key auth) |
-| WS | /v1/agents/:id/stream?api_key= | Streaming conversation turn (WebSocket) |
+| WS | /v1/agents/:id/stream?api_key= | Streaming conversation turn (WebSocket, text + audio) |
 | POST | /api/spec-graph | Create new Spec Graph |
 | GET | /api/spec-graph/:id | Get full graph (nodes + edges) |
 | DELETE | /api/spec-graph/:id | Delete graph |
@@ -180,6 +182,13 @@ src/
 
 ### WebSocket Events (server -> client)
 `planning_started`, `plan_ready`, `task_started`, `task_completed`, `task_failed`, `agent_output`, `commit_created`, `token_usage`, `budget_warning`, `test_result`, `coverage_update`, `deploy_started`, `deploy_progress`, `deploy_checklist`, `deploy_complete` (includes `url?` for web deploys), `serial_data`, `human_gate`, `user_question`, `skill_*`, `teaching_moment`, `narrator_message`, `permission_auto_resolved`, `minion_state_change`, `workspace_created`, `flash_prompt`, `flash_progress`, `flash_complete`, `context_flow` (from_task_id, to_task_ids, summary_preview), `documentation_ready`, `meeting_invite`, `meeting_started`, `meeting_message`, `meeting_canvas_update`, `meeting_outcome`, `meeting_ended`, `traceability_update`, `traceability_summary`, `correction_cycle_started`, `correction_cycle_progress`, `convergence_update`, `composition_started` (graph_id, node_ids), `composition_impact` (graph_id, changed_node_id, affected_nodes, severity), `decomposition_narrated`, `impact_estimate`, `boundary_analysis`, `system_health_update`, `system_health_summary`, `health_history` (entries array for Architect trend tracking), `error`, `session_complete`
+
+### Agent Runtime WebSocket Events (/v1/agents/:id/stream)
+Client sends `turn` (text) or `audio_turn` (audio) messages. Server responds with:
+
+**Text turn**: `text_delta` (streaming chunks), `turn_complete` (final result)
+
+**Audio turn**: `audio_status` (status: transcribing/thinking/speaking — drives face animations), `audio_response` (transcript, response_text, audio_base64, usage)
 
 ## Key Patterns
 
@@ -200,6 +209,8 @@ src/
 - **Timeouts**: Agent=300s, Tests=120s, Flash=60s. Task retry limit=2.
 - **Spec Graph**: Persistent directed graph of NuggetSpecs persisted to `.elisa/spec-graph.json`. Nodes=nuggets, edges=dependencies/interfaces. Graph context injected into MetaPlanner when `composition.parent_graph_id` is set.
 - **Nugget composition**: NuggetSpec `composition` field declares `provides`/`requires` interfaces. CompositionService merges selected nuggets, detects emergence (feedback loops, pipelines, hubs), resolves interface contracts. System level gates max nuggets (explorer=1, builder=3, architect=unlimited).
+- **Audio pipeline**: `AudioPipeline` wraps OpenAI Whisper (STT) + Claude text turn + OpenAI TTS into a single `processAudioTurn()` call. Used by both the REST `/turn/audio` endpoint and the WebSocket `/stream` handler. Gracefully returns 501 when `OPENAI_API_KEY` is not set.
+- **WebSocket audio streaming**: Agent Runtime WebSocket (`/v1/agents/:id/stream`) supports both text and audio turns. Audio turns emit `audio_status` events (transcribing/thinking/speaking) to drive face animations on device, followed by `audio_response` with transcript, response text, and base64-encoded TTS audio.
 
 ## Device Plugin Deploy Flow
 
@@ -225,4 +236,5 @@ Multi-device builds use the device plugin system:
 - `CORS_ORIGIN`: Override CORS origin in dev mode (default `http://localhost:5173`)
 - `CLAUDE_MODEL`: Override model for agents and teaching engine (default `claude-opus-4-6`)
 - `ANTHROPIC_API_KEY`: Required for Claude API/SDK access
+- `OPENAI_API_KEY`: Optional, enables audio features (STT via Whisper, TTS via OpenAI TTS)
 - Claude models: configurable via `CLAUDE_MODEL` env var (default claude-opus-4-6)

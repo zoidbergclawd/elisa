@@ -7,7 +7,7 @@ describe('ART_AGENT_MEETING', () => {
     expect(ART_AGENT_MEETING.id).toBe('art-agent');
     expect(ART_AGENT_MEETING.name).toBe('Art Agent');
     expect(ART_AGENT_MEETING.agentName).toBe('Pixel');
-    expect(ART_AGENT_MEETING.canvasType).toBe('theme-picker');
+    expect(ART_AGENT_MEETING.canvasType).toBe('agent-studio');
   });
 
   it('has a persona string', () => {
@@ -24,7 +24,7 @@ describe('registerArtAgentMeeting', () => {
     const mt = registry.getById('art-agent');
     expect(mt).toBeDefined();
     expect(mt!.id).toBe('art-agent');
-    expect(mt!.canvasType).toBe('theme-picker');
+    expect(mt!.canvasType).toBe('agent-studio');
   });
 });
 

@@ -114,6 +114,30 @@ export interface GapEntry {
   reason?: string;
 }
 
+// ── Audio Pipeline ────────────────────────────────────────────────────
+
+export type AudioInputFormat = 'wav' | 'webm';
+
+export interface AudioTurnRequest {
+  agent_id: string;
+  audio_format: AudioInputFormat;
+  session_id?: string;
+}
+
+export interface AudioTurnResult {
+  transcript: string;
+  response_text: string;
+  audio_base64: string;
+  audio_format: 'mp3';
+  session_id: string;
+  usage: {
+    stt_seconds: number;
+    tts_characters: number;
+    input_tokens: number;
+    output_tokens: number;
+  };
+}
+
 // ── Provisioning ──────────────────────────────────────────────────────
 
 export interface ProvisionResult {

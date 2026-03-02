@@ -94,7 +94,10 @@ In-memory store for provisioned agents. Compiles NuggetSpec into `AgentIdentity`
 Manages per-agent conversation sessions and turn history. Sessions indexed by session_id and by agent_id. Window management truncates older turns when context exceeds `maxWindow` (default 50). Methods: `createSession()`, `addTurn()`, `getHistory()`, `getSessions()`, `deleteSession()`, `deleteAgentSessions()`, `formatForClaude()`.
 
 ### runtime/turnPipeline.ts (conversation loop)
-Core text conversation pipeline: load agent identity, load conversation history, assemble context, call Claude API, store turn, track usage. Uses `getAnthropicClient()` singleton. Falls back to agent's `fallback_response` on API error. `UsageTracker` records per-agent token usage (input/output/tts/stt). No audio processing yet (Phase 2).
+Core text conversation pipeline: load agent identity, load conversation history, assemble context, call Claude API, store turn, track usage. Uses `getAnthropicClient()` singleton. Falls back to agent's `fallback_response` on API error. `UsageTracker` records per-agent token usage (input/output/tts/stt).
+
+### runtime/audioPipeline.ts (audio conversation loop)
+Wraps TurnPipeline with OpenAI Whisper STT and OpenAI TTS for audio conversation turns. Three-step pipeline: (1) transcribe audio via `whisper-1`, (2) process transcript through TurnPipeline.receiveTurn(), (3) synthesize response via `tts-1` with agent voice preference. Requires `OPENAI_API_KEY` env var; `isAvailable()` returns false without it. Supports `wav` and `webm` audio input formats. Returns base64-encoded MP3 audio, transcript, response text, and usage stats. Voice selection from agent identity with fallback to `coral`.
 
 ### runtime/safetyGuardrails.ts (safety prompt)
 Generates the safety prompt section injected into every agent's system prompt at the runtime level (PRD-001 Section 6.3). Single source of truth for safety rules: age-appropriate content, no PII, medical/legal redirects, no impersonation, no harmful content, no dangerous activities, encourage learning. Exports `generateSafetyPrompt()` and `hasSafetyGuardrails()` for validation.
@@ -155,6 +158,15 @@ Registers the `web-design-agent` meeting type with `canvasType: 'launch-pad'`. T
 
 ### artAgentMeeting.ts (art agent meeting type)
 Registers the `art-agent` meeting type with `canvasType: 'theme-picker'`. Triggers on `deploy_started` when BOX-3 device is present. Agent persona is "Pixel" (Art Director). Frontend canvas: `ThemePickerCanvas.tsx`. `registerArtAgentMeeting(registry)` called at startup.
+
+### specGraph.ts (spec graph service)
+Manages a persistent directed graph of NuggetSpecs. In-memory `Map<string, SpecGraph>` with JSON persistence to `.elisa/spec-graph.json`. Nodes wrap NuggetSpecs with labels and timestamps. Edges represent `depends_on`, `provides_to`, `shares_interface`, or `composes_into` relationships. Validates no self-edges or duplicate edges. DFS cycle detection with 3-color marking. Atomic save (write .tmp, rename). `buildGraphContext(graphId, excludeNodeId?)` generates human-readable summary for MetaPlanner prompt injection. Methods: `create()`, `load()`, `save()`, `addNode()`, `removeNode()` (cascades edges), `updateNode()`, `addEdge()`, `removeEdge()`, `getNeighbors()`, `detectCycles()`, `buildGraphContext()`, `getGraph()`, `deleteGraph()`. Types in `models/specGraph.ts`.
+
+### compositionService.ts (nugget composition)
+Orchestrates nugget composition and detects emergent behavior. `compose(graphId, nodeIds, systemLevel?)` validates, resolves interfaces, detects emergence, merges NuggetSpec fields (requirements, tests, skills, rules, portals). `detectEmergence()` finds three patterns: feedback_loop (A↔B via provides/requires), pipeline (A→B→C chain of 3+), hub (one node provides to 3+ others). `resolveInterfaces()` matches requires to provides by name and type. `validateComposition()` checks level gating via `getMaxNuggets()`, node existence, no cycles. `detectCrossNuggetImpact(graphId, changedNodeId)` finds affected nodes via edges and provides/requires matching, returns severity (none/minor/breaking). Types in `models/composition.ts`.
+
+### integrationAgentMeeting.ts (integration meeting type)
+Registers the `integration-agent` meeting type with `canvasType: 'interface-designer'`. Triggers on `composition_started` when a composed build begins. Agent persona is "Interface Designer" — helps kids connect nuggets together. `registerIntegrationAgentMeeting(registry)` called at startup.
 
 ### specGraph.ts (spec graph service)
 Manages a persistent directed graph of NuggetSpecs. In-memory `Map<string, SpecGraph>` with JSON persistence to `.elisa/spec-graph.json`. Nodes wrap NuggetSpecs with labels and timestamps. Edges represent `depends_on`, `provides_to`, `shares_interface`, or `composes_into` relationships. Validates no self-edges or duplicate edges. DFS cycle detection with 3-color marking. Atomic save (write .tmp, rename). `buildGraphContext(graphId, excludeNodeId?)` generates human-readable summary for MetaPlanner prompt injection. Methods: `create()`, `load()`, `save()`, `addNode()`, `removeNode()` (cascades edges), `updateNode()`, `addEdge()`, `removeEdge()`, `getNeighbors()`, `detectCycles()`, `buildGraphContext()`, `getGraph()`, `deleteGraph()`. Types in `models/specGraph.ts`.

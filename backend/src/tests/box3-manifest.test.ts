@@ -267,6 +267,20 @@ describe('BOX-3 device.json manifest', () => {
       expect(fieldNames).toContain('SHOW_LISTENING');
       expect(fieldNames).toContain('SHOW_TRANSCRIPTION');
     });
+
+    it('DISPLAY_THEME options match all 9 canonical themes from DEFAULT_THEMES', () => {
+      const raw = loadManifest() as any;
+      const themeField = raw.blocks[1].args.find(
+        (a: any) => a.name === 'DISPLAY_THEME',
+      );
+      expect(themeField).toBeDefined();
+      expect(themeField.type).toBe('field_dropdown');
+      const values = themeField.options.map((o: [string, string]) => o[1]);
+      expect(values).toEqual([
+        'default', 'forest', 'sunset', 'pixel',
+        'space', 'nature', 'tech', 'candy', 'plain',
+      ]);
+    });
   });
 
   describe('spec_mapping', () => {
@@ -279,14 +293,10 @@ describe('BOX-3 device.json manifest', () => {
     it('extract_fields map block fields to spec fields', () => {
       const result = DeviceManifestSchema.parse(loadManifest());
       const fields = result.spec_mapping!.extract_fields;
-      expect(fields).toHaveProperty('agent.name');
-      expect(fields).toHaveProperty('agent.wake_word');
-      expect(fields).toHaveProperty('agent.voice');
-      expect(fields).toHaveProperty('wifi.ssid');
-      expect(fields).toHaveProperty('wifi.password');
-      expect(fields).toHaveProperty('display.theme');
-      expect(fields).toHaveProperty('display.show_listening');
-      expect(fields).toHaveProperty('display.show_transcription');
+      // Runtime config fields bridged from device block fields to NuggetSpec paths
+      expect(fields).toHaveProperty('runtime.agent_name', 'AGENT_NAME');
+      expect(fields).toHaveProperty('runtime.voice', 'TTS_VOICE');
+      expect(fields).toHaveProperty('runtime.display_theme', 'DISPLAY_THEME');
     });
   });
 
@@ -342,13 +352,16 @@ describe('BOX-3 device.json manifest', () => {
     });
   });
 
-  describe('firmware placeholder', () => {
-    it('firmware directory has .gitkeep', () => {
-      const gitkeepPath = path.resolve(
-        manifestPath,
-        '../firmware/.gitkeep',
-      );
-      expect(fs.existsSync(gitkeepPath)).toBe(true);
+  describe('firmware scaffold', () => {
+    it('firmware directory has main source files', () => {
+      const mainDir = path.resolve(manifestPath, '../firmware/main');
+      expect(fs.existsSync(path.join(mainDir, 'elisa_config.h'))).toBe(true);
+      expect(fs.existsSync(path.join(mainDir, 'elisa_main.c'))).toBe(true);
+    });
+
+    it('firmware directory has runtime config schema', () => {
+      const schemaPath = path.resolve(manifestPath, '../firmware/runtime_config.schema.json');
+      expect(fs.existsSync(schemaPath)).toBe(true);
     });
   });
 });

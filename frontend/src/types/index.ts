@@ -16,12 +16,30 @@ export interface FeedbackLoop {
 
 export type SystemLevel = 'explorer' | 'builder' | 'architect';
 
+export interface FaceDescriptor {
+  base_shape: 'round' | 'square' | 'oval';
+  eyes: {
+    style: 'dots' | 'circles' | 'anime' | 'pixels' | 'sleepy';
+    size: 'small' | 'medium' | 'large';
+    color: string; // hex color
+  };
+  mouth: {
+    style: 'line' | 'smile' | 'zigzag' | 'open' | 'cat';
+  };
+  expression: 'happy' | 'neutral' | 'excited' | 'shy' | 'cool';
+  colors: {
+    face: string;    // hex, face background
+    accent: string;  // hex, cheeks/highlights
+  };
+}
+
 export interface RuntimeConfig {
   agent_name?: string;
   greeting?: string;
   fallback_response?: string;
   voice?: string;
   display_theme?: string;
+  face_descriptor?: FaceDescriptor;
 }
 
 export type BackpackSourceType = 'pdf' | 'url' | 'youtube' | 'drive' | 'topic_pack' | 'sports_feed' | 'news_feed' | 'custom_feed';

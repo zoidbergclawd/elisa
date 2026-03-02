@@ -1,6 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import FlashWizardModal from './FlashWizardModal';
+import type { FaceDescriptor } from '../../types';
+
+const testFace: FaceDescriptor = {
+  base_shape: 'round',
+  eyes: { style: 'circles', size: 'medium', color: '#4361ee' },
+  mouth: { style: 'smile' },
+  expression: 'happy',
+  colors: { face: '#f0f0f0', accent: '#ffb3ba' },
+};
 
 const baseProps = {
   deviceRole: 'sensor_node',
@@ -478,5 +487,149 @@ describe('FlashWizardModal', () => {
 
     expect(screen.getByText(/Hey Elisa/)).toBeInTheDocument();
     expect(screen.getByText(/to meet Buddy/i)).toBeInTheDocument();
+  });
+
+  // ── FacePreview integration ─────────────────────────────────────
+  describe('FacePreview integration', () => {
+    it('does not render face preview when faceDescriptor is not provided', () => {
+      render(<FlashWizardModal {...baseProps} />);
+      expect(screen.queryByTestId('face-preview-container')).not.toBeInTheDocument();
+    });
+
+    it('renders face preview during pre-flash step when faceDescriptor provided', () => {
+      render(
+        <FlashWizardModal
+          {...baseProps}
+          agentName="Luna"
+          faceDescriptor={testFace}
+          preFlashChecklist={{
+            specReady: false,
+            runtimeProvisioned: false,
+            backpackReady: false,
+            firmwareReady: false,
+          }}
+        />
+      );
+      expect(screen.getByTestId('face-preview-container')).toBeInTheDocument();
+      expect(screen.getByTestId('face-preview')).toBeInTheDocument();
+    });
+
+    it('renders face preview in idle state during pre-flash', () => {
+      render(
+        <FlashWizardModal
+          {...baseProps}
+          agentName="Luna"
+          faceDescriptor={testFace}
+          preFlashChecklist={{
+            specReady: false,
+            runtimeProvisioned: false,
+            backpackReady: false,
+            firmwareReady: false,
+          }}
+        />
+      );
+      const face = screen.getByTestId('face-preview');
+      expect(face.getAttribute('class')).toContain('face-state-idle');
+    });
+
+    it('renders face preview in thinking state during flashing', () => {
+      render(
+        <FlashWizardModal
+          {...baseProps}
+          faceDescriptor={testFace}
+          isFlashing={true}
+          progress={50}
+        />
+      );
+      expect(screen.getByTestId('face-preview-container')).toBeInTheDocument();
+      const face = screen.getByTestId('face-preview');
+      expect(face.getAttribute('class')).toContain('face-state-thinking');
+    });
+
+    it('renders face preview in listening state during waking', () => {
+      const { rerender } = render(
+        <FlashWizardModal {...baseProps} faceDescriptor={testFace} agentId="agent-123" />
+      );
+      rerender(
+        <FlashWizardModal {...baseProps} faceDescriptor={testFace} agentId="agent-123" isFlashing={true} progress={100} />
+      );
+      expect(screen.getByTestId('face-preview-container')).toBeInTheDocument();
+      const face = screen.getByTestId('face-preview');
+      expect(face.getAttribute('class')).toContain('face-state-listening');
+    });
+
+    it('renders face preview in speaking state during celebration', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({ ok: true });
+
+      const { rerender } = render(
+        <FlashWizardModal {...baseProps} agentName="Luna" faceDescriptor={testFace} agentId="agent-123" />
+      );
+      rerender(
+        <FlashWizardModal {...baseProps} agentName="Luna" faceDescriptor={testFace} agentId="agent-123" isFlashing={true} progress={100} />
+      );
+
+      await act(async () => { vi.advanceTimersByTime(2000); });
+
+      expect(screen.getByTestId('face-preview-container')).toBeInTheDocument();
+      const face = screen.getByTestId('face-preview');
+      expect(face.getAttribute('class')).toContain('face-state-speaking');
+    });
+
+    it('does not render face preview in flashing step without faceDescriptor', () => {
+      render(
+        <FlashWizardModal
+          {...baseProps}
+          isFlashing={true}
+          progress={50}
+        />
+      );
+      expect(screen.queryByTestId('face-preview-container')).not.toBeInTheDocument();
+    });
+  });
+
+  // ── Agent greeting ──────────────────────────────────────────────
+  describe('Agent greeting', () => {
+    it('shows agent greeting on celebration step when provided', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({ ok: true });
+
+      const { rerender } = render(
+        <FlashWizardModal
+          {...baseProps}
+          agentName="Luna"
+          agentGreeting="Hi! I'm Luna!"
+          agentId="agent-123"
+        />
+      );
+      rerender(
+        <FlashWizardModal
+          {...baseProps}
+          agentName="Luna"
+          agentGreeting="Hi! I'm Luna!"
+          agentId="agent-123"
+          isFlashing={true}
+          progress={100}
+        />
+      );
+
+      await act(async () => { vi.advanceTimersByTime(2000); });
+
+      expect(screen.getByTestId('agent-greeting')).toBeInTheDocument();
+      expect(screen.getByText(/Hi! I'm Luna!/)).toBeInTheDocument();
+    });
+
+    it('does not show greeting text when agentGreeting is not provided', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({ ok: true });
+
+      const { rerender } = render(
+        <FlashWizardModal {...baseProps} agentName="Luna" agentId="agent-123" />
+      );
+      rerender(
+        <FlashWizardModal {...baseProps} agentName="Luna" agentId="agent-123" isFlashing={true} progress={100} />
+      );
+
+      await act(async () => { vi.advanceTimersByTime(2000); });
+
+      expect(screen.queryByTestId('agent-greeting')).not.toBeInTheDocument();
+    });
   });
 });

@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://elisa.dev/schemas/runtime_config.json",
+  "title": "Elisa Runtime Config",
+  "description": "Configuration written to SPIFFS by EsptoolFlashStrategy. Read by firmware on boot.",
+  "type": "object",
+  "required": ["agent_id", "api_key", "runtime_url", "wifi_ssid", "wifi_password"],
+  "properties": {
+    "agent_id": {
+      "type": "string",
+      "description": "UUID assigned during agent provisioning",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "api_key": {
+      "type": "string",
+      "description": "Agent runtime API key (eart_ prefixed)",
+      "pattern": "^eart_[a-zA-Z0-9]+$"
+    },
+    "runtime_url": {
+      "type": "string",
+      "description": "Base URL of the Elisa runtime server",
+      "format": "uri"
+    },
+    "wifi_ssid": {
+      "type": "string",
+      "description": "WiFi network name",
+      "maxLength": 32
+    },
+    "wifi_password": {
+      "type": "string",
+      "description": "WiFi network password",
+      "maxLength": 64
+    },
+    "agent_name": {
+      "type": "string",
+      "description": "Human-readable agent name shown on display",
+      "default": "Elisa Agent",
+      "maxLength": 64
+    },
+    "wake_word": {
+      "type": "string",
+      "description": "Wake word phrase for ESP-SR",
+      "default": "Hi Elisa",
+      "maxLength": 32
+    },
+    "display_theme": {
+      "type": "string",
+      "description": "Display theme ID (matches DisplayTheme.id)",
+      "default": "default",
+      "maxLength": 32
+    },
+    "face_descriptor": {
+      "type": "object",
+      "description": "Parameterized face design for LVGL rendering",
+      "required": ["base_shape", "eyes", "mouth", "expression", "colors"],
+      "properties": {
+        "base_shape": {
+          "type": "string",
+          "enum": ["round", "square", "oval"]
+        },
+        "eyes": {
+          "type": "object",
+          "required": ["style", "size", "color"],
+          "properties": {
+            "style": {
+              "type": "string",
+              "enum": ["dots", "circles", "anime", "pixels", "sleepy"]
+            },
+            "size": {
+              "type": "string",
+              "enum": ["small", "medium", "large"]
+            },
+            "color": {
+              "type": "string",
+              "description": "Hex color for eyes",
+              "pattern": "^#[0-9a-fA-F]{6}$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "mouth": {
+          "type": "object",
+          "required": ["style"],
+          "properties": {
+            "style": {
+              "type": "string",
+              "enum": ["line", "smile", "zigzag", "open", "cat"]
+            }
+          },
+          "additionalProperties": false
+        },
+        "expression": {
+          "type": "string",
+          "enum": ["happy", "neutral", "excited", "shy", "cool"]
+        },
+        "colors": {
+          "type": "object",
+          "required": ["face", "accent"],
+          "properties": {
+            "face": {
+              "type": "string",
+              "description": "Face background hex color",
+              "pattern": "^#[0-9a-fA-F]{6}$"
+            },
+            "accent": {
+              "type": "string",
+              "description": "Cheeks/highlights hex color",
+              "pattern": "^#[0-9a-fA-F]{6}$"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

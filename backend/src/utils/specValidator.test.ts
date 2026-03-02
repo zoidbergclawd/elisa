@@ -1204,6 +1204,241 @@ describe('composition fields (Spec Graph)', () => {
   });
 });
 
+describe('face_descriptor (PRD-002)', () => {
+  const validFace = {
+    base_shape: 'round' as const,
+    eyes: { style: 'circles' as const, size: 'medium' as const, color: '#4361ee' },
+    mouth: { style: 'smile' as const },
+    expression: 'happy' as const,
+    colors: { face: '#f0f0f0', accent: '#ffb3ba' },
+  };
+
+  it('accepts valid face_descriptor in runtime config', () => {
+    const result = NuggetSpecSchema.safeParse({
+      runtime: { face_descriptor: validFace },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('DEFAULT_FACE passes validation', () => {
+    // Mirrors the DEFAULT_FACE constant from display.ts
+    const DEFAULT_FACE = {
+      base_shape: 'round',
+      eyes: { style: 'circles', size: 'medium', color: '#4361ee' },
+      mouth: { style: 'smile' },
+      expression: 'happy',
+      colors: { face: '#f0f0f0', accent: '#ffb3ba' },
+    };
+    const result = NuggetSpecSchema.safeParse({
+      runtime: { face_descriptor: DEFAULT_FACE },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts all valid base_shape values', () => {
+    for (const base_shape of ['round', 'square', 'oval']) {
+      const result = NuggetSpecSchema.safeParse({
+        runtime: { face_descriptor: { ...validFace, base_shape } },
+      });
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it('accepts all valid eye styles', () => {
+    for (const style of ['dots', 'circles', 'anime', 'pixels', 'sleepy']) {
+      const result = NuggetSpecSchema.safeParse({
+        runtime: { face_descriptor: { ...validFace, eyes: { ...validFace.eyes, style } } },
+      });
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it('accepts all valid eye sizes', () => {
+    for (const size of ['small', 'medium', 'large']) {
+      const result = NuggetSpecSchema.safeParse({
+        runtime: { face_descriptor: { ...validFace, eyes: { ...validFace.eyes, size } } },
+      });
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it('accepts all valid mouth styles', () => {
+    for (const style of ['line', 'smile', 'zigzag', 'open', 'cat']) {
+      const result = NuggetSpecSchema.safeParse({
+        runtime: { face_descriptor: { ...validFace, mouth: { style } } },
+      });
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it('accepts all valid expression values', () => {
+    for (const expression of ['happy', 'neutral', 'excited', 'shy', 'cool']) {
+      const result = NuggetSpecSchema.safeParse({
+        runtime: { face_descriptor: { ...validFace, expression } },
+      });
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it('rejects invalid base_shape', () => {
+    const result = NuggetSpecSchema.safeParse({
+      runtime: { face_descriptor: { ...validFace, base_shape: 'triangle' } },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects invalid eye style', () => {
+    const result = NuggetSpecSchema.safeParse({
+      runtime: { face_descriptor: { ...validFace, eyes: { ...validFace.eyes, style: 'laser' } } },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects invalid eye size', () => {
+    const result = NuggetSpecSchema.safeParse({
+      runtime: { face_descriptor: { ...validFace, eyes: { ...validFace.eyes, size: 'huge' } } },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects invalid mouth style', () => {
+    const result = NuggetSpecSchema.safeParse({
+      runtime: { face_descriptor: { ...validFace, mouth: { style: 'frown' } } },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects invalid expression', () => {
+    const result = NuggetSpecSchema.safeParse({
+      runtime: { face_descriptor: { ...validFace, expression: 'angry' } },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects invalid hex color for eyes', () => {
+    const result = NuggetSpecSchema.safeParse({
+      runtime: { face_descriptor: { ...validFace, eyes: { ...validFace.eyes, color: 'blue' } } },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects 3-digit hex color shorthand', () => {
+    const result = NuggetSpecSchema.safeParse({
+      runtime: { face_descriptor: { ...validFace, eyes: { ...validFace.eyes, color: '#abc' } } },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects invalid hex color for face background', () => {
+    const result = NuggetSpecSchema.safeParse({
+      runtime: { face_descriptor: { ...validFace, colors: { face: 'not-hex', accent: '#ffb3ba' } } },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects invalid hex color for accent', () => {
+    const result = NuggetSpecSchema.safeParse({
+      runtime: { face_descriptor: { ...validFace, colors: { face: '#f0f0f0', accent: 'rgb(255,0,0)' } } },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects hex color without # prefix', () => {
+    const result = NuggetSpecSchema.safeParse({
+      runtime: { face_descriptor: { ...validFace, eyes: { ...validFace.eyes, color: '4361ee' } } },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects face_descriptor with unknown fields (strict)', () => {
+    const result = NuggetSpecSchema.safeParse({
+      runtime: { face_descriptor: { ...validFace, extra: 'bad' } },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects eyes with unknown fields (strict)', () => {
+    const result = NuggetSpecSchema.safeParse({
+      runtime: { face_descriptor: { ...validFace, eyes: { ...validFace.eyes, sparkle: true } } },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects mouth with unknown fields (strict)', () => {
+    const result = NuggetSpecSchema.safeParse({
+      runtime: { face_descriptor: { ...validFace, mouth: { style: 'smile', teeth: true } } },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects colors with unknown fields (strict)', () => {
+    const result = NuggetSpecSchema.safeParse({
+      runtime: { face_descriptor: { ...validFace, colors: { face: '#f0f0f0', accent: '#ffb3ba', glow: '#00ff00' } } },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects face_descriptor missing required base_shape', () => {
+    const { base_shape, ...noBaseShape } = validFace;
+    const result = NuggetSpecSchema.safeParse({
+      runtime: { face_descriptor: noBaseShape },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects face_descriptor missing required eyes', () => {
+    const { eyes, ...noEyes } = validFace;
+    const result = NuggetSpecSchema.safeParse({
+      runtime: { face_descriptor: noEyes },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects face_descriptor missing required mouth', () => {
+    const { mouth, ...noMouth } = validFace;
+    const result = NuggetSpecSchema.safeParse({
+      runtime: { face_descriptor: noMouth },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects face_descriptor missing required expression', () => {
+    const { expression, ...noExpression } = validFace;
+    const result = NuggetSpecSchema.safeParse({
+      runtime: { face_descriptor: noExpression },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects face_descriptor missing required colors', () => {
+    const { colors, ...noColors } = validFace;
+    const result = NuggetSpecSchema.safeParse({
+      runtime: { face_descriptor: noColors },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts runtime config without face_descriptor (backward compat)', () => {
+    const result = NuggetSpecSchema.safeParse({
+      runtime: { agent_name: 'Bot', voice: 'nova' },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts face_descriptor alongside other runtime fields', () => {
+    const result = NuggetSpecSchema.safeParse({
+      runtime: {
+        agent_name: 'Friendly Bot',
+        greeting: 'Hi there!',
+        voice: 'nova',
+        display_theme: 'candy',
+        face_descriptor: validFace,
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
 describe('combined new fields validation', () => {
   it('accepts a spec with all new fields present', () => {
     const result = NuggetSpecSchema.safeParse({

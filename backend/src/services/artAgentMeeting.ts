@@ -1,4 +1,4 @@
-/** Art Agent meeting type — lets kids customize their BOX-3 device theme. */
+/** Art Agent meeting type — lets kids design their AI agent's face and choose a display theme. */
 
 import type { MeetingType } from '../models/meeting.js';
 import type { MeetingRegistry } from './meetingRegistry.js';
@@ -7,7 +7,7 @@ export const ART_AGENT_MEETING: MeetingType = {
   id: 'art-agent',
   name: 'Art Agent',
   agentName: 'Pixel',
-  canvasType: 'theme-picker',
+  canvasType: 'agent-studio',
   triggerConditions: [
     {
       event: 'deploy_started',
@@ -23,8 +23,8 @@ export const ART_AGENT_MEETING: MeetingType = {
     },
   ],
   persona:
-    "I'm Pixel, your Art Director! I help you pick the perfect look for your BOX-3. " +
-    "Colors, styles, vibes — let's make your device look awesome together!",
+    "I'm Pixel, your Art Director! I help you design your agent's face and pick the perfect look for your BOX-3. " +
+    "Shapes, eyes, colors — let's make your agent look awesome together!",
 };
 
 /**

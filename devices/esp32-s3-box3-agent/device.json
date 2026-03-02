@@ -68,6 +68,10 @@
       "args": [
         { "type": "input_dummy" },
         { "type": "field_dropdown", "name": "DISPLAY_THEME", "options": [
+          ["Elisa Blue (default)", "default"],
+          ["Forest (green)", "forest"],
+          ["Sunset (warm)", "sunset"],
+          ["Pixel Art (retro)", "pixel"],
           ["Space (dark)", "space"],
           ["Nature (green)", "nature"],
           ["Tech (blue)", "tech"],
@@ -101,14 +105,9 @@
   "spec_mapping": {
     "role": "voice_agent_device",
     "extract_fields": {
-      "agent.name": "AGENT_NAME",
-      "agent.wake_word": "WAKE_WORD",
-      "agent.voice": "TTS_VOICE",
-      "wifi.ssid": "WIFI_SSID",
-      "wifi.password": "WIFI_PASSWORD",
-      "display.theme": "DISPLAY_THEME",
-      "display.show_listening": "SHOW_LISTENING",
-      "display.show_transcription": "SHOW_TRANSCRIPTION"
+      "runtime.agent_name": "AGENT_NAME",
+      "runtime.voice": "TTS_VOICE",
+      "runtime.display_theme": "DISPLAY_THEME"
     }
   }
 }

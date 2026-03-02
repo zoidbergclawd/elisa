@@ -14,6 +14,8 @@ import { safeEnv } from '../utils/safeEnv.js';
 import type { HardwareService } from './hardwareService.js';
 import type { DeviceRegistry } from './deviceRegistry.js';
 import { sanitizeReplacements, escapePythonString } from '../utils/sanitizePythonValue.js';
+import type { FaceDescriptor } from '../models/display.js';
+import { DEFAULT_FACE } from '../models/display.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -36,6 +38,10 @@ export interface FlashParams {
   flashFiles: { lib: string[]; shared: string[] };
   /** Progress callback */
   onProgress: (step: string, progress: number) => void;
+  /** Optional runtime config from resolved NuggetSpec (for esptool devices) */
+  runtimeConfig?: {
+    face_descriptor?: FaceDescriptor;
+  };
 }
 
 export interface FlashResult {
@@ -271,6 +277,34 @@ export async function detectSerialPort(
 }
 
 /**
+ * Build the full runtime_config.json for ESP32 firmware.
+ *
+ * Combines provisioning injections (agent_id, api_key, runtime_url) with
+ * device block fields (WIFI_SSID, WIFI_PASSWORD, etc.) and spec runtime
+ * config (face_descriptor). The resulting object matches the schema at
+ * devices/esp32-s3-box3-agent/firmware/runtime_config.schema.json.
+ *
+ * Exported for testing.
+ */
+export function buildRuntimeConfig(
+  injections: Record<string, string>,
+  deviceFields: Record<string, unknown>,
+  runtimeConfig?: { face_descriptor?: FaceDescriptor },
+): Record<string, unknown> {
+  return {
+    agent_id: injections.agent_id ?? injections.AGENT_ID ?? '',
+    api_key: injections.api_key ?? injections.API_KEY ?? '',
+    runtime_url: injections.runtime_url ?? injections.RUNTIME_URL ?? '',
+    wifi_ssid: (deviceFields.WIFI_SSID as string) || '',
+    wifi_password: (deviceFields.WIFI_PASSWORD as string) || '',
+    agent_name: (deviceFields.AGENT_NAME as string) || 'Elisa Agent',
+    wake_word: (deviceFields.WAKE_WORD as string) || 'Hi Elisa',
+    display_theme: (deviceFields.DISPLAY_THEME as string) || 'default',
+    face_descriptor: runtimeConfig?.face_descriptor ?? DEFAULT_FACE,
+  };
+}
+
+/**
  * Flash strategy for binary firmware flash using esptool.
  * Flashes pre-built firmware images (.bin) to ESP32 devices.
  */
@@ -290,7 +324,7 @@ export class EsptoolFlashStrategy implements FlashStrategy {
   }
 
   async flash(params: FlashParams): Promise<FlashResult> {
-    const { pluginDir, nuggetDir, deviceFields, injections, flashConfig, onProgress } = params;
+    const { pluginDir, nuggetDir, deviceFields, injections, flashConfig, onProgress, runtimeConfig } = params;
 
     // Validate that the firmware file exists in the plugin directory
     const firmwarePath = path.join(pluginDir, flashConfig.firmware_file);
@@ -323,11 +357,13 @@ export class EsptoolFlashStrategy implements FlashStrategy {
       };
     }
 
-    // Write runtime config if injections are present
+    // Write runtime config combining injections + device fields + spec data.
+    // This produces the full runtime_config.json that firmware reads on boot.
     if (Object.keys(injections).length > 0) {
       onProgress('Writing runtime configuration...', 15);
+      const config = buildRuntimeConfig(injections, deviceFields, runtimeConfig);
       const configPath = path.join(nuggetDir, 'runtime_config.json');
-      fs.writeFileSync(configPath, JSON.stringify(injections, null, 2), 'utf-8');
+      fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
     }
 
     onProgress('Flashing firmware...', 20);
