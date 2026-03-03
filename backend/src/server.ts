@@ -1,6 +1,7 @@
 /** Express + WebSocket server -- thin composition root. */
 
 import 'dotenv/config';
+import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
@@ -90,7 +91,20 @@ import { CompositionService } from './services/compositionService.js';
 const compositionService = new CompositionService(specGraphService);
 
 // Agent Runtime (PRD-001)
-const agentStore = new AgentStore();
+// Use LAN IP for runtime URL so ESP32 devices can reach us over WiFi.
+// Falls back to localhost for browser-only usage.
+function getLanIp(): string {
+  const interfaces = os.networkInterfaces();
+  for (const iface of Object.values(interfaces)) {
+    if (!iface) continue;
+    for (const addr of iface) {
+      if (addr.family === 'IPv4' && !addr.internal) return addr.address;
+    }
+  }
+  return 'localhost';
+}
+const lanRuntimeUrl = `http://${getLanIp()}:${port}`;
+const agentStore = new AgentStore(lanRuntimeUrl);
 const consentManager = new ConsentManager();
 const conversationManager = new ConversationManager(undefined, consentManager);
 const knowledgeBackpack = new KnowledgeBackpack();
