@@ -2,38 +2,17 @@
  * @file elisa_main.c
  * @brief Main application entry point for Elisa agent on ESP32-S3-BOX-3.
  *
- * This file ties together all Elisa components:
- * 1. Boot: NVS, WiFi, SPIFFS initialization
- * 2. Config: Load runtime_config.json from SPIFFS
- * 3. Display: Initialize LVGL + face renderer
- * 4. Audio: Initialize I2S + ESP-SR wake word engine
- * 5. Network: Connect WiFi, verify runtime heartbeat
- * 6. Loop: Wait for wake word -> record -> send to runtime -> play TTS
- *
- * ADAPTATION NOTES (from chatgpt_demo):
- * - chatgpt_demo's app_main() in main.c does essentially the same boot
- *   sequence but with hardcoded OpenAI endpoints. We swap in our config
- *   loader and API client.
- * - The I2S, ESP-SR, and LVGL initialization from chatgpt_demo can be
- *   reused almost verbatim. The key changes are:
- *     1. Replace Kconfig WiFi with runtime_config.json WiFi creds
- *     2. Replace OpenAI HTTP calls with elisa_api_audio_turn()
- *     3. Replace static UI with elisa_face animated avatar
- *     4. Add heartbeat check on boot
- *
- * BUILD INSTRUCTIONS:
- * See firmware/README.md for how to set up the ESP-IDF toolchain and
- * build this firmware from the chatgpt_demo base.
+ * Boots the device, initializes peripherals using chatgpt_demo's existing
+ * drivers, and bridges into the Elisa runtime API. The chatgpt_demo's
+ * sr_handler_task handles wake word -> record -> call start_openai() -> play.
+ * We provide our own start_openai() that calls the Elisa runtime instead.
  *
  * DEPENDENCIES (from esp-box BSP + chatgpt_demo):
- * - bsp/esp-box-3       -- Board support package (display, audio, touch)
- * - esp_sr              -- Speech recognition (wake word detection)
- * - esp_codec_dev       -- Audio codec driver (ES8311)
- * - lvgl                -- Graphics library
- * - esp_http_client     -- HTTP client
- * - cJSON               -- JSON parser
- * - esp_spiffs           -- SPIFFS filesystem
- * - nvs_flash           -- Non-volatile storage
+ * - bsp/esp-box-3       -- Board support package
+ * - esp_sr              -- Speech recognition (wake word)
+ * - audio_player        -- Audio playback
+ * - app_sr / app_audio  -- chatgpt_demo's audio pipeline
+ * - settings            -- chatgpt_demo's sys_param for WiFi bridge
  */
 
 #include <stdio.h>
@@ -44,12 +23,17 @@
 #include "esp_log.h"
 #include "nvs_flash.h"
 #include "esp_spiffs.h"
-#include "esp_wifi.h"
-#include "esp_event.h"
-#include "esp_netif.h"
 
-/* BSP includes (from esp-box) */
+/* BSP includes */
 #include "bsp/esp-bsp.h"
+#include "bsp_board.h"
+
+/* chatgpt_demo reused components */
+#include "settings.h"
+#include "app_wifi.h"
+#include "app_sr.h"
+#include "app_audio.h"
+#include "audio_player.h"
 
 /* Elisa components */
 #include "elisa_config.h"
@@ -66,15 +50,19 @@ static void init_wifi(const char *ssid, const char *password);
 static void init_audio(void);
 static void init_wake_word(const char *wake_word);
 static void conversation_loop(void);
+static void elisa_audio_play_finish_cb(audio_player_cb_ctx_t *ctx);
+
+// ── Pending Audio Response ──────────────────────────────────────────────
+
+/**
+ * File-static storage for the current turn's audio response.
+ * Must outlive the audio_player_play() call (async playback).
+ * Freed in elisa_audio_play_finish_cb() when playback completes.
+ */
+static elisa_turn_response_t s_pending_audio_response;
 
 // ── Boot Sequence ───────────────────────────────────────────────────────
 
-/**
- * Application entry point.
- *
- * ADAPTATION: chatgpt_demo's app_main() flow is preserved but with
- * Elisa-specific initialization inserted at each step.
- */
 void app_main(void) {
     ESP_LOGI(TAG, "=== Elisa Agent Firmware ===");
     ESP_LOGI(TAG, "Booting...");
@@ -88,19 +76,20 @@ void app_main(void) {
     /* Step 3: Load runtime configuration */
     if (elisa_load_config() != 0) {
         ESP_LOGE(TAG, "Failed to load runtime config -- halting");
-        /* TODO: Show error on display with instructions to re-flash */
         while (1) { vTaskDelay(pdMS_TO_TICKS(1000)); }
     }
 
     const elisa_runtime_config_t *config = elisa_get_config();
     ESP_LOGI(TAG, "Agent: %s (%s)", config->agent_name, config->agent_id);
 
-    /* Step 4: Initialize display + face renderer */
-    /*
-     * ADAPTATION: chatgpt_demo calls bsp_display_start() here.
-     * We add elisa_face_init() after the BSP display is ready.
-     */
-    bsp_display_start();
+    /* Step 4: Initialize display + face renderer.
+     * Use chatgpt_demo's display init pattern with DMA buffer config.
+     * Skip ui_ctrl_init() -- Elisa uses elisa_face instead. */
+    bsp_display_cfg_t cfg = {
+        .lvgl_port_cfg = ESP_LVGL_PORT_INIT_CONFIG(),
+    };
+    bsp_display_start_with_config(&cfg);
+    bsp_board_init();
     bsp_display_backlight_on();
 
     const face_descriptor_t *face = elisa_get_face_descriptor();
@@ -123,172 +112,159 @@ void app_main(void) {
     }
 
     /* Step 7: Initialize audio hardware + wake word engine */
-    /*
-     * ADAPTATION: chatgpt_demo's audio init (app_sr_start) is reused.
-     * We pass our configured wake word instead of the hardcoded one.
-     */
     init_audio();
     init_wake_word(config->wake_word);
 
     elisa_face_set_state(FACE_STATE_IDLE);
     ESP_LOGI(TAG, "Ready! Say \"%s\" to start.", config->wake_word);
 
-    /* Step 8: Enter main conversation loop */
+    /* Step 8: Enter main conversation loop.
+     * Actual conversation is driven by sr_handler_task calling start_openai().
+     * This loop is just a periodic heartbeat logger. */
     conversation_loop();
 }
 
-// ── Initialization Stubs ────────────────────────────────────────────────
-//
-// These functions wrap ESP-IDF initialization APIs. The actual
-// implementation will use the same patterns as chatgpt_demo but with
-// values from our runtime config instead of Kconfig menuconfig.
-//
+// ── Initialization Functions ────────────────────────────────────────────
 
 static void init_nvs(void) {
-    /*
-     * Standard NVS init from chatgpt_demo -- no changes needed.
-     *
-     * esp_err_t ret = nvs_flash_init();
-     * if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-     *     ESP_ERROR_CHECK(nvs_flash_erase());
-     *     ret = nvs_flash_init();
-     * }
-     * ESP_ERROR_CHECK(ret);
-     */
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
     ESP_LOGI(TAG, "NVS initialized");
 }
 
 static void init_spiffs(void) {
-    /*
-     * Mount SPIFFS partition containing runtime_config.json.
-     *
-     * esp_vfs_spiffs_conf_t conf = {
-     *     .base_path = "/spiffs",
-     *     .partition_label = NULL,
-     *     .max_files = 5,
-     *     .format_if_mount_failed = false,
-     * };
-     * ESP_ERROR_CHECK(esp_vfs_spiffs_register(&conf));
-     */
+    esp_vfs_spiffs_conf_t conf = {
+        .base_path = "/spiffs",
+        .partition_label = NULL,
+        .max_files = 5,
+        .format_if_mount_failed = false,
+    };
+    ESP_ERROR_CHECK(esp_vfs_spiffs_register(&conf));
     ESP_LOGI(TAG, "SPIFFS mounted");
 }
 
 static void init_wifi(const char *ssid, const char *password) {
-    /*
-     * ADAPTATION: chatgpt_demo reads WiFi creds from Kconfig:
-     *   CONFIG_ESP_WIFI_SSID / CONFIG_ESP_WIFI_PASSWORD
-     * We use ssid/password from runtime_config.json instead.
-     *
-     * wifi_config_t wifi_config = {
-     *     .sta = {
-     *         .ssid = "",      // filled from ssid param
-     *         .password = "",  // filled from password param
-     *     },
-     * };
-     * strncpy((char*)wifi_config.sta.ssid, ssid, sizeof(wifi_config.sta.ssid));
-     * strncpy((char*)wifi_config.sta.password, password, sizeof(wifi_config.sta.password));
-     *
-     * ESP_ERROR_CHECK(esp_netif_init());
-     * ESP_ERROR_CHECK(esp_event_loop_create_default());
-     * esp_netif_create_default_wifi_sta();
-     * wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-     * ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-     * ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-     * ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
-     * ESP_ERROR_CHECK(esp_wifi_start());
-     */
     ESP_LOGI(TAG, "WiFi connecting to %s...", ssid);
-    (void)password;
+
+    /* Bridge: write our credentials into chatgpt_demo's sys_param struct
+     * so app_network_start() picks them up via the existing WiFi stack.
+     * This reuses the entire chatgpt_demo WiFi init (including the
+     * wifi_connected flag that app_audio.c checks). */
+    sys_param_t *param = settings_get_parameter();
+    strncpy(param->ssid, ssid, sizeof(param->ssid) - 1);
+    strncpy(param->password, password, sizeof(param->password) - 1);
+
+    app_network_start();
+
+    /* Poll for connection (up to 15s) */
+    for (int i = 0; i < 150; i++) {
+        if (WIFI_STATUS_CONNECTED_OK == wifi_connected_already()) {
+            ESP_LOGI(TAG, "WiFi connected");
+            return;
+        }
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    ESP_LOGW(TAG, "WiFi connection timeout -- will retry");
 }
 
 static void init_audio(void) {
-    /*
-     * ADAPTATION: chatgpt_demo's audio init from app_sr_start() is
-     * reused verbatim. It sets up:
-     * - I2S driver for microphone (ES7210 or onboard PDM)
-     * - I2S driver for speaker (ES8311 codec)
-     * - Audio codec configuration
-     *
-     * No changes needed -- the BOX-3 BSP handles hardware specifics.
-     *
-     * bsp_i2s_init();  // or equivalent BSP call
-     */
+    bsp_i2c_init();
+    audio_record_init();
     ESP_LOGI(TAG, "Audio hardware initialized");
 }
 
 static void init_wake_word(const char *wake_word) {
-    /*
-     * ADAPTATION: chatgpt_demo initializes ESP-SR with a hardcoded
-     * wake word (usually "Hi ESP"). We use the configured wake_word.
-     *
-     * ESP-SR wake word setup:
-     * - esp_sr_wn_init() with the appropriate model
-     * - Wake word must match an ESP-SR supported word or custom model
-     *
-     * Note: ESP-SR has a fixed set of supported wake words. Custom
-     * wake words require training a model. The WAKE_WORD dropdown in
-     * the Blockly block should only offer ESP-SR-compatible options.
-     */
+    app_sr_start(false);
+    audio_player_callback_register(elisa_audio_play_finish_cb, NULL);
     ESP_LOGI(TAG, "Wake word engine initialized: %s", wake_word);
+    (void)wake_word; /* Display-only; actual wake word is from SR model in flash */
+}
+
+// ── start_openai() -- Replaces chatgpt_demo's Original ─────────────────
+//
+// Called by sr_handler_task in app_audio.c after wake word detection and
+// audio recording. The original sends audio to OpenAI (3 API calls: STT,
+// ChatGPT, TTS). We send it to the Elisa runtime (1 API call).
+
+esp_err_t start_openai(uint8_t *audio, int audio_len) {
+    ESP_LOGI(TAG, "Sending WAV (%d bytes) to runtime", audio_len);
+
+    elisa_face_set_state(FACE_STATE_THINKING);
+
+    /* Calculate actual WAV size from header.
+     * audio_record_stop() writes a standard WAV header at the start of
+     * the buffer. The Subchunk2Size field at byte offset 40 gives the
+     * actual audio data length. Total WAV = 44 (header) + Subchunk2Size. */
+    int wav_len = audio_len;
+    if (audio_len >= 44) {
+        uint32_t subchunk2_size;
+        memcpy(&subchunk2_size, audio + 40, sizeof(uint32_t));
+        int computed = 44 + (int)subchunk2_size;
+        if (computed > 0 && computed <= audio_len) {
+            wav_len = computed;
+        }
+    }
+
+    elisa_turn_response_t response;
+    int ret = elisa_api_audio_turn(audio, (size_t)wav_len, &response);
+
+    if (ret == 0 && response.audio_data != NULL) {
+        ESP_LOGI(TAG, "Response: %s", response.text ? response.text : "(no text)");
+        ESP_LOGI(TAG, "Decoded %zu bytes of MP3", response.audio_len);
+
+        elisa_face_set_state(FACE_STATE_SPEAKING);
+
+        /* Store response in file-static -- the buffer must outlive
+         * audio_player_play() since playback is async. Freed in
+         * elisa_audio_play_finish_cb() when playback completes. */
+        s_pending_audio_response = response;
+
+        FILE *fp = fmemopen(s_pending_audio_response.audio_data,
+                            s_pending_audio_response.audio_len, "rb");
+        if (fp != NULL) {
+            audio_player_play(fp);
+        } else {
+            ESP_LOGE(TAG, "fmemopen failed");
+            elisa_face_set_state(FACE_STATE_ERROR);
+            vTaskDelay(pdMS_TO_TICKS(2000));
+            elisa_face_set_state(FACE_STATE_IDLE);
+            elisa_api_free_response(&s_pending_audio_response);
+        }
+    } else {
+        ESP_LOGE(TAG, "Audio turn failed (status=%d)", response.status_code);
+        elisa_face_set_state(FACE_STATE_ERROR);
+        vTaskDelay(pdMS_TO_TICKS(2000));
+        elisa_face_set_state(FACE_STATE_IDLE);
+        elisa_api_free_response(&response);
+        return ESP_FAIL;
+    }
+
+    return ESP_OK;
+}
+
+// ── Playback Complete Callback ──────────────────────────────────────────
+
+static void elisa_audio_play_finish_cb(audio_player_cb_ctx_t *ctx) {
+    if (ctx->audio_event == AUDIO_PLAYER_CALLBACK_EVENT_IDLE) {
+        elisa_face_set_state(FACE_STATE_IDLE);
+        elisa_api_free_response(&s_pending_audio_response);
+    }
 }
 
 // ── Main Conversation Loop ──────────────────────────────────────────────
+//
+// The actual conversation is driven by sr_handler_task (from chatgpt_demo's
+// app_audio.c) which calls start_openai(). This loop just logs heartbeats.
 
-/**
- * Main conversation loop.
- *
- * Waits for wake word detection from ESP-SR, then:
- * 1. Set face to LISTENING state
- * 2. Record audio from I2S microphone until silence detected
- * 3. Set face to THINKING state
- * 4. Send audio to runtime via elisa_api_audio_turn()
- * 5. Set face to SPEAKING state
- * 6. Play TTS response through speaker
- * 7. Set face to IDLE state
- * 8. Repeat
- *
- * ADAPTATION: chatgpt_demo has this same loop in app_sr_handler.c
- * but calls OpenAI APIs. We call elisa_api_audio_turn() instead.
- */
 static void conversation_loop(void) {
-    ESP_LOGI(TAG, "Entering conversation loop");
+    ESP_LOGI(TAG, "Entering conversation loop (audio pipeline active)");
 
     while (1) {
-        /*
-         * TODO: Implementation steps (following chatgpt_demo pattern):
-         *
-         * 1. Block on ESP-SR wake word event queue
-         *    xQueueReceive(sr_event_queue, &sr_event, portMAX_DELAY);
-         *
-         * 2. On wake word detected:
-         *    elisa_face_set_state(FACE_STATE_LISTENING);
-         *    // Play a short "ding" acknowledgment sound
-         *
-         * 3. Record audio from I2S until silence (VAD):
-         *    size_t audio_len = 0;
-         *    uint8_t *audio_buf = record_until_silence(&audio_len);
-         *
-         * 4. Send to runtime:
-         *    elisa_face_set_state(FACE_STATE_THINKING);
-         *    elisa_turn_response_t response;
-         *    int ret = elisa_api_audio_turn(audio_buf, audio_len, &response);
-         *
-         * 5. Play response:
-         *    if (ret == 0 && response.audio_data != NULL) {
-         *        elisa_face_set_state(FACE_STATE_SPEAKING);
-         *        play_audio(response.audio_data, response.audio_len);
-         *    } else {
-         *        elisa_face_set_state(FACE_STATE_ERROR);
-         *        vTaskDelay(pdMS_TO_TICKS(2000));
-         *    }
-         *
-         * 6. Cleanup and return to idle:
-         *    elisa_api_free_response(&response);
-         *    free(audio_buf);
-         *    elisa_face_set_state(FACE_STATE_IDLE);
-         */
-
-        /* Placeholder: sleep to prevent busy-wait */
-        vTaskDelay(pdMS_TO_TICKS(100));
+        ESP_LOGD(TAG, "Heartbeat -- face state: %d", elisa_face_get_state());
+        vTaskDelay(pdMS_TO_TICKS(10000));
     }
 }

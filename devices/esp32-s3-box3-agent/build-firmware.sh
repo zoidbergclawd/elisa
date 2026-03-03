@@ -84,6 +84,42 @@ if [ ! -f "${BUILD_DIR}/spiffs/runtime_config.json" ]; then
 JSONEOF
 fi
 
+# ── Step 4b: Rename start_openai in chatgpt_demo main.c ────────────────
+# Our elisa_main.c provides a replacement start_openai() that calls the
+# Elisa runtime instead of OpenAI. Rename the original so ours wins at
+# link time. The sr_handler_task in app_audio.c calls start_openai() --
+# it will now resolve to our version.
+
+if ! grep -q "start_openai_original" "${BUILD_DIR}/main/main.c" 2>/dev/null; then
+    echo "Patching main.c: renaming start_openai -> start_openai_original..."
+    sed -i 's/start_openai/start_openai_original/g' "${BUILD_DIR}/main/main.c"
+fi
+
+# ── Step 4c: Stub app_ui_ctrl.c ────────────────────────────────────────
+# chatgpt_demo's sr_handler_task calls ui_ctrl_show_panel() and
+# ui_ctrl_guide_jump() on wake word detection. Since we skip ui_ctrl_init()
+# (Elisa uses elisa_face.c instead), those calls would crash.
+# Replace with no-op stubs.
+
+echo "Writing app_ui_ctrl.c stub..."
+cat > "${BUILD_DIR}/main/app_ui_ctrl.c" <<'STUBEOF'
+/* Stub: replaces chatgpt_demo's app_ui_ctrl.c.
+ * Prevents crashes from UI control calls since Elisa uses elisa_face.c
+ * instead of chatgpt_demo's chat UI. */
+
+#include <stdbool.h>
+
+void ui_ctrl_init(void) {}
+void ui_ctrl_show_panel(int panel, int timeout_ms) {
+    (void)panel;
+    (void)timeout_ms;
+}
+void ui_ctrl_label_show(void) {}
+void ui_ctrl_guide_jump(void) {}
+bool ui_ctrl_key_lock(void) { return false; }
+void ui_ctrl_key_unlock(void) {}
+STUBEOF
+
 # ── Step 5: Patch CMakeLists.txt ───────────────────────────────────────
 
 CMAKELISTS="${BUILD_DIR}/main/CMakeLists.txt"
@@ -97,17 +133,23 @@ fi
 if grep -q "factory_nvs" "${CMAKELISTS}"; then
     echo "Removing factory_nvs dependency..."
     # Replace everything from the NVS block to the spiffs line with just the spiffs line
-    python3 -c "
-import re
-with open('${CMAKELISTS}', 'r') as f:
+    # Use cygpath -w on Windows to convert MSYS paths for native Python
+    _CMAKE_PATH="${CMAKELISTS}"
+    if command -v cygpath &>/dev/null; then
+        _CMAKE_PATH="$(cygpath -w "${CMAKELISTS}")"
+    fi
+    python -c "
+import re, sys
+fpath = sys.argv[1]
+with open(fpath, 'r') as f:
     content = f.read()
 content = re.sub(
     r'set\(MV_UF2_BIN_EXE.*?(?=spiffs_create_partition_image)',
     '# Elisa: factory_nvs/UF2 removed -- we use SPIFFS runtime_config.json instead\n',
     content, flags=re.DOTALL)
-with open('${CMAKELISTS}', 'w') as f:
+with open(fpath, 'w') as f:
     f.write(content)
-"
+" "$_CMAKE_PATH"
 fi
 
 # Fix top-level CMakeLists.txt to point to esp-box components

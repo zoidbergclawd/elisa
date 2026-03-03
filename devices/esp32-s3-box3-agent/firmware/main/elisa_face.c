@@ -6,29 +6,9 @@
  * All shapes are basic geometry (circles, arcs, lines) to keep rendering
  * identical between firmware (LVGL) and browser preview (SVG).
  *
- * ADAPTATION NOTES (from chatgpt_demo):
- * - chatgpt_demo's app_ui.c creates a text-based UI with a chat log.
- *   We replace the entire UI with a full-screen animated face.
- * - The chatgpt_demo LVGL setup (display driver, touch driver) is reused
- *   as-is -- only the UI layer changes.
- *
- * SCREEN LAYOUT (320x240):
- * ┌──────────────────────────────┐
- * │                              │
- * │        ┌──────────┐          │
- * │        │  ●    ●  │  eyes    │
- * │        │          │          │
- * │        │   ╰──╯   │  mouth  │
- * │        └──────────┘          │
- * │                              │
- * │     [agent_name]             │
- * │     [status text]            │
- * └──────────────────────────────┘
- *
  * ANIMATION TICK:
- * A 30ms LVGL timer drives all animations (blink, pulse, thinking dots,
- * mouth movement). State transitions cancel running animations and start
- * new ones.
+ * A 30ms LVGL timer drives all animations (blink, pulse, mouth movement).
+ * State transitions reset animation counters and start new ones.
  */
 
 #include "elisa_face.h"
@@ -37,6 +17,7 @@
 #include <string.h>
 
 #include "esp_log.h"
+#include "esp_random.h"
 #include "lvgl.h"
 
 static const char *TAG = "elisa_face";
@@ -59,7 +40,7 @@ static const char *TAG = "elisa_face";
 /* Blink interval range (ms) */
 #define BLINK_MIN_MS    3000
 #define BLINK_MAX_MS    5000
-#define BLINK_DURATION  150
+#define BLINK_DURATION  60
 
 /* Animation timer period */
 #define ANIM_TICK_MS    30
@@ -78,6 +59,14 @@ static lv_obj_t *s_eye_right = NULL;   /* Right eye */
 static lv_obj_t *s_mouth = NULL;       /* Mouth line/arc */
 static lv_obj_t *s_name_label = NULL;  /* Agent name text */
 static lv_timer_t *s_anim_timer = NULL; /* Animation tick timer */
+
+/* Blink animation state */
+static uint32_t s_blink_countdown = 4000; /* ms until next blink */
+static bool s_blink_active = false;
+static uint32_t s_blink_timer = 0;        /* ms into current blink */
+
+/* Thinking animation state */
+static uint32_t s_think_counter = 0;
 
 // ── Helper: Get eye radius from size string ─────────────────────────────
 
@@ -98,19 +87,63 @@ static lv_color_t make_color(uint32_t rgb) {
 /**
  * Called every ANIM_TICK_MS to update face animations.
  *
- * TODO: Implement per-state animation logic:
- * - IDLE: periodic blink (hide eyes briefly)
- * - LISTENING: pulse ring scale animation
- * - THINKING: bounce three dots sequentially
- * - SPEAKING: scale mouth opening with s_audio_level
- * - ERROR: static sad face (no animation needed)
+ * - IDLE: periodic blink (hide eyes for ~60ms every 3-5s)
+ * - THINKING: pulse mouth opacity (sine wave)
+ * - SPEAKING: resize mouth height proportional to s_audio_level
  */
 static void anim_timer_cb(lv_timer_t *timer) {
     (void)timer;
 
-    /* Placeholder: animation logic will be implemented when building
-     * with ESP-IDF. Each state manipulates the LVGL objects created
-     * in elisa_face_init(). */
+    switch (s_state) {
+    case FACE_STATE_IDLE:
+        /* Blink logic: hide eyes briefly every 3-5 seconds */
+        if (s_blink_active) {
+            s_blink_timer += ANIM_TICK_MS;
+            if (s_blink_timer >= BLINK_DURATION) {
+                /* End blink -- show eyes */
+                lv_obj_clear_flag(s_eye_left, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_clear_flag(s_eye_right, LV_OBJ_FLAG_HIDDEN);
+                s_blink_active = false;
+                /* Schedule next blink */
+                s_blink_countdown = BLINK_MIN_MS +
+                    (esp_random() % (BLINK_MAX_MS - BLINK_MIN_MS));
+            }
+        } else {
+            if (s_blink_countdown <= ANIM_TICK_MS) {
+                /* Start blink -- hide eyes */
+                lv_obj_add_flag(s_eye_left, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(s_eye_right, LV_OBJ_FLAG_HIDDEN);
+                s_blink_active = true;
+                s_blink_timer = 0;
+            } else {
+                s_blink_countdown -= ANIM_TICK_MS;
+            }
+        }
+        break;
+
+    case FACE_STATE_THINKING: {
+        /* Pulse mouth opacity with a sine-ish wave (~1Hz cycle) */
+        s_think_counter += ANIM_TICK_MS;
+        float t = (float)s_think_counter / 1000.0f;
+        int opacity = (int)(128.0f + 127.0f * sinf(t * 3.14159f * 2.0f));
+        if (opacity < 0) opacity = 0;
+        if (opacity > 255) opacity = 255;
+        lv_obj_set_style_bg_opa(s_mouth, (lv_opa_t)opacity, 0);
+        break;
+    }
+
+    case FACE_STATE_SPEAKING: {
+        /* Scale mouth height proportional to audio level */
+        int base_h = 4;
+        int max_h = 24;
+        int h = base_h + (int)((float)(max_h - base_h) * s_audio_level);
+        lv_obj_set_height(s_mouth, h);
+        break;
+    }
+
+    default:
+        break;
+    }
 }
 
 // ── Public API ──────────────────────────────────────────────────────────
@@ -188,16 +221,7 @@ int elisa_face_init(const face_descriptor_t *desc) {
     lv_obj_set_style_radius(s_eye_right, LV_RADIUS_CIRCLE, 0);
     lv_obj_set_style_border_width(s_eye_right, 0, 0);
 
-    /*
-     * Create mouth.
-     *
-     * TODO: implement per-style mouth shapes using lv_line_create():
-     * - "line": horizontal line
-     * - "smile": upward arc (lv_arc_create)
-     * - "zigzag": W-shaped line points
-     * - "open": circle/ellipse
-     * - "cat": two connected arcs forming a "3" shape
-     */
+    /* Create mouth */
     s_mouth = lv_obj_create(s_face_bg);
     lv_obj_set_size(s_mouth, 40, 4);
     lv_obj_align(s_mouth, LV_ALIGN_CENTER, 0, 25);
@@ -210,6 +234,9 @@ int elisa_face_init(const face_descriptor_t *desc) {
 
     s_state = FACE_STATE_IDLE;
     s_initialized = true;
+
+    /* Schedule first blink */
+    s_blink_countdown = BLINK_MIN_MS + (esp_random() % (BLINK_MAX_MS - BLINK_MIN_MS));
 
     ESP_LOGI(TAG, "Face initialized: %s eyes=%s mouth=%s",
              s_desc.base_shape, s_desc.eyes.style, s_desc.mouth.style);
@@ -225,15 +252,50 @@ void elisa_face_set_state(face_state_t state) {
 
     ESP_LOGI(TAG, "Face state: %d -> %d", prev, state);
 
-    /*
-     * TODO: Implement state transition animations:
-     *
-     * IDLE -> LISTENING:  widen eyes, start pulse ring
-     * LISTENING -> THINKING: shrink eyes, show dots
-     * THINKING -> SPEAKING: remove dots, start mouth anim
-     * SPEAKING -> IDLE: reset mouth, start blink timer
-     * any -> ERROR: swap colors, sad expression
-     */
+    /* Reset common state on every transition */
+    lv_obj_clear_flag(s_eye_left, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(s_eye_right, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_style_bg_opa(s_mouth, LV_OPA_COVER, 0);
+    lv_obj_set_height(s_mouth, 4);
+    s_blink_active = false;
+
+    int eye_r = get_eye_radius(s_desc.eyes.size);
+
+    switch (state) {
+    case FACE_STATE_IDLE:
+        /* Schedule next blink, restore face color and eye size */
+        s_blink_countdown = BLINK_MIN_MS +
+            (esp_random() % (BLINK_MAX_MS - BLINK_MIN_MS));
+        lv_obj_set_style_bg_color(s_face_bg, make_color(s_desc.face_color), 0);
+        lv_obj_set_size(s_eye_left, eye_r * 2, eye_r * 2);
+        lv_obj_set_size(s_eye_right, eye_r * 2, eye_r * 2);
+        break;
+
+    case FACE_STATE_LISTENING:
+        /* Widen eyes slightly (+4px) */
+        lv_obj_set_size(s_eye_left, eye_r * 2 + 4, eye_r * 2 + 4);
+        lv_obj_set_size(s_eye_right, eye_r * 2 + 4, eye_r * 2 + 4);
+        break;
+
+    case FACE_STATE_THINKING:
+        /* Restore eye size to normal, reset pulse counter */
+        lv_obj_set_size(s_eye_left, eye_r * 2, eye_r * 2);
+        lv_obj_set_size(s_eye_right, eye_r * 2, eye_r * 2);
+        s_think_counter = 0;
+        break;
+
+    case FACE_STATE_SPEAKING:
+        /* Eyes normal, mouth will be animated in anim_timer_cb */
+        lv_obj_set_size(s_eye_left, eye_r * 2, eye_r * 2);
+        lv_obj_set_size(s_eye_right, eye_r * 2, eye_r * 2);
+        break;
+
+    case FACE_STATE_ERROR:
+        /* Change face background to red */
+        lv_obj_set_style_bg_color(s_face_bg, lv_color_make(200, 50, 50), 0);
+        break;
+    }
+
     (void)prev;
 }
 

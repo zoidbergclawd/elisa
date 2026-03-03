@@ -6,21 +6,15 @@
  * All AI API calls are routed through the runtime -- the ESP32 never
  * contacts OpenAI/Anthropic directly.
  *
- * ADAPTATION NOTES (from chatgpt_demo):
- * - chatgpt_demo's app_sr_handler.c sends audio to OpenAI Whisper for STT,
- *   then sends the transcript to ChatGPT, then sends the response to OpenAI
- *   TTS. We replace all three calls with a single POST to the Elisa runtime's
- *   /v1/agents/:id/turn/audio endpoint, which handles STT + AI + TTS
- *   server-side.
- * - The response format is JSON with base64-encoded audio rather than
- *   streaming chunks. This simplifies the ESP32 code significantly.
+ * The single POST to /v1/agents/:id/turn/audio?format=wav replaces
+ * chatgpt_demo's 3-call chain (Whisper STT -> ChatGPT -> OpenAI TTS).
+ * The runtime handles STT + AI + TTS server-side and returns JSON with
+ * base64-encoded MP3 audio.
  *
  * DEPENDENCIES:
  * - esp_http_client (ESP-IDF component)
  * - cJSON (bundled with ESP-IDF)
- *
- * TODO (Phase 2): WebSocket streaming for lower latency. Currently uses
- * synchronous HTTP which adds round-trip delay but is simpler to implement.
+ * - mbedtls (bundled with ESP-IDF, for base64 decode)
  */
 
 #include "elisa_api.h"
@@ -31,6 +25,7 @@
 #include "esp_log.h"
 #include "esp_http_client.h"
 #include "cJSON.h"
+#include "mbedtls/base64.h"
 
 static const char *TAG = "elisa_api";
 
@@ -46,6 +41,54 @@ static bool s_initialized = false;
 
 /** HTTP timeout in milliseconds */
 #define HTTP_TIMEOUT_MS 30000
+
+// ── HTTP Response Accumulator ───────────────────────────────────────────
+
+/**
+ * Context passed to the HTTP event handler to accumulate the response body.
+ */
+typedef struct {
+    char *body;
+    size_t body_len;
+    size_t body_capacity;
+} http_response_ctx_t;
+
+/**
+ * HTTP event handler that accumulates response body data.
+ * Attached to esp_http_client via event_handler + user_data.
+ */
+static esp_err_t http_event_handler(esp_http_client_event_t *evt) {
+    http_response_ctx_t *ctx = (http_response_ctx_t *)evt->user_data;
+    if (ctx == NULL) return ESP_OK;
+
+    switch (evt->event_id) {
+    case HTTP_EVENT_ON_DATA:
+        if (ctx->body_len + evt->data_len > MAX_RESPONSE_SIZE) {
+            ESP_LOGE(TAG, "Response exceeds %d bytes limit", MAX_RESPONSE_SIZE);
+            return ESP_FAIL;
+        }
+        if (ctx->body == NULL) {
+            ctx->body_capacity = (evt->data_len > 4096) ? evt->data_len * 2 : 4096;
+            ctx->body = (char *)malloc(ctx->body_capacity);
+        } else if (ctx->body_len + evt->data_len > ctx->body_capacity) {
+            ctx->body_capacity = (ctx->body_len + evt->data_len) * 2;
+            char *new_body = (char *)realloc(ctx->body, ctx->body_capacity);
+            if (new_body == NULL) {
+                free(ctx->body);
+                ctx->body = NULL;
+                return ESP_FAIL;
+            }
+            ctx->body = new_body;
+        }
+        if (ctx->body == NULL) return ESP_FAIL;
+        memcpy(ctx->body + ctx->body_len, evt->data, evt->data_len);
+        ctx->body_len += evt->data_len;
+        break;
+    default:
+        break;
+    }
+    return ESP_OK;
+}
 
 // ── Helper: Build full URL ──────────────────────────────────────────────
 
@@ -88,20 +131,18 @@ int elisa_api_audio_turn(const uint8_t *audio_data, size_t audio_len,
     memset(response, 0, sizeof(*response));
 
     char url[512];
-    build_url(url, sizeof(url), "turn/audio");
+    build_url(url, sizeof(url), "turn/audio?format=wav");
 
-    /*
-     * Configure HTTP client.
-     *
-     * ADAPTATION: chatgpt_demo uses three separate HTTP calls here
-     * (Whisper STT, ChatGPT, TTS). We use a single POST that handles
-     * the entire pipeline server-side.
-     */
+    /* Response body accumulator */
+    http_response_ctx_t resp_ctx = { .body = NULL, .body_len = 0, .body_capacity = 0 };
+
     esp_http_client_config_t http_config = {
         .url = url,
         .method = HTTP_METHOD_POST,
         .timeout_ms = HTTP_TIMEOUT_MS,
-        .buffer_size = MAX_RESPONSE_SIZE,
+        .buffer_size = 4096,
+        .event_handler = http_event_handler,
+        .user_data = &resp_ctx,
     };
 
     esp_http_client_handle_t client = esp_http_client_init(&http_config);
@@ -111,7 +152,7 @@ int elisa_api_audio_turn(const uint8_t *audio_data, size_t audio_len,
     }
 
     /* Set headers */
-    esp_http_client_set_header(client, "Content-Type", "audio/wav");
+    esp_http_client_set_header(client, "Content-Type", "application/octet-stream");
     esp_http_client_set_header(client, "x-api-key", s_api_key);
 
     /* Set audio as POST body */
@@ -121,29 +162,83 @@ int elisa_api_audio_turn(const uint8_t *audio_data, size_t audio_len,
     esp_err_t err = esp_http_client_perform(client);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "HTTP request failed: %s", esp_err_to_name(err));
+        free(resp_ctx.body);
         esp_http_client_cleanup(client);
         return -1;
     }
 
     response->status_code = esp_http_client_get_status_code(client);
-
-    /*
-     * Parse response JSON:
-     * {
-     *   "text": "agent response",
-     *   "audio": "<base64 mp3>",
-     *   "transcript": "what user said"
-     * }
-     *
-     * TODO: Read response body. esp_http_client with buffer_size set
-     * will accumulate the body. In a real implementation, use
-     * esp_http_client_read() in a loop or the event-driven API.
-     */
-
-    ESP_LOGI(TAG, "Audio turn response: status=%d", response->status_code);
-
     esp_http_client_cleanup(client);
-    return (response->status_code == 200) ? 0 : -1;
+
+    if (response->status_code != 200 || resp_ctx.body == NULL || resp_ctx.body_len == 0) {
+        ESP_LOGE(TAG, "Audio turn failed: status=%d body_len=%zu",
+                 response->status_code, resp_ctx.body_len);
+        free(resp_ctx.body);
+        return -1;
+    }
+
+    /* Null-terminate for JSON parsing */
+    char *json_str = (char *)realloc(resp_ctx.body, resp_ctx.body_len + 1);
+    if (json_str == NULL) {
+        free(resp_ctx.body);
+        return -1;
+    }
+    json_str[resp_ctx.body_len] = '\0';
+
+    /* Parse JSON response:
+     * {
+     *   "response_text": "agent's reply",
+     *   "audio_base64": "<base64-encoded MP3>"
+     * }
+     */
+    cJSON *root = cJSON_Parse(json_str);
+    free(json_str);
+
+    if (root == NULL) {
+        ESP_LOGE(TAG, "Failed to parse response JSON");
+        return -1;
+    }
+
+    /* Extract response text */
+    cJSON *text_item = cJSON_GetObjectItem(root, "response_text");
+    if (cJSON_IsString(text_item) && text_item->valuestring != NULL) {
+        response->text = strdup(text_item->valuestring);
+    }
+
+    /* Extract and decode base64 audio */
+    cJSON *audio_item = cJSON_GetObjectItem(root, "audio_base64");
+    if (cJSON_IsString(audio_item) && audio_item->valuestring != NULL) {
+        size_t b64_len = strlen(audio_item->valuestring);
+        /* Decoded size is at most 3/4 of base64 length */
+        size_t decoded_max = (b64_len * 3) / 4 + 4;
+        response->audio_data = (uint8_t *)malloc(decoded_max);
+
+        if (response->audio_data != NULL) {
+            size_t decoded_len = 0;
+            int ret = mbedtls_base64_decode(
+                response->audio_data, decoded_max, &decoded_len,
+                (const unsigned char *)audio_item->valuestring, b64_len);
+
+            if (ret == 0) {
+                response->audio_len = decoded_len;
+                ESP_LOGI(TAG, "Decoded %zu bytes of audio from base64", decoded_len);
+            } else {
+                ESP_LOGE(TAG, "Base64 decode failed: %d", ret);
+                free(response->audio_data);
+                response->audio_data = NULL;
+                response->audio_len = 0;
+            }
+        }
+    }
+
+    cJSON_Delete(root);
+
+    ESP_LOGI(TAG, "Audio turn response: status=%d text=%s audio=%zu bytes",
+             response->status_code,
+             response->text ? "yes" : "no",
+             response->audio_len);
+
+    return 0;
 }
 
 int elisa_api_heartbeat(elisa_heartbeat_t *result) {
