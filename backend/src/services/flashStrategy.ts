@@ -7,6 +7,7 @@
  */
 
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -357,20 +358,55 @@ export class EsptoolFlashStrategy implements FlashStrategy {
       };
     }
 
-    // Write runtime config combining injections + device fields + spec data.
-    // This produces the full runtime_config.json that firmware reads on boot.
-    if (Object.keys(injections).length > 0) {
-      onProgress('Writing runtime configuration...', 15);
-      const config = buildRuntimeConfig(injections, deviceFields, runtimeConfig);
-      const configPath = path.join(nuggetDir, 'runtime_config.json');
-      fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+    // Build runtime config combining injections + device fields + spec data.
+    const config = Object.keys(injections).length > 0
+      ? buildRuntimeConfig(injections, deviceFields, runtimeConfig)
+      : null;
+
+    // Build the list of address-file pairs for write_flash.
+    // esptool supports multiple pairs: write_flash 0x0 boot.bin 0x10000 app.bin ...
+    const flashPairs: string[] = [];
+
+    // Add partition files (bootloader, partition table, OTA, SR models, etc.)
+    const partitionFiles: Array<{ file: string; offset: string }> = flashConfig.partition_files ?? [];
+    for (const pf of partitionFiles) {
+      const pfPath = path.join(pluginDir, pf.file);
+      if (fs.existsSync(pfPath)) {
+        flashPairs.push(pf.offset, pfPath);
+      } else {
+        console.warn(`[esptool] partition file not found, skipping: ${pf.file}`);
+      }
+    }
+
+    // Add the main firmware binary
+    const offset = flashConfig.flash_offset ?? '0x0';
+    flashPairs.push(offset, firmwarePath);
+
+    // Generate SPIFFS image with runtime_config.json if spiffs config is present
+    let spiffsTempDir: string | null = null;
+    const spiffsConfig = flashConfig.spiffs;
+    if (spiffsConfig && config) {
+      onProgress('Building config partition...', 15);
+      try {
+        const spiffsResult = await this.generateSpiffsImage(pluginDir, config, spiffsConfig);
+        if (spiffsResult) {
+          flashPairs.push(spiffsConfig.offset, spiffsResult.imagePath);
+          spiffsTempDir = spiffsResult.tempDir;
+        }
+      } catch (err) {
+        console.warn('[esptool] SPIFFS generation failed, using pre-built storage.bin:', err);
+        // Fall back to pre-built storage.bin (has placeholder config)
+        const fallbackStorage = path.join(pluginDir, 'firmware', 'partitions', 'storage.bin');
+        if (fs.existsSync(fallbackStorage)) {
+          flashPairs.push(spiffsConfig.offset, fallbackStorage);
+        }
+      }
     }
 
     onProgress('Flashing firmware...', 20);
 
     // Build esptool args
     const chip = flashConfig.chip ?? 'esp32s3';
-    const offset = flashConfig.flash_offset ?? '0x0';
     const baudRate = String(flashConfig.baud_rate ?? 460800);
 
     const args = [
@@ -378,12 +414,16 @@ export class EsptoolFlashStrategy implements FlashStrategy {
       '--chip', chip,
       '--port', port,
       '--baud', baudRate,
-      'write_flash', offset, firmwarePath,
+      'write_flash',
+      ...(flashConfig.flash_mode ? ['--flash_mode', flashConfig.flash_mode] : []),
+      ...(flashConfig.flash_size ? ['--flash_size', flashConfig.flash_size] : []),
+      ...(flashConfig.flash_freq ? ['--flash_freq', flashConfig.flash_freq] : []),
+      ...flashPairs,
     ];
 
     // Execute esptool via execFile (no shell)
     try {
-      const result = await new Promise<FlashResult>((resolve, reject) => {
+      const result = await new Promise<FlashResult>((resolve) => {
         const child = execFile(
           resolved.cmd,
           args,
@@ -415,7 +455,6 @@ export class EsptoolFlashStrategy implements FlashStrategy {
                 message: `Firmware flashed to ${port} successfully`,
               });
             } else {
-              // esptool completed without error code but no verification
               resolve({
                 success: true,
                 message: `Firmware flashed to ${port}`,
@@ -425,17 +464,7 @@ export class EsptoolFlashStrategy implements FlashStrategy {
         );
 
         // Parse progress from stdout/stderr in real time
-        child.stdout?.on('data', (data: Buffer | string) => {
-          const text = typeof data === 'string' ? data : data.toString();
-          const match = text.match(PROGRESS_RE);
-          if (match) {
-            const pct = parseInt(match[1], 10);
-            // Map esptool's 0-100% to our 20-90% range
-            const mappedPct = Math.round(20 + (pct / 100) * 70);
-            onProgress(`Flashing firmware... ${pct}%`, mappedPct);
-          }
-        });
-        child.stderr?.on('data', (data: Buffer | string) => {
+        const onData = (data: Buffer | string) => {
           const text = typeof data === 'string' ? data : data.toString();
           const match = text.match(PROGRESS_RE);
           if (match) {
@@ -443,20 +472,111 @@ export class EsptoolFlashStrategy implements FlashStrategy {
             const mappedPct = Math.round(20 + (pct / 100) * 70);
             onProgress(`Flashing firmware... ${pct}%`, mappedPct);
           }
-        });
+        };
+        child.stdout?.on('data', onData);
+        child.stderr?.on('data', onData);
       });
+
+      // Clean up SPIFFS temp directory
+      if (spiffsTempDir) {
+        try { fs.rmSync(spiffsTempDir, { recursive: true, force: true }); } catch { /* ignore */ }
+      }
 
       if (result.success) {
         onProgress('Flash complete!', 100);
       }
       return result;
     } catch (err: unknown) {
+      if (spiffsTempDir) {
+        try { fs.rmSync(spiffsTempDir, { recursive: true, force: true }); } catch { /* ignore */ }
+      }
       const message = err instanceof Error ? err.message : String(err);
       return {
         success: false,
         message: `esptool error: ${message}`,
       };
     }
+  }
+
+  /**
+   * Generate a SPIFFS image containing runtime_config.json.
+   * Uses ESP-IDF's spiffsgen.py to create the image.
+   */
+  private async generateSpiffsImage(
+    pluginDir: string,
+    config: Record<string, unknown>,
+    spiffsConfig: { size: string; page_size: number; obj_name_len: number; meta_len: number },
+  ): Promise<{ imagePath: string; tempDir: string } | null> {
+    // Create temp directory with runtime_config.json
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'elisa-spiffs-'));
+    const spiffsSourceDir = path.join(tempDir, 'spiffs');
+    fs.mkdirSync(spiffsSourceDir);
+    fs.writeFileSync(
+      path.join(spiffsSourceDir, 'runtime_config.json'),
+      JSON.stringify(config, null, 2),
+      'utf-8',
+    );
+
+    const outputImage = path.join(tempDir, 'storage.bin');
+    const partitionSize = spiffsConfig.size;
+
+    // Find spiffsgen.py: check IDF_PATH, then common install locations
+    const spiffsgenPath = await this.findSpiffsgen();
+    if (!spiffsgenPath) {
+      // Fall back: copy pre-built storage.bin from the build
+      const prebuilt = path.join(pluginDir, 'firmware', 'partitions', 'storage.bin');
+      if (fs.existsSync(prebuilt)) {
+        fs.copyFileSync(prebuilt, outputImage);
+        console.warn('[esptool] spiffsgen.py not found, using pre-built storage.bin with placeholder config');
+        return { imagePath: outputImage, tempDir };
+      }
+      fs.rmSync(tempDir, { recursive: true, force: true });
+      return null;
+    }
+
+    // Run spiffsgen.py to create the SPIFFS image
+    const args = [
+      spiffsgenPath,
+      partitionSize,
+      spiffsSourceDir,
+      outputImage,
+      '--page-size', String(spiffsConfig.page_size),
+      '--obj-name-len', String(spiffsConfig.obj_name_len),
+      '--meta-len', String(spiffsConfig.meta_len),
+      '--use-magic',
+      '--use-magic-len',
+    ];
+
+    await execFileAsync('python', args, { timeout: 15_000, env: safeEnv() });
+    return { imagePath: outputImage, tempDir };
+  }
+
+  /** Find spiffsgen.py from ESP-IDF installation. */
+  private async findSpiffsgen(): Promise<string | null> {
+    // Check IDF_PATH environment variable
+    const idfPath = process.env.IDF_PATH;
+    if (idfPath) {
+      const candidate = path.join(idfPath, 'components', 'spiffs', 'spiffsgen.py');
+      if (fs.existsSync(candidate)) return candidate;
+    }
+
+    // Check common install locations
+    const home = process.env.USERPROFILE || process.env.HOME || '';
+    const candidates = [
+      path.join(home, 'esp', 'esp-idf', 'components', 'spiffs', 'spiffsgen.py'),
+      '/opt/esp-idf/components/spiffs/spiffsgen.py',
+    ];
+    for (const candidate of candidates) {
+      if (fs.existsSync(candidate)) return candidate;
+    }
+
+    // Try running it as a module
+    try {
+      await execFileAsync('python', ['-c', 'import spiffsgen'], { timeout: 5000, env: safeEnv() });
+      return '-m spiffsgen'; // Not a path, but a module invocation
+    } catch { /* not available */ }
+
+    return null;
   }
 }
 

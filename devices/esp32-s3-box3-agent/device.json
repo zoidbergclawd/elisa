@@ -91,9 +91,25 @@
     "requires": ["agent_id", "api_key", "runtime_url"],
     "esptool": {
       "firmware_file": "firmware/box3-agent.bin",
-      "flash_offset": "0x0",
+      "flash_offset": "0x10000",
       "baud_rate": 460800,
       "chip": "esp32s3",
+      "flash_mode": "dio",
+      "flash_size": "16MB",
+      "flash_freq": "80m",
+      "partition_files": [
+        { "file": "firmware/partitions/bootloader.bin", "offset": "0x0" },
+        { "file": "firmware/partitions/partition-table.bin", "offset": "0x8000" },
+        { "file": "firmware/partitions/ota_data_initial.bin", "offset": "0xd000" },
+        { "file": "firmware/partitions/srmodels.bin", "offset": "0xb00000" }
+      ],
+      "spiffs": {
+        "offset": "0x900000",
+        "size": "0x200000",
+        "page_size": 256,
+        "obj_name_len": 32,
+        "meta_len": 4
+      },
       "prompt_message": "Connect your ESP32-S3-BOX-3 via USB-C, then click Ready"
     },
     "runtime_provision": {
