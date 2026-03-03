@@ -50,7 +50,7 @@ static void init_wifi(const char *ssid, const char *password);
 static void init_audio(void);
 static void init_wake_word(const char *wake_word);
 static void conversation_loop(void);
-static void elisa_audio_play_finish_cb(audio_player_cb_ctx_t *ctx);
+static void elisa_audio_play_finish_cb(void);
 
 // ── Pending Audio Response ──────────────────────────────────────────────
 
@@ -87,6 +87,11 @@ void app_main(void) {
      * Skip ui_ctrl_init() -- Elisa uses elisa_face instead. */
     bsp_display_cfg_t cfg = {
         .lvgl_port_cfg = ESP_LVGL_PORT_INIT_CONFIG(),
+        .buffer_size = BSP_LCD_H_RES * CONFIG_BSP_LCD_DRAW_BUF_HEIGHT,
+        .double_buffer = 0,
+        .flags = {
+            .buff_dma = true,
+        },
     };
     bsp_display_start_with_config(&cfg);
     bsp_board_init();
@@ -179,7 +184,7 @@ static void init_audio(void) {
 
 static void init_wake_word(const char *wake_word) {
     app_sr_start(false);
-    audio_player_callback_register(elisa_audio_play_finish_cb, NULL);
+    audio_register_play_finish_cb(elisa_audio_play_finish_cb);
     ESP_LOGI(TAG, "Wake word engine initialized: %s", wake_word);
     (void)wake_word; /* Display-only; actual wake word is from SR model in flash */
 }
@@ -248,11 +253,9 @@ esp_err_t start_openai(uint8_t *audio, int audio_len) {
 
 // ── Playback Complete Callback ──────────────────────────────────────────
 
-static void elisa_audio_play_finish_cb(audio_player_cb_ctx_t *ctx) {
-    if (ctx->audio_event == AUDIO_PLAYER_CALLBACK_EVENT_IDLE) {
-        elisa_face_set_state(FACE_STATE_IDLE);
-        elisa_api_free_response(&s_pending_audio_response);
-    }
+static void elisa_audio_play_finish_cb(void) {
+    elisa_face_set_state(FACE_STATE_IDLE);
+    elisa_api_free_response(&s_pending_audio_response);
 }
 
 // ── Main Conversation Loop ──────────────────────────────────────────────
