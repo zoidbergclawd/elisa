@@ -102,7 +102,7 @@ fi
 # Replace with no-op stubs.
 
 echo "Writing app_ui_ctrl.c stub..."
-cat > "${BUILD_DIR}/main/app_ui_ctrl.c" <<'STUBEOF'
+cat > "${BUILD_DIR}/main/app/app_ui_ctrl.c" <<'STUBEOF'
 /* Stub: replaces chatgpt_demo's app_ui_ctrl.c.
  * Prevents crashes from UI control calls since Elisa uses elisa_face.c
  * instead of chatgpt_demo's chat UI. */
