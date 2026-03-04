@@ -110,7 +110,15 @@ fi
 
 if ! grep -q "start_openai_original" "${BUILD_DIR}/main/main.c" 2>/dev/null; then
     echo "Patching main.c: renaming start_openai -> start_openai_original..."
-    sed -i 's/start_openai/start_openai_original/g' "${BUILD_DIR}/main/main.c"
+    sed -i.bak 's/start_openai/start_openai_original/g' "${BUILD_DIR}/main/main.c"
+    rm -f "${BUILD_DIR}/main/main.c.bak"
+fi
+
+# Rename app_main so elisa_main.c's app_main wins at link time
+if ! grep -q "app_main_original" "${BUILD_DIR}/main/main.c" 2>/dev/null; then
+    echo "Patching main.c: renaming app_main -> app_main_original..."
+    sed -i.bak 's/void app_main()/void app_main_original()/' "${BUILD_DIR}/main/main.c"
+    rm -f "${BUILD_DIR}/main/main.c.bak"
 fi
 
 # ── Step 4d: Stub app_ui_ctrl.c ────────────────────────────────────────
@@ -136,6 +144,8 @@ void ui_ctrl_label_show(void) {}
 void ui_ctrl_guide_jump(void) {}
 bool ui_ctrl_key_lock(void) { return false; }
 void ui_ctrl_key_unlock(void) {}
+bool ui_ctrl_reply_get_audio_start_flag(void) { return false; }
+void ui_ctrl_reply_set_audio_end_flag(void) {}
 STUBEOF
 
 # ── Step 5: Patch CMakeLists.txt ───────────────────────────────────────
@@ -143,11 +153,11 @@ STUBEOF
 CMAKELISTS="${BUILD_DIR}/main/CMakeLists.txt"
 if ! grep -q "elisa_config.c" "${CMAKELISTS}"; then
     echo "Patching main/CMakeLists.txt to include Elisa sources..."
-    sed -i.bak 's|"main.c"|"main.c"\n        "elisa_config.c"\n        "elisa_api.c"\n        "elisa_face.c"\n        "elisa_main.c"\n        "elisa_opus.c"|' "${CMAKELISTS}"
+    sed -i.bak 's|"main.c"|"main.c"\n        "elisa_config.c"\n        "elisa_api.c"\n        "elisa_face.c"\n        "elisa_main.c"\n        "elisa_opus.cc"|' "${CMAKELISTS}"
     rm -f "${CMAKELISTS}.bak"
-elif ! grep -q "elisa_opus.c" "${CMAKELISTS}"; then
-    echo "Adding elisa_opus.c to main/CMakeLists.txt..."
-    sed -i.bak 's|"elisa_main.c"|"elisa_main.c"\n        "elisa_opus.c"|' "${CMAKELISTS}"
+elif ! grep -q "elisa_opus.cc" "${CMAKELISTS}"; then
+    echo "Adding elisa_opus.cc to main/CMakeLists.txt..."
+    sed -i.bak 's|"elisa_main.c"|"elisa_main.c"\n        "elisa_opus.cc"|' "${CMAKELISTS}"
     rm -f "${CMAKELISTS}.bak"
 fi
 

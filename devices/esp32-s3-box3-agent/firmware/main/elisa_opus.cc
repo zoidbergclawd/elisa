@@ -1,13 +1,12 @@
 /**
- * @file elisa_opus.c
+ * @file elisa_opus.cc
  * @brief Ogg Opus decoder wrapper using esphome/micro-opus.
  *
  * Decodes Ogg Opus audio (from OpenAI TTS response_format: 'opus') into
  * PCM int16 samples suitable for playback via I2S on the ES8311 codec.
  *
- * The micro-opus component provides OggOpusDecoder with Xtensa DSP
- * optimizations and PSRAM support. We use its streaming API to decode
- * the entire Ogg Opus file in one pass.
+ * The micro-opus component provides OggOpusDecoder (C++ class) with Xtensa
+ * DSP optimizations and PSRAM support.
  *
  * DEPENDENCIES:
  * - esphome/micro-opus (added via idf_component.yml)
@@ -21,19 +20,21 @@
 
 #include "esp_log.h"
 #include "esp_heap_caps.h"
-#include "ogg_opus_decoder.h"
+#include "micro_opus/ogg_opus_decoder.h"
+
+using namespace micro_opus;
 
 static const char *TAG = "elisa_opus";
 
 /** Maximum decoded PCM size: 60 seconds of 48kHz mono (5.5 MB in PSRAM). */
 #define MAX_PCM_SAMPLES (48000 * 60)
 
-/** Decode chunk size: number of samples per opus_decode call (120ms at 48kHz). */
-#define DECODE_CHUNK_SAMPLES 5760
+/** Decode output buffer: 120ms of 48kHz mono = 5760 samples = 11520 bytes. */
+#define DECODE_OUTPUT_BYTES (5760 * 2)
 
-int elisa_opus_decode(const uint8_t *ogg_data, size_t ogg_len,
-                      int16_t **pcm_out, size_t *pcm_samples,
-                      uint32_t *sample_rate) {
+extern "C" int elisa_opus_decode(const uint8_t *ogg_data, size_t ogg_len,
+                                  int16_t **pcm_out, size_t *pcm_samples,
+                                  uint32_t *sample_rate) {
     if (ogg_data == NULL || ogg_len == 0 || pcm_out == NULL ||
         pcm_samples == NULL || sample_rate == NULL) {
         return -1;
@@ -43,13 +44,11 @@ int elisa_opus_decode(const uint8_t *ogg_data, size_t ogg_len,
     *pcm_samples = 0;
     *sample_rate = 48000; /* OpenAI TTS Opus is always 48kHz */
 
-    /* Allocate output buffer in PSRAM -- start with a reasonable estimate.
-     * Opus voice at ~24kbps -> ~1:32 compression ratio for 48kHz 16-bit mono.
-     * Estimate: ogg_len * 32 samples, capped at MAX_PCM_SAMPLES. */
+    /* Allocate output buffer in PSRAM */
     size_t estimated_samples = (ogg_len * 32 > MAX_PCM_SAMPLES)
         ? MAX_PCM_SAMPLES : ogg_len * 32;
-    if (estimated_samples < DECODE_CHUNK_SAMPLES) {
-        estimated_samples = DECODE_CHUNK_SAMPLES * 4;
+    if (estimated_samples < 5760 * 4) {
+        estimated_samples = 5760 * 4;
     }
 
     int16_t *pcm_buf = (int16_t *)heap_caps_malloc(
@@ -60,36 +59,39 @@ int elisa_opus_decode(const uint8_t *ogg_data, size_t ogg_len,
         return -1;
     }
 
-    /* Initialize Ogg Opus decoder */
-    OggOpusDecoder *decoder = ogg_opus_decoder_create();
-    if (decoder == NULL) {
-        ESP_LOGE(TAG, "Failed to create Ogg Opus decoder");
+    /* Create decoder (no CRC, 48kHz, mono) */
+    OggOpusDecoder decoder(false, 48000, 1);
+
+    /* Temporary output buffer for each decode call */
+    uint8_t *decode_buf = (uint8_t *)heap_caps_malloc(DECODE_OUTPUT_BYTES, MALLOC_CAP_SPIRAM);
+    if (decode_buf == NULL) {
+        ESP_LOGE(TAG, "Failed to allocate decode buffer");
         heap_caps_free(pcm_buf);
         return -1;
     }
 
-    /* Feed the entire Ogg data and decode */
     size_t total_samples = 0;
-    size_t offset = 0;
-    /* Feed data in chunks to the decoder */
-    const size_t feed_chunk = 4096;
+    size_t input_offset = 0;
 
-    while (offset < ogg_len) {
-        size_t remaining = ogg_len - offset;
-        size_t chunk = (remaining < feed_chunk) ? remaining : feed_chunk;
+    while (input_offset < ogg_len) {
+        size_t bytes_consumed = 0;
+        size_t samples_decoded = 0;
 
-        int result = ogg_opus_decoder_feed(decoder, ogg_data + offset, chunk);
-        if (result < 0) {
-            ESP_LOGE(TAG, "Decoder feed error at offset %zu: %d", offset, result);
-            break;
+        OggOpusResult result = decoder.decode(
+            ogg_data + input_offset,
+            ogg_len - input_offset,
+            decode_buf,
+            DECODE_OUTPUT_BYTES,
+            bytes_consumed,
+            samples_decoded);
+
+        if (bytes_consumed > 0) {
+            input_offset += bytes_consumed;
         }
-        offset += chunk;
 
-        /* Read decoded PCM samples */
-        int decoded;
-        do {
+        if (samples_decoded > 0) {
             /* Check if we need to grow the buffer */
-            if (total_samples + DECODE_CHUNK_SAMPLES > estimated_samples) {
+            if (total_samples + samples_decoded > estimated_samples) {
                 size_t new_size = estimated_samples * 2;
                 if (new_size > MAX_PCM_SAMPLES) new_size = MAX_PCM_SAMPLES;
                 if (new_size <= estimated_samples) {
@@ -106,23 +108,29 @@ int elisa_opus_decode(const uint8_t *ogg_data, size_t ogg_len,
                 estimated_samples = new_size;
             }
 
-            decoded = ogg_opus_decoder_read(
-                decoder,
-                pcm_buf + total_samples,
-                DECODE_CHUNK_SAMPLES);
-            if (decoded > 0) {
-                total_samples += decoded;
-            }
-        } while (decoded > 0);
+            /* Copy decoded samples (int16 LE) to output buffer */
+            memcpy(pcm_buf + total_samples, decode_buf, samples_decoded * sizeof(int16_t));
+            total_samples += samples_decoded;
+        }
+
+        if (result != OGG_OPUS_OK) {
+            ESP_LOGE(TAG, "Decode error: %d at offset %zu", (int)result, input_offset);
+            break;
+        }
+
+        /* End of stream: no bytes consumed and no samples decoded */
+        if (bytes_consumed == 0 && samples_decoded == 0) {
+            break;
+        }
     }
 
-    /* Get sample rate from decoder if available */
-    uint32_t rate = ogg_opus_decoder_get_sample_rate(decoder);
+    heap_caps_free(decode_buf);
+
+    /* Get sample rate from decoder */
+    uint32_t rate = decoder.get_sample_rate();
     if (rate > 0) {
         *sample_rate = rate;
     }
-
-    ogg_opus_decoder_destroy(decoder);
 
     if (total_samples == 0) {
         ESP_LOGE(TAG, "No PCM samples decoded from %zu bytes of Ogg Opus", ogg_len);
@@ -139,7 +147,7 @@ int elisa_opus_decode(const uint8_t *ogg_data, size_t ogg_len,
     return 0;
 }
 
-void elisa_opus_free(int16_t *pcm_data) {
+extern "C" void elisa_opus_free(int16_t *pcm_data) {
     if (pcm_data != NULL) {
         heap_caps_free(pcm_data);
     }

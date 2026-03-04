@@ -261,19 +261,18 @@ def main():
                         help=f'Recording duration in seconds (default: {RECORD_DURATION})')
     args = parser.parse_args()
 
-    global RECORD_DURATION
-    RECORD_DURATION = args.duration
+    duration = args.duration
 
     if args.laptop:
         print("Using LAPTOP microphone")
-        record_fn = lambda: record_from_laptop(args.duration)
+        record_fn = lambda: record_from_laptop(duration)
     else:
         port = args.port or find_box3_port()
         if not port:
             print("ERROR: No BOX-3 found. Connect via USB-C or use --port or --laptop")
             sys.exit(1)
         print(f"Using BOX-3 on {port}")
-        record_fn = lambda: record_from_box3(port, args.duration)
+        record_fn = lambda: record_from_box3(port, duration)
 
     print(f"Sample rate: {SAMPLE_RATE} Hz, Duration: {RECORD_DURATION}s")
     print(f"Data directory: {DATA_DIR}")
