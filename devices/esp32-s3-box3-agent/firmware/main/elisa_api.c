@@ -38,8 +38,8 @@ static char s_api_key[128];
 static char s_agent_id[64];
 static bool s_initialized = false;
 
-/** Maximum response body size (512 KB -- includes base64 audio) */
-#define MAX_RESPONSE_SIZE (512 * 1024)
+/** Maximum response body size (1 MB -- safety margin with Opus binary responses) */
+#define MAX_RESPONSE_SIZE (1024 * 1024)
 
 /** HTTP timeout in milliseconds */
 #define HTTP_TIMEOUT_MS 30000
@@ -47,16 +47,22 @@ static bool s_initialized = false;
 // ── HTTP Response Accumulator ───────────────────────────────────────────
 
 /**
- * Context passed to the HTTP event handler to accumulate the response body.
+ * Context passed to the HTTP event handler to accumulate the response body
+ * and capture response headers for binary responses.
  */
 typedef struct {
     char *body;
     size_t body_len;
     size_t body_capacity;
+    /* Response headers captured for binary response path */
+    char content_type[64];
+    char x_audio_format[16];
+    char x_response_text[1024];
+    char x_session_id[128];
 } http_response_ctx_t;
 
 /**
- * HTTP event handler that accumulates response body data.
+ * HTTP event handler that accumulates response body data and captures headers.
  * Attached to esp_http_client via event_handler + user_data.
  */
 static esp_err_t http_event_handler(esp_http_client_event_t *evt) {
@@ -64,6 +70,17 @@ static esp_err_t http_event_handler(esp_http_client_event_t *evt) {
     if (ctx == NULL) return ESP_OK;
 
     switch (evt->event_id) {
+    case HTTP_EVENT_ON_HEADER:
+        if (strcasecmp(evt->header_key, "Content-Type") == 0) {
+            strncpy(ctx->content_type, evt->header_value, sizeof(ctx->content_type) - 1);
+        } else if (strcasecmp(evt->header_key, "X-Audio-Format") == 0) {
+            strncpy(ctx->x_audio_format, evt->header_value, sizeof(ctx->x_audio_format) - 1);
+        } else if (strcasecmp(evt->header_key, "X-Response-Text") == 0) {
+            strncpy(ctx->x_response_text, evt->header_value, sizeof(ctx->x_response_text) - 1);
+        } else if (strcasecmp(evt->header_key, "X-Session-Id") == 0) {
+            strncpy(ctx->x_session_id, evt->header_value, sizeof(ctx->x_session_id) - 1);
+        }
+        break;
     case HTTP_EVENT_ON_DATA:
         if (ctx->body_len + evt->data_len > MAX_RESPONSE_SIZE) {
             ESP_LOGE(TAG, "Response exceeds %d bytes limit", MAX_RESPONSE_SIZE);
@@ -101,6 +118,32 @@ static void build_url(char *buf, size_t buf_size, const char *path) {
     snprintf(buf, buf_size, "%s/v1/agents/%s/%s", s_runtime_url, s_agent_id, path);
 }
 
+// ── URL Decode Helper ───────────────────────────────────────────────────
+
+/**
+ * In-place URL-decode a percent-encoded string (e.g. from X-Response-Text header).
+ * Handles %XX sequences and '+' as space.
+ */
+static void url_decode_inplace(char *str) {
+    char *src = str;
+    char *dst = str;
+    while (*src) {
+        if (*src == '%' && src[1] && src[2]) {
+            char hex[3] = { src[1], src[2], '\0' };
+            *dst = (char)strtol(hex, NULL, 16);
+            src += 3;
+        } else if (*src == '+') {
+            *dst = ' ';
+            src++;
+        } else {
+            *dst = *src;
+            src++;
+        }
+        dst++;
+    }
+    *dst = '\0';
+}
+
 // ── Public API ──────────────────────────────────────────────────────────
 
 int elisa_api_init(const elisa_runtime_config_t *config) {
@@ -131,12 +174,13 @@ int elisa_api_audio_turn(const uint8_t *audio_data, size_t audio_len,
     }
 
     memset(response, 0, sizeof(*response));
+    strncpy(response->audio_format, "mp3", sizeof(response->audio_format) - 1);
 
     char url[512];
     build_url(url, sizeof(url), "turn/audio?format=wav");
 
     /* Response body accumulator */
-    http_response_ctx_t resp_ctx = { .body = NULL, .body_len = 0, .body_capacity = 0 };
+    http_response_ctx_t resp_ctx = {0};
 
     esp_http_client_config_t http_config = {
         .url = url,
@@ -153,9 +197,10 @@ int elisa_api_audio_turn(const uint8_t *audio_data, size_t audio_len,
         return -1;
     }
 
-    /* Set headers */
+    /* Set headers -- request Opus in binary format */
     esp_http_client_set_header(client, "Content-Type", "application/octet-stream");
     esp_http_client_set_header(client, "x-api-key", s_api_key);
+    esp_http_client_set_header(client, "Accept", "audio/opus, application/octet-stream");
 
     /* Set audio as POST body */
     esp_http_client_set_post_field(client, (const char *)audio_data, (int)audio_len);
@@ -179,65 +224,97 @@ int elisa_api_audio_turn(const uint8_t *audio_data, size_t audio_len,
         return -1;
     }
 
-    /* Null-terminate for JSON parsing */
-    char *json_str = (char *)realloc(resp_ctx.body, resp_ctx.body_len + 1);
-    if (json_str == NULL) {
-        free(resp_ctx.body);
-        return -1;
-    }
-    json_str[resp_ctx.body_len] = '\0';
+    /* Check Content-Type to determine response format */
+    bool is_binary = (strstr(resp_ctx.content_type, "application/octet-stream") != NULL);
 
-    /* Parse JSON response:
-     * {
-     *   "response_text": "agent's reply",
-     *   "audio_base64": "<base64-encoded MP3>"
-     * }
-     */
-    cJSON *root = cJSON_Parse(json_str);
-    free(json_str);
+    if (is_binary) {
+        /* Binary response: raw audio bytes, metadata in headers */
+        ESP_LOGI(TAG, "Response: application/octet-stream, format=%s, %zu bytes",
+                 resp_ctx.x_audio_format, resp_ctx.body_len);
 
-    if (root == NULL) {
-        ESP_LOGE(TAG, "Failed to parse response JSON");
-        return -1;
-    }
+        /* Copy audio format from header */
+        if (strlen(resp_ctx.x_audio_format) > 0) {
+            strncpy(response->audio_format, resp_ctx.x_audio_format,
+                    sizeof(response->audio_format) - 1);
+        }
 
-    /* Extract response text */
-    cJSON *text_item = cJSON_GetObjectItem(root, "response_text");
-    if (cJSON_IsString(text_item) && text_item->valuestring != NULL) {
-        response->text = strdup(text_item->valuestring);
-    }
+        /* Extract response text from URL-encoded header */
+        if (strlen(resp_ctx.x_response_text) > 0) {
+            url_decode_inplace(resp_ctx.x_response_text);
+            response->text = strdup(resp_ctx.x_response_text);
+        }
 
-    /* Extract and decode base64 audio */
-    cJSON *audio_item = cJSON_GetObjectItem(root, "audio_base64");
-    if (cJSON_IsString(audio_item) && audio_item->valuestring != NULL) {
-        size_t b64_len = strlen(audio_item->valuestring);
-        /* Decoded size is at most 3/4 of base64 length */
-        size_t decoded_max = (b64_len * 3) / 4 + 4;
-        response->audio_data = (uint8_t *)malloc(decoded_max);
+        /* Body is raw audio -- take ownership */
+        response->audio_data = (uint8_t *)resp_ctx.body;
+        response->audio_len = resp_ctx.body_len;
+        resp_ctx.body = NULL; /* prevent free below */
 
-        if (response->audio_data != NULL) {
-            size_t decoded_len = 0;
-            int ret = mbedtls_base64_decode(
-                response->audio_data, decoded_max, &decoded_len,
-                (const unsigned char *)audio_item->valuestring, b64_len);
+    } else {
+        /* JSON response (legacy path): parse base64-encoded audio */
 
-            if (ret == 0) {
-                response->audio_len = decoded_len;
-                ESP_LOGI(TAG, "Decoded %zu bytes of audio from base64", decoded_len);
-            } else {
-                ESP_LOGE(TAG, "Base64 decode failed: %d", ret);
-                free(response->audio_data);
-                response->audio_data = NULL;
-                response->audio_len = 0;
+        /* Null-terminate for JSON parsing */
+        char *json_str = (char *)realloc(resp_ctx.body, resp_ctx.body_len + 1);
+        if (json_str == NULL) {
+            free(resp_ctx.body);
+            return -1;
+        }
+        json_str[resp_ctx.body_len] = '\0';
+
+        cJSON *root = cJSON_Parse(json_str);
+        free(json_str);
+
+        if (root == NULL) {
+            ESP_LOGE(TAG, "Failed to parse response JSON");
+            return -1;
+        }
+
+        /* Extract response text */
+        cJSON *text_item = cJSON_GetObjectItem(root, "response_text");
+        if (cJSON_IsString(text_item) && text_item->valuestring != NULL) {
+            response->text = strdup(text_item->valuestring);
+        }
+
+        /* Extract audio format */
+        cJSON *fmt_item = cJSON_GetObjectItem(root, "audio_format");
+        if (cJSON_IsString(fmt_item) && fmt_item->valuestring != NULL) {
+            strncpy(response->audio_format, fmt_item->valuestring,
+                    sizeof(response->audio_format) - 1);
+        }
+
+        /* Extract and decode base64 audio */
+        cJSON *audio_item = cJSON_GetObjectItem(root, "audio_base64");
+        if (cJSON_IsString(audio_item) && audio_item->valuestring != NULL) {
+            size_t b64_len = strlen(audio_item->valuestring);
+            size_t decoded_max = (b64_len * 3) / 4 + 4;
+            response->audio_data = (uint8_t *)malloc(decoded_max);
+
+            if (response->audio_data != NULL) {
+                size_t decoded_len = 0;
+                int ret = mbedtls_base64_decode(
+                    response->audio_data, decoded_max, &decoded_len,
+                    (const unsigned char *)audio_item->valuestring, b64_len);
+
+                if (ret == 0) {
+                    response->audio_len = decoded_len;
+                    ESP_LOGI(TAG, "Decoded %zu bytes of audio from base64", decoded_len);
+                } else {
+                    ESP_LOGE(TAG, "Base64 decode failed: %d", ret);
+                    free(response->audio_data);
+                    response->audio_data = NULL;
+                    response->audio_len = 0;
+                }
             }
         }
+
+        cJSON_Delete(root);
     }
 
-    cJSON_Delete(root);
+    free(resp_ctx.body);
 
-    ESP_LOGI(TAG, "Audio turn response: status=%d text=%s audio=%zu bytes",
+    ESP_LOGI(TAG, "Audio turn response: status=%d text=%s format=%s audio=%zu bytes",
              response->status_code,
              response->text ? "yes" : "no",
+             response->audio_format,
              response->audio_len);
 
     return 0;

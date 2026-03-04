@@ -31,6 +31,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
+#include "esp_heap_caps.h"
 #include "nvs_flash.h"
 #include "esp_spiffs.h"
 
@@ -52,6 +53,7 @@
 #include "elisa_config.h"
 #include "elisa_api.h"
 #include "elisa_face.h"
+#include "elisa_opus.h"
 
 static const char *TAG = "elisa_main";
 
@@ -95,6 +97,10 @@ static uint8_t *s_pending_tts_data = NULL;
 static size_t s_pending_tts_len = 0;
 /** Claude response text pending free (direct mode). */
 static char *s_pending_response_text = NULL;
+
+/** Decoded Opus PCM data wrapped in WAV (runtime mode, Opus path). */
+static uint8_t *s_pending_opus_wav = NULL;
+static size_t s_pending_opus_wav_len = 0;
 
 // ── Boot Sequence ───────────────────────────────────────────────────────
 
@@ -246,6 +252,59 @@ static void init_wake_word(const char *wake_word) {
     (void)wake_word; /* Display-only; actual wake word is from SR model in flash */
 }
 
+// ── PCM to WAV Helper ───────────────────────────────────────────────────
+
+/**
+ * Wrap raw PCM int16 samples in a WAV header for audio_player_play().
+ * Allocates a new buffer (WAV header + PCM data) in PSRAM.
+ *
+ * @param pcm_data    PCM int16 samples
+ * @param pcm_samples Number of samples
+ * @param sample_rate Sample rate (e.g. 48000)
+ * @param wav_out     Output: pointer to WAV data (caller frees)
+ * @param wav_len     Output: total WAV length in bytes
+ * @return 0 on success, -1 on error
+ */
+static int pcm_to_wav(const int16_t *pcm_data, size_t pcm_samples,
+                      uint32_t sample_rate, uint8_t **wav_out, size_t *wav_len) {
+    const uint16_t channels = 1;
+    const uint16_t bits_per_sample = 16;
+    const uint32_t data_size = (uint32_t)(pcm_samples * sizeof(int16_t));
+    const uint32_t fmt_chunk_size = 16;
+    const uint32_t file_size = 36 + data_size; /* RIFF header size - 8 + data */
+    const size_t total = 44 + data_size;
+
+    uint8_t *buf = (uint8_t *)heap_caps_malloc(total, MALLOC_CAP_SPIRAM);
+    if (buf == NULL) return -1;
+
+    /* RIFF header */
+    memcpy(buf + 0,  "RIFF", 4);
+    memcpy(buf + 4,  &file_size, 4);
+    memcpy(buf + 8,  "WAVE", 4);
+
+    /* fmt chunk */
+    memcpy(buf + 12, "fmt ", 4);
+    memcpy(buf + 16, &fmt_chunk_size, 4);
+    uint16_t audio_fmt = 1; /* PCM */
+    memcpy(buf + 20, &audio_fmt, 2);
+    memcpy(buf + 22, &channels, 2);
+    memcpy(buf + 24, &sample_rate, 4);
+    uint32_t byte_rate = sample_rate * channels * bits_per_sample / 8;
+    memcpy(buf + 28, &byte_rate, 4);
+    uint16_t block_align = channels * bits_per_sample / 8;
+    memcpy(buf + 32, &block_align, 2);
+    memcpy(buf + 34, &bits_per_sample, 2);
+
+    /* data chunk */
+    memcpy(buf + 36, "data", 4);
+    memcpy(buf + 40, &data_size, 4);
+    memcpy(buf + 44, pcm_data, data_size);
+
+    *wav_out = buf;
+    *wav_len = total;
+    return 0;
+}
+
 // ── start_openai() -- Replaces chatgpt_demo's Original ─────────────────
 //
 // Called by sr_handler_task in app_audio.c after wake word detection and
@@ -361,25 +420,76 @@ static esp_err_t start_openai_runtime(uint8_t *audio, int wav_len) {
 
     if (ret == 0 && response.audio_data != NULL) {
         ESP_LOGI(TAG, "Response: %s", response.text ? response.text : "(no text)");
-        ESP_LOGI(TAG, "Decoded %zu bytes of MP3", response.audio_len);
+        ESP_LOGI(TAG, "Response format=%s, %zu bytes", response.audio_format, response.audio_len);
 
         elisa_face_set_state(FACE_STATE_SPEAKING);
 
-        /* Store response in file-static -- the buffer must outlive
-         * audio_player_play() since playback is async. Freed in
-         * elisa_audio_play_finish_cb() when playback completes. */
-        s_pending_audio_response = response;
+        if (strcmp(response.audio_format, "opus") == 0) {
+            /* Opus path: decode Ogg Opus -> PCM -> wrap in WAV for playback */
+            int16_t *pcm_data = NULL;
+            size_t pcm_samples = 0;
+            uint32_t sample_rate = 0;
 
-        FILE *fp = fmemopen(s_pending_audio_response.audio_data,
-                            s_pending_audio_response.audio_len, "rb");
-        if (fp != NULL) {
-            audio_player_play(fp);
+            ret = elisa_opus_decode(response.audio_data, response.audio_len,
+                                   &pcm_data, &pcm_samples, &sample_rate);
+            /* Free the original Opus data -- we have PCM now */
+            elisa_api_free_response(&response);
+
+            if (ret != 0 || pcm_data == NULL) {
+                ESP_LOGE(TAG, "Opus decode failed");
+                elisa_face_set_state(FACE_STATE_ERROR);
+                vTaskDelay(pdMS_TO_TICKS(2000));
+                elisa_face_set_state(FACE_STATE_IDLE);
+                return ESP_FAIL;
+            }
+
+            /* Wrap PCM in WAV header for audio_player_play() */
+            uint8_t *wav_data = NULL;
+            size_t wav_data_len = 0;
+            ret = pcm_to_wav(pcm_data, pcm_samples, sample_rate, &wav_data, &wav_data_len);
+            elisa_opus_free(pcm_data);
+
+            if (ret != 0 || wav_data == NULL) {
+                ESP_LOGE(TAG, "PCM to WAV conversion failed");
+                elisa_face_set_state(FACE_STATE_ERROR);
+                vTaskDelay(pdMS_TO_TICKS(2000));
+                elisa_face_set_state(FACE_STATE_IDLE);
+                return ESP_FAIL;
+            }
+
+            ESP_LOGI(TAG, "Opus -> PCM -> WAV: %zu bytes at %luHz",
+                     wav_data_len, (unsigned long)sample_rate);
+
+            /* Store in file-static for async playback lifetime */
+            s_pending_opus_wav = wav_data;
+            s_pending_opus_wav_len = wav_data_len;
+
+            FILE *fp = fmemopen(s_pending_opus_wav, s_pending_opus_wav_len, "rb");
+            if (fp != NULL) {
+                audio_player_play(fp);
+            } else {
+                ESP_LOGE(TAG, "fmemopen failed");
+                elisa_face_set_state(FACE_STATE_ERROR);
+                vTaskDelay(pdMS_TO_TICKS(2000));
+                elisa_face_set_state(FACE_STATE_IDLE);
+                heap_caps_free(s_pending_opus_wav);
+                s_pending_opus_wav = NULL;
+            }
         } else {
-            ESP_LOGE(TAG, "fmemopen failed");
-            elisa_face_set_state(FACE_STATE_ERROR);
-            vTaskDelay(pdMS_TO_TICKS(2000));
-            elisa_face_set_state(FACE_STATE_IDLE);
-            elisa_api_free_response(&s_pending_audio_response);
+            /* MP3 path (legacy): play directly via audio_player */
+            s_pending_audio_response = response;
+
+            FILE *fp = fmemopen(s_pending_audio_response.audio_data,
+                                s_pending_audio_response.audio_len, "rb");
+            if (fp != NULL) {
+                audio_player_play(fp);
+            } else {
+                ESP_LOGE(TAG, "fmemopen failed");
+                elisa_face_set_state(FACE_STATE_ERROR);
+                vTaskDelay(pdMS_TO_TICKS(2000));
+                elisa_face_set_state(FACE_STATE_IDLE);
+                elisa_api_free_response(&s_pending_audio_response);
+            }
         }
     } else {
         ESP_LOGE(TAG, "Audio turn failed (status=%d)", response.status_code);
@@ -410,8 +520,15 @@ static void elisa_audio_play_finish_cb(void) {
             s_pending_response_text = NULL;
         }
     } else {
-        /* Free runtime mode response */
+        /* Free runtime mode response (MP3 path) */
         elisa_api_free_response(&s_pending_audio_response);
+
+        /* Free Opus-decoded WAV buffer if present */
+        if (s_pending_opus_wav) {
+            heap_caps_free(s_pending_opus_wav);
+            s_pending_opus_wav = NULL;
+            s_pending_opus_wav_len = 0;
+        }
     }
 }
 

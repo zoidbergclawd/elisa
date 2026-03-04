@@ -84,7 +84,25 @@ if [ ! -f "${BUILD_DIR}/spiffs/runtime_config.json" ]; then
 JSONEOF
 fi
 
-# ── Step 4b: Rename start_openai in chatgpt_demo main.c ────────────────
+# ── Step 4b: Add micro-opus dependency ──────────────────────────────────
+# esphome/micro-opus provides OggOpusDecoder with Xtensa DSP optimizations.
+# Add to idf_component.yml if not already present.
+
+IDF_COMP_YML="${BUILD_DIR}/main/idf_component.yml"
+if [ -f "${IDF_COMP_YML}" ]; then
+    if ! grep -q "micro-opus" "${IDF_COMP_YML}"; then
+        echo "Adding esphome/micro-opus dependency..."
+        echo '  esphome/micro-opus: "^0.3.3"' >> "${IDF_COMP_YML}"
+    fi
+else
+    echo "Creating idf_component.yml with micro-opus dependency..."
+    cat > "${IDF_COMP_YML}" <<'YMLEOF'
+dependencies:
+  esphome/micro-opus: "^0.3.3"
+YMLEOF
+fi
+
+# ── Step 4c: Rename start_openai in chatgpt_demo main.c ─────────────────
 # Our elisa_main.c provides a replacement start_openai() that calls the
 # Elisa runtime instead of OpenAI. Rename the original so ours wins at
 # link time. The sr_handler_task in app_audio.c calls start_openai() --
@@ -95,7 +113,7 @@ if ! grep -q "start_openai_original" "${BUILD_DIR}/main/main.c" 2>/dev/null; the
     sed -i 's/start_openai/start_openai_original/g' "${BUILD_DIR}/main/main.c"
 fi
 
-# ── Step 4c: Stub app_ui_ctrl.c ────────────────────────────────────────
+# ── Step 4d: Stub app_ui_ctrl.c ────────────────────────────────────────
 # chatgpt_demo's sr_handler_task calls ui_ctrl_show_panel() and
 # ui_ctrl_guide_jump() on wake word detection. Since we skip ui_ctrl_init()
 # (Elisa uses elisa_face.c instead), those calls would crash.
@@ -125,7 +143,11 @@ STUBEOF
 CMAKELISTS="${BUILD_DIR}/main/CMakeLists.txt"
 if ! grep -q "elisa_config.c" "${CMAKELISTS}"; then
     echo "Patching main/CMakeLists.txt to include Elisa sources..."
-    sed -i.bak 's|"main.c"|"main.c"\n        "elisa_config.c"\n        "elisa_api.c"\n        "elisa_face.c"\n        "elisa_main.c"|' "${CMAKELISTS}"
+    sed -i.bak 's|"main.c"|"main.c"\n        "elisa_config.c"\n        "elisa_api.c"\n        "elisa_face.c"\n        "elisa_main.c"\n        "elisa_opus.c"|' "${CMAKELISTS}"
+    rm -f "${CMAKELISTS}.bak"
+elif ! grep -q "elisa_opus.c" "${CMAKELISTS}"; then
+    echo "Adding elisa_opus.c to main/CMakeLists.txt..."
+    sed -i.bak 's|"elisa_main.c"|"elisa_main.c"\n        "elisa_opus.c"|' "${CMAKELISTS}"
     rm -f "${CMAKELISTS}.bak"
 fi
 

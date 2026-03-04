@@ -20,7 +20,7 @@ import type { AudioPipeline } from '../services/runtime/audioPipeline.js';
 import type { KnowledgeBackpack } from '../services/runtime/knowledgeBackpack.js';
 import type { StudyMode } from '../services/runtime/studyMode.js';
 import type { GapDetector } from '../services/runtime/gapDetector.js';
-import type { AudioInputFormat } from '../models/runtime.js';
+import type { AudioInputFormat, AudioOutputFormat } from '../models/runtime.js';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -206,8 +206,26 @@ export function createRuntimeRouter(deps: RuntimeRouterDeps): Router {
 
       const sessionId = req.query.session_id as string | undefined;
 
-      const result = await audioPipeline.processAudioTurn(agentId, audioBuffer, format, sessionId);
-      res.json(result);
+      // Content negotiation: check Accept header for Opus preference
+      const acceptHeader = (req.headers.accept ?? '').toLowerCase();
+      const preferOpus = acceptHeader.includes('audio/opus');
+      const wantBinary = acceptHeader.includes('application/octet-stream');
+      const preferredFormat: AudioOutputFormat = preferOpus ? 'opus' : 'mp3';
+
+      const result = await audioPipeline.processAudioTurn(agentId, audioBuffer, format, sessionId, preferredFormat);
+
+      if (wantBinary && result.audio_buffer) {
+        // Binary response: raw audio bytes with metadata in headers
+        res.set('Content-Type', 'application/octet-stream');
+        res.set('X-Audio-Format', result.audio_format);
+        res.set('X-Response-Text', encodeURIComponent(result.response_text));
+        res.set('X-Session-Id', result.session_id);
+        res.send(result.audio_buffer);
+      } else {
+        // JSON response (backward compatible): strip audio_buffer before sending
+        const { audio_buffer: _buf, ...jsonResult } = result;
+        res.json(jsonResult);
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       if (message.includes('not found')) {

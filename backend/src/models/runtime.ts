@@ -124,12 +124,16 @@ export interface AudioTurnRequest {
   session_id?: string;
 }
 
+export type AudioOutputFormat = 'mp3' | 'opus';
+
 export interface AudioTurnResult {
   transcript: string;
   response_text: string;
   audio_base64: string;
-  audio_format: 'mp3';
+  audio_format: AudioOutputFormat;
   session_id: string;
+  /** Raw audio buffer for binary response path (not included in JSON responses). */
+  audio_buffer?: Buffer;
   usage: {
     stt_seconds: number;
     tts_characters: number;

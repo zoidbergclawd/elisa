@@ -34,8 +34,9 @@ extern "C" {
  */
 typedef struct {
     char *text;           /**< Agent response text (malloc'd, caller frees) */
-    uint8_t *audio_data;  /**< TTS audio data as MP3 (malloc'd, caller frees) */
+    uint8_t *audio_data;  /**< TTS audio data (malloc'd, caller frees) */
     size_t audio_len;     /**< Length of audio_data in bytes */
+    char audio_format[8]; /**< Audio format: "mp3" or "opus" */
     int status_code;      /**< HTTP status code from runtime */
 } elisa_turn_response_t;
 

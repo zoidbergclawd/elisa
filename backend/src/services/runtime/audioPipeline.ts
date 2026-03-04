@@ -12,7 +12,7 @@ import OpenAI from 'openai';
 import { toFile } from 'openai';
 import type { TurnPipeline } from './turnPipeline.js';
 import type { AgentStore } from './agentStore.js';
-import type { AudioTurnResult, AudioInputFormat } from '../../models/runtime.js';
+import type { AudioTurnResult, AudioInputFormat, AudioOutputFormat } from '../../models/runtime.js';
 
 // ── Constants ────────────────────────────────────────────────────────
 
@@ -53,12 +53,15 @@ export class AudioPipeline {
    *   1. STT: audio buffer -> OpenAI Whisper -> transcript
    *   2. Text turn: transcript -> TurnPipeline.receiveTurn() -> response
    *   3. TTS: response text -> OpenAI TTS -> audio buffer
+   *
+   * @param preferredFormat TTS output format: 'opus' for Ogg Opus, 'mp3' for MP3 (default)
    */
   async processAudioTurn(
     agentId: string,
     audioBuffer: Buffer,
     format: AudioInputFormat,
     sessionId?: string,
+    preferredFormat: AudioOutputFormat = 'mp3',
   ): Promise<AudioTurnResult> {
     if (!this.openai) {
       throw new Error('OPENAI_API_KEY not configured');
@@ -74,7 +77,7 @@ export class AudioPipeline {
     });
 
     // 3. TTS: response -> audio
-    const { audio, characterCount } = await this.synthesize(textResult.response, agentId);
+    const { audio, characterCount } = await this.synthesize(textResult.response, agentId, preferredFormat);
 
     // Estimate STT duration from audio buffer size (rough: 16kHz mono 16-bit PCM)
     const sttSeconds = format === 'wav'
@@ -85,7 +88,8 @@ export class AudioPipeline {
       transcript,
       response_text: textResult.response,
       audio_base64: audio.toString('base64'),
-      audio_format: 'mp3',
+      audio_format: preferredFormat,
+      audio_buffer: audio,
       session_id: textResult.session_id,
       usage: {
         stt_seconds: Math.round(sttSeconds * 100) / 100,
@@ -117,10 +121,13 @@ export class AudioPipeline {
 
   /**
    * Synthesize text to speech via OpenAI TTS API.
+   *
+   * @param outputFormat 'opus' returns Ogg Opus (smaller, better for voice), 'mp3' returns MP3
    */
   private async synthesize(
     text: string,
     agentId: string,
+    outputFormat: AudioOutputFormat = 'mp3',
   ): Promise<{ audio: Buffer; characterCount: number }> {
     if (!this.openai) throw new Error('OPENAI_API_KEY not configured');
 
@@ -133,7 +140,7 @@ export class AudioPipeline {
       model: 'tts-1',
       voice: voice as any,
       input: text,
-      response_format: 'mp3',
+      response_format: outputFormat,
     });
 
     const arrayBuffer = await response.arrayBuffer();
