@@ -162,7 +162,7 @@ void app_main(void) {
         s_tts = s_openai->audioSpeechCreate(s_openai);
         s_tts->setModel(s_tts, "tts-1");
         s_tts->setVoice(s_tts, config->tts_voice);
-        s_tts->setResponseFormat(s_tts, OPENAI_AUDIO_RESPONSE_FORMAT_MP3);
+        s_tts->setResponseFormat(s_tts, OPENAI_AUDIO_OUTPUT_FORMAT_MP3);
         s_tts->setSpeed(s_tts, 1.0);
 
         /* Initialize Claude API */
@@ -372,21 +372,24 @@ static esp_err_t start_openai_direct(uint8_t *audio, int wav_len) {
     /* Step 3: OpenAI TTS */
     elisa_face_set_state(FACE_STATE_SPEAKING);
 
-    OpenAI_SpeechResponse_t speech = s_tts->speech(s_tts, response_text);
-    if (speech.data == NULL || speech.len == 0) {
+    OpenAI_SpeechResponse_t *speech = s_tts->speech(s_tts, response_text);
+    if (speech == NULL || speech->getData(speech) == NULL || speech->getLen(speech) == 0) {
         ESP_LOGE(TAG, "[Direct] TTS failed");
         free(response_text);
+        if (speech) speech->deleteResponse(speech);
         elisa_face_set_state(FACE_STATE_ERROR);
         vTaskDelay(pdMS_TO_TICKS(2000));
         elisa_face_set_state(FACE_STATE_IDLE);
         return ESP_FAIL;
     }
-    ESP_LOGI(TAG, "[Direct] TTS: %zu bytes MP3", speech.len);
+    ESP_LOGI(TAG, "[Direct] TTS: %lu bytes MP3", (unsigned long)speech->getLen(speech));
 
     /* Store data in file-statics (must outlive async playback).
      * Freed in elisa_audio_play_finish_cb(). */
-    s_pending_tts_data = speech.data;
-    s_pending_tts_len = speech.len;
+    uint32_t tts_len = speech->getLen(speech);
+    char *tts_data = speech->getData(speech);
+    s_pending_tts_data = (uint8_t *)tts_data;
+    s_pending_tts_len = tts_len;
     s_pending_response_text = response_text;
 
     FILE *fp = fmemopen(s_pending_tts_data, s_pending_tts_len, "rb");
@@ -402,6 +405,9 @@ static esp_err_t start_openai_direct(uint8_t *audio, int wav_len) {
         free(s_pending_response_text);
         s_pending_response_text = NULL;
     }
+    /* Note: don't call speech->deleteResponse() here — the data pointer
+     * is used by audio_player_play() asynchronously. It's freed in the
+     * playback finish callback via s_pending_tts_data. */
 
     return ESP_OK;
 }
