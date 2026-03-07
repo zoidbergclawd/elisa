@@ -2,6 +2,7 @@
 
 import pixelSvg from '../../../assets/pixel.svg';
 import canvasSvg from '../../../assets/canvas.svg';
+import buddySvg from '../../../assets/buddy.svg';
 import scribeSvg from '../../../assets/scribe.svg';
 import stylerSvg from '../../../assets/styler.svg';
 import interfaceDesignerSvg from '../../../assets/interface-designer.svg';
@@ -16,6 +17,8 @@ interface AgentAvatarProps {
 const AGENT_AVATARS: Record<string, string> = {
   pixel: pixelSvg,
   canvas: canvasSvg,
+  marketing: canvasSvg,
+  buddy: buddySvg,
   scribe: scribeSvg,
   styler: stylerSvg,
   blueprint: blueprintSvg,
@@ -26,6 +29,8 @@ const AGENT_AVATARS: Record<string, string> = {
 const AGENT_COLORS: Record<string, string> = {
   pixel: '#8B5CF6',
   canvas: '#F59E0B',
+  marketing: '#F59E0B',
+  buddy: '#F97316',
   scribe: '#10B981',
   styler: '#EC4899',
   blueprint: '#3B82F6',

@@ -33,9 +33,17 @@ describe('MeetingTriggerWiring', () => {
     wiring = new MeetingTriggerWiring(registry, meetingService);
   });
 
+  /** Helper: set spec with meeting_team that enables specific types. */
+  function enableTeam(sessionId: string, typeIds: string[]) {
+    wiring.setSpec(sessionId, {
+      meeting_team: typeIds.map(id => ({ type: 'builtin' as const, meetingTypeId: id })),
+    });
+  }
+
   it('creates invites for matching deploy_started events at explorer level', async () => {
     const webMeeting = makeDeployMeeting('web-design', 'deploy_started', (data) => data.target === 'web');
     registry.register(webMeeting);
+    enableTeam('session-1', ['web-design']);
 
     const send = makeSend();
     await wiring.evaluateAndInvite('deploy_started', { target: 'web' }, 'session-1', send, 'explorer');
@@ -53,6 +61,7 @@ describe('MeetingTriggerWiring', () => {
   it('does not create invites when event does not match filter', async () => {
     const webMeeting = makeDeployMeeting('web-design', 'deploy_started', (data) => data.target === 'web');
     registry.register(webMeeting);
+    enableTeam('session-1', ['web-design']);
 
     const send = makeSend();
     await wiring.evaluateAndInvite('deploy_started', { target: 'devices' }, 'session-1', send, 'explorer');
@@ -88,6 +97,7 @@ describe('MeetingTriggerWiring', () => {
     const archMeeting = makeDeployMeeting('arch-agent', 'session_complete');
     registry.register(docMeeting);
     registry.register(archMeeting);
+    enableTeam('session-1', ['doc-agent', 'arch-agent']);
 
     const send = makeSend();
     await wiring.evaluateAndInvite('session_complete', { tasks_done: 5, tasks_total: 5 }, 'session-1', send, 'explorer');
@@ -102,6 +112,7 @@ describe('MeetingTriggerWiring', () => {
   it('creates invites for composition_started events at explorer level', async () => {
     const integrationMeeting = makeDeployMeeting('integration-agent', 'composition_started');
     registry.register(integrationMeeting);
+    enableTeam('session-1', ['integration-agent']);
 
     const send = makeSend();
     await wiring.evaluateAndInvite('composition_started', { graph_id: 'g1', node_ids: ['n1', 'n2'] }, 'session-1', send, 'explorer');
@@ -126,6 +137,7 @@ describe('MeetingTriggerWiring', () => {
     const meeting2 = makeDeployMeeting('meeting-b', 'deploy_started');
     registry.register(meeting1);
     registry.register(meeting2);
+    enableTeam('session-1', ['meeting-a', 'meeting-b']);
 
     const send = makeSend();
     await wiring.evaluateAndInvite('deploy_started', { target: 'web' }, 'session-1', send, 'explorer');
@@ -139,6 +151,7 @@ describe('MeetingTriggerWiring', () => {
       return ((data.tasks_done as number) ?? 0) >= 1;
     });
     registry.register(meeting);
+    enableTeam('session-1', ['media-agent']);
 
     const send = makeSend();
     // First call: tasks_done=1, should create invite
@@ -155,6 +168,8 @@ describe('MeetingTriggerWiring', () => {
   it('dedup is per-session: different sessions get their own invites', async () => {
     const meeting = makeDeployMeeting('media-agent', 'task_completed');
     registry.register(meeting);
+    enableTeam('session-1', ['media-agent']);
+    enableTeam('session-2', ['media-agent']);
 
     const send = makeSend();
     await wiring.evaluateAndInvite('task_completed', { tasks_done: 1, tasks_total: 4 }, 'session-1', send, 'explorer');
@@ -167,13 +182,15 @@ describe('MeetingTriggerWiring', () => {
   it('clearSession removes dedup state for that session', async () => {
     const meeting = makeDeployMeeting('media-agent', 'task_completed');
     registry.register(meeting);
+    enableTeam('session-1', ['media-agent']);
 
     const send = makeSend();
     await wiring.evaluateAndInvite('task_completed', { tasks_done: 1, tasks_total: 4 }, 'session-1', send, 'explorer');
 
     wiring.clearSession('session-1');
 
-    // After clearing, same meeting type can be invited again
+    // After clearing, same meeting type can be invited again -- re-set spec since clearSession removes it
+    enableTeam('session-1', ['media-agent']);
     await wiring.evaluateAndInvite('task_completed', { tasks_done: 2, tasks_total: 4 }, 'session-1', send, 'explorer');
 
     const invites = vi.mocked(send).mock.calls.filter(([ev]) => ev.type === 'meeting_invite');

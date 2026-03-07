@@ -50,7 +50,11 @@ App.tsx
   shared/ImpactPreview.tsx          Pre-execution impact preview card (task estimate, complexity, heaviest reqs)
   shared/DisplayThemePreview.tsx    BOX-3 display theme preview (320x240 ratio, theme colors, avatar style)
   shared/EsptoolFlashStep.tsx       Esptool flash progress UI (port detection, manual override, progress bar)
-  Meeting/MeetingModal.tsx           Full-screen meeting modal: agent chat panel (left) + canvas area (right)
+  Meeting/MeetingModal.tsx           Full-screen meeting modal, composes ChatPanel + CanvasPanel via MeetingLayout
+  Meeting/ChatPanel.tsx              Reusable chat panel: message list, auto-scroll, typing indicator, input form
+  Meeting/CanvasPanel.tsx            Reusable canvas panel: resolves canvas from registry, renders with props
+  Meeting/MeetingLayout.tsx          Two-panel layout (left: w-80 chat, right: flex-1 canvas) shared by MeetingModal and TeamConversation
+  Meeting/AgentAvatar.tsx            SVG avatar icons for meeting agents (Buddy, Marketing, Scribe, Pixel, etc.)
   Meeting/canvasRegistry.ts          Registry for pluggable canvas components (Map<canvasType, Component>)
   Meeting/DefaultCanvas.tsx          Placeholder canvas shown when no specialized canvas is registered
   Meeting/ThemePickerCanvas.tsx      BOX-3 display theme picker canvas for Art Agent meetings (reads canvasState.data.currentTheme)

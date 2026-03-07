@@ -55,6 +55,10 @@ meetingRegistry.register({
   persona: 'A friendly debugging expert who helps kids figure out why code is not working. Patient, curious, and encouraging.',
 });
 
+// Register Buddy Agent meeting type (mid-build check-in)
+import { registerBuddyAgentMeeting } from './services/buddyAgentMeeting.js';
+registerBuddyAgentMeeting(meetingRegistry);
+
 // Register Art Agent meeting type (BOX-3 theme customization)
 import { registerArtAgentMeeting } from './services/artAgentMeeting.js';
 registerArtAgentMeeting(meetingRegistry);

@@ -130,8 +130,26 @@ export class Orchestrator {
       const planResult = await this.planPhase.execute(ctx, spec);
       this.nuggetType = planResult.nuggetType;
 
-      // Evaluate meeting triggers after planning (mid-build)
+      // Provide spec to meeting trigger wiring for team filtering
       const systemLevel = getLevel(spec);
+      this.meetingTriggerWiring?.setSpec(this.session.id, spec);
+
+      // Register custom meeting types from team blocks
+      if (this.meetingRegistry && spec.meeting_team) {
+        const customEntries = spec.meeting_team
+          .filter(m => m.type === 'custom' && m.name)
+          .map(m => ({ name: m.name!, persona: m.persona ?? '', canvasType: m.canvasType ?? 'explain-it' }));
+        if (customEntries.length > 0) {
+          const dynamicIds = this.meetingRegistry.registerDynamic(this.session.id, customEntries);
+          // Update meeting_team entries with generated IDs so trigger filtering works
+          let idx = 0;
+          for (const m of spec.meeting_team) {
+            if (m.type === 'custom' && m.name && idx < dynamicIds.length) {
+              m.meetingTypeId = dynamicIds[idx++];
+            }
+          }
+        }
+      }
       // Derive device types from plugin IDs (e.g. 'esp32-s3-box3-agent' -> board variant 'box-3' via registry)
       const deviceTypes: string[] = [];
       for (const d of spec.devices ?? []) {
@@ -381,6 +399,10 @@ export class Orchestrator {
 
   /** Clean up the nugget temp directory immediately (skipped for user workspaces). */
   cleanup(): void {
+    // Clean up dynamic meeting types and trigger wiring state
+    this.meetingRegistry?.unregisterDynamic(this.session.id);
+    this.meetingTriggerWiring?.clearSession(this.session.id);
+
     // Kill web server process if running
     if (this.webServerProcess) {
       try { this.webServerProcess.kill(); } catch { /* ignore */ }

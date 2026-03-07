@@ -68,6 +68,73 @@ describe('MeetingRegistry', () => {
   });
 });
 
+describe('MeetingRegistry dynamic registration', () => {
+  it('registerDynamic creates meeting types with generated IDs', () => {
+    const registry = new MeetingRegistry();
+    const ids = registry.registerDynamic('session-1', [
+      { name: 'Coach', persona: 'Gives tips', canvasType: 'explain-it' },
+      { name: 'Artist', persona: 'Draws things', canvasType: 'design-preview' },
+    ]);
+
+    expect(ids).toHaveLength(2);
+    expect(ids[0]).toBe('custom-session-1-0');
+    expect(ids[1]).toBe('custom-session-1-1');
+
+    const coach = registry.getById('custom-session-1-0');
+    expect(coach).toBeDefined();
+    expect(coach!.agentName).toBe('Coach');
+    expect(coach!.persona).toBe('Gives tips');
+    expect(coach!.canvasType).toBe('explain-it');
+  });
+
+  it('assigns triggers based on canvas type', () => {
+    const registry = new MeetingRegistry();
+    registry.registerDynamic('s1', [
+      { name: 'Doc Expert', persona: 'Writes docs', canvasType: 'explain-it' },
+    ]);
+
+    const engine = new MeetingTriggerEngine(registry);
+    // explain-it trigger fires at 40% progress
+    const matches = engine.evaluate('task_completed', { tasks_done: 2, tasks_total: 5 });
+    expect(matches).toHaveLength(1);
+    expect(matches[0].meetingType.agentName).toBe('Doc Expert');
+  });
+
+  it('assigns default trigger for unknown canvas types', () => {
+    const registry = new MeetingRegistry();
+    registry.registerDynamic('s1', [
+      { name: 'Mystery', persona: 'Unknown', canvasType: 'unknown-type' },
+    ]);
+
+    const engine = new MeetingTriggerEngine(registry);
+    // Default trigger fires at 50%
+    const noMatch = engine.evaluate('task_completed', { tasks_done: 1, tasks_total: 4 });
+    expect(noMatch).toHaveLength(0);
+
+    const match = engine.evaluate('task_completed', { tasks_done: 2, tasks_total: 4 });
+    expect(match).toHaveLength(1);
+  });
+
+  it('unregisterDynamic removes all dynamic types for a session', () => {
+    const registry = new MeetingRegistry();
+    registry.registerDynamic('s1', [
+      { name: 'A', persona: 'p', canvasType: 'explain-it' },
+      { name: 'B', persona: 'p', canvasType: 'blueprint' },
+    ]);
+
+    expect(registry.size).toBe(2);
+    registry.unregisterDynamic('s1');
+    expect(registry.size).toBe(0);
+    expect(registry.getById('custom-s1-0')).toBeUndefined();
+  });
+
+  it('unregisterDynamic is no-op for unknown session', () => {
+    const registry = new MeetingRegistry();
+    registry.unregisterDynamic('no-such-session');
+    expect(registry.size).toBe(0);
+  });
+});
+
 describe('MeetingTriggerEngine', () => {
   it('returns empty array when no types registered', () => {
     const registry = new MeetingRegistry();

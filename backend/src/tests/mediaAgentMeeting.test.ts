@@ -5,8 +5,8 @@ import { MEDIA_AGENT_MEETING, registerMediaAgentMeeting } from '../services/medi
 describe('MEDIA_AGENT_MEETING', () => {
   it('has the correct id, name, agentName, and canvasType', () => {
     expect(MEDIA_AGENT_MEETING.id).toBe('media-agent');
-    expect(MEDIA_AGENT_MEETING.name).toBe('Media Agent');
-    expect(MEDIA_AGENT_MEETING.agentName).toBe('Canvas');
+    expect(MEDIA_AGENT_MEETING.name).toBe('Marketing Agent');
+    expect(MEDIA_AGENT_MEETING.agentName).toBe('Marketing');
     expect(MEDIA_AGENT_MEETING.canvasType).toBe('campaign');
   });
 

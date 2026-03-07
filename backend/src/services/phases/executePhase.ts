@@ -152,8 +152,8 @@ export class ExecutePhase {
           const success = await this.executeOneTask(ctx, taskId, completed, meetingDesignContext.get(taskId));
           if (success) {
             completed.add(taskId);
-            // Evaluate mid-build meeting triggers after each successful task
-            await this.evaluateTaskCompletedMeetings(ctx, completed.size);
+            // Fire-and-forget: don't block the parallel pool
+            this.evaluateTaskCompletedMeetings(ctx, completed.size).catch(() => {});
           } else {
             failed.add(taskId);
           }

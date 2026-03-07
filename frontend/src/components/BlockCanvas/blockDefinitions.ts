@@ -673,6 +673,63 @@ const blockDefs = [
     tooltip: 'Declare an interface this nugget needs from another',
     helpUrl: '',
   },
+  // Team category (colour 45, warm orange)
+  {
+    type: 'team_member',
+    message0: 'Add %1 to my team',
+    args0: [
+      {
+        type: 'field_dropdown',
+        name: 'MEETING_TYPE',
+        options: [
+          ['Scribe', 'doc-agent'],
+          ['Marketing', 'media-agent'],
+          ['Blueprint', 'architecture-agent'],
+          ['Bug Detective', 'debug-convergence'],
+          ['Styler', 'web-design-agent'],
+          ['Pixel', 'art-agent'],
+          ['Interface Designer', 'integration-agent'],
+        ],
+      },
+    ],
+    previousStatement: null,
+    nextStatement: null,
+    colour: 45,
+    tooltip: 'Add a built-in meeting agent to your team. They will pop up at the right time during your build.',
+    helpUrl: '',
+  },
+  {
+    type: 'team_member_custom',
+    message0: 'Add a team expert named %1 who %2 using %3',
+    args0: [
+      {
+        type: 'field_input',
+        name: 'AGENT_NAME',
+        text: 'Coach',
+      },
+      {
+        type: 'field_input',
+        name: 'AGENT_PERSONA',
+        text: 'gives tips and encouragement',
+      },
+      {
+        type: 'field_dropdown',
+        name: 'CANVAS_TYPE',
+        options: [
+          ['Document', 'explain-it'],
+          ['Campaign', 'campaign'],
+          ['Blueprint', 'blueprint'],
+          ['Design Preview', 'design-preview'],
+          ['Launch Page', 'launch-pad'],
+        ],
+      },
+    ],
+    previousStatement: null,
+    nextStatement: null,
+    colour: 45,
+    tooltip: 'Add a custom meeting agent with your own name, personality, and canvas type.',
+    helpUrl: '',
+  },
   // System category (NEW - colour 290, purple)
   {
     type: 'system_level',

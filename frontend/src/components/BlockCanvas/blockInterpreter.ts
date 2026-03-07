@@ -68,6 +68,13 @@ export interface NuggetSpec {
     provides?: Array<{ name: string; type: string }>;
     requires?: Array<{ name: string; type: string }>;
   };
+  meeting_team?: Array<{
+    type: 'builtin' | 'custom';
+    meetingTypeId?: string;
+    name?: string;
+    persona?: string;
+    canvasType?: string;
+  }>;
 }
 
 interface BlockJson {
@@ -497,6 +504,25 @@ export function interpretWorkspace(
           difficulty: difficulty as 'easy' | 'medium' | 'hard',
           quiz_frequency: quizFrequency,
         };
+        break;
+      }
+      // --- Agent Team: team member blocks ---
+      case 'team_member': {
+        const meetingTypeId = (block.fields?.MEETING_TYPE as string) ?? '';
+        if (meetingTypeId) {
+          if (!spec.meeting_team) spec.meeting_team = [];
+          spec.meeting_team.push({ type: 'builtin', meetingTypeId });
+        }
+        break;
+      }
+      case 'team_member_custom': {
+        const name = (block.fields?.AGENT_NAME as string) ?? '';
+        const persona = (block.fields?.AGENT_PERSONA as string) ?? '';
+        const canvasType = (block.fields?.CANVAS_TYPE as string) ?? 'explain-it';
+        if (name) {
+          if (!spec.meeting_team) spec.meeting_team = [];
+          spec.meeting_team.push({ type: 'custom', name, persona, canvasType });
+        }
         break;
       }
       // --- PRD-002: deploy runtime block ---

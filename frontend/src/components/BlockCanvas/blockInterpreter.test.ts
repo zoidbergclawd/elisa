@@ -1613,4 +1613,86 @@ describe('blockInterpreter', () => {
       expect(spec.deployment.target).toBe('web');
     });
   });
+
+  describe('team member blocks', () => {
+    it('interprets team_member block as builtin meeting_team entry', () => {
+      const ws = makeWorkspace([
+        chainBlocks(
+          goalBlock('My app'),
+          { type: 'team_member', fields: { MEETING_TYPE: 'media-agent' } },
+        ),
+      ]);
+      const spec = interpretWorkspace(ws as any);
+      expect(spec.meeting_team).toHaveLength(1);
+      expect(spec.meeting_team![0]).toEqual({
+        type: 'builtin',
+        meetingTypeId: 'media-agent',
+      });
+    });
+
+    it('interprets team_member_custom block as custom meeting_team entry', () => {
+      const ws = makeWorkspace([
+        chainBlocks(
+          goalBlock('My app'),
+          {
+            type: 'team_member_custom',
+            fields: {
+              AGENT_NAME: 'Coach',
+              AGENT_PERSONA: 'gives tips and advice',
+              CANVAS_TYPE: 'explain-it',
+            },
+          },
+        ),
+      ]);
+      const spec = interpretWorkspace(ws as any);
+      expect(spec.meeting_team).toHaveLength(1);
+      expect(spec.meeting_team![0]).toEqual({
+        type: 'custom',
+        name: 'Coach',
+        persona: 'gives tips and advice',
+        canvasType: 'explain-it',
+      });
+    });
+
+    it('collects multiple team members', () => {
+      const ws = makeWorkspace([
+        chainBlocks(
+          goalBlock('My app'),
+          { type: 'team_member', fields: { MEETING_TYPE: 'doc-agent' } },
+          { type: 'team_member', fields: { MEETING_TYPE: 'media-agent' } },
+          {
+            type: 'team_member_custom',
+            fields: { AGENT_NAME: 'Expert', AGENT_PERSONA: 'knows stuff', CANVAS_TYPE: 'blueprint' },
+          },
+        ),
+      ]);
+      const spec = interpretWorkspace(ws as any);
+      expect(spec.meeting_team).toHaveLength(3);
+      expect(spec.meeting_team![0].meetingTypeId).toBe('doc-agent');
+      expect(spec.meeting_team![1].meetingTypeId).toBe('media-agent');
+      expect(spec.meeting_team![2].type).toBe('custom');
+    });
+
+    it('skips team_member with empty MEETING_TYPE', () => {
+      const ws = makeWorkspace([
+        chainBlocks(
+          goalBlock('My app'),
+          { type: 'team_member', fields: { MEETING_TYPE: '' } },
+        ),
+      ]);
+      const spec = interpretWorkspace(ws as any);
+      expect(spec.meeting_team).toBeUndefined();
+    });
+
+    it('skips team_member_custom with empty AGENT_NAME', () => {
+      const ws = makeWorkspace([
+        chainBlocks(
+          goalBlock('My app'),
+          { type: 'team_member_custom', fields: { AGENT_NAME: '', AGENT_PERSONA: 'test', CANVAS_TYPE: 'explain-it' } },
+        ),
+      ]);
+      const spec = interpretWorkspace(ws as any);
+      expect(spec.meeting_team).toBeUndefined();
+    });
+  });
 });
