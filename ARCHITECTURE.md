@@ -209,6 +209,43 @@ The ESP32-S3-BOX-3 voice agent plugin uses `esptool` for binary firmware flash:
 5. On redeploy, `redeployClassifier.classifyChanges()` determines whether to reflash or just update config
 6. Art Agent meeting (`art-agent` type) triggers on both `plan_ready` (when BOX-3 in device_types) and `deploy_started` for BOX-3 theme customization
 
+## Agent Meeting System
+
+AI agent personas pop up during builds to collaborate with kids via chat + interactive canvases.
+
+### Meeting Lifecycle
+
+```
+invited -> (accept) -> active -> (end) -> completed
+        -> (decline) -> declined
+```
+
+### Team Concept
+
+Agents are either **always-on defaults** (fire without blocks) or **opt-in** (require `team_member` Blockly blocks).
+
+| Always-On | Trigger |
+|-----------|---------|
+| Buddy | 25% tasks done |
+| Scribe | 50% tasks done |
+| Blueprint | session_complete |
+| Bug Detective | convergence_stalled |
+| Pixel (design review) | task_starting + design keywords |
+
+Opt-in agents: Marketing, Styler, Pixel (art/theme), Interface Designer, and kid-defined custom agents.
+
+### Meeting Type Registry
+
+Static types registered at startup via `register<Type>Meeting(registry)`. Dynamic types created per-session via `registerDynamic(sessionId, specs)` for custom kid-defined agents with auto-assigned triggers based on canvas type.
+
+### Canvas Types
+
+`canvasRegistry.ts` maps canvas type strings to React components. 12 types: blueprint, bug-detective, campaign, code-explorer, design-preview, explain-it, interface-designer, launch-pad, live-preview, test-dashboard, theme-picker, whiteboard.
+
+### Persistent Team Tab
+
+`TeamPanel` provides always-available team access. `TeamMemberList` shows agents with invite badges. `TeamConversation` reuses `ChatPanel` + `CanvasPanel` via `MeetingLayout`. Auto-dismiss on `MeetingInviteToast` preserves invites in queue for Team tab.
+
 ## Module-Level Documentation
 
 Deeper context for each subsystem lives in CLAUDE.md files within each directory:

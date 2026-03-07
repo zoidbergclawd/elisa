@@ -54,6 +54,15 @@ const CANVAS_INSTRUCTIONS: Record<string, string> = {
     'ALWAYS include a ```canvas JSON block with test results. ' +
     'Required fields: tests (array of {name, status: "passed"|"failed", expected?, actual?, error?}), ' +
     'errors (array of {task, message, stack?}).',
+  'live-preview':
+    'ALWAYS include a ```canvas JSON block with preview info. ' +
+    'Required fields: previewUrl (string -- URL to the local web preview), refreshToken (number -- increment to trigger refresh).',
+  'code-explorer':
+    'ALWAYS include a ```canvas JSON block with code to explore. ' +
+    'Required fields: files (array of {path, content, annotations: [{line, text}]}), activeFile (string -- path of file to show).',
+  'whiteboard':
+    'ALWAYS include a ```canvas JSON block with drawing annotations. ' +
+    'Required fields: annotations (array of {x, y, text}), background (CSS color string).',
   'design-preview':
     'ALWAYS include a ```canvas JSON block with EVERY message so the kid sees the design evolve live. ' +
     'Required fields: scene_title (string), description (string), ' +

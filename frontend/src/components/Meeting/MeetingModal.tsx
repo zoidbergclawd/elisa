@@ -13,8 +13,11 @@ import './DesignPreviewCanvas';
 import './ExplainItCanvas';
 import './InterfaceDesignerCanvas';
 import './LaunchPadCanvas';
+import './CodeExplorerCanvas';
+import './LivePreviewCanvas';
 import './TestDashboardCanvas';
 import './ThemePickerCanvas';
+import './WhiteboardCanvas';
 
 export interface MeetingMessage {
   role: 'agent' | 'kid';

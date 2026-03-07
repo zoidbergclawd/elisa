@@ -66,6 +66,9 @@ App.tsx
   Meeting/ExplainItCanvas.tsx        Document editor canvas for Documentation Agent meetings (title, content, suggestions, word count)
   Meeting/LaunchPadCanvas.tsx        Launch page builder canvas for Web Designer Agent meetings (template selection, customization, live preview)
   Meeting/TestDashboardCanvas.tsx    Test Dashboard canvas: live pass/fail indicators, error details, Quick Fix / Deep Fix buttons
+  Meeting/LivePreviewCanvas.tsx     Live Preview canvas: embeds iframe to local web preview, auto-refreshes on task_completed
+  Meeting/CodeExplorerCanvas.tsx    Code Explorer canvas: syntax-highlighted code viewer with agent line annotations
+  Meeting/WhiteboardCanvas.tsx      Whiteboard canvas: HTML5 Canvas free-form drawing (pen, line, rect, circle, eraser, text, colors)
   TeamPanel/TeamPanel.tsx            Persistent Team tab: member list sidebar + inline conversation area
   TeamPanel/TeamMemberList.tsx       Sidebar with static member list, pending invite badges, Chat/dismiss buttons
   TeamPanel/TeamConversation.tsx     Inline meeting conversation using ChatPanel + CanvasPanel via MeetingLayout
