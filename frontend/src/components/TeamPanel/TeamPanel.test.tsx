@@ -1,0 +1,50 @@
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import TeamMemberList from './TeamMemberList';
+
+describe('TeamMemberList', () => {
+  it('renders team member names', () => {
+    render(
+      <TeamMemberList
+        inviteQueue={[]}
+        onAcceptInvite={vi.fn()}
+        onDeclineInvite={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('Buddy')).toBeInTheDocument();
+    expect(screen.getByText('Scribe')).toBeInTheDocument();
+    expect(screen.getByText('Blueprint')).toBeInTheDocument();
+    expect(screen.getByText('Bug Detective')).toBeInTheDocument();
+    expect(screen.getByText('Marketing')).toBeInTheDocument();
+  });
+
+  it('shows Chat button for pending invites', () => {
+    const invite = {
+      meetingId: 'inv-1',
+      meetingTypeId: 'buddy-agent',
+      agentName: 'Buddy',
+      title: 'Check-in',
+      description: 'Buddy wants to chat',
+    };
+
+    render(
+      <TeamMemberList
+        inviteQueue={[invite]}
+        onAcceptInvite={vi.fn()}
+        onDeclineInvite={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('Chat')).toBeInTheDocument();
+  });
+
+  it('does not show Chat button when no pending invites', () => {
+    render(
+      <TeamMemberList
+        inviteQueue={[]}
+        onAcceptInvite={vi.fn()}
+        onDeclineInvite={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText('Chat')).not.toBeInTheDocument();
+  });
+});

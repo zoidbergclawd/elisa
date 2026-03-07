@@ -1,15 +1,16 @@
 import type { Task, Agent } from '../../types';
 
-export type MainTab = 'workspace' | 'mission';
+export type MainTab = 'workspace' | 'mission' | 'team';
 
 interface MainTabBarProps {
   activeTab: MainTab;
   onTabChange: (tab: MainTab) => void;
   tasks: Task[];
   agents: Agent[];
+  pendingInviteCount?: number;
 }
 
-export default function MainTabBar({ activeTab, onTabChange, tasks, agents }: MainTabBarProps) {
+export default function MainTabBar({ activeTab, onTabChange, tasks, agents, pendingInviteCount }: MainTabBarProps) {
   const workingAgents = agents.filter(a => a.status === 'working').length;
   const inProgressTasks = tasks.filter(t => t.status === 'in_progress').length;
 
@@ -25,6 +26,12 @@ export default function MainTabBar({ activeTab, onTabChange, tasks, agents }: Ma
         active={activeTab === 'mission'}
         onClick={() => onTabChange('mission')}
         badge={(workingAgents + inProgressTasks) > 0 ? workingAgents + inProgressTasks : undefined}
+      />
+      <TabButton
+        label="Team"
+        active={activeTab === 'team'}
+        onClick={() => onTabChange('team')}
+        badge={pendingInviteCount && pendingInviteCount > 0 ? pendingInviteCount : undefined}
       />
     </nav>
   );

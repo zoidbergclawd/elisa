@@ -51,6 +51,7 @@ type MeetingAction =
   | { type: 'MEETING_ENDED'; meetingId: string; outcomes: Array<{ type: string; data: Record<string, unknown> }> }
   | { type: 'CLEAR_INVITE'; meetingId: string }
   | { type: 'CLEAR_ALL_INVITES' }
+  | { type: 'DISMISS_TOAST'; meetingId: string }
   | { type: 'RESET' };
 
 // -- Reducer --
@@ -139,6 +140,14 @@ function meetingReducer(state: MeetingSessionState, action: MeetingAction): Meet
 
     case 'CLEAR_ALL_INVITES':
       return { ...state, inviteQueue: [] };
+
+    case 'DISMISS_TOAST':
+      return {
+        ...state,
+        inviteQueue: state.inviteQueue.map(inv =>
+          inv.meetingId === action.meetingId ? { ...inv, toastDismissed: true } : inv,
+        ),
+      };
 
     case 'RESET':
       return initialState;
@@ -309,8 +318,16 @@ export function useMeetingSession(sessionId: string | null) {
     dispatch({ type: 'CLEAR_ALL_INVITES' });
   }, []);
 
-  /** First invite in queue (for toast display). */
-  const nextInvite = useMemo(() => state.inviteQueue[0] ?? null, [state.inviteQueue]);
+  /** Dismiss toast without declining -- invite stays in queue for Team tab. */
+  const dismissToast = useCallback((meetingId: string) => {
+    dispatch({ type: 'DISMISS_TOAST', meetingId });
+  }, []);
+
+  /** First non-dismissed invite in queue (for toast display). */
+  const nextInvite = useMemo(
+    () => state.inviteQueue.find(inv => !inv.toastDismissed) ?? null,
+    [state.inviteQueue],
+  );
 
   return {
     inviteQueue: state.inviteQueue,
@@ -322,6 +339,7 @@ export function useMeetingSession(sessionId: string | null) {
     handleMeetingEvent,
     acceptInvite,
     declineInvite,
+    dismissToast,
     sendMessage,
     endMeeting,
     updateCanvas,

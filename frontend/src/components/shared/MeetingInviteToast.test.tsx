@@ -63,7 +63,7 @@ describe('MeetingInviteToast', () => {
     expect(onDecline).toHaveBeenCalledWith('meeting-1');
   });
 
-  it('auto-dismisses after 30 seconds by calling onDecline', () => {
+  it('auto-dismisses after 30 seconds by calling onDecline when no onDismissToast', () => {
     const onDecline = vi.fn();
     render(
       <MeetingInviteToast invite={mockInvite} onAccept={vi.fn()} onDecline={onDecline} />,
@@ -76,6 +76,21 @@ describe('MeetingInviteToast', () => {
     });
 
     expect(onDecline).toHaveBeenCalledWith('meeting-1');
+  });
+
+  it('auto-dismisses after 30 seconds by calling onDismissToast when provided', () => {
+    const onDecline = vi.fn();
+    const onDismissToast = vi.fn();
+    render(
+      <MeetingInviteToast invite={mockInvite} onAccept={vi.fn()} onDecline={onDecline} onDismissToast={onDismissToast} />,
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(30_000);
+    });
+
+    expect(onDismissToast).toHaveBeenCalledWith('meeting-1');
+    expect(onDecline).not.toHaveBeenCalled();
   });
 
   it('does not auto-dismiss before 30 seconds', () => {
