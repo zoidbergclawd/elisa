@@ -47,4 +47,24 @@ describe('TeamMemberList', () => {
     );
     expect(screen.queryByText('Chat')).not.toBeInTheDocument();
   });
+
+  it('renders custom agents from invite queue that are not in builtin list', () => {
+    const customInvite = {
+      meetingId: 'inv-custom',
+      meetingTypeId: 'custom-session-0',
+      agentName: 'Carl Sagan',
+      title: 'Astrophysics Expert',
+      description: 'Carl Sagan wants to chat',
+    };
+
+    render(
+      <TeamMemberList
+        inviteQueue={[customInvite]}
+        onAcceptInvite={vi.fn()}
+        onDeclineInvite={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('Carl Sagan')).toBeInTheDocument();
+    expect(screen.getByText('Chat')).toBeInTheDocument();
+  });
 });

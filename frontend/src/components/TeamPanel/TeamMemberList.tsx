@@ -4,7 +4,7 @@ import AgentAvatar from '../Meeting/AgentAvatar';
 import type { MeetingInvite } from '../shared/MeetingInviteToast';
 
 /** Static list of known meeting agent personas. */
-const TEAM_MEMBERS = [
+const BUILTIN_MEMBERS = [
   { id: 'buddy-agent', name: 'Buddy', description: 'Mid-build check-in' },
   { id: 'doc-agent', name: 'Scribe', description: 'Documentation' },
   { id: 'architecture-agent', name: 'Blueprint', description: 'Architecture overview' },
@@ -31,10 +31,24 @@ export default function TeamMemberList({
 }: TeamMemberListProps) {
   const inviteByType = new Map(inviteQueue.map(inv => [inv.meetingTypeId, inv]));
 
+  // Build combined member list: builtins + any custom agents from invites not already listed
+  const builtinIds = new Set(BUILTIN_MEMBERS.map(m => m.id));
+  const customMembers = inviteQueue
+    .filter(inv => !builtinIds.has(inv.meetingTypeId))
+    .reduce((acc, inv) => {
+      // Deduplicate by meetingTypeId
+      if (!acc.some(m => m.id === inv.meetingTypeId)) {
+        acc.push({ id: inv.meetingTypeId, name: inv.agentName, description: inv.title });
+      }
+      return acc;
+    }, [] as Array<{ id: string; name: string; description: string }>);
+
+  const allMembers = [...BUILTIN_MEMBERS, ...customMembers];
+
   return (
     <div className="space-y-1 p-3">
       <h3 className="text-xs font-semibold text-atelier-text-muted uppercase tracking-wider mb-2">Your Team</h3>
-      {TEAM_MEMBERS.map(member => {
+      {allMembers.map(member => {
         const invite = inviteByType.get(member.id);
         const isActive = activeMeetingTypeId === member.id;
         const wantsChat = !!invite;

@@ -193,6 +193,13 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
     }
   }, [uiState]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Auto-switch to team tab when a meeting becomes active
+  useEffect(() => {
+    if (activeMeeting && activeMainTab !== 'team') {
+      setActiveMainTab('team'); // eslint-disable-line react-hooks/set-state-in-effect -- intentional tab auto-switch on meeting accept
+    }
+  }, [activeMeeting]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Show board-detected modal when a board is newly plugged in
   useEffect(() => {
     if (!justConnected || !boardInfo) return;
@@ -454,8 +461,8 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
         />
       )}
 
-      {/* Active meeting modal */}
-      {activeMeeting && (
+      {/* Active meeting modal -- hidden when Team tab is active (TeamConversation handles it inline) */}
+      {activeMeeting && activeMainTab !== 'team' && (
         <MeetingModal
           meetingId={activeMeeting.meetingId}
           agentName={activeMeeting.agentName}
