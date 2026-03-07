@@ -130,12 +130,13 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/services/specGraph.ts` | Spec Graph service: directed graph of NuggetSpecs with persistence |
 | `backend/src/services/compositionService.ts` | Nugget composition orchestrator with emergence detection |
 | `backend/src/services/integrationAgentMeeting.ts` | Integration meeting type for nugget composition |
-| `backend/src/services/meetingTriggerWiring.ts` | Wires MeetingTriggerEngine into orchestrator pipeline per build event |
+| `backend/src/services/meetingTriggerWiring.ts` | Meeting trigger wiring with team filtering (always-on defaults + opt-in) |
+| `backend/src/services/buddyAgentMeeting.ts` | Buddy Agent meeting type (canvasType: explain-it, always-on at 25%) |
 | `backend/src/services/healthHistoryService.ts` | Health-over-time persistence (20-entry cap, .elisa/health-history.json) |
 | `backend/src/services/cloudDeployService.ts` | Google Cloud Run deployment (scaffold, gcloud CLI) |
 | `backend/src/services/architectureAgentMeeting.ts` | Architecture Agent meeting type (canvasType: blueprint) |
 | `backend/src/services/docAgentMeeting.ts` | Documentation Agent meeting type (canvasType: explain-it) |
-| `backend/src/services/mediaAgentMeeting.ts` | Media Agent meeting type (canvasType: campaign) |
+| `backend/src/services/mediaAgentMeeting.ts` | Marketing Agent meeting type (canvasType: campaign, opt-in) |
 | `backend/src/services/webDesignAgentMeeting.ts` | Web Designer Agent meeting type (canvasType: launch-pad) |
 | `backend/src/services/artAgentMeeting.ts` | Art Agent meeting type for BOX-3 theme customization |
 | `backend/src/models/runtime.ts` | Agent Runtime types: AgentIdentity, ConversationTurn, UsageRecord, StudyModeConfig, QuizQuestion, BackpackSource |
@@ -201,13 +202,19 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/components/TaskMap/TaskMapPanel.tsx` | Full-width interactive task DAG |
 | `frontend/src/components/shared/MinionAvatar.tsx` | Animated avatar for narrator/minion characters |
 | `frontend/src/components/shared/FlashWizardModal.tsx` | Multi-device flash wizard modal for IoT deploy |
-| `frontend/src/components/shared/MeetingInviteToast.tsx` | Floating meeting invite notification with accept/decline |
+| `frontend/src/components/shared/MeetingInviteToast.tsx` | Floating meeting invite (auto-dismiss preserves invite for Team tab) |
 | `frontend/src/components/shared/MeetingInviteCard.tsx` | Inline meeting invite card for done modal |
+| `frontend/src/components/TeamPanel/TeamPanel.tsx` | Persistent Team tab: member list + inline conversation |
+| `frontend/src/components/TeamPanel/TeamMemberList.tsx` | Team member sidebar with invite badges |
+| `frontend/src/components/TeamPanel/TeamConversation.tsx` | Inline meeting chat using ChatPanel + CanvasPanel |
 | `frontend/src/components/shared/LevelBadge.tsx` | System level badge (Explorer/Builder/Architect) with tooltip |
 | `frontend/src/components/shared/DisplayThemePreview.tsx` | BOX-3 display theme preview (320x240 ratio, theme colors, avatar style) |
 | `frontend/src/components/Meeting/AgentStudioCanvas.tsx` | Face designer canvas for Art Agent meetings (mix-and-match face parts, colors, theme) |
 | `frontend/src/components/Meeting/FacePreview.tsx` | Pure SVG face renderer from FaceDescriptor with animated states (idle, listening, thinking, speaking) |
-| `frontend/src/components/Meeting/MeetingModal.tsx` | Full-screen meeting modal with chat panel and canvas area |
+| `frontend/src/components/Meeting/MeetingModal.tsx` | Full-screen meeting modal (composes ChatPanel + CanvasPanel + MeetingLayout) |
+| `frontend/src/components/Meeting/ChatPanel.tsx` | Reusable chat panel: messages, auto-scroll, typing indicator, input |
+| `frontend/src/components/Meeting/CanvasPanel.tsx` | Reusable canvas panel: resolves from registry, renders with props |
+| `frontend/src/components/Meeting/MeetingLayout.tsx` | Two-panel layout shared by MeetingModal and TeamConversation |
 | `frontend/src/components/Meeting/canvasRegistry.ts` | Registry for pluggable meeting canvas components |
 | `frontend/src/components/MissionControl/MissionControlPanel.tsx` | Main mission control layout with narrator feed + minion squad |
 | `frontend/src/components/MissionControl/MinionSquadPanel.tsx` | Minion cards with status badges and task assignments |
@@ -228,6 +235,10 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/components/Meeting/ExplainItCanvas.tsx` | Document editor canvas for Documentation Agent meetings |
 | `frontend/src/components/Meeting/InterfaceDesignerCanvas.tsx` | Interface contract builder canvas for Integration meetings |
 | `frontend/src/components/Meeting/LaunchPadCanvas.tsx` | Launch page builder canvas for Web Designer Agent meetings |
+| `frontend/src/components/Meeting/TestDashboardCanvas.tsx` | Test Dashboard: pass/fail, errors, Quick Fix / Deep Fix buttons |
+| `frontend/src/components/Meeting/LivePreviewCanvas.tsx` | Live Preview: iframe web preview with auto-refresh |
+| `frontend/src/components/Meeting/CodeExplorerCanvas.tsx` | Code Explorer: syntax-highlighted viewer with annotations |
+| `frontend/src/components/Meeting/WhiteboardCanvas.tsx` | Whiteboard: free-form HTML5 Canvas drawing with tools |
 | `frontend/src/components/shared/ImpactPreview.tsx` | Pre-execution impact preview card (task estimate, complexity, heaviest reqs) |
 
 ### Hooks
