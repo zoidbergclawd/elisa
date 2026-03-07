@@ -12,6 +12,7 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { safeEnv } from '../utils/safeEnv.js';
+import { getSharedDevicesDir } from '../utils/resourcePath.js';
 import type { HardwareService } from './hardwareService.js';
 import type { DeviceRegistry } from './deviceRegistry.js';
 import { sanitizeReplacements, escapePythonString } from '../utils/sanitizePythonValue.js';
@@ -579,7 +580,7 @@ export class EsptoolFlashStrategy implements FlashStrategy {
    */
   static async findSpiffsgenPath(): Promise<string | null> {
     // 1. Check bundled copy shipped with the repo
-    const bundled = path.resolve(import.meta.dirname, '..', '..', '..', 'devices', '_shared', 'tools', 'spiffsgen.py');
+    const bundled = path.join(getSharedDevicesDir(), 'tools', 'spiffsgen.py');
     if (fs.existsSync(bundled)) return bundled;
 
     // 2. Check IDF_PATH environment variable

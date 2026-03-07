@@ -34,13 +34,14 @@ import { SpecGraphService } from './services/specGraph.js';
 import { createSpecGraphRouter } from './routes/specGraph.js';
 import { getAnthropicClient } from './utils/anthropicClient.js';
 import { getLanUrl } from './utils/lanUrl.js';
+import { getDevicesDir } from './utils/resourcePath.js';
 import type { WSEvent } from './services/phases/types.js';
 
 // -- State --
 
 const store = new SessionStore();
 const hardwareService = new HardwareService();
-const deviceRegistry = new DeviceRegistry(path.resolve(import.meta.dirname, '../../devices'));
+const deviceRegistry = new DeviceRegistry(getDevicesDir());
 const meetingRegistry = new MeetingRegistry();
 const meetingService = new MeetingService(meetingRegistry);
 const meetingAgentService = new MeetingAgentService();

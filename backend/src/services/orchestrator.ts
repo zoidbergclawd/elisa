@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { ChildProcess } from 'node:child_process';
+import { getDevicesDir } from '../utils/resourcePath.js';
 import type { BuildSession, Task, Agent, CommitInfo } from '../models/session.js';
 import type { NuggetSpec } from '../utils/specValidator.js';
 import type { PhaseContext, SendEvent, GateResponse, QuestionAnswers } from './phases/types.js';
@@ -90,7 +91,7 @@ export class Orchestrator {
     this.userWorkspace = !!workspacePath;
     this.hardwareService = hardwareService ?? new HardwareService();
     this.portalService = new PortalService();
-    this.deviceRegistry = deviceRegistry ?? new DeviceRegistry(path.resolve(import.meta.dirname, '../../devices'));
+    this.deviceRegistry = deviceRegistry ?? new DeviceRegistry(getDevicesDir());
     this.meetingRegistry = meetingRegistry;
     this.meetingService = meetingService;
     if (meetingRegistry && meetingService) {

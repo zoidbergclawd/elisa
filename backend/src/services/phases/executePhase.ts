@@ -10,6 +10,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { getSharedDevicesDir } from '../../utils/resourcePath.js';
 import type { PhaseContext, GateResponse, QuestionAnswers } from './types.js';
 import type { CommitInfo, Task, Agent } from '../../models/session.js';
 import { AgentRunner } from '../agentRunner.js';
@@ -498,7 +499,7 @@ export class ExecutePhase {
     // Copy hardware library into workspace for ESP32 targets
     const deployTarget = (ctx.session.spec ?? {}).deployment?.target ?? '';
     if (deployTarget === 'esp32' || deployTarget === 'both') {
-      const hwLibSrc = path.resolve(import.meta.dirname, '..', '..', '..', '..', 'hardware', 'lib', 'elisa_hardware.py');
+      const hwLibSrc = path.join(getSharedDevicesDir(), 'elisa_hardware.py');
       const hwLibDst = path.join(ctx.nuggetDir, 'src', 'elisa_hardware.py');
       if (fs.existsSync(hwLibSrc) && !fs.existsSync(hwLibDst)) {
         fs.copyFileSync(hwLibSrc, hwLibDst);

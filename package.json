@@ -13,9 +13,10 @@
     "dev:electron": "concurrently -n be,fe,el -c blue,green,magenta \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\" \"wait-on http://localhost:5173 && electron .\"",
     "build:frontend": "cd frontend && npx vite build",
     "build:backend": "node scripts/build-backend.mjs",
+    "build:backend:deps": "node scripts/bundle-backend-deps.mjs",
     "test:electron": "vitest run --config electron/vitest.config.ts",
     "build:electron": "tsc -p electron/tsconfig.json",
-    "build": "npm run build:frontend && npm run build:backend && npm run build:electron",
+    "build": "npm run build:frontend && npm run build:backend && npm run build:backend:deps && npm run build:electron",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder",
     "dist:win": "npm run build && electron-builder --win",
@@ -31,8 +32,7 @@
     },
     "files": [
       "electron/dist/**/*",
-      "frontend/dist/**/*",
-      "backend/dist/**/*"
+      "electron/settings.html"
     ],
     "extraResources": [
       {
@@ -41,7 +41,14 @@
       },
       {
         "from": "backend/dist",
-        "to": "backend-dist"
+        "to": "backend-dist",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "devices/_shared",
+        "to": "devices/_shared"
       }
     ],
     "win": {
@@ -56,6 +63,11 @@
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "zoidbergclawd",
+      "repo": "elisa"
     }
   },
   "devDependencies": {
@@ -68,7 +80,8 @@
     "wait-on": "^8.0.3"
   },
   "dependencies": {
-    "electron-store": "^10.0.1"
+    "electron-store": "^10.0.1",
+    "electron-updater": "^6.6.2"
   },
   "overrides": {
     "minimatch": ">=10.2.1"
