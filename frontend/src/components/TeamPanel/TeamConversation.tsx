@@ -13,6 +13,7 @@ import '../Meeting/DesignPreviewCanvas';
 import '../Meeting/ExplainItCanvas';
 import '../Meeting/InterfaceDesignerCanvas';
 import '../Meeting/LaunchPadCanvas';
+import '../Meeting/TestDashboardCanvas';
 import '../Meeting/ThemePickerCanvas';
 
 import type { MeetingMessageEntry, MeetingCanvasState } from '../../hooks/useMeetingSession';

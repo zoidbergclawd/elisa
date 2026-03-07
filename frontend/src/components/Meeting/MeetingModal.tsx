@@ -13,6 +13,7 @@ import './DesignPreviewCanvas';
 import './ExplainItCanvas';
 import './InterfaceDesignerCanvas';
 import './LaunchPadCanvas';
+import './TestDashboardCanvas';
 import './ThemePickerCanvas';
 
 export interface MeetingMessage {
