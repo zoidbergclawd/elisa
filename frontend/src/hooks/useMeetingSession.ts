@@ -308,6 +308,26 @@ export function useMeetingSession(sessionId: string | null) {
     }
   }, [sessionId, state.activeMeeting]);
 
+  /** Start a kid-initiated meeting with a specific agent type.
+   *  Creates an invite on the backend and immediately accepts it. */
+  const startDirectMeeting = useCallback(async (meetingTypeId: string) => {
+    if (!sessionId) return;
+    try {
+      const resp = await authFetch(`/api/sessions/${sessionId}/meetings/start`, {
+        method: 'POST',
+        body: JSON.stringify({ meetingTypeId }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data.meetingId) {
+          // The backend creates + accepts in one call, WS events will update state
+        }
+      }
+    } catch (err) {
+      console.error('[meeting] startDirectMeeting failed:', err);
+    }
+  }, [sessionId]);
+
   /** Clear all meeting state (invites + active meeting). Used on session reset. */
   const resetMeetings = useCallback(() => {
     dispatch({ type: 'RESET' });
@@ -340,6 +360,7 @@ export function useMeetingSession(sessionId: string | null) {
     acceptInvite,
     declineInvite,
     dismissToast,
+    startDirectMeeting,
     sendMessage,
     endMeeting,
     updateCanvas,

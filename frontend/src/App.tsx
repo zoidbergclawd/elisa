@@ -110,7 +110,7 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
 
   const {
     uiState, tasks, agents, events, sessionId,
-    teachingMoments, deployUrls, errorNotification,
+    teachingMoments, deployUrls, errorNotification, testResults,
     nuggetDir, startBuild, stopBuild, clearErrorNotification, resetToDesign,
   } = useBuildSessionContext();
 
@@ -367,8 +367,8 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
         </div>
       )}
 
-      {/* Done mode overlay -- hidden when a meeting modal is active (z-50 > z-40) */}
-      {uiState === 'done' && !activeMeeting && (
+      {/* Done mode overlay -- hidden when Team tab active or meeting modal open */}
+      {uiState === 'done' && !activeMeeting && activeMainTab !== 'team' && (
         <div className="fixed inset-0 modal-backdrop z-40 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="done-modal-title">
           <div className={`glass-elevated rounded-2xl shadow-2xl p-8 mx-4 text-center animate-float-in ${inviteQueue.length > 0 ? 'max-w-lg' : 'max-w-md'}`}>
             <h2 id="done-modal-title" className="text-2xl font-display font-bold mb-4 gradient-text-warm">Nugget Complete!</h2>
@@ -387,8 +387,8 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
                 </ul>
               </div>
             )}
-            {/* Fix It button when tasks failed */}
-            {tasks.some(t => t.status === 'failed') && (
+            {/* Fix It button when tasks failed or tests failing */}
+            {(tasks.some(t => t.status === 'failed') || testResults.some(t => !t.passed)) && (
               <div className="mb-4">
                 <button
                   onClick={() => setActiveMainTab('team')}

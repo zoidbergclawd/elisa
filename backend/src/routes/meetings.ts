@@ -139,6 +139,37 @@ export function createMeetingRouter({ store, meetingService, meetingAgentService
     return (event) => sendEvent(sessionId, event);
   }
 
+  // Start a kid-initiated meeting (create invite + immediately accept)
+  router.post('/start', async (req, res) => {
+    const sessionId = (req.params as Record<string, string>).sessionId;
+    const entry = store.get(sessionId);
+    if (!entry) {
+      res.status(404).json({ detail: 'Session not found' });
+      return;
+    }
+    const { meetingTypeId } = req.body as { meetingTypeId?: string };
+    if (!meetingTypeId) {
+      res.status(400).json({ detail: 'meetingTypeId required' });
+      return;
+    }
+
+    const send = makeSend(sessionId);
+    const meeting = await meetingService.createInvite(meetingTypeId, sessionId, send);
+    if (!meeting) {
+      res.status(400).json({ detail: `Unknown meeting type: ${meetingTypeId}` });
+      return;
+    }
+
+    // Immediately accept with build context
+    const buildContext = buildMeetingContext(entry);
+    await meetingService.acceptMeeting(meeting.id, send, buildContext);
+
+    // Resolve meeting block if orchestrator is waiting
+    entry.orchestrator?.resolveMeetingBlock(meeting.id);
+
+    res.json({ meetingId: meeting.id });
+  });
+
   // List all meetings for a session
   router.get('/', (req, res) => {
     const sessionId = (req.params as Record<string, string>).sessionId;

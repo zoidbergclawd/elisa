@@ -21,6 +21,10 @@ interface TeamMemberListProps {
   activeMeetingTypeId?: string;
   onAcceptInvite: (meetingId: string) => void;
   onDeclineInvite: (meetingId: string) => void;
+  /** Called when the kid clicks an idle agent to start a conversation. */
+  onStartChat?: (meetingTypeId: string) => void;
+  /** True when a build session is active (enables clicking idle agents). */
+  hasSession?: boolean;
 }
 
 export default function TeamMemberList({
@@ -28,6 +32,8 @@ export default function TeamMemberList({
   activeMeetingTypeId,
   onAcceptInvite,
   onDeclineInvite,
+  onStartChat,
+  hasSession,
 }: TeamMemberListProps) {
   const inviteByType = new Map(inviteQueue.map(inv => [inv.meetingTypeId, inv]));
 
@@ -36,7 +42,6 @@ export default function TeamMemberList({
   const customMembers = inviteQueue
     .filter(inv => !builtinIds.has(inv.meetingTypeId))
     .reduce((acc, inv) => {
-      // Deduplicate by meetingTypeId
       if (!acc.some(m => m.id === inv.meetingTypeId)) {
         acc.push({ id: inv.meetingTypeId, name: inv.agentName, description: inv.title });
       }
@@ -52,12 +57,20 @@ export default function TeamMemberList({
         const invite = inviteByType.get(member.id);
         const isActive = activeMeetingTypeId === member.id;
         const wantsChat = !!invite;
+        const isClickable = !isActive && !wantsChat && hasSession && onStartChat;
 
         return (
           <div
             key={member.id}
+            onClick={isClickable ? () => onStartChat(member.id) : undefined}
             className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors ${
-              isActive ? 'bg-accent-sky/20' : wantsChat ? 'bg-accent-lavender/10' : 'hover:bg-atelier-surface/60'
+              isActive
+                ? 'bg-accent-sky/20'
+                : wantsChat
+                ? 'bg-accent-lavender/10'
+                : isClickable
+                ? 'hover:bg-atelier-surface/60 cursor-pointer'
+                : 'opacity-60'
             }`}
           >
             <AgentAvatar agentName={member.name} size={28} />
@@ -68,14 +81,14 @@ export default function TeamMemberList({
             {wantsChat && (
               <div className="flex gap-1 shrink-0">
                 <button
-                  onClick={() => onAcceptInvite(invite.meetingId)}
+                  onClick={(e) => { e.stopPropagation(); onAcceptInvite(invite.meetingId); }}
                   className="go-btn px-2 py-1 rounded-lg text-[10px] font-medium"
                   title="Join meeting"
                 >
                   Chat
                 </button>
                 <button
-                  onClick={() => onDeclineInvite(invite.meetingId)}
+                  onClick={(e) => { e.stopPropagation(); onDeclineInvite(invite.meetingId); }}
                   className="px-1.5 py-1 rounded-lg text-[10px] text-atelier-text-muted hover:text-atelier-text transition-colors"
                   title="Dismiss"
                 >

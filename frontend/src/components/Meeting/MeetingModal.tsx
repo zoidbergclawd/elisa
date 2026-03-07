@@ -1,5 +1,6 @@
 /** Full-screen meeting modal with agent chat panel and canvas area. */
 
+import { useCallback } from 'react';
 import AgentAvatar from './AgentAvatar';
 import ChatPanel from './ChatPanel';
 import CanvasPanel from './CanvasPanel';
@@ -49,6 +50,18 @@ export default function MeetingModal({
   onEndMeeting,
   onMaterialize,
 }: MeetingModalProps) {
+  /** Save canvas artifacts then end the meeting. */
+  const handleSaveAndEnd = useCallback(async () => {
+    if (onMaterialize && canvasState.data && Object.keys(canvasState.data).length > 0) {
+      try {
+        await onMaterialize(canvasState.data);
+      } catch {
+        // Best-effort save -- still end the meeting
+      }
+    }
+    onEndMeeting();
+  }, [onMaterialize, canvasState.data, onEndMeeting]);
+
   return (
     <div
       className="fixed inset-0 modal-backdrop z-50 flex items-center justify-center"
@@ -66,12 +79,14 @@ export default function MeetingModal({
                   Meeting with {agentName}
                 </h2>
               </div>
-              <button
-                onClick={onEndMeeting}
-                className="px-4 py-1.5 rounded-xl text-sm cursor-pointer border border-red-500/30 text-red-400 hover:bg-red-950/40 hover:text-red-300 transition-colors"
-              >
-                End Meeting
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSaveAndEnd}
+                  className="px-4 py-1.5 rounded-xl text-sm cursor-pointer border border-green-500/30 text-green-400 hover:bg-green-950/40 hover:text-green-300 transition-colors"
+                >
+                  Save & End
+                </button>
+              </div>
             </div>
           }
           chatPanel={

@@ -3,14 +3,17 @@
 import TeamMemberList from './TeamMemberList';
 import TeamConversation from './TeamConversation';
 import { useMeetingContext } from '../../contexts/MeetingContext';
+import { useBuildSessionContext } from '../../contexts/BuildSessionContext';
 
 export default function TeamPanel() {
   const {
     inviteQueue, activeMeeting, isAgentThinking,
     messages, canvasState,
-    acceptInvite, declineInvite,
+    acceptInvite, declineInvite, startDirectMeeting,
     sendMessage, endMeeting, updateCanvas, materializeArtifacts,
   } = useMeetingContext();
+
+  const { sessionId } = useBuildSessionContext();
 
   return (
     <div className="flex w-full h-full">
@@ -21,6 +24,8 @@ export default function TeamPanel() {
           activeMeetingTypeId={activeMeeting?.meetingTypeId}
           onAcceptInvite={acceptInvite}
           onDeclineInvite={declineInvite}
+          onStartChat={startDirectMeeting}
+          hasSession={!!sessionId}
         />
       </div>
 
@@ -46,6 +51,8 @@ export default function TeamPanel() {
               <p className="text-sm">
                 {inviteQueue.length > 0
                   ? `${inviteQueue.length} team member${inviteQueue.length > 1 ? 's' : ''} want to chat! Click "Chat" to start.`
+                  : sessionId
+                  ? 'Click any team member to start a conversation.'
                   : 'Your team agents will appear here during builds.'}
               </p>
             </div>

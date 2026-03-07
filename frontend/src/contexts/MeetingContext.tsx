@@ -19,6 +19,7 @@ export interface MeetingContextValue {
   acceptInvite: (meetingId: string) => Promise<void>;
   declineInvite: (meetingId: string) => Promise<void>;
   dismissToast: (meetingId: string) => void;
+  startDirectMeeting: (meetingTypeId: string) => Promise<void>;
   sendMessage: (content: string) => Promise<void>;
   endMeeting: () => Promise<void>;
   updateCanvas: (data: Record<string, unknown>) => Promise<void>;
@@ -47,6 +48,7 @@ export function MeetingProvider({ children, sessionId }: MeetingProviderProps) {
     acceptInvite: meeting.acceptInvite,
     declineInvite: meeting.declineInvite,
     dismissToast: meeting.dismissToast,
+    startDirectMeeting: meeting.startDirectMeeting,
     sendMessage: meeting.sendMessage,
     endMeeting: meeting.endMeeting,
     updateCanvas: meeting.updateCanvas,

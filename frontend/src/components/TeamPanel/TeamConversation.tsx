@@ -1,5 +1,6 @@
 /** Inline meeting conversation using the shared ChatPanel + CanvasPanel. */
 
+import { useCallback } from 'react';
 import ChatPanel from '../Meeting/ChatPanel';
 import CanvasPanel from '../Meeting/CanvasPanel';
 import MeetingLayout from '../Meeting/MeetingLayout';
@@ -46,6 +47,18 @@ export default function TeamConversation({
   onEndMeeting,
   onMaterialize,
 }: TeamConversationProps) {
+  /** Save canvas artifacts then end the meeting. */
+  const handleSaveAndEnd = useCallback(async () => {
+    if (onMaterialize && canvasState.data && Object.keys(canvasState.data).length > 0) {
+      try {
+        await onMaterialize(canvasState.data);
+      } catch {
+        // Best-effort save -- still end the meeting
+      }
+    }
+    onEndMeeting();
+  }, [onMaterialize, canvasState.data, onEndMeeting]);
+
   return (
     <MeetingLayout
       header={
@@ -56,12 +69,14 @@ export default function TeamConversation({
               Chatting with {agentName}
             </h3>
           </div>
-          <button
-            onClick={onEndMeeting}
-            className="px-3 py-1 rounded-lg text-xs cursor-pointer border border-red-500/30 text-red-400 hover:bg-red-950/40 hover:text-red-300 transition-colors"
-          >
-            End
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleSaveAndEnd}
+              className="px-3 py-1 rounded-lg text-xs cursor-pointer border border-green-500/30 text-green-400 hover:bg-green-950/40 hover:text-green-300 transition-colors"
+            >
+              Save & End
+            </button>
+          </div>
         </div>
       }
       chatPanel={
