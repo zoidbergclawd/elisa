@@ -380,6 +380,17 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
                 </ul>
               </div>
             )}
+            {/* Fix It button when tasks failed */}
+            {tasks.some(t => t.status === 'failed') && (
+              <div className="mb-4">
+                <button
+                  onClick={() => setActiveMainTab('team')}
+                  className="w-full px-4 py-3 rounded-xl text-sm cursor-pointer font-medium border border-red-500/30 bg-red-950/30 text-red-400 hover:bg-red-950/50 transition-colors text-center"
+                >
+                  Fix It -- Debug with Bug Detective
+                </button>
+              </div>
+            )}
             {/* Team summary button when invites are pending */}
             {inviteQueue.length > 0 && (
               <div className="mb-4">

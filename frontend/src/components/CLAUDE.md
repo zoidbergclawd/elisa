@@ -65,6 +65,7 @@ App.tsx
   Meeting/InterfaceDesignerCanvas.tsx Interface contract builder canvas for Integration meetings (provides/requires/connections)
   Meeting/ExplainItCanvas.tsx        Document editor canvas for Documentation Agent meetings (title, content, suggestions, word count)
   Meeting/LaunchPadCanvas.tsx        Launch page builder canvas for Web Designer Agent meetings (template selection, customization, live preview)
+  Meeting/TestDashboardCanvas.tsx    Test Dashboard canvas: live pass/fail indicators, error details, Quick Fix / Deep Fix buttons
   TeamPanel/TeamPanel.tsx            Persistent Team tab: member list sidebar + inline conversation area
   TeamPanel/TeamMemberList.tsx       Sidebar with static member list, pending invite badges, Chat/dismiss buttons
   TeamPanel/TeamConversation.tsx     Inline meeting conversation using ChatPanel + CanvasPanel via MeetingLayout

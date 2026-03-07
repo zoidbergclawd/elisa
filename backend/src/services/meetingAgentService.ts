@@ -50,6 +50,10 @@ const CANVAS_INSTRUCTIONS: Record<string, string> = {
   'bug-detective':
     'ALWAYS include a ```canvas JSON block when analyzing a bug. ' +
     'Required fields: test_name (string), when (string -- trigger condition), then_expected (string -- what should happen), then_actual (string -- what actually happened), diagnosis_notes (array of strings with analysis steps).',
+  'test-dashboard':
+    'ALWAYS include a ```canvas JSON block with test results. ' +
+    'Required fields: tests (array of {name, status: "passed"|"failed", expected?, actual?, error?}), ' +
+    'errors (array of {task, message, stack?}).',
   'design-preview':
     'ALWAYS include a ```canvas JSON block with EVERY message so the kid sees the design evolve live. ' +
     'Required fields: scene_title (string), description (string), ' +
@@ -79,6 +83,8 @@ const MEETING_TOPIC_DESCRIPTIONS: Record<string, string> = {
     'This meeting is about designing how the kid\'s nuggets connect and communicate.',
   'bug-detective':
     'This meeting is about diagnosing and understanding a bug in the kid\'s project.',
+  'test-dashboard':
+    'This meeting is about reviewing test results and helping fix failing tests in the kid\'s project.',
   'design-preview':
     'This meeting is about collaboratively designing visual elements (sprites, backgrounds, UI) for the kid\'s project.',
 };
