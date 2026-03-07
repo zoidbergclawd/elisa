@@ -8,8 +8,8 @@ import WorkspaceSidebar from './components/BlockCanvas/WorkspaceSidebar';
 import MissionControlPanel from './components/MissionControl/MissionControlPanel';
 import TeachingToast from './components/shared/TeachingToast';
 import MeetingInviteToast from './components/shared/MeetingInviteToast';
-import MeetingInviteCard from './components/shared/MeetingInviteCard';
 import MeetingModal from './components/Meeting/MeetingModal';
+import TeamPanel from './components/TeamPanel/TeamPanel';
 import ReadinessBadge from './components/shared/ReadinessBadge';
 import LevelBadge from './components/shared/LevelBadge';
 import ModalHost from './components/shared/ModalHost';
@@ -117,7 +117,7 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
   const {
     inviteQueue, nextInvite, activeMeeting, isAgentThinking,
     messages: meetingMessages, canvasState: meetingCanvasState,
-    handleMeetingEvent, acceptInvite, declineInvite,
+    handleMeetingEvent, acceptInvite, declineInvite, dismissToast,
     sendMessage: sendMeetingMessage, endMeeting, updateCanvas: updateMeetingCanvas,
     materializeArtifacts: materializeMeetingArtifacts,
     resetMeetings,
@@ -243,6 +243,7 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
             onTabChange={setActiveMainTab}
             tasks={tasks}
             agents={agents}
+            pendingInviteCount={inviteQueue.length}
           />
         </div>
         <div className="flex items-center gap-3">
@@ -300,6 +301,13 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
         {activeMainTab === 'mission' && (
           <div className="w-full h-full">
             <MissionControlPanel />
+          </div>
+        )}
+
+        {/* Team tab */}
+        {activeMainTab === 'team' && (
+          <div className="w-full h-full">
+            <TeamPanel />
           </div>
         )}
       </main>
@@ -372,20 +380,15 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
                 </ul>
               </div>
             )}
-            {/* Meeting invite cards embedded in done modal */}
+            {/* Team summary button when invites are pending */}
             {inviteQueue.length > 0 && (
               <div className="mb-4">
-                <h3 className="text-sm font-semibold text-accent-sky mb-3">Your agents want to meet!</h3>
-                <div className="flex gap-3 justify-center flex-wrap">
-                  {inviteQueue.map(invite => (
-                    <MeetingInviteCard
-                      key={invite.meetingId}
-                      invite={invite}
-                      onAccept={acceptInvite}
-                      onDecline={declineInvite}
-                    />
-                  ))}
-                </div>
+                <button
+                  onClick={() => setActiveMainTab('team')}
+                  className="w-full px-4 py-3 rounded-xl text-sm cursor-pointer border border-accent-sky/30 bg-accent-sky/10 text-accent-sky hover:bg-accent-sky/20 transition-colors text-center"
+                >
+                  Your team wants to chat ({inviteQueue.length} pending)
+                </button>
               </div>
             )}
             <div className="flex flex-col items-center gap-2">
@@ -429,12 +432,13 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
       {/* Teaching toast overlay */}
       <TeachingToast moment={currentToast} onDismiss={handleDismissToast} />
 
-      {/* Meeting invite toast -- shown during builds, hidden at completion (cards shown in done modal instead) */}
+      {/* Meeting invite toast -- shown during builds, hidden at completion (summary in done modal instead) */}
       {uiState !== 'done' && (
         <MeetingInviteToast
           invite={nextInvite}
           onAccept={acceptInvite}
           onDecline={declineInvite}
+          onDismissToast={dismissToast}
           pauseAutoDismiss={!!activeMeeting}
         />
       )}

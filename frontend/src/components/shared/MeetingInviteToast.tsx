@@ -9,19 +9,23 @@ export interface MeetingInvite {
   agentName: string;
   title: string;
   description: string;
+  /** True when the toast was auto-dismissed but the invite is still pending in the Team tab. */
+  toastDismissed?: boolean;
 }
 
 interface MeetingInviteToastProps {
   invite: MeetingInvite | null;
   onAccept: (meetingId: string) => void;
   onDecline: (meetingId: string) => void;
+  /** Called when toast auto-dismisses -- hides toast but preserves invite in queue. */
+  onDismissToast?: (meetingId: string) => void;
   /** When true, pause the auto-dismiss timer (e.g., while a meeting modal is open). */
   pauseAutoDismiss?: boolean;
 }
 
 const AUTO_DISMISS_MS = 30_000;
 
-export default function MeetingInviteToast({ invite, onAccept, onDecline, pauseAutoDismiss }: MeetingInviteToastProps) {
+export default function MeetingInviteToast({ invite, onAccept, onDecline, onDismissToast, pauseAutoDismiss }: MeetingInviteToastProps) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -31,15 +35,19 @@ export default function MeetingInviteToast({ invite, onAccept, onDecline, pauseA
       return;
     }
 
-    // Auto-dismiss after 30 seconds (treated as "Maybe Later")
+    // Auto-dismiss after 30 seconds -- preserves invite in Team tab instead of declining
     timerRef.current = setTimeout(() => {
-      onDecline(invite.meetingId);
+      if (onDismissToast) {
+        onDismissToast(invite.meetingId);
+      } else {
+        onDecline(invite.meetingId);
+      }
     }, AUTO_DISMISS_MS);
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [invite, onDecline, pauseAutoDismiss]);
+  }, [invite, onDecline, onDismissToast, pauseAutoDismiss]);
 
   if (!invite) return null;
 
