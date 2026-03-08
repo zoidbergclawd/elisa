@@ -114,6 +114,25 @@ describe('MeetingAgentService', () => {
     });
   });
 
+  describe('canvas timeout graceful degradation', () => {
+    it('returns text response with undefined canvasUpdate when canvas call times out', async () => {
+      const meetingType = makeMeetingType();
+      const messages: MeetingMessage[] = [
+        { role: 'kid', content: 'Hi', timestamp: Date.now() },
+      ];
+
+      // Chat call succeeds, canvas call rejects (simulating timeout)
+      mockCreate
+        .mockResolvedValueOnce({ content: [{ type: 'text', text: 'Looking great!' }] })
+        .mockRejectedValueOnce(new Error('Timeout after 45000ms'));
+
+      const result = await service.generateResponse(meetingType, messages, makeBuildContext());
+
+      expect(result.text).toBe('Looking great!');
+      expect(result.canvasUpdate).toBeUndefined();
+    });
+  });
+
   describe('no options', () => {
     it('omits focus and previous sections when no options provided', async () => {
       const meetingType = makeMeetingType();

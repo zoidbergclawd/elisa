@@ -143,7 +143,7 @@ export class MeetingAgentService {
       : undefined;
 
     if (canvasResult.status === 'rejected') {
-      console.error('[meetingAgent] canvas call failed:', canvasResult.reason instanceof Error ? canvasResult.reason.message : canvasResult.reason);
+      console.warn('[meetingAgent] canvas call failed:', canvasResult.reason instanceof Error ? canvasResult.reason.message : canvasResult.reason);
     }
 
     return { text, canvasUpdate };
