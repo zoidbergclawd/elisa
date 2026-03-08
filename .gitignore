@@ -30,6 +30,9 @@ nul
 # Build artifacts
 *.tsbuildinfo
 
+# Test coverage
+coverage/
+
 # Electron
 release/
 electron/dist/
