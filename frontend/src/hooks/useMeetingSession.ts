@@ -269,9 +269,33 @@ export function useMeetingSession(sessionId: string | null) {
     dispatch({ type: 'MEETING_ENDED', meetingId, outcomes: state.activeMeeting.outcomes });
   }, [sessionId, state.activeMeeting]);
 
+  /** Request a targeted bug fix via POST /api/sessions/:id/fix. */
+  const requestFix = useCallback(async (bugReport: string) => {
+    if (!sessionId) return;
+    try {
+      await authFetch(`/api/sessions/${sessionId}/fix`, {
+        method: 'POST',
+        body: JSON.stringify({ bugReport }),
+      });
+    } catch (err) {
+      console.error('[meeting] requestFix failed:', err);
+    }
+  }, [sessionId]);
+
   /** Update the canvas state. Persists finalize/save actions to the backend. */
   const updateCanvas = useCallback(async (data: Record<string, unknown>) => {
     if (!state.activeMeeting) return;
+
+    // Intercept fix requests and route to the fix endpoint
+    if (data.type === 'request_fix' && sessionId) {
+      const strategy = String(data.strategy ?? 'quick');
+      const bugReport = strategy === 'deep'
+        ? 'Deep analysis and fix of all failing tests. Review test output, trace root causes, and apply comprehensive fixes.'
+        : 'Quick fix for failing tests. Review errors and apply targeted patches.';
+      await requestFix(bugReport);
+      return;
+    }
+
     dispatch({
       type: 'MEETING_CANVAS_UPDATE',
       meetingId: state.activeMeeting.meetingId,
@@ -287,7 +311,7 @@ export function useMeetingSession(sessionId: string | null) {
         body: JSON.stringify({ outcomeType: dataType, data }),
       }).catch((err) => { console.error('[meeting] outcome save failed:', err); });
     }
-  }, [sessionId, state.activeMeeting]);
+  }, [sessionId, state.activeMeeting, requestFix]);
 
   /** Materialize canvas data into real files in the workspace. */
   const materializeArtifacts = useCallback(async (data: Record<string, unknown>): Promise<{ files: string[]; primaryFile: string } | null> => {
@@ -365,6 +389,7 @@ export function useMeetingSession(sessionId: string | null) {
     endMeeting,
     updateCanvas,
     materializeArtifacts,
+    requestFix,
     resetMeetings,
     clearAllInvites,
   };

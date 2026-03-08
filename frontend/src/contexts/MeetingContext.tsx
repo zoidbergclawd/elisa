@@ -24,6 +24,7 @@ export interface MeetingContextValue {
   endMeeting: () => Promise<void>;
   updateCanvas: (data: Record<string, unknown>) => Promise<void>;
   materializeArtifacts: (data: Record<string, unknown>) => Promise<{ files: string[]; primaryFile: string } | null>;
+  requestFix: (bugReport: string) => Promise<void>;
   resetMeetings: () => void;
 }
 
@@ -53,6 +54,7 @@ export function MeetingProvider({ children, sessionId }: MeetingProviderProps) {
     endMeeting: meeting.endMeeting,
     updateCanvas: meeting.updateCanvas,
     materializeArtifacts: meeting.materializeArtifacts,
+    requestFix: meeting.requestFix,
     resetMeetings: meeting.resetMeetings,
   };
 

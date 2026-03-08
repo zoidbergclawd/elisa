@@ -4,6 +4,7 @@ import { Router } from 'express';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { spawn, type ChildProcess } from 'node:child_process';
 import archiver from 'archiver';
 import { randomUUID } from 'node:crypto';
 import { Orchestrator } from '../services/orchestrator.js';
@@ -11,6 +12,8 @@ import { AgentRunner } from '../services/agentRunner.js';
 import { SkillRunner } from '../services/skillRunner.js';
 import { NuggetSpecSchema, detectTruncations } from '../utils/specValidator.js';
 import { validateWorkspacePath } from '../utils/pathValidator.js';
+import { findFreePort } from '../utils/findFreePort.js';
+import { safeEnv } from '../utils/safeEnv.js';
 import type { HardwareService } from '../services/hardwareService.js';
 import type { SessionStore } from '../services/sessionStore.js';
 import type { DeviceRegistry } from '../services/deviceRegistry.js';
@@ -217,6 +220,40 @@ export function createSessionRouter({ store, sendEvent, hardwareService, deviceR
     res.json({ status: 'stopped' });
   });
 
+  // Fix bug (post-build targeted fix)
+  router.post('/:id/fix', async (req, res) => {
+    const entry = store.get(req.params.id);
+    if (!entry) { res.status(404).json({ detail: 'Session not found' }); return; }
+
+    if (entry.session.state !== 'done') {
+      res.status(409).json({ detail: 'Session must be in done state to run a fix' });
+      return;
+    }
+
+    const { bugReport } = req.body ?? {};
+    if (!bugReport || typeof bugReport !== 'string') {
+      res.status(400).json({ detail: 'bugReport is required and must be a string' });
+      return;
+    }
+
+    if (!entry.orchestrator) {
+      res.status(409).json({ detail: 'No orchestrator available for this session' });
+      return;
+    }
+
+    res.json({ status: 'fix_started' });
+
+    entry.orchestrator.runFix(bugReport).catch((err) => {
+      console.error('Fix run error:', err);
+      const message = err instanceof Error ? err.message : String(err);
+      sendEvent(req.params.id, {
+        type: 'error',
+        message: `Fix failed: ${message}`,
+        recoverable: false,
+      });
+    });
+  });
+
   // Get tasks
   router.get('/:id/tasks', (req, res) => {
     const entry = store.get(req.params.id);
@@ -289,6 +326,114 @@ export function createSessionRouter({ store, sendEvent, hardwareService, deviceR
       return entry;
     });
     archive.finalize();
+  });
+
+  // Launch: serve existing build files without rebuilding
+  router.post('/:id/launch', async (req, res) => {
+    const entry = store.get(req.params.id);
+    if (!entry) { res.status(404).json({ detail: 'Session not found' }); return; }
+
+    // Determine workspace directory: explicit body param, orchestrator's nuggetDir, or nothing
+    const rawPath: string | undefined = req.body.workspace_path;
+    let workspaceDir: string | undefined;
+
+    if (rawPath) {
+      if (typeof rawPath !== 'string' || rawPath.length > 500) {
+        res.status(400).json({ detail: 'workspace_path must be a string of at most 500 characters' });
+        return;
+      }
+      const validation = validateWorkspacePath(rawPath);
+      if (!validation.valid) {
+        res.status(400).json({ detail: validation.reason });
+        return;
+      }
+      workspaceDir = validation.resolved;
+    } else if (entry.orchestrator) {
+      workspaceDir = entry.orchestrator.nuggetDir;
+    }
+
+    if (!workspaceDir || !fs.existsSync(workspaceDir)) {
+      res.status(400).json({ detail: 'No workspace directory available' });
+      return;
+    }
+
+    // Find directory to serve: dist/ > build/ > public/ > src/ > .
+    const candidates = ['dist', 'build', 'public', 'src', '.'];
+    let serveDir = workspaceDir;
+    for (const dir of candidates) {
+      const full = dir === '.' ? workspaceDir : path.join(workspaceDir, dir);
+      if (fs.existsSync(path.join(full, 'index.html'))) {
+        serveDir = full;
+        break;
+      }
+    }
+
+    // Verify there is something to serve
+    if (!fs.existsSync(path.join(serveDir, 'index.html'))) {
+      res.status(400).json({ detail: 'No index.html found in workspace' });
+      return;
+    }
+
+    // Kill previous launch process if any
+    if (entry.launchProcess) {
+      try { entry.launchProcess.kill(); } catch { /* ignore */ }
+      entry.launchProcess = null;
+    }
+
+    const port = await findFreePort(3000);
+    const isWin = process.platform === 'win32';
+
+    try {
+      const serverProcess = spawn('npx', ['serve', '-p', String(port)], {
+        cwd: serveDir,
+        stdio: 'pipe',
+        detached: false,
+        shell: isWin,
+        env: safeEnv(),
+      });
+
+      // Wait for server to start and parse actual URL from output
+      const result = await new Promise<{ started: boolean; url: string | null }>((resolve) => {
+        let resolved = false;
+        const urlPattern = /Accepting connections at (http:\/\/localhost:\d+)/;
+
+        const checkOutput = (data: Buffer) => {
+          const match = data.toString().match(urlPattern);
+          if (match && !resolved) {
+            resolved = true;
+            resolve({ started: true, url: match[1] });
+          }
+        };
+        serverProcess.stdout?.on('data', checkOutput);
+        serverProcess.stderr?.on('data', checkOutput);
+
+        serverProcess.on('error', () => {
+          if (!resolved) { resolved = true; resolve({ started: false, url: null }); }
+        });
+        serverProcess.on('close', () => {
+          if (!resolved) { resolved = true; resolve({ started: false, url: null }); }
+        });
+        setTimeout(() => {
+          if (!resolved) { resolved = true; resolve({ started: true, url: null }); }
+        }, 5000);
+      });
+
+      if (!result.started) {
+        res.status(500).json({ detail: 'Failed to start preview server' });
+        return;
+      }
+
+      const url = result.url ?? `http://localhost:${port}`;
+      entry.launchProcess = serverProcess;
+
+      // Emit deploy_complete so frontend can pick up the URL
+      await sendEvent(req.params.id, { type: 'deploy_complete', target: 'web', url });
+
+      res.json({ url });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      res.status(500).json({ detail: `Launch failed: ${message}` });
+    }
   });
 
   return router;

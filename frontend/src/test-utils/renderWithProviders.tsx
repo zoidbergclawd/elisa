@@ -102,5 +102,6 @@ export const defaultMeetingValue: MeetingContextValue = {
   endMeeting: async () => {},
   updateCanvas: async () => {},
   materializeArtifacts: async () => null,
+  requestFix: async () => {},
   resetMeetings: () => {},
 };

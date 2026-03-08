@@ -98,6 +98,7 @@ export interface BuildSessionState {
   compositionImpacts: Array<{ graph_id: string; changed_node_id: string; affected_nodes: Array<{ node_id: string; label: string; reason: string }>; severity: string }>;
   healthHistory: HealthHistoryEntry[];
   agentOutputs: Record<string, string[]>;
+  isFixing: boolean;
 }
 
 const INITIAL_TOKEN_USAGE: TokenUsage = { input: 0, output: 0, total: 0, costUsd: 0, maxBudget: 500_000, perAgent: {} };
@@ -137,6 +138,7 @@ export const initialState: BuildSessionState = {
   compositionImpacts: [],
   healthHistory: [],
   agentOutputs: {},
+  isFixing: false,
 };
 
 // -- Actions --
@@ -745,6 +747,29 @@ function handleWSEvent(state: BuildSessionState, event: WSEvent, deploySteps: Ar
     case 'workspace_created':
       return { ...state, events, nuggetDir: event.nugget_dir };
 
+    case 'fix_started':
+      return { ...state, events, isFixing: true, uiState: 'building' };
+
+    case 'fix_task_completed': {
+      const fixTask = state.tasks.find(t => t.id === event.taskId);
+      return {
+        ...state,
+        events,
+        tasks: fixTask
+          ? updateTasks(state.tasks, event.taskId, event.success ? 'done' : 'failed')
+          : state.tasks,
+      };
+    }
+
+    case 'fix_tests_completed':
+      return {
+        ...state,
+        events,
+        isFixing: false,
+        uiState: 'done',
+        testResults: state.testResults.map(t => ({ ...t })),
+      };
+
     case 'error': {
       let errorMsg = event.message;
       if (/auth|api.key|401|invalid.*key|invalid.*x-api-key/i.test(errorMsg) && !/deploy|gcloud|cloud.run/i.test(errorMsg)) {
@@ -908,6 +933,25 @@ export function useBuildSession() {
     deployStepsRef.current = [];
   }, []);
 
+  const launchWorkspace = useCallback(async (workspacePath?: string) => {
+    if (!state.sessionId) return;
+    try {
+      const body: Record<string, string> = {};
+      if (workspacePath) body.workspace_path = workspacePath;
+      const res = await authFetch(`/api/sessions/${state.sessionId}/launch`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ detail: res.statusText }));
+        dispatch({ type: 'SET_ERROR', message: data.detail || 'Launch failed', recoverable: true });
+      }
+      // deploy_complete WS event will update deployUrls automatically
+    } catch {
+      dispatch({ type: 'SET_ERROR', message: 'Failed to launch workspace', recoverable: true });
+    }
+  }, [state.sessionId]);
+
   return {
     uiState: state.uiState,
     tasks: state.tasks,
@@ -943,6 +987,7 @@ export function useBuildSession() {
     compositionImpacts: state.compositionImpacts,
     healthHistory: state.healthHistory,
     agentOutputs: state.agentOutputs,
+    isFixing: state.isFixing,
     handleEvent,
     startBuild,
     stopBuild,
@@ -950,5 +995,6 @@ export function useBuildSession() {
     clearQuestionRequest,
     clearErrorNotification,
     resetToDesign,
+    launchWorkspace,
   };
 }

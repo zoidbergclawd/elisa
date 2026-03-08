@@ -12,6 +12,8 @@ import { PlanPhase } from './phases/planPhase.js';
 import { ExecutePhase } from './phases/executePhase.js';
 import { TestPhase } from './phases/testPhase.js';
 import { DeployPhase } from './phases/deployPhase.js';
+import { TaskExecutor } from './phases/taskExecutor.js';
+import { PromptBuilder } from './phases/promptBuilder.js';
 import { AgentRunner } from './agentRunner.js';
 import { GitService } from './gitService.js';
 import { HardwareService } from './hardwareService.js';
@@ -22,6 +24,7 @@ import { TestRunner } from './testRunner.js';
 import { NarratorService } from './narratorService.js';
 import { PermissionPolicy } from './permissionPolicy.js';
 import { ContextManager } from '../utils/contextManager.js';
+import { TaskDAG } from '../utils/dag.js';
 import { SessionLogger } from '../utils/sessionLogger.js';
 import { TokenTracker } from '../utils/tokenTracker.js';
 import { DeviceRegistry } from './deviceRegistry.js';
@@ -389,6 +392,83 @@ export class Orchestrator {
     await this.send({
       type: 'session_complete',
       summary: summaryParts.join(' '),
+    });
+  }
+
+  /**
+   * Run a targeted bug fix after a completed build.
+   * Creates a single fix task, executes it via TaskExecutor, then re-runs tests.
+   */
+  async runFix(bugReport: string): Promise<void> {
+    await this.send({ type: 'fix_started', bugReport });
+
+    const taskId = `fix-${Date.now()}`;
+    const taskName = `Fix: ${bugReport.slice(0, 50)}`;
+    const fixTask: Task = {
+      id: taskId,
+      name: taskName,
+      description: bugReport,
+      status: 'pending',
+      agent_name: 'fixer',
+      dependencies: [],
+      acceptance_criteria: ['Bug described in the report is fixed', 'Existing tests still pass'],
+    };
+
+    const fixAgent: Agent = {
+      name: 'fixer',
+      role: 'builder',
+      persona: 'Bug fixer',
+      status: 'idle',
+    };
+
+    // Add the fix task to the session so the frontend can track it
+    this.session.tasks.push(fixTask);
+    if (!this.session.agents.find(a => a.name === 'fixer')) {
+      this.session.agents.push(fixAgent);
+    }
+
+    const promptBuilder = new PromptBuilder();
+    const taskExecutor = new TaskExecutor({
+      agentRunner: this.agentRunner,
+      git: this.git,
+      teachingEngine: this.teachingEngine,
+      tokenTracker: this.tokenTracker,
+      context: this.context,
+      promptBuilder,
+      portalService: this.portalService,
+    });
+
+    const dag = new TaskDAG();
+    dag.addTask(taskId, []);
+
+    const ctx = this.makeContext();
+
+    const success = await taskExecutor.executeTask(fixTask, fixAgent, ctx, {
+      taskMap: { [taskId]: fixTask },
+      taskSummaries: {},
+      tasks: [fixTask],
+      agents: [fixAgent],
+      nuggetDir: this.nuggetDir,
+      gitMutex: async (fn) => { await fn(); },
+      questionResolvers: this.questionResolvers,
+      gateResolver: this.gateResolver,
+      dag,
+      completed: new Set(),
+      commits: this.commits,
+    });
+
+    await this.send({ type: 'fix_task_completed', taskId, success });
+
+    // Re-run tests
+    const testResult = await this.testPhase.execute(this.makeContext());
+    const results = testResult.testResults;
+    this.testResults = results;
+
+    await this.send({
+      type: 'fix_tests_completed',
+      passed: results.passed,
+      failed: results.failed,
+      total: results.total,
     });
   }
 
