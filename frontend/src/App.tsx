@@ -123,7 +123,7 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
     handleMeetingEvent, acceptInvite, declineInvite, dismissToast, startDirectMeeting,
     sendMessage: sendMeetingMessage, endMeeting, updateCanvas: updateMeetingCanvas,
     materializeArtifacts: materializeMeetingArtifacts,
-    resetMeetings,
+    requestFix, resetMeetings,
   } = useMeetingContext();
 
   const {
@@ -132,6 +132,27 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
     handleOpenFolder, ensureWorkspacePath, reinterpretWorkspace, systemLevel,
     deviceManifests,
   } = useWorkspaceContext();
+
+  // Post-bug-report fix state
+  const [lastBugReport, setLastBugReport] = useState<string | null>(null);
+  const [fixInProgress, setFixInProgress] = useState(false);
+  const prevActiveMeetingRef = useRef<typeof activeMeeting>(null);
+
+  useEffect(() => {
+    const prev = prevActiveMeetingRef.current;
+    prevActiveMeetingRef.current = activeMeeting;
+
+    // Bug Detective meeting just ended: extract kid messages as bug report
+    if (prev && !activeMeeting && prev.meetingTypeId === 'debug-convergence') {
+      const kidMessages = prev.messages
+        .filter(m => m.role === 'kid')
+        .map(m => m.content);
+      if (kidMessages.length > 0) {
+        setLastBugReport(kidMessages.join('\n'));
+        setFixInProgress(false);
+      }
+    }
+  }, [activeMeeting]);
 
   // Route WS events to both build session and meeting session handlers
   const handleAllEvents = useCallback((event: WSEvent) => {
@@ -461,6 +482,26 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
                 >
                   Report a Bug
                 </button>
+              </div>
+            )}
+            {/* Fix reported bugs -- shown after Bug Detective meeting */}
+            {lastBugReport && !fixInProgress && (
+              <div className="mb-4">
+                <button
+                  onClick={() => {
+                    requestFix(lastBugReport);
+                    setFixInProgress(true);
+                    setLastBugReport(null);
+                  }}
+                  className="w-full px-4 py-3 rounded-xl text-sm cursor-pointer font-medium border border-red-500/30 bg-red-950/30 text-red-400 hover:bg-red-950/50 transition-colors text-center"
+                >
+                  Fix reported bugs
+                </button>
+              </div>
+            )}
+            {fixInProgress && (
+              <div className="mb-4 px-4 py-3 rounded-xl text-sm border border-amber-500/30 bg-amber-950/20 text-amber-400 text-center">
+                Fix in progress...
               </div>
             )}
             {/* Pending meeting invites -- accept directly (opens modal overlay) */}
