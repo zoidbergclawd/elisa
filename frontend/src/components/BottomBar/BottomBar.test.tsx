@@ -4,7 +4,6 @@ import BottomBar from './BottomBar';
 import { useBuildSessionContext } from '../../contexts/BuildSessionContext';
 import { useWorkspaceContext } from '../../contexts/WorkspaceContext';
 import { defaultBuildSessionValue, defaultWorkspaceValue } from '../../test-utils/renderWithProviders';
-import type { Commit } from '../../types';
 
 vi.mock('../../contexts/BuildSessionContext', () => ({
   useBuildSessionContext: vi.fn(() => defaultBuildSessionValue),
@@ -69,24 +68,6 @@ describe('BottomBar', () => {
       expect(screen.getByText('Board')).toBeInTheDocument();
     });
 
-    it('hides Timeline tab when no commits', () => {
-      renderBottomBar();
-      expect(screen.queryByText('Timeline')).not.toBeInTheDocument();
-    });
-
-    it('shows Timeline tab when commits exist', () => {
-      const commits: Commit[] = [{
-        sha: 'abc',
-        message: 'Sparky: Build login',
-        agent_name: 'Sparky',
-        task_id: 't1',
-        timestamp: '2026-02-10T12:00:00Z',
-        files_changed: [],
-      }];
-      renderBottomBar({ buildSession: { commits } });
-      expect(screen.getByText('Timeline')).toBeInTheDocument();
-    });
-
     it('hides Tokens tab during design mode', () => {
       renderBottomBar();
       expect(screen.queryByText('Tokens')).not.toBeInTheDocument();
@@ -126,17 +107,6 @@ describe('BottomBar', () => {
       expect(screen.getByText('Trace')).toBeInTheDocument();
     });
 
-    it('hides System tab when boundaryAnalysis is null', () => {
-      renderBottomBar();
-      expect(screen.queryByText('System')).not.toBeInTheDocument();
-    });
-
-    it('shows System tab when boundaryAnalysis exists', () => {
-      renderBottomBar({
-        buildSession: { boundaryAnalysis: { inputs: [], outputs: [], boundary_portals: [] } },
-      });
-      expect(screen.getByText('System')).toBeInTheDocument();
-    });
   });
 
   // --- Auto-switching ---
@@ -243,20 +213,6 @@ describe('BottomBar', () => {
 
   // --- Existing functionality preserved ---
   describe('existing behavior', () => {
-    it('renders commits in timeline when Timeline tab is visible', () => {
-      const commits: Commit[] = [{
-        sha: 'abc',
-        message: 'Sparky: Build login',
-        agent_name: 'Sparky',
-        task_id: 't1',
-        timestamp: '2026-02-10T12:00:00Z',
-        files_changed: [],
-      }];
-      renderBottomBar({ buildSession: { commits } });
-      fireEvent.click(screen.getByText('Timeline'));
-      expect(screen.getByTestId('commit-node-abc')).toBeInTheDocument();
-    });
-
     it('clicking Learn tab renders TeachingSidebar', () => {
       renderBottomBar();
       fireEvent.click(screen.getByText('Learn'));

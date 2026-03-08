@@ -2,12 +2,10 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { BoardInfo } from '../../hooks/useBoardDetect';
 import { useBuildSessionContext } from '../../contexts/BuildSessionContext';
 import { useWorkspaceContext } from '../../contexts/WorkspaceContext';
-import GitTimeline from './GitTimeline';
 import TeachingSidebar from './TeachingSidebar';
 import BoardOutput from './BoardOutput';
 import ProgressPanel from './ProgressPanel';
 import TraceabilityView from './TraceabilityView';
-import SystemBoundaryView from './SystemBoundaryView';
 import HealthDashboard from './HealthDashboard';
 import MetricsPanel from '../MissionControl/MetricsPanel';
 import ConvergencePanel from '../MissionControl/ConvergencePanel';
@@ -16,7 +14,7 @@ interface Props {
   boardInfo: BoardInfo | null;
 }
 
-type Tab = 'Timeline' | 'Trace' | 'Board' | 'Learn' | 'Progress' | 'System' | 'Health' | 'Tokens';
+type Tab = 'Trace' | 'Board' | 'Learn' | 'Progress' | 'Health' | 'Tokens';
 
 const STORAGE_KEY = 'elisa:bottom-bar-height';
 const DEFAULT_HEIGHT = 128;
@@ -36,9 +34,9 @@ function getStoredHeight(): number {
 
 export default function BottomBar({ boardInfo }: Props) {
   const {
-    commits, teachingMoments, serialLines,
+    teachingMoments, serialLines,
     uiState, tasks, agents, deployProgress, deployChecklist, tokenUsage,
-    traceability, boundaryAnalysis, healthUpdate, healthSummary, healthHistory,
+    traceability, healthUpdate, healthSummary, healthHistory,
     correctionCycles,
   } = useBuildSessionContext();
   const { systemLevel } = useWorkspaceContext();
@@ -52,9 +50,6 @@ export default function BottomBar({ boardInfo }: Props) {
   const visibleTabs = useMemo<Tab[]>(() => {
     const tabs: Tab[] = [];
 
-    // Timeline: hidden unless commits exist
-    if (commits.length > 0) tabs.push('Timeline');
-
     // Trace: hidden unless traceability data exists
     if (traceability !== null) tabs.push('Trace');
 
@@ -67,9 +62,6 @@ export default function BottomBar({ boardInfo }: Props) {
     // Progress: visible during/after builds
     if (uiState !== 'design') tabs.push('Progress');
 
-    // System: hidden unless boundary analysis exists
-    if (boundaryAnalysis !== null) tabs.push('System');
-
     // Health: visible during/after builds
     if (uiState !== 'design') tabs.push('Health');
 
@@ -77,7 +69,7 @@ export default function BottomBar({ boardInfo }: Props) {
     if (uiState !== 'design') tabs.push('Tokens');
 
     return tabs;
-  }, [commits.length, traceability, serialLines.length, boardInfo, uiState, boundaryAnalysis]);
+  }, [traceability, serialLines.length, boardInfo, uiState]);
 
   // Auto-switch to first visible tab when active tab becomes hidden
   useEffect(() => {
@@ -219,7 +211,6 @@ export default function BottomBar({ boardInfo }: Props) {
         ))}
       </div>
       <div className="overflow-y-auto" style={{ height: `${panelHeight}px` }}>
-        {activeTab === 'Timeline' && <GitTimeline commits={commits} />}
         {activeTab === 'Trace' && <TraceabilityView traceability={traceability} />}
         {activeTab === 'Board' && <BoardOutput serialLines={serialLines} boardInfo={boardInfo} />}
         {activeTab === 'Learn' && <TeachingSidebar moments={teachingMoments} />}
@@ -228,11 +219,6 @@ export default function BottomBar({ boardInfo }: Props) {
             <ProgressPanel uiState={uiState} tasks={tasks} deployProgress={deployProgress} deployChecklist={deployChecklist} />
             <ConvergencePanel cycles={correctionCycles} />
           </>
-        )}
-        {activeTab === 'System' && (
-          boundaryAnalysis
-            ? <SystemBoundaryView inputs={boundaryAnalysis.inputs} outputs={boundaryAnalysis.outputs} boundary_portals={boundaryAnalysis.boundary_portals} />
-            : <p className="text-sm text-atelier-text-muted p-4">System boundary data will appear during a build</p>
         )}
         {activeTab === 'Health' && <HealthDashboard healthUpdate={healthUpdate} healthSummary={healthSummary} healthHistory={healthHistory} systemLevel={systemLevel} />}
         {activeTab === 'Tokens' && (
