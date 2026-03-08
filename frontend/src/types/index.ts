@@ -116,6 +116,7 @@ export interface TestResult {
   test_name: string;
   passed: boolean;
   details: string;
+  status?: 'pending' | 'passed' | 'failed';
 }
 
 export interface CoverageReport {
@@ -251,7 +252,11 @@ export type WSEvent =
   | { type: 'boundary_analysis'; inputs: Array<{ name: string; type: string; source?: string }>; outputs: Array<{ name: string; type: string; source?: string }>; boundary_portals: string[] }
   | { type: 'composition_started'; graph_id: string; node_ids: string[] }
   | { type: 'composition_impact'; graph_id: string; changed_node_id: string; affected_nodes: Array<{ node_id: string; label: string; reason: string }>; severity: string }
-  | { type: 'health_history'; entries: HealthHistoryEntry[] };
+  | { type: 'health_history'; entries: HealthHistoryEntry[] }
+  | { type: 'test_expectations'; task_id: string; tests: Array<{ name: string; description: string }> }
+  | { type: 'fix_started'; bugReport: string }
+  | { type: 'fix_task_completed'; taskId: string; success: boolean }
+  | { type: 'fix_tests_completed'; passed: number; failed: number; total: number };
 
 export interface HealthHistoryEntry {
   timestamp: string;

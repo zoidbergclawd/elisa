@@ -130,6 +130,12 @@ export class TaskExecutor {
 
     let userPrompt = builtUserPrompt;
 
+    // Emit test expectations before execution so the Tests tab shows pending tests
+    const expectedTests = this.buildTestExpectations(task);
+    if (expectedTests.length > 0) {
+      await ctx.send({ type: 'test_expectations', task_id: taskId, tests: expectedTests });
+    }
+
     let retryCount = 0;
     const maxRetries = 2;
     let success = false;
@@ -658,5 +664,25 @@ export class TaskExecutor {
         }),
       ]);
     };
+  }
+
+  /**
+   * Parse a task's acceptance criteria into test expectation stubs.
+   * Each criterion becomes a pending test entry shown on the Tests tab.
+   */
+  buildTestExpectations(task: Task): Array<{ name: string; description: string }> {
+    const criteria = task.acceptance_criteria;
+    if (!criteria || criteria.length === 0) return [];
+
+    return criteria.map((criterion, i) => {
+      const trimmed = criterion.trim();
+      // Convert the criterion text into a test-style name
+      const name = trimmed
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, '')
+        .replace(/\s+/g, '_')
+        .slice(0, 80) || `criterion_${i + 1}`;
+      return { name: `test_${name}`, description: trimmed };
+    });
   }
 }

@@ -55,6 +55,53 @@ describe('TestList', () => {
     expect(screen.getByText('test_pass')).toBeInTheDocument();
     expect(screen.getByText('test_fail')).toBeInTheDocument();
   });
+
+  it('renders pending tests with grey dot icon', () => {
+    const results: TestResult[] = [
+      { test_name: 'test_pending_check', passed: false, details: 'Button is clickable', status: 'pending' },
+    ];
+    render(<TestList testResults={results} />);
+    expect(screen.getByText('test_pending_check')).toBeInTheDocument();
+    // Should show grey dot, not checkmark or X
+    expect(screen.getByTestId('pending-icon')).toBeInTheDocument();
+  });
+
+  it('renders pending tests with muted text style', () => {
+    const results: TestResult[] = [
+      { test_name: 'test_pending_style', passed: false, details: 'desc', status: 'pending' },
+    ];
+    const { container } = render(<TestList testResults={results} />);
+    // Should NOT have green or red icons
+    expect(container.querySelector('.text-accent-mint')).not.toBeInTheDocument();
+    expect(container.querySelector('.text-accent-coral')).not.toBeInTheDocument();
+  });
+
+  it('pending tests are not expandable', () => {
+    const results: TestResult[] = [
+      { test_name: 'test_pending_no_expand', passed: false, details: 'some detail', status: 'pending' },
+    ];
+    render(<TestList testResults={results} />);
+    // Click should not expand details since status is pending
+    fireEvent.click(screen.getByText('test_pending_no_expand'));
+    // The expand arrow should not be present
+    expect(screen.queryByText('\u25b8')).not.toBeInTheDocument();
+  });
+
+  it('mixes pending, passing, and failing tests correctly', () => {
+    const results: TestResult[] = [
+      { test_name: 'test_done_pass', passed: true, details: 'PASSED', status: 'passed' },
+      { test_name: 'test_done_fail', passed: false, details: 'error msg', status: 'failed' },
+      { test_name: 'test_waiting', passed: false, details: 'Will run', status: 'pending' },
+    ];
+    const { container } = render(<TestList testResults={results} />);
+    expect(screen.getByText('test_done_pass')).toBeInTheDocument();
+    expect(screen.getByText('test_done_fail')).toBeInTheDocument();
+    expect(screen.getByText('test_waiting')).toBeInTheDocument();
+    // Should have all three icon types
+    expect(container.querySelector('.text-accent-mint')).toBeInTheDocument();
+    expect(container.querySelector('.text-accent-coral')).toBeInTheDocument();
+    expect(screen.getByTestId('pending-icon')).toBeInTheDocument();
+  });
 });
 
 describe('AddTestForm', () => {

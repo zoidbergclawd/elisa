@@ -379,16 +379,46 @@ function handleWSEvent(state: BuildSessionState, event: WSEvent, deploySteps: Ar
         }],
       };
 
-    case 'test_result':
+    case 'test_expectations': {
+      // Add pending test entries that don't already exist
+      const existingNames = new Set(state.testResults.map(t => t.test_name));
+      const pendingTests: TestResult[] = event.tests
+        .filter(t => !existingNames.has(t.name))
+        .map(t => ({
+          test_name: t.name,
+          passed: false,
+          details: t.description,
+          status: 'pending' as const,
+        }));
       return {
         ...state,
         events,
-        testResults: [...state.testResults, {
-          test_name: event.test_name,
-          passed: event.passed,
-          details: event.details,
-        }],
+        testResults: [...state.testResults, ...pendingTests],
       };
+    }
+
+    case 'test_result': {
+      // Update matching pending test or append new result
+      const matchIndex = state.testResults.findIndex(
+        t => t.status === 'pending' && t.test_name === event.test_name
+      );
+      const newResult: TestResult = {
+        test_name: event.test_name,
+        passed: event.passed,
+        details: event.details,
+        status: event.passed ? 'passed' : 'failed',
+      };
+      if (matchIndex >= 0) {
+        const updatedResults = [...state.testResults];
+        updatedResults[matchIndex] = newResult;
+        return { ...state, events, testResults: updatedResults };
+      }
+      return {
+        ...state,
+        events,
+        testResults: [...state.testResults, newResult],
+      };
+    }
 
     case 'coverage_update':
       return { ...state, events, coveragePct: event.percentage };

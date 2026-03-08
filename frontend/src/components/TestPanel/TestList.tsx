@@ -31,8 +31,9 @@ export default function TestList({ testResults }: Props) {
   return (
     <div className="flex-1 min-h-0 overflow-y-auto space-y-1 px-4">
       {testResults.map((r) => {
+        const isPending = r.status === 'pending';
         const isExpanded = expandedTests.has(r.test_name);
-        const hasExpandableDetails = !r.passed && r.details && r.details !== 'FAILED';
+        const hasExpandableDetails = !isPending && !r.passed && r.details && r.details !== 'FAILED';
 
         return (
           <div key={r.test_name}>
@@ -43,7 +44,11 @@ export default function TestList({ testResults }: Props) {
               onClick={() => hasExpandableDetails && toggleExpanded(r.test_name)}
             >
               {/* Status icon */}
-              {r.passed ? (
+              {isPending ? (
+                <span className="w-3.5 h-3.5 flex items-center justify-center flex-shrink-0" data-testid="pending-icon">
+                  <span className="w-2 h-2 rounded-full bg-gray-400" />
+                </span>
+              ) : r.passed ? (
                 <svg className="w-3.5 h-3.5 text-accent-mint flex-shrink-0" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M2 6l3 3 5-5" />
                 </svg>
@@ -52,7 +57,7 @@ export default function TestList({ testResults }: Props) {
                   <path d="M3 3l6 6M9 3l-6 6" />
                 </svg>
               )}
-              <span className="font-mono text-atelier-text-secondary truncate">{r.test_name}</span>
+              <span className={`font-mono truncate ${isPending ? 'text-atelier-text-muted' : 'text-atelier-text-secondary'}`}>{r.test_name}</span>
               {hasExpandableDetails && (
                 <span className={`ml-auto transition-transform text-atelier-text-muted ${isExpanded ? 'rotate-90' : ''}`}>&#9656;</span>
               )}

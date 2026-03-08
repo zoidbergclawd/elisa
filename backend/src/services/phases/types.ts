@@ -73,7 +73,11 @@ export type WSEvent =
   | { type: 'composition_impact'; graph_id: string; changed_node_id: string; affected_nodes: Array<{ node_id: string; label: string; reason: string }>; severity: string }
   | { type: 'composition_started'; graph_id: string; node_ids: string[] }
   | { type: 'health_history'; entries: Array<{ timestamp: string; goal: string; score: number; grade: 'A' | 'B' | 'C' | 'D' | 'F'; breakdown: { tasks: number; tests: number; corrections: number; budget: number } }> }
-  | { type: 'spec_validation_warning'; truncated_fields: Array<{ path: string; max_length: number; actual_length: number }> };
+  | { type: 'spec_validation_warning'; truncated_fields: Array<{ path: string; max_length: number; actual_length: number }> }
+  | { type: 'test_expectations'; task_id: string; tests: Array<{ name: string; description: string }> }
+  | { type: 'fix_started'; bugReport: string }
+  | { type: 'fix_task_completed'; taskId: string; success: boolean }
+  | { type: 'fix_tests_completed'; passed: number; failed: number; total: number };
 
 export type SendEvent = (event: WSEvent) => Promise<void>;
 
