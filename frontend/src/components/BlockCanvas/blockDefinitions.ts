@@ -678,6 +678,7 @@ const blockDefs = [
           ['Marketing', 'media-agent'],
           ['Blueprint', 'architecture-agent'],
           ['Bug Detective', 'debug-convergence'],
+          ['Social Media', 'social-media-agent'],
           ['Styler', 'web-design-agent'],
           ['Pixel', 'art-agent'],
           ['Interface Designer', 'integration-agent'],

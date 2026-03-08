@@ -8,6 +8,7 @@ import stylerSvg from '../../../assets/styler.svg';
 import interfaceDesignerSvg from '../../../assets/interface-designer.svg';
 import blueprintSvg from '../../../assets/blueprint.svg';
 import bugDetectiveSvg from '../../../assets/bug-detective.svg';
+import socialMediaSvg from '../../../assets/social-media.svg';
 
 interface AgentAvatarProps {
   agentName: string;
@@ -24,6 +25,7 @@ const AGENT_AVATARS: Record<string, string> = {
   blueprint: blueprintSvg,
   'interface designer': interfaceDesignerSvg,
   'bug detective': bugDetectiveSvg,
+  'social media': socialMediaSvg,
 };
 
 const AGENT_COLORS: Record<string, string> = {
@@ -36,6 +38,7 @@ const AGENT_COLORS: Record<string, string> = {
   blueprint: '#3B82F6',
   'interface designer': '#14B8A6',
   'bug detective': '#EF4444',
+  'social media': '#06B6D4',
 };
 
 export default function AgentAvatar({ agentName, size = 40 }: AgentAvatarProps) {

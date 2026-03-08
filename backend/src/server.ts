@@ -75,6 +75,10 @@ registerWebDesignAgentMeeting(meetingRegistry);
 import { registerMediaAgentMeeting } from './services/mediaAgentMeeting.js';
 registerMediaAgentMeeting(meetingRegistry);
 
+// Register Social Media Agent meeting type (social media campaigns)
+import { registerSocialMediaAgentMeeting } from './services/socialMediaAgentMeeting.js';
+registerSocialMediaAgentMeeting(meetingRegistry);
+
 // Register Architecture Agent meeting type (system understanding capstone)
 import { registerArchitectureAgentMeeting } from './services/architectureAgentMeeting.js';
 registerArchitectureAgentMeeting(meetingRegistry);

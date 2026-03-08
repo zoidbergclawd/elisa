@@ -11,6 +11,7 @@ const BUILTIN_MEMBERS = [
   { id: 'debug-convergence', name: 'Bug Detective', description: 'Debug & fix' },
   { id: 'design-task-agent', name: 'Pixel', description: 'Design review' },
   { id: 'media-agent', name: 'Marketing', description: 'Campaign & assets' },
+  { id: 'social-media-agent', name: 'Social Media', description: 'Social media campaigns' },
   { id: 'web-design-agent', name: 'Styler', description: 'Launch page design' },
   { id: 'art-agent', name: 'Pixel', description: 'Theme customization' },
   { id: 'integration-agent', name: 'Interface Designer', description: 'Cross-nugget interfaces' },

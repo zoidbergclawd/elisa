@@ -156,6 +156,9 @@ Registers the `buddy-agent` meeting type with `canvasType: 'explain-it'`. Trigge
 ### mediaAgentMeeting.ts (marketing agent meeting type)
 Registers the `media-agent` meeting type with `canvasType: 'campaign'`. Triggers on `task_completed` when >= 25% of tasks are done (early mid-build). Agent persona is "Marketing" (renamed from "Canvas"). Opt-in: requires team block. Frontend canvas: `CampaignCanvas.tsx`. `registerMediaAgentMeeting(registry)` called at startup.
 
+### socialMediaAgentMeeting.ts (social media agent meeting type)
+Registers the `social-media-agent` meeting type with `canvasType: 'campaign'`. Triggers on `task_completed` when >= 50% of tasks are done (mid-build). Agent persona is "Social Media" (Campaign Strategist). Opt-in: requires team block. Frontend canvas: `CampaignCanvas.tsx`. `registerSocialMediaAgentMeeting(registry)` called at startup.
+
 ### webDesignAgentMeeting.ts (web designer agent meeting type)
 Registers the `web-design-agent` meeting type with `canvasType: 'launch-pad'`. Triggers on `task_completed` when >= 60% of tasks are done AND `deploy_target` is `web`. Agent persona is "Styler". Frontend canvas: `LaunchPadCanvas.tsx`. `registerWebDesignAgentMeeting(registry)` called at startup.
 
