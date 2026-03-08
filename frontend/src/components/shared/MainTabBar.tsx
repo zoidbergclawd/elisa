@@ -1,6 +1,6 @@
 import type { Task, Agent } from '../../types';
 
-export type MainTab = 'workspace' | 'mission' | 'tests' | 'team';
+export type MainTab = 'workspace' | 'mission' | 'system' | 'tests' | 'team';
 
 interface MainTabBarProps {
   activeTab: MainTab;
@@ -27,6 +27,11 @@ export default function MainTabBar({ activeTab, onTabChange, tasks, agents, pend
         active={activeTab === 'mission'}
         onClick={() => onTabChange('mission')}
         badge={(workingAgents + inProgressTasks) > 0 ? workingAgents + inProgressTasks : undefined}
+      />
+      <TabButton
+        label="System"
+        active={activeTab === 'system'}
+        onClick={() => onTabChange('system')}
       />
       <TabButton
         label="Tests"

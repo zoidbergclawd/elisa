@@ -10,6 +10,7 @@ import TeachingToast from './components/shared/TeachingToast';
 import MeetingInviteToast from './components/shared/MeetingInviteToast';
 import MeetingModal from './components/Meeting/MeetingModal';
 import TeamPanel from './components/TeamPanel/TeamPanel';
+import SystemPanel from './components/SystemPanel/SystemPanel';
 import TestPanel from './components/TestPanel/TestPanel';
 import ReadinessBadge from './components/shared/ReadinessBadge';
 import LevelBadge from './components/shared/LevelBadge';
@@ -310,6 +311,13 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
         {activeMainTab === 'mission' && (
           <div className="w-full h-full">
             <MissionControlPanel />
+          </div>
+        )}
+
+        {/* System tab */}
+        {activeMainTab === 'system' && (
+          <div className="w-full h-full">
+            <SystemPanel />
           </div>
         )}
 
