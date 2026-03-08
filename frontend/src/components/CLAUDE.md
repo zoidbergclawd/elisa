@@ -1,12 +1,12 @@
 # Frontend Components
 
-Tabbed layout: Header (Logo + MainTabBar + GO + Badge) | Main (Workspace/Agents/Tasks tabs) | BottomBar (contextual tabs, resizable). Overlay modals for gates, questions, skills, and completion.
+Tabbed layout: Header (Logo + MainTabBar + GO + Badge) | Main (Workspace/Mission/System/Tests/Team tabs) | BottomBar (contextual tabs, resizable). Overlay modals for gates, questions, skills, and completion.
 
 ## Component Tree
 
 ```
 App.tsx
-  shared/MainTabBar.tsx              Workspace/Agents/Tasks tab switcher in header
+  shared/MainTabBar.tsx              Workspace/Mission Control/System/Tests/Team tab switcher in header
   shared/ErrorBoundary.tsx           Class component error boundary (wraps App in main.tsx)
   shared/GoButton.tsx                Build trigger with ready/building/stop/disabled states
   shared/ReadinessBadge.tsx          Backend readiness indicator
@@ -14,6 +14,8 @@ App.tsx
   BlockCanvas/BlockCanvas.tsx        Blockly editor wrapper. Read-only during build. Always mounted.
   AgentTeam/AgentTeamPanel.tsx       Full-width agent cards + comms feed (Agents tab)
   TaskMap/TaskMapPanel.tsx           Full-width interactive task DAG (Tasks tab)
+  SystemPanel/SystemPanel.tsx        System main tab: three-column boundary visualization (inputs/system core/outputs)
+  SystemPanel/BoundaryColumn.tsx     Reusable column for input/output boundary items with directional arrows
   MissionControl/MissionControlPanel.tsx  Main mission control layout with narrator feed + minion squad
   MissionControl/MinionSquadPanel.tsx     Minion cards with status badges and task assignments
   MissionControl/NarratorFeed.tsx         Scrolling narrator message feed with mood indicators
@@ -24,9 +26,8 @@ App.tsx
   MissionControl/FeedbackLoopIndicator.tsx  Correction cycle animation + attempt counter for retrying tasks
   MissionControl/ConvergencePanel.tsx       Convergence tracking: attempt history, trends, teaching moments
   MissionControl/ContextFlowAnimation.tsx   Animated context flow dots between DAG nodes on task completion
-  BottomBar/BottomBar.tsx            Resizable tabbed panel with contextual visibility (Timeline/Tests/Trace/Board/Learn/Progress/System/Health/Tokens)
-    GitTimeline.tsx                  Commit list with file diffs
-    TestResults.tsx                  Pass/fail indicators + coverage bar (build-state aware)
+  BottomBar/BottomBar.tsx            Resizable tabbed panel with contextual visibility (Timeline/Trace/Board/Learn/Progress/System/Health/Tokens)
+    GitTimeline.tsx                  Railroad-style horizontal git graph (colored commit nodes per agent, hover tooltip, click-to-expand diffs)
     TraceabilityView.tsx             Requirement-to-test traceability table with status badges
     SystemBoundaryView.tsx           System boundary visualization (inputs/outputs/portals columns)
     HealthDashboard.tsx              System health vital signs (live score + post-build grade + breakdown + Architect-level trend chart)

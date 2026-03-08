@@ -5,13 +5,13 @@ Each service owns one concern. Orchestrator coordinates phase handlers.
 ## Service Map
 
 ### orchestrator.ts (thin coordinator)
-Delegates to phase handlers in sequence: plan -> meeting triggers (plan_ready) -> execute -> test -> deploy. Owns cancellation (AbortController), gate/question resolvers, and public accessors. Phases live in `phases/` subdirectory.
+Delegates to phase handlers in sequence: plan -> meeting triggers (plan_ready) -> execute -> test -> deploy. Owns cancellation (AbortController), gate/question resolvers, and public accessors. Phases live in `phases/` subdirectory. Also exposes `runFix(bugReport, failingTests, send)` for post-build targeted bug fixes: creates a fix task, executes it via TaskExecutor, re-runs tests, and emits `fix_started`/`fix_task_completed`/`fix_tests_completed` events.
 
 ### phases/ (pipeline stages)
 - **planPhase.ts** -- MetaPlanner invocation, DAG setup, teaching moments
 - **executePhase.ts** -- Streaming-parallel task execution (Promise.race pool, up to 3 concurrent), workspace setup (cleans stale `.elisa/` artifacts on re-builds), git mutex, context chain, token budget enforcement
 - **promptBuilder.ts** -- Prompt construction for agent tasks. Assembles system prompt (role template, NuggetSpec, skills, digests), predecessor summaries, device plugin context, and MCP server config. Extracted from executePhase.ts for single-responsibility.
-- **taskExecutor.ts** -- Single-task execution pipeline. Owns the retry loop (up to 2 retries), agent execution call (via AgentRunner), post-execution processing (comms file reading, summary validation, git commit, context chain update), token budget pre-check, narrator/teaching calls, human gate logic, and question handler factory. Extracted from executePhase.ts.
+- **taskExecutor.ts** -- Single-task execution pipeline. Owns the retry loop (up to 2 retries), agent execution call (via AgentRunner), post-execution processing (comms file reading, summary validation, git commit, context chain update), token budget pre-check, narrator/teaching calls, human gate logic, and question handler factory. `buildTestExpectations()` parses acceptance criteria into pending test stubs and emits `test_expectations` before agent execution. Extracted from executePhase.ts.
 - **deviceFileValidator.ts** -- Post-build device file validation and fixup. After task execution, validates that required device files exist and conform to expected patterns. Runs a fixup agent to repair missing/malformed files. Extracted from executePhase.ts.
 - **testPhase.ts** -- Test runner invocation, result reporting
 - **deployPhase.ts** -- Web preview (local HTTP server), device flash (via plugin manifests), CLI portal execution
@@ -195,4 +195,11 @@ Orchestrator.run(spec)
   |-> DeployPhase.deploy*(ctx)          web preview, device flash, or portal deploy
   |     evaluateAndInvite('deploy_started')   Art agent (BOX-3 only)
   |-> evaluateAndInvite('session_complete')   Architecture agent (Blueprint)
+
+Post-build (optional):
+  Orchestrator.runFix(bugReport, failingTests, send)
+  |-> creates fix task with bug context
+  |-> TaskExecutor.execute(fixTask)
+  |-> TestPhase.execute() re-runs tests
+  |-> emits fix_started, fix_task_completed, fix_tests_completed
 ```

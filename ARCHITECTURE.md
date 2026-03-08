@@ -20,16 +20,19 @@ frontend/ (React 19 + Vite)         backend/ (Express 5 + TypeScript)
 | (TaskDAG, CommsFeed,  |<---------|  -> AutoTestMatcher        |
 |  Metrics, Deploy)     |  events  |  -> MetaPlanner (Claude)   |
 |                       |           |  -> MeetingTriggerWiring   |
-| BottomBar             |           |  -> PortalService (MCP/CLI)|
-| (Timeline, Tests,     |           |  -> AgentRunner (SDK)      |
-|  Trace, Board, Learn, |           |  -> TestRunner (pytest/node)|
-|  Progress, System,    |           |  -> GitService (simple-git)|
-|  Health, Tokens —     |           |  -> HardwareService       |
-|  contextual           |           |  -> TeachingEngine         |
-|  visibility)          |           |  -> HealthTracker          |
-|                       |           |  -> TraceabilityTracker    |
-| FlashWizardModal      |           |  -> DeviceRegistry         |
-| (multi-device flash)  |           |     (plugin manifests)     |
+| SystemPanel           |           |  -> PortalService (MCP/CLI)|
+| (boundary I/O/portals)|           |  -> AgentRunner (SDK)      |
+|                       |           |  -> TestRunner (pytest/node)|
+| BottomBar             |           |  -> GitService (simple-git)|
+| (Timeline, Trace,     |           |  -> HardwareService       |
+|  Board, Learn,        |           |  -> TeachingEngine         |
+|  Progress, System,    |           |  -> HealthTracker          |
+|  Health, Tokens —     |           |  -> TraceabilityTracker    |
+|  contextual           |           |  -> DeviceRegistry         |
+|  visibility)          |           |     (plugin manifests)     |
+|                       |           |                           |
+| FlashWizardModal      |           |                           |
+| (multi-device flash)  |           |                           |
 +-----------------------+           +---------------------------+
                                               |
                                     runs agents via SDK query() API
@@ -85,6 +88,12 @@ Root `package.json` manages Electron and build tooling. Frontend and backend rem
                If CLI portals: execute via CliPortalAdapter (no shell)
    j. COMPLETE: evaluateAndInvite('session_complete') -> Architecture agent meeting
 5. session_complete event with summary
+6. Post-build actions (optional):
+   - FIX: POST /api/sessions/:id/fix with bugReport -> Orchestrator.runFix()
+          creates targeted fix task -> re-runs tests -> emits fix_* events
+   - LAUNCH: POST /api/sessions/:id/launch -> finds index.html in workspace
+             (dist/ > build/ > public/ > src/ > root) -> spawns local serve
+             process -> returns preview URL (no rebuild required)
 ```
 
 Human gates can pause execution at any point, requiring user approval via REST endpoint.
@@ -106,7 +115,7 @@ The `DeviceRegistry` service loads all plugins at startup, validates manifests, 
 
 | Channel | Direction | Purpose |
 |---------|-----------|---------|
-| REST | client -> server | Commands: create session, start build, gate responses, question answers |
+| REST | client -> server | Commands: create session, start build, fix, launch, gate responses, question answers |
 | WebSocket | server -> client | Events: task progress, agent output, test results, teaching moments, errors |
 
 WebSocket path: `/ws/session/:sessionId`
@@ -136,11 +145,14 @@ Each agent runs via the Claude Agent SDK's `query()` API with role-specific syst
 
 ```
 idle -> planning -> executing -> testing -> deploying -> done
-                       ^                                        |
-                   human gates (pause/resume via REST)   keep working
-                                                                |
-                                                                v
-                                                             design (iterative build)
+                       ^                                   |    |
+                   human gates (pause/resume via REST)     |  keep working
+                                                           |    |
+                                                           |    v
+                                                           | design (iterative build)
+                                                           |
+                                                           +-> fix (POST /fix: targeted bug fix -> re-test)
+                                                           +-> launch (POST /launch: serve without rebuild)
 
 Note: `reviewing` is a transient state during human gate pauses within execution, not a separate pipeline phase. Reviewer agents execute as tasks within the execute phase.
 ```

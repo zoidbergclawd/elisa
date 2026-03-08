@@ -25,7 +25,8 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/components/AgentTeam/` | Agent cards + comms feed |
 | `frontend/src/components/TaskMap/` | DAG visualization (@xyflow/react) |
 | `frontend/src/components/MissionControl/` | Shared: TaskDAG, CommsFeed, MetricsPanel |
-| `frontend/src/components/BottomBar/` | Resizable tabs with contextual visibility: Timeline, Tests, Trace, Board, Learn, Progress, System, Health, Tokens |
+| `frontend/src/components/BottomBar/` | Resizable tabs with contextual visibility: Timeline, Trace, Board, Learn, Progress, System, Health, Tokens |
+| `frontend/src/components/SystemPanel/` | Full-width System main tab: boundary I/O visualization (inputs/outputs/portals columns) |
 | `frontend/src/components/Skills/` | Skills CRUD modal + template library |
 | `frontend/src/components/Rules/` | Rules CRUD modal + template library |
 | `frontend/src/components/Portals/` | Portal connections modal |
@@ -75,7 +76,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 
 | File | Role |
 |------|------|
-| `backend/src/routes/sessions.ts` | /api/sessions/* endpoints (create, start, stop, gate, question, export) |
+| `backend/src/routes/sessions.ts` | /api/sessions/* endpoints (create, start, stop, fix, launch, gate, question, export) |
 | `backend/src/routes/hardware.ts` | /api/hardware/* endpoints (detect, flash) |
 | `backend/src/routes/skills.ts` | /api/skills/* endpoints (run, answer, list) |
 | `backend/src/routes/workspace.ts` | /api/workspace/* endpoints (save, load design files) |
@@ -88,7 +89,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 
 | File | Role |
 |------|------|
-| `backend/src/services/orchestrator.ts` | Thin coordinator: plan -> meeting triggers -> execute -> test -> deploy |
+| `backend/src/services/orchestrator.ts` | Thin coordinator: plan -> meeting triggers -> execute -> test -> deploy. Also runFix() for post-build targeted fixes |
 | `backend/src/services/metaPlanner.ts` | Decomposes NuggetSpec into task DAG via Claude API |
 | `backend/src/services/agentRunner.ts` | Executes agents via Claude Agent SDK `query()` with streaming |
 | `backend/src/services/sessionStore.ts` | Session state management with JSON persistence |
@@ -153,7 +154,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/services/phases/planPhase.ts` | MetaPlanner invocation, DAG setup, early teaching moments |
 | `backend/src/services/phases/executePhase.ts` | Streaming-parallel task execution (3 concurrent, Promise.race) |
 | `backend/src/services/phases/promptBuilder.ts` | Prompt construction for agent tasks (system prompt, predecessors, skills, digests) |
-| `backend/src/services/phases/taskExecutor.ts` | Single-task execution pipeline (retry, agent run, git, context chain) |
+| `backend/src/services/phases/taskExecutor.ts` | Single-task execution pipeline (retry, agent run, git, context chain, test expectation generation) |
 | `backend/src/services/phases/deviceFileValidator.ts` | Post-build device file validation and fixup agent |
 | `backend/src/services/phases/testPhase.ts` | Test runner invocation and result reporting |
 | `backend/src/services/phases/deployPhase.ts` | Web preview, device flash, portal deploy |
@@ -225,6 +226,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/components/MissionControl/ContextFlowAnimation.tsx` | Animated context flow dots between DAG nodes when tasks complete |
 | `frontend/src/components/MissionControl/PlanningIndicator.tsx` | Planning phase status indicator |
 | `frontend/src/components/BottomBar/SystemBoundaryView.tsx` | System boundary visualization (inputs/outputs/portals columns) |
+| `frontend/src/components/BottomBar/GitTimeline.tsx` | Railroad-style horizontal git graph (colored commit nodes, agent colors, hover tooltips, click-to-expand diffs) |
 | `frontend/src/components/BottomBar/HealthDashboard.tsx` | System health vital signs (live score + post-build grade + breakdown + Architect-level trend chart) |
 | `frontend/src/components/BottomBar/TraceabilityView.tsx` | Requirement-to-test traceability table with status badges |
 | `frontend/src/components/shared/ProofMeter.tsx` | Segmented progress bar for requirement verification (green/red/amber) |
@@ -243,6 +245,8 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/components/TestPanel/TestPanel.tsx` | Main Tests tab: summary stats, test list, add test form |
 | `frontend/src/components/TestPanel/TestList.tsx` | Test result list with pass/fail icons and expandable error details |
 | `frontend/src/components/TestPanel/AddTestForm.tsx` | Form to add behavioral tests (when/then) |
+| `frontend/src/components/SystemPanel/SystemPanel.tsx` | System main tab: three-column boundary visualization (inputs/system core/outputs) |
+| `frontend/src/components/SystemPanel/BoundaryColumn.tsx` | Reusable column component for input/output boundary items |
 | `frontend/src/components/shared/ImpactPreview.tsx` | Pre-execution impact preview card (task estimate, complexity, heaviest reqs) |
 
 ### Hooks
@@ -287,6 +291,8 @@ Blockly workspace
   -> agent output streamed via SDK -> WebSocket events
   -> useBuildSession -> React UI state updates
   -> (optional) "Keep working" -> design phase -> re-build with existing workspace + git history
+  -> (optional) POST /fix -> targeted bug fix task -> re-test -> fix_* events
+  -> (optional) POST /launch -> serve built nugget without rebuild -> deploy_complete
 ```
 
 ### Device Plugin Pipeline
