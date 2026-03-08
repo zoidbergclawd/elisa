@@ -254,6 +254,7 @@ export type WSEvent =
   | { type: 'composition_impact'; graph_id: string; changed_node_id: string; affected_nodes: Array<{ node_id: string; label: string; reason: string }>; severity: string }
   | { type: 'health_history'; entries: HealthHistoryEntry[] }
   | { type: 'test_expectations'; task_id: string; tests: Array<{ name: string; description: string }> }
+  | { type: 'test_phase_complete'; passed: number; failed: number; total: number }
   | { type: 'fix_started'; bugReport: string }
   | { type: 'fix_task_completed'; taskId: string; success: boolean }
   | { type: 'fix_tests_completed'; passed: number; failed: number; total: number }

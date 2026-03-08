@@ -6,8 +6,8 @@ import AddTestForm from './AddTestForm';
 export default function TestPanel() {
   const { testResults } = useBuildSessionContext();
 
-  const passedCount = testResults.filter(r => r.passed === true).length;
-  const failedCount = testResults.filter(r => r.passed === false).length;
+  const passedCount = testResults.filter(r => r.status === 'passed').length;
+  const failedCount = testResults.filter(r => r.status === 'failed').length;
   const pendingCount = testResults.filter(r => r.status === 'pending').length;
   const totalCount = testResults.length;
 

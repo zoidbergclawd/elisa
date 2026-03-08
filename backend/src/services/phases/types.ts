@@ -75,6 +75,7 @@ export type WSEvent =
   | { type: 'health_history'; entries: Array<{ timestamp: string; goal: string; score: number; grade: 'A' | 'B' | 'C' | 'D' | 'F'; breakdown: { tasks: number; tests: number; corrections: number; budget: number } }> }
   | { type: 'spec_validation_warning'; truncated_fields: Array<{ path: string; max_length: number; actual_length: number }> }
   | { type: 'test_expectations'; task_id: string; tests: Array<{ name: string; description: string }> }
+  | { type: 'test_phase_complete'; passed: number; failed: number; total: number }
   | { type: 'fix_started'; bugReport: string }
   | { type: 'fix_task_completed'; taskId: string; success: boolean }
   | { type: 'fix_tests_completed'; passed: number; failed: number; total: number }

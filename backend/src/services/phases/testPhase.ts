@@ -38,6 +38,13 @@ export class TestPhase {
       });
     }
 
+    await ctx.send({
+      type: 'test_phase_complete',
+      passed: results.passed,
+      failed: results.failed,
+      total: results.total,
+    });
+
     if (results.coverage_pct != null) {
       await ctx.send({
         type: 'coverage_update',
