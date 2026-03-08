@@ -69,6 +69,9 @@ App.tsx
   Meeting/LivePreviewCanvas.tsx     Live Preview canvas: embeds iframe to local web preview, auto-refreshes on task_completed
   Meeting/CodeExplorerCanvas.tsx    Code Explorer canvas: syntax-highlighted code viewer with agent line annotations
   Meeting/WhiteboardCanvas.tsx      Whiteboard canvas: HTML5 Canvas free-form drawing (pen, line, rect, circle, eraser, text, colors)
+  TestPanel/TestPanel.tsx            Main Tests tab: summary stats, test list, add test form
+  TestPanel/TestList.tsx             Test result list with pass/fail icons and expandable error details
+  TestPanel/AddTestForm.tsx          Form to add behavioral tests (when/then)
   TeamPanel/TeamPanel.tsx            Persistent Team tab: member list sidebar + inline conversation area
   TeamPanel/TeamMemberList.tsx       Sidebar with static member list, pending invite badges, Chat/dismiss buttons
   TeamPanel/TeamConversation.tsx     Inline meeting conversation using ChatPanel + CanvasPanel via MeetingLayout

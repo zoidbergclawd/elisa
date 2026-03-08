@@ -1,6 +1,6 @@
 import type { Task, Agent } from '../../types';
 
-export type MainTab = 'workspace' | 'mission' | 'team';
+export type MainTab = 'workspace' | 'mission' | 'tests' | 'team';
 
 interface MainTabBarProps {
   activeTab: MainTab;
@@ -8,9 +8,10 @@ interface MainTabBarProps {
   tasks: Task[];
   agents: Agent[];
   pendingInviteCount?: number;
+  failingTestCount?: number;
 }
 
-export default function MainTabBar({ activeTab, onTabChange, tasks, agents, pendingInviteCount }: MainTabBarProps) {
+export default function MainTabBar({ activeTab, onTabChange, tasks, agents, pendingInviteCount, failingTestCount }: MainTabBarProps) {
   const workingAgents = agents.filter(a => a.status === 'working').length;
   const inProgressTasks = tasks.filter(t => t.status === 'in_progress').length;
 
@@ -28,6 +29,13 @@ export default function MainTabBar({ activeTab, onTabChange, tasks, agents, pend
         badge={(workingAgents + inProgressTasks) > 0 ? workingAgents + inProgressTasks : undefined}
       />
       <TabButton
+        label="Tests"
+        active={activeTab === 'tests'}
+        onClick={() => onTabChange('tests')}
+        badge={failingTestCount && failingTestCount > 0 ? failingTestCount : undefined}
+        badgeColor="bg-accent-coral"
+      />
+      <TabButton
         label="Team"
         active={activeTab === 'team'}
         onClick={() => onTabChange('team')}
@@ -37,11 +45,12 @@ export default function MainTabBar({ activeTab, onTabChange, tasks, agents, pend
   );
 }
 
-function TabButton({ label, active, onClick, badge }: {
+function TabButton({ label, active, onClick, badge, badgeColor }: {
   label: string;
   active: boolean;
   onClick: () => void;
   badge?: number;
+  badgeColor?: string;
 }) {
   return (
     <button
@@ -54,7 +63,7 @@ function TabButton({ label, active, onClick, badge }: {
     >
       {label}
       {badge !== undefined && (
-        <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-accent-sky text-white text-[10px] font-bold px-1">
+        <span className={`absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center rounded-full ${badgeColor || 'bg-accent-sky'} text-white text-[10px] font-bold px-1`}>
           {badge}
         </span>
       )}

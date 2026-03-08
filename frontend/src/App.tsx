@@ -10,6 +10,7 @@ import TeachingToast from './components/shared/TeachingToast';
 import MeetingInviteToast from './components/shared/MeetingInviteToast';
 import MeetingModal from './components/Meeting/MeetingModal';
 import TeamPanel from './components/TeamPanel/TeamPanel';
+import TestPanel from './components/TestPanel/TestPanel';
 import ReadinessBadge from './components/shared/ReadinessBadge';
 import LevelBadge from './components/shared/LevelBadge';
 import ModalHost from './components/shared/ModalHost';
@@ -251,6 +252,7 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
             tasks={tasks}
             agents={agents}
             pendingInviteCount={inviteQueue.length}
+            failingTestCount={testResults.filter(t => !t.passed).length}
           />
         </div>
         <div className="flex items-center gap-3">
@@ -308,6 +310,13 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
         {activeMainTab === 'mission' && (
           <div className="w-full h-full">
             <MissionControlPanel />
+          </div>
+        )}
+
+        {/* Tests tab */}
+        {activeMainTab === 'tests' && (
+          <div className="w-full h-full">
+            <TestPanel />
           </div>
         )}
 

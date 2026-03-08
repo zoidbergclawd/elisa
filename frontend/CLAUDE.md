@@ -55,7 +55,7 @@ Workspace JSON, skills, and rules auto-save to `localStorage` on every change an
 
 UI phases: `design` | `building` | `review` | `deploy` | `done`
 
-Main tabs: `workspace` | `mission` | `team` (badge shows pending invite count)
+Main tabs: `workspace` | `mission` | `tests` (badge shows failing test count) | `team` (badge shows pending invite count)
 
 ## Communication with Backend
 
