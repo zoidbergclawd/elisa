@@ -3,7 +3,6 @@ import type { BoardInfo } from '../../hooks/useBoardDetect';
 import { useBuildSessionContext } from '../../contexts/BuildSessionContext';
 import { useWorkspaceContext } from '../../contexts/WorkspaceContext';
 import GitTimeline from './GitTimeline';
-import TestResults from './TestResults';
 import TeachingSidebar from './TeachingSidebar';
 import BoardOutput from './BoardOutput';
 import ProgressPanel from './ProgressPanel';
@@ -17,7 +16,7 @@ interface Props {
   boardInfo: BoardInfo | null;
 }
 
-type Tab = 'Timeline' | 'Tests' | 'Trace' | 'Board' | 'Learn' | 'Progress' | 'System' | 'Health' | 'Tokens';
+type Tab = 'Timeline' | 'Trace' | 'Board' | 'Learn' | 'Progress' | 'System' | 'Health' | 'Tokens';
 
 const STORAGE_KEY = 'elisa:bottom-bar-height';
 const DEFAULT_HEIGHT = 128;
@@ -37,13 +36,13 @@ function getStoredHeight(): number {
 
 export default function BottomBar({ boardInfo }: Props) {
   const {
-    commits, testResults, coveragePct, teachingMoments, serialLines,
+    commits, teachingMoments, serialLines,
     uiState, tasks, agents, deployProgress, deployChecklist, tokenUsage,
     traceability, boundaryAnalysis, healthUpdate, healthSummary, healthHistory,
     correctionCycles,
   } = useBuildSessionContext();
   const { systemLevel } = useWorkspaceContext();
-  const [activeTab, setActiveTab] = useState<Tab>('Tests');
+  const [activeTab, setActiveTab] = useState<Tab>('Learn');
   const [panelHeight, setPanelHeight] = useState<number>(getStoredHeight);
   const isDragging = useRef(false);
   const dragStartY = useRef(0);
@@ -55,9 +54,6 @@ export default function BottomBar({ boardInfo }: Props) {
 
     // Timeline: hidden unless commits exist
     if (commits.length > 0) tabs.push('Timeline');
-
-    // Tests: always visible
-    tabs.push('Tests');
 
     // Trace: hidden unless traceability data exists
     if (traceability !== null) tabs.push('Trace');
@@ -96,13 +92,6 @@ export default function BottomBar({ boardInfo }: Props) {
       setActiveTab('Progress'); // eslint-disable-line react-hooks/set-state-in-effect
     }
   }, [uiState]);
-
-  // Auto-switch to Tests tab when first test result arrives
-  useEffect(() => {
-    if (testResults.length === 1) {
-      setActiveTab('Tests'); // eslint-disable-line react-hooks/set-state-in-effect
-    }
-  }, [testResults.length]);
 
   // Auto-switch to Trace tab when traceability summary arrives
   useEffect(() => {
@@ -159,23 +148,12 @@ export default function BottomBar({ boardInfo }: Props) {
   }, []);
 
   // --- Tab badge rendering ---
-  const hasTestFailures = testResults.some(t => !t.passed);
   const healthGrade = healthSummary?.grade ?? null;
   const traceCoverage = traceability ? Math.round(traceability.coverage) : null;
   const boardConnected = boardInfo !== null;
 
   function renderBadge(tab: Tab) {
     switch (tab) {
-      case 'Tests':
-        if (hasTestFailures) {
-          return (
-            <span
-              data-testid="badge-tests-fail"
-              className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-red-500"
-            />
-          );
-        }
-        return null;
       case 'Health':
         if (healthGrade) {
           return (
@@ -242,7 +220,6 @@ export default function BottomBar({ boardInfo }: Props) {
       </div>
       <div className="overflow-y-auto" style={{ height: `${panelHeight}px` }}>
         {activeTab === 'Timeline' && <GitTimeline commits={commits} />}
-        {activeTab === 'Tests' && <TestResults results={testResults} coveragePct={coveragePct} uiState={uiState} tasks={tasks} agents={agents} />}
         {activeTab === 'Trace' && <TraceabilityView traceability={traceability} />}
         {activeTab === 'Board' && <BoardOutput serialLines={serialLines} boardInfo={boardInfo} />}
         {activeTab === 'Learn' && <TeachingSidebar moments={teachingMoments} />}

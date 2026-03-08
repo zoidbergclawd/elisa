@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import BottomBar from './BottomBar';
-import type { Commit } from '../../types';
 import { useBuildSessionContext } from '../../contexts/BuildSessionContext';
 import { useWorkspaceContext } from '../../contexts/WorkspaceContext';
 import { defaultBuildSessionValue, defaultWorkspaceValue } from '../../test-utils/renderWithProviders';
+import type { Commit } from '../../types';
 
 vi.mock('../../contexts/BuildSessionContext', () => ({
   useBuildSessionContext: vi.fn(() => defaultBuildSessionValue),
@@ -42,10 +42,10 @@ function renderBottomBar(overrides?: {
 
 describe('BottomBar', () => {
   // --- Core rendering ---
-  it('renders always-visible tabs (Tests, Learn) in design mode', () => {
+  it('renders always-visible tabs (Learn) in design mode', () => {
     renderBottomBar();
-    expect(screen.getByText('Tests')).toBeInTheDocument();
     expect(screen.getByText('Learn')).toBeInTheDocument();
+    expect(screen.queryByText('Tests')).not.toBeInTheDocument();
   });
 
   // --- Contextual tab visibility ---
@@ -161,8 +161,8 @@ describe('BottomBar', () => {
       });
       rerender(<BottomBar boardInfo={null} />);
       expect(screen.queryByText('Board')).not.toBeInTheDocument();
-      // Should fall back to first visible tab (Tests)
-      expect(screen.getByText('Tests').className).toContain('bg-accent-lavender');
+      // Should fall back to first visible tab (Learn)
+      expect(screen.getByText('Learn').className).toContain('bg-accent-lavender');
     });
   });
 
@@ -207,29 +207,6 @@ describe('BottomBar', () => {
 
   // --- Tab badges ---
   describe('tab badges', () => {
-    it('shows red dot on Tests tab when test failures exist', () => {
-      renderBottomBar({
-        buildSession: {
-          testResults: [
-            { test_name: 'test_a', passed: true, details: 'OK' },
-            { test_name: 'test_b', passed: false, details: 'FAIL' },
-          ],
-        },
-      });
-      expect(screen.getByTestId('badge-tests-fail')).toBeInTheDocument();
-    });
-
-    it('does not show red dot on Tests tab when all tests pass', () => {
-      renderBottomBar({
-        buildSession: {
-          testResults: [
-            { test_name: 'test_a', passed: true, details: 'OK' },
-          ],
-        },
-      });
-      expect(screen.queryByTestId('badge-tests-fail')).not.toBeInTheDocument();
-    });
-
     it('shows health grade badge when healthSummary exists', () => {
       renderBottomBar({
         buildSession: {
@@ -277,43 +254,7 @@ describe('BottomBar', () => {
       }];
       renderBottomBar({ buildSession: { commits } });
       fireEvent.click(screen.getByText('Timeline'));
-      expect(screen.getByText('Sparky:')).toBeInTheDocument();
-    });
-
-    it('clicking Tests tab renders TestResults', () => {
-      renderBottomBar();
-      fireEvent.click(screen.getByText('Tests'));
-      expect(screen.getByText('No test results yet')).toBeInTheDocument();
-    });
-
-    it('Tests tab shows build-in-progress message during build with no tester tasks', () => {
-      renderBottomBar({ buildSession: { uiState: 'building' } });
-      // Build starts with auto-switch to Progress, so click Tests
-      fireEvent.click(screen.getByText('Tests'));
-      expect(screen.getByText('Tests will run after tasks complete...')).toBeInTheDocument();
-    });
-
-    it('Tests tab shows tester task progress during build', () => {
-      renderBottomBar({
-        buildSession: {
-          uiState: 'building',
-          agents: [
-            { name: 'TestBot', role: 'tester' as const, persona: 'Writes tests', status: 'working' as const },
-            { name: 'Builder', role: 'builder' as const, persona: 'Builds code', status: 'working' as const },
-          ],
-          tasks: [
-            { id: 't1', name: 'Write unit tests', description: '', status: 'done' as const, agent_name: 'TestBot', dependencies: [] },
-            { id: 't2', name: 'Write integration tests', description: '', status: 'in_progress' as const, agent_name: 'TestBot', dependencies: [] },
-            { id: 't3', name: 'Build login', description: '', status: 'done' as const, agent_name: 'Builder', dependencies: [] },
-          ],
-        },
-      });
-      fireEvent.click(screen.getByText('Tests'));
-      expect(screen.getByText('Test Creation')).toBeInTheDocument();
-      expect(screen.getByText('(1/2)')).toBeInTheDocument();
-      expect(screen.getByText('Write unit tests')).toBeInTheDocument();
-      expect(screen.getByText('Write integration tests')).toBeInTheDocument();
-      expect(screen.queryByText('Build login')).not.toBeInTheDocument();
+      expect(screen.getByTestId('commit-node-abc')).toBeInTheDocument();
     });
 
     it('clicking Learn tab renders TeachingSidebar', () => {
@@ -342,19 +283,6 @@ describe('BottomBar', () => {
       });
       fireEvent.click(screen.getByText('Board'));
       expect(screen.getByText('Hello from board')).toBeInTheDocument();
-    });
-
-    it('Tests tab shows test results', () => {
-      renderBottomBar({
-        buildSession: {
-          testResults: [
-            { test_name: 'test_add', passed: true, details: 'PASSED' },
-            { test_name: 'test_sub', passed: false, details: 'FAILED' },
-          ],
-        },
-      });
-      fireEvent.click(screen.getByText('Tests'));
-      expect(screen.getByText('1/2 passing')).toBeInTheDocument();
     });
 
     it('Learn tab shows teaching moments', () => {
