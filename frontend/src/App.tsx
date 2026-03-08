@@ -281,7 +281,7 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
             tasks={tasks}
             agents={agents}
             pendingInviteCount={inviteQueue.length}
-            failingTestCount={testResults.filter(t => !t.passed).length}
+            failingTestCount={testResults.filter(t => t.passed === false).length}
           />
         </div>
         <div className="flex items-center gap-3">
@@ -442,7 +442,7 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
               </div>
             )}
             {/* Fix It button when tasks failed or tests failing */}
-            {(tasks.some(t => t.status === 'failed') || testResults.some(t => !t.passed)) && (
+            {(tasks.some(t => t.status === 'failed') || testResults.some(t => t.passed === false)) && (
               <div className="mb-4">
                 <button
                   onClick={() => startDirectMeeting('debug-convergence')}
@@ -453,7 +453,7 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
               </div>
             )}
             {/* Report a Bug button -- always available post-build */}
-            {!tasks.some(t => t.status === 'failed') && !testResults.some(t => !t.passed) && (
+            {!tasks.some(t => t.status === 'failed') && !testResults.some(t => t.passed === false) && (
               <div className="mb-4">
                 <button
                   onClick={() => startDirectMeeting('debug-convergence')}
@@ -479,14 +479,14 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
                 ))}
               </div>
             )}
-            <div className="flex flex-col items-center gap-2">
+            <div className="flex flex-col items-center gap-2 w-full">
               {Object.entries(deployUrls).map(([target, url]) => (
                 <a
                   key={target}
                   href={url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="go-btn px-6 py-2.5 rounded-xl text-sm inline-block"
+                  className="go-btn w-full px-6 py-2.5 rounded-xl text-sm text-center inline-block"
                 >
                   {Object.keys(deployUrls).length > 1 ? `Open ${target}` : 'Open in Browser'}
                 </a>
@@ -494,7 +494,7 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
               {(nuggetDir || workspacePath) && (
                 <button
                   onClick={() => launchWorkspace(nuggetDir || workspacePath || undefined)}
-                  className="w-full px-6 py-2.5 rounded-xl text-sm cursor-pointer border border-accent-sky/30 bg-accent-sky/10 text-accent-sky hover:bg-accent-sky/20 transition-colors"
+                  className="w-full px-6 py-2.5 rounded-xl text-sm cursor-pointer border border-border-subtle text-atelier-text-secondary hover:bg-atelier-surface/60 hover:text-atelier-text transition-colors"
                 >
                   {Object.keys(deployUrls).length > 0 ? 'Relaunch Preview' : 'Launch Preview'}
                 </button>
@@ -506,7 +506,7 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
                   }
                   window.location.reload();
                 }}
-                className="go-btn px-6 py-2.5 rounded-xl text-sm cursor-pointer"
+                className="w-full px-6 py-2.5 rounded-xl text-sm cursor-pointer border border-border-subtle text-atelier-text-secondary hover:bg-atelier-surface/60 hover:text-atelier-text transition-colors"
               >
                 Build something new
               </button>
@@ -516,7 +516,7 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
                   resetToDesign();
                   setActiveMainTab('workspace');
                 }}
-                className="px-6 py-2.5 rounded-xl text-sm cursor-pointer border border-atelier-text-muted/30 text-atelier-text-secondary hover:bg-atelier-surface/60 hover:text-atelier-text transition-colors"
+                className="w-full px-6 py-2.5 rounded-xl text-sm cursor-pointer text-atelier-text-muted hover:text-atelier-text-secondary transition-colors"
               >
                 Keep working on this nugget
               </button>

@@ -6,8 +6,9 @@ import AddTestForm from './AddTestForm';
 export default function TestPanel() {
   const { testResults } = useBuildSessionContext();
 
-  const passedCount = testResults.filter(r => r.passed).length;
-  const failedCount = testResults.filter(r => !r.passed).length;
+  const passedCount = testResults.filter(r => r.passed === true).length;
+  const failedCount = testResults.filter(r => r.passed === false).length;
+  const pendingCount = testResults.filter(r => r.status === 'pending').length;
   const totalCount = testResults.length;
 
   const handleAddTest = useCallback((when: string, then: string) => {
@@ -28,6 +29,11 @@ export default function TestPanel() {
             {failedCount > 0 && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-accent-coral/20 text-accent-coral">
                 {failedCount} failing
+              </span>
+            )}
+            {pendingCount > 0 && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-400/20 text-gray-400">
+                {pendingCount} pending
               </span>
             )}
             <span className="text-[10px] text-atelier-text-muted">
