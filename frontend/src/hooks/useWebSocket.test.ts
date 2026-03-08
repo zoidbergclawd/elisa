@@ -4,6 +4,7 @@ import { useWebSocket, MAX_RETRIES } from './useWebSocket';
 
 // Minimal mock WebSocket that lets tests trigger lifecycle events
 class MockWebSocket {
+  static OPEN = 1;
   static instances: MockWebSocket[] = [];
   url: string;
   readyState = 0; // CONNECTING
@@ -14,6 +15,7 @@ class MockWebSocket {
   close = vi.fn(() => {
     this.readyState = 3;
   });
+  send = vi.fn();
 
   constructor(url: string) {
     this.url = url;
@@ -195,6 +197,32 @@ describe('useWebSocket', () => {
     expect(MockWebSocket.instances).toHaveLength(countBefore + 1);
   });
 
+  it('sends periodic keepalive pings', () => {
+    const onEvent = vi.fn();
+    renderHook(() => useWebSocket({ sessionId: 'sess-1', onEvent }));
+    const ws = MockWebSocket.instances[0];
+    act(() => ws.simulateOpen());
+
+    // Advance past one ping interval (30s)
+    act(() => { vi.advanceTimersByTime(30_000); });
+    expect(ws.send).toHaveBeenCalledWith('ping');
+  });
+
+  it('stops keepalive pings on close', () => {
+    const onEvent = vi.fn();
+    renderHook(() => useWebSocket({ sessionId: 'sess-1', onEvent }));
+    const ws = MockWebSocket.instances[0];
+    act(() => ws.simulateOpen());
+
+    // Close the connection
+    act(() => ws.simulateClose());
+    ws.send.mockClear();
+
+    // Advance past ping interval -- no pings should fire
+    act(() => { vi.advanceTimersByTime(60_000); });
+    expect(ws.send).not.toHaveBeenCalledWith('ping');
+  });
+
   // === P1 #5 regression: dispatch error on max retries ===
 
   it('dispatches non-recoverable error event after MAX_RETRIES (P1 #5)', () => {
@@ -245,7 +273,7 @@ describe('useWebSocket', () => {
     await act(async () => {
       MockWebSocket.instances[1].simulateOpen();
       // Allow fetch promise to resolve
-      await vi.runAllTimersAsync();
+      await vi.advanceTimersByTimeAsync(0);
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
@@ -291,7 +319,7 @@ describe('useWebSocket', () => {
     // Should not throw even if fetch fails
     await act(async () => {
       MockWebSocket.instances[1].simulateOpen();
-      await vi.runAllTimersAsync();
+      await vi.advanceTimersByTimeAsync(0);
     });
 
     // session_started should still be dispatched
@@ -328,7 +356,7 @@ describe('useWebSocket', () => {
 
     await act(async () => {
       MockWebSocket.instances[1].simulateOpen();
-      await vi.runAllTimersAsync();
+      await vi.advanceTimersByTimeAsync(0);
     });
 
     // Should replay individual test_result events
@@ -368,7 +396,7 @@ describe('useWebSocket', () => {
 
     await act(async () => {
       MockWebSocket.instances[1].simulateOpen();
-      await vi.runAllTimersAsync();
+      await vi.advanceTimersByTimeAsync(0);
     });
 
     expect(onEvent).toHaveBeenCalledWith(

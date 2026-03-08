@@ -33,6 +33,7 @@ export function useWebSocket({ sessionId, onEvent }: UseWebSocketOptions) {
     const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
     const url = `${protocol}//${window.location.host}/ws/session/${sessionId}${tokenParam}`;
     const ws = new WebSocket(url);
+    let pingInterval: ReturnType<typeof setInterval> | null = null;
 
     ws.onopen = () => {
       const isReconnect = hasConnectedRef.current;
@@ -43,6 +44,11 @@ export function useWebSocket({ sessionId, onEvent }: UseWebSocketOptions) {
       for (const resolve of openResolversRef.current) resolve();
       openResolversRef.current = [];
       onEventRef.current({ type: 'session_started', session_id: sessionId });
+
+      // Start periodic keepalive ping to prevent idle proxy timeouts
+      pingInterval = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) ws.send('ping');
+      }, 30_000);
 
       // On reconnect, fetch current session state to resync
       if (isReconnect) {
@@ -107,6 +113,7 @@ export function useWebSocket({ sessionId, onEvent }: UseWebSocketOptions) {
     };
 
     ws.onclose = () => {
+      if (pingInterval) clearInterval(pingInterval);
       wsRef.current = null;
       setConnected(false);
       if (retriesRef.current >= MAX_RETRIES) {

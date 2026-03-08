@@ -242,6 +242,7 @@ export function createSessionRouter({ store, sendEvent, hardwareService, deviceR
     }
 
     res.json({ status: 'fix_started' });
+    store.scheduleCleanup(req.params.id); // Reset 5-min cleanup timer on fix start
 
     entry.orchestrator.runFix(bugReport).catch((err) => {
       console.error('Fix run error:', err);
@@ -332,6 +333,8 @@ export function createSessionRouter({ store, sendEvent, hardwareService, deviceR
   router.post('/:id/launch', async (req, res) => {
     const entry = store.get(req.params.id);
     if (!entry) { res.status(404).json({ detail: 'Session not found' }); return; }
+
+    store.scheduleCleanup(req.params.id); // Reset 5-min cleanup timer on launch
 
     // Determine workspace directory: explicit body param, orchestrator's nuggetDir, or nothing
     const rawPath: string | undefined = req.body.workspace_path;

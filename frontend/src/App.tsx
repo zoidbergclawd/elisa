@@ -466,7 +466,10 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
             {(tasks.some(t => t.status === 'failed') || testResults.some(t => t.passed === false)) && (
               <div className="mb-4">
                 <button
-                  onClick={() => startDirectMeeting('debug-convergence')}
+                  onClick={async () => {
+                    try { await startDirectMeeting('debug-convergence'); }
+                    catch { handleBuildEvent({ type: 'error', message: 'Session expired. Please build again.', recoverable: false }); }
+                  }}
                   className="w-full px-4 py-3 rounded-xl text-sm cursor-pointer font-medium border border-red-500/30 bg-red-950/30 text-red-400 hover:bg-red-950/50 transition-colors text-center"
                 >
                   Fix It -- Debug with Bug Detective
@@ -477,7 +480,10 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
             {!tasks.some(t => t.status === 'failed') && !testResults.some(t => t.passed === false) && (
               <div className="mb-4">
                 <button
-                  onClick={() => startDirectMeeting('debug-convergence')}
+                  onClick={async () => {
+                    try { await startDirectMeeting('debug-convergence'); }
+                    catch { handleBuildEvent({ type: 'error', message: 'Session expired. Please build again.', recoverable: false }); }
+                  }}
                   className="w-full px-4 py-3 rounded-xl text-sm cursor-pointer border border-amber-500/30 bg-amber-950/20 text-amber-400 hover:bg-amber-950/40 transition-colors text-center"
                 >
                   Report a Bug

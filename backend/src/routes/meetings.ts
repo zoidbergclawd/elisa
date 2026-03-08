@@ -170,6 +170,7 @@ export function createMeetingRouter({ store, meetingService, meetingAgentService
     // Resolve meeting block if orchestrator is waiting
     entry.orchestrator?.resolveMeetingBlock(meeting.id);
 
+    store.scheduleCleanup(sessionId); // Reset 5-min cleanup timer on meeting start
     res.json({ meetingId: meeting.id });
   });
 

@@ -387,6 +387,7 @@ export function startServer(
 
       wss.handleUpgrade(request, socket, head, (ws) => {
         manager.connect(sessionId, ws);
+        store.scheduleCleanup(sessionId); // Reset 5-min cleanup timer on connect/reconnect
         ws.on('close', () => manager.disconnect(sessionId, ws));
         ws.on('message', () => {
           // Client keepalive; ignore content

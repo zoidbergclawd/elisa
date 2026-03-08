@@ -338,20 +338,15 @@ export function useMeetingSession(sessionId: string | null) {
    *  Creates an invite on the backend and immediately accepts it. */
   const startDirectMeeting = useCallback(async (meetingTypeId: string) => {
     if (!sessionId) return;
-    try {
-      const resp = await authFetch(`/api/sessions/${sessionId}/meetings/start`, {
-        method: 'POST',
-        body: JSON.stringify({ meetingTypeId }),
-      });
-      if (resp.ok) {
-        const data = await resp.json();
-        if (data.meetingId) {
-          // The backend creates + accepts in one call, WS events will update state
-        }
-      }
-    } catch (err) {
-      console.error('[meeting] startDirectMeeting failed:', err);
+    const resp = await authFetch(`/api/sessions/${sessionId}/meetings/start`, {
+      method: 'POST',
+      body: JSON.stringify({ meetingTypeId }),
+    });
+    if (!resp.ok) {
+      const detail = await resp.json().catch(() => null);
+      throw new Error(detail?.detail ?? `Meeting start failed (HTTP ${resp.status})`);
     }
+    // Backend creates + accepts in one call, WS events will update state
   }, [sessionId]);
 
   /** Clear all meeting state (invites + active meeting). Used on session reset. */

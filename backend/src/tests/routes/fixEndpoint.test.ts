@@ -163,6 +163,25 @@ describe('POST /api/sessions/:id/fix', () => {
     expect(runFix).toHaveBeenCalledWith('Button is broken');
   });
 
+  it('resets cleanup timer on fix start', async () => {
+    const entry = store.create('sess-cleanup', {
+      id: 'sess-cleanup',
+      state: 'done',
+      spec: null,
+      tasks: [],
+      agents: [],
+    });
+    const runFix = vi.fn().mockResolvedValue(undefined);
+    (entry as any).orchestrator = { runFix };
+
+    await fetch(url('/api/sessions/sess-cleanup/fix'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bugReport: 'timer test' }),
+    });
+    expect(store.scheduleCleanup).toHaveBeenCalledWith('sess-cleanup');
+  });
+
   it('sends error event when runFix throws', async () => {
     const entry = store.create('sess-5', {
       id: 'sess-5',

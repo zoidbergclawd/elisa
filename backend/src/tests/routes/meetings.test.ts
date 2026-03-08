@@ -1,6 +1,6 @@
 /** Tests for meeting route handlers. Uses lightweight Express app with real HTTP. */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import http from 'node:http';
 import express from 'express';
 import { MeetingRegistry } from '../../services/meetingRegistry.js';
@@ -277,6 +277,16 @@ describe('POST /api/sessions/:sessionId/meetings/start', () => {
 
     const startedEvents = sentEvents.filter(e => e.type === 'meeting_started');
     expect(startedEvents.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('resets cleanup timer on successful meeting start', async () => {
+    const sessionId = createSession();
+    const spy = vi.spyOn(store, 'scheduleCleanup');
+    await fetchJSON(
+      `/api/sessions/${sessionId}/meetings/start`,
+      { method: 'POST', body: JSON.stringify({ meetingTypeId: 'test-meeting' }) },
+    );
+    expect(spy).toHaveBeenCalledWith(sessionId);
   });
 });
 

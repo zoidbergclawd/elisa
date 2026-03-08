@@ -173,6 +173,39 @@ async function renderWithBugMeetingEnded(meeting = bugMeeting) {
   return result;
 }
 
+describe('Fix It button error handling', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+  });
+
+  it('shows error notification when Fix It button click fails (session expired)', async () => {
+    const { useBuildSession } = await import('./hooks/useBuildSession');
+    const { useMeetingSession } = await import('./hooks/useMeetingSession');
+    const mockUseBuild = useBuildSession as ReturnType<typeof vi.fn>;
+    const mockUseMeeting = useMeetingSession as ReturnType<typeof vi.fn>;
+
+    const handleEvent = vi.fn();
+    mockUseBuild.mockReturnValue({
+      ...buildSessionDefaults,
+      handleEvent,
+      testResults: [{ test_name: 'test1', passed: false, details: 'fail' }],
+    });
+
+    const mockStart = vi.fn().mockRejectedValue(new Error('Session not found'));
+    mockUseMeeting.mockReturnValue(makeMeetingState({ startDirectMeeting: mockStart }));
+
+    render(<App />);
+
+    const fixButton = screen.getByText(/Fix It/);
+    await act(async () => { fireEvent.click(fixButton); });
+
+    expect(handleEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'error', message: 'Session expired. Please build again.' }),
+    );
+  });
+});
+
 describe('Post-bug-report Fix button', () => {
   beforeEach(() => {
     vi.clearAllMocks();
