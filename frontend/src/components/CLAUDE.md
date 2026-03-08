@@ -14,8 +14,7 @@ App.tsx
   BlockCanvas/BlockCanvas.tsx        Blockly editor wrapper. Read-only during build. Always mounted.
   AgentTeam/AgentTeamPanel.tsx       Full-width agent cards + comms feed (Agents tab)
   TaskMap/TaskMapPanel.tsx           Full-width interactive task DAG (Tasks tab)
-  SystemPanel/SystemPanel.tsx        System main tab: three-column boundary visualization (inputs/system core/outputs)
-  SystemPanel/BoundaryColumn.tsx     Reusable column for input/output boundary items with directional arrows
+  SystemPanel/SystemPanel.tsx        System main tab: architecture explorer (spec view pre-build, task list + detail during/post-build)
   MissionControl/MissionControlPanel.tsx  Main mission control layout with narrator feed + minion squad
   MissionControl/MinionSquadPanel.tsx     Minion cards with status badges and task assignments
   MissionControl/NarratorFeed.tsx         Scrolling narrator message feed with mood indicators
@@ -26,10 +25,8 @@ App.tsx
   MissionControl/FeedbackLoopIndicator.tsx  Correction cycle animation + attempt counter for retrying tasks
   MissionControl/ConvergencePanel.tsx       Convergence tracking: attempt history, trends, teaching moments
   MissionControl/ContextFlowAnimation.tsx   Animated context flow dots between DAG nodes on task completion
-  BottomBar/BottomBar.tsx            Resizable tabbed panel with contextual visibility (Timeline/Trace/Board/Learn/Progress/System/Health/Tokens)
-    GitTimeline.tsx                  Railroad-style horizontal git graph (colored commit nodes per agent, hover tooltip, click-to-expand diffs)
+  BottomBar/BottomBar.tsx            Resizable tabbed panel with contextual visibility (Trace/Board/Learn/Progress/Health/Tokens)
     TraceabilityView.tsx             Requirement-to-test traceability table with status badges
-    SystemBoundaryView.tsx           System boundary visualization (inputs/outputs/portals columns)
     HealthDashboard.tsx              System health vital signs (live score + post-build grade + breakdown + Architect-level trend chart)
     BoardOutput.tsx                  Serial output (conditional on serial data)
     TeachingSidebar.tsx              Learning moments list
@@ -60,7 +57,7 @@ App.tsx
   Meeting/DefaultCanvas.tsx          Placeholder canvas shown when no specialized canvas is registered
   Meeting/ThemePickerCanvas.tsx      BOX-3 display theme picker canvas for Art Agent meetings (reads canvasState.data.currentTheme)
   Meeting/BugDetectiveCanvas.tsx     Bug diagnosis canvas for debug-convergence meetings (expected vs actual, fix decision)
-  Meeting/BlueprintCanvas.tsx        System overview walkthrough canvas for Architecture Agent meetings (tasks, reqs, stats)
+  Meeting/BlueprintCanvas.tsx        Build Explorer canvas for Architecture Agent meetings (task list, task detail, test matching, system stats)
   Meeting/CampaignCanvas.tsx         Creative asset builder canvas for Media Agent meetings (poster, social card, storyboard)
   Meeting/DesignPreviewCanvas.tsx    Design preview canvas with Canvas 2D rendering for Design Review meetings (SceneComposition sub-component executes agent-generated draw code, drawBackground handles CSS gradients with percentage stops, fallback circles for elements without draw code)
   Meeting/InterfaceDesignerCanvas.tsx Interface contract builder canvas for Integration meetings (provides/requires/connections)

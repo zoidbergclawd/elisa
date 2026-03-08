@@ -26,7 +26,7 @@ src/
     specGraph.ts         /api/spec-graph/* endpoints (CRUD, compose, impact, interfaces)
   models/
     session.ts           Type definitions: Session, Task, Agent, BuildPhase, WSEvent
-    meeting.ts           Meeting framework types: MeetingType, MeetingSession, CanvasState, etc.
+    meeting.ts           Meeting framework types: MeetingType, MeetingSession (incl. kidInitiated flag), CanvasState, etc.
     display.ts           BOX-3 display protocol types: DisplayCommand, TouchEvent, DisplayTheme, constraints
     runtime.ts           Agent Runtime types: AgentIdentity, ConversationTurn, UsageRecord, ProvisionResult, StudyModeConfig, QuizQuestion, BackpackSource, AudioTurnResult, AudioTurnRequest
     specGraph.ts         Spec Graph types: SpecGraphNode, SpecGraphEdge, SpecGraph, SpecGraphPersistence

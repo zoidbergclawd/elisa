@@ -25,8 +25,8 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/components/AgentTeam/` | Agent cards + comms feed |
 | `frontend/src/components/TaskMap/` | DAG visualization (@xyflow/react) |
 | `frontend/src/components/MissionControl/` | Shared: TaskDAG, CommsFeed, MetricsPanel |
-| `frontend/src/components/BottomBar/` | Resizable tabs with contextual visibility: Timeline, Trace, Board, Learn, Progress, System, Health, Tokens |
-| `frontend/src/components/SystemPanel/` | Full-width System main tab: boundary I/O visualization (inputs/outputs/portals columns) |
+| `frontend/src/components/BottomBar/` | Resizable tabs with contextual visibility: Trace, Board, Learn, Progress, Health, Tokens |
+| `frontend/src/components/SystemPanel/` | Full-width System main tab: architecture explorer (spec view pre-build, task list + detail during/post-build) |
 | `frontend/src/components/Skills/` | Skills CRUD modal + template library |
 | `frontend/src/components/Rules/` | Rules CRUD modal + template library |
 | `frontend/src/components/Portals/` | Portal connections modal |
@@ -233,7 +233,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/components/shared/EsptoolFlashStep.tsx` | Esptool flash progress UI with port detection and manual override |
 | `frontend/src/components/Meeting/ThemePickerCanvas.tsx` | BOX-3 display theme picker canvas for Art Agent meetings |
 | `frontend/src/components/Meeting/BugDetectiveCanvas.tsx` | Bug diagnosis canvas for debug-convergence meetings |
-| `frontend/src/components/Meeting/BlueprintCanvas.tsx` | System overview canvas for Architecture Agent meetings |
+| `frontend/src/components/Meeting/BlueprintCanvas.tsx` | Build Explorer canvas for Architecture Agent meetings (task list, task detail, test matching, system stats) |
 | `frontend/src/components/Meeting/CampaignCanvas.tsx` | Creative asset builder canvas for Media Agent meetings |
 | `frontend/src/components/Meeting/ExplainItCanvas.tsx` | Document editor canvas for Documentation Agent meetings |
 | `frontend/src/components/Meeting/InterfaceDesignerCanvas.tsx` | Interface contract builder canvas for Integration meetings |
@@ -245,8 +245,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/components/TestPanel/TestPanel.tsx` | Main Tests tab: summary stats, test list, add test form |
 | `frontend/src/components/TestPanel/TestList.tsx` | Test result list with pass/fail icons and expandable error details |
 | `frontend/src/components/TestPanel/AddTestForm.tsx` | Form to add behavioral tests (when/then) |
-| `frontend/src/components/SystemPanel/SystemPanel.tsx` | System main tab: three-column boundary visualization (inputs/system core/outputs) |
-| `frontend/src/components/SystemPanel/BoundaryColumn.tsx` | Reusable column component for input/output boundary items |
+| `frontend/src/components/SystemPanel/SystemPanel.tsx` | System main tab: architecture explorer (spec view pre-build, task list + detail during/post-build) |
 | `frontend/src/components/shared/ImpactPreview.tsx` | Pre-execution impact preview card (task estimate, complexity, heaviest reqs) |
 
 ### Hooks

@@ -21,15 +21,15 @@ frontend/ (React 19 + Vite)         backend/ (Express 5 + TypeScript)
 |  Metrics, Deploy)     |  events  |  -> MetaPlanner (Claude)   |
 |                       |           |  -> MeetingTriggerWiring   |
 | SystemPanel           |           |  -> PortalService (MCP/CLI)|
-| (boundary I/O/portals)|           |  -> AgentRunner (SDK)      |
-|                       |           |  -> TestRunner (pytest/node)|
+| (architecture         |           |  -> AgentRunner (SDK)      |
+|  explorer)            |           |  -> TestRunner (pytest/node)|
 | BottomBar             |           |  -> GitService (simple-git)|
-| (Timeline, Trace,     |           |  -> HardwareService       |
-|  Board, Learn,        |           |  -> TeachingEngine         |
-|  Progress, System,    |           |  -> HealthTracker          |
-|  Health, Tokens —     |           |  -> TraceabilityTracker    |
-|  contextual           |           |  -> DeviceRegistry         |
-|  visibility)          |           |     (plugin manifests)     |
+| (Trace, Board, Learn, |           |  -> HardwareService       |
+|  Progress, Health,    |           |  -> TeachingEngine         |
+|  Tokens — contextual  |           |  -> HealthTracker          |
+|  visibility)          |           |  -> TraceabilityTracker    |
+|                       |           |  -> DeviceRegistry         |
+|                       |           |     (plugin manifests)     |
 |                       |           |                           |
 | FlashWizardModal      |           |                           |
 | (multi-device flash)  |           |                           |
