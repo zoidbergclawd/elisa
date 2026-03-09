@@ -111,6 +111,23 @@ describe('BottomBar', () => {
 
   // --- Auto-switching ---
   describe('auto-switching', () => {
+    it('does NOT auto-switch to Health tab when healthSummary arrives', () => {
+      // Render with healthSummary present in done state
+      renderBottomBar({
+        buildSession: {
+          uiState: 'done' as const,
+          healthSummary: {
+            health_score: 90,
+            grade: 'A' as const,
+            breakdown: { tasks_score: 30, tests_score: 40, corrections_score: 10, budget_score: 10 },
+          },
+        },
+      });
+      // Health tab should be visible but NOT auto-selected (Learn is the default)
+      expect(screen.getByText('Health')).toBeInTheDocument();
+      expect(screen.getByText('Health').className).not.toContain('bg-accent-lavender');
+    });
+
     it('auto-switches to first visible tab when active tab becomes hidden', () => {
       // Start with Board visible (has serial data) and selected
       const { rerender } = render(<BottomBar boardInfo={null} />);

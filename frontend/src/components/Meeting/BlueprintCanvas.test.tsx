@@ -235,4 +235,132 @@ describe('BlueprintCanvas', () => {
     fireEvent.click(screen.getByLabelText('View task: Add snake movement'));
     expect(screen.queryByText('Create the main game grid')).not.toBeInTheDocument();
   });
+
+  it('shows HealthGradeCard when health_grade and health_breakdown present', () => {
+    const dataWithHealth = {
+      ...fullData,
+      health_grade: 'A',
+      health_score: 92,
+      health_breakdown: { tasks_score: 28, tests_score: 38, corrections_score: 16, budget_score: 10 },
+    };
+    render(
+      <BlueprintCanvas
+        {...defaultProps}
+        canvasState={{ type: 'blueprint', data: dataWithHealth }}
+      />,
+    );
+    expect(screen.getByTestId('health-grade-section')).toBeInTheDocument();
+    expect(screen.getByTestId('health-grade-card')).toBeInTheDocument();
+    // Old stats bar should not be shown
+    expect(screen.queryByTestId('system-stats')).not.toBeInTheDocument();
+  });
+
+  it('falls back to old stats bar when no health grade/breakdown', () => {
+    render(
+      <BlueprintCanvas
+        {...defaultProps}
+        canvasState={{ type: 'blueprint', data: fullData }}
+      />,
+    );
+    expect(screen.getByTestId('system-stats')).toBeInTheDocument();
+    expect(screen.queryByTestId('health-grade-section')).not.toBeInTheDocument();
+  });
+
+  it('renders architecture summary when complexity present', () => {
+    const dataWithArch = {
+      ...fullData,
+      complexity: 'moderate',
+      system_inputs: [{ name: 'keyboard', type: 'user_input' }],
+      system_outputs: [{ name: 'display', type: 'visual' }, { name: 'sound', type: 'audio' }],
+    };
+    render(
+      <BlueprintCanvas
+        {...defaultProps}
+        canvasState={{ type: 'blueprint', data: dataWithArch }}
+      />,
+    );
+    const summary = screen.getByTestId('architecture-summary');
+    expect(summary).toBeInTheDocument();
+    expect(summary).toHaveTextContent('moderate');
+    expect(summary).toHaveTextContent('1 input');
+    expect(summary).toHaveTextContent('2 outputs');
+  });
+
+  it('hides architecture summary when no complexity data', () => {
+    render(
+      <BlueprintCanvas
+        {...defaultProps}
+        canvasState={{ type: 'blueprint', data: fullData }}
+      />,
+    );
+    expect(screen.queryByTestId('architecture-summary')).not.toBeInTheDocument();
+  });
+
+  it('renders failing tests banner when tests have failures', () => {
+    render(
+      <BlueprintCanvas
+        {...defaultProps}
+        canvasState={{ type: 'blueprint', data: fullData }}
+      />,
+    );
+    // sampleTests has 1 failing test
+    const banner = screen.getByTestId('failing-tests-banner');
+    expect(banner).toBeInTheDocument();
+    expect(banner).toHaveTextContent('Failing Tests (1)');
+    expect(banner).toHaveTextContent('test_game_ends_on_wall_hit');
+  });
+
+  it('shows test error details in failing tests banner', () => {
+    const dataWithDetails = {
+      ...fullData,
+      tests: [
+        { name: 'test_snake_moves', passed: true },
+        { name: 'test_wall_hit', passed: false, details: 'AssertionError: expected True got False' },
+      ],
+    };
+    render(
+      <BlueprintCanvas
+        {...defaultProps}
+        canvasState={{ type: 'blueprint', data: dataWithDetails }}
+      />,
+    );
+    const banner = screen.getByTestId('failing-tests-banner');
+    expect(banner).toHaveTextContent('AssertionError: expected True got False');
+  });
+
+  it('hides failing tests banner when all tests pass', () => {
+    const allPassing = {
+      ...fullData,
+      tests: [
+        { name: 'test_a', passed: true },
+        { name: 'test_b', passed: true },
+      ],
+    };
+    render(
+      <BlueprintCanvas
+        {...defaultProps}
+        canvasState={{ type: 'blueprint', data: allPassing }}
+      />,
+    );
+    expect(screen.queryByTestId('failing-tests-banner')).not.toBeInTheDocument();
+  });
+
+  it('shows error details in task detail for failing related tests', () => {
+    const dataWithDetails = {
+      ...fullData,
+      tests: [
+        { name: 'test_board_renders', passed: false, details: 'ModuleNotFoundError: no module board' },
+      ],
+    };
+    render(
+      <BlueprintCanvas
+        {...defaultProps}
+        canvasState={{ type: 'blueprint', data: dataWithDetails }}
+      />,
+    );
+    // Click "Build game board" -> keyword "board" matches "test_board_renders"
+    fireEvent.click(screen.getByLabelText('View task: Build game board'));
+    const detail = screen.getByTestId('task-detail');
+    expect(detail).toHaveTextContent('ModuleNotFoundError: no module board');
+  });
 });

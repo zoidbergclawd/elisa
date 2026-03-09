@@ -92,13 +92,6 @@ export default function BottomBar({ boardInfo }: Props) {
     }
   }, [traceability !== null]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-switch to Health tab when health summary arrives
-  useEffect(() => {
-    if (healthSummary) {
-      setActiveTab('Health'); // eslint-disable-line react-hooks/set-state-in-effect
-    }
-  }, [healthSummary !== null]); // eslint-disable-line react-hooks/exhaustive-deps
-
   // --- Resizable height ---
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();

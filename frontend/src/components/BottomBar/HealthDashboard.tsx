@@ -1,4 +1,5 @@
 import type { HealthHistoryEntry, SystemLevel } from '../../types';
+import HealthGradeCard from '../shared/HealthGradeCard';
 
 interface HealthUpdate {
   tasks_done: number;
@@ -26,14 +27,6 @@ interface HealthDashboardProps {
   healthHistory?: HealthHistoryEntry[];
   systemLevel?: SystemLevel;
 }
-
-const GRADE_COLORS: Record<string, string> = {
-  A: 'text-accent-mint',
-  B: 'text-accent-sky',
-  C: 'text-accent-gold',
-  D: 'text-accent-coral',
-  F: 'text-red-400',
-};
 
 const GRADE_BAR_COLORS: Record<string, string> = {
   A: 'bg-accent-mint',
@@ -107,43 +100,11 @@ export default function HealthDashboard({ healthUpdate, healthSummary, healthHis
   if (healthSummary) {
     return (
       <div className="p-4">
-        <div className="flex items-center gap-4 mb-3">
-          <div className="text-center">
-            <div className={`text-3xl font-bold ${GRADE_COLORS[healthSummary.grade]}`}>
-              {healthSummary.grade}
-            </div>
-            <div className="text-xs text-atelier-text-muted">Grade</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-atelier-text">{healthSummary.health_score}</div>
-            <div className="text-xs text-atelier-text-muted">Health Score</div>
-          </div>
-        </div>
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-atelier-text-secondary">Tasks completed</span>
-            <span className="font-medium text-atelier-text">{healthSummary.breakdown.tasks_score}/30</span>
-          </div>
-          <ProgressBar value={healthSummary.breakdown.tasks_score} max={30} color="bg-accent-sky" />
-
-          <div className="flex items-center justify-between text-xs mt-1">
-            <span className="text-atelier-text-secondary">Tests passing</span>
-            <span className="font-medium text-atelier-text">{healthSummary.breakdown.tests_score}/40</span>
-          </div>
-          <ProgressBar value={healthSummary.breakdown.tests_score} max={40} color="bg-accent-mint" />
-
-          <div className="flex items-center justify-between text-xs mt-1">
-            <span className="text-atelier-text-secondary">No corrections needed</span>
-            <span className="font-medium text-atelier-text">{healthSummary.breakdown.corrections_score}/20</span>
-          </div>
-          <ProgressBar value={healthSummary.breakdown.corrections_score} max={20} color="bg-accent-lavender" />
-
-          <div className="flex items-center justify-between text-xs mt-1">
-            <span className="text-atelier-text-secondary">Under budget</span>
-            <span className="font-medium text-atelier-text">{healthSummary.breakdown.budget_score}/10</span>
-          </div>
-          <ProgressBar value={healthSummary.breakdown.budget_score} max={10} color="bg-accent-gold" />
-        </div>
+        <HealthGradeCard
+          grade={healthSummary.grade}
+          score={healthSummary.health_score}
+          breakdown={healthSummary.breakdown}
+        />
         {showTrend && <HealthTrend entries={healthHistory} />}
       </div>
     );

@@ -233,7 +233,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/components/shared/EsptoolFlashStep.tsx` | Esptool flash progress UI with port detection and manual override |
 | `frontend/src/components/Meeting/ThemePickerCanvas.tsx` | BOX-3 display theme picker canvas for Art Agent meetings |
 | `frontend/src/components/Meeting/BugDetectiveCanvas.tsx` | Bug diagnosis canvas for debug-convergence meetings |
-| `frontend/src/components/Meeting/BlueprintCanvas.tsx` | Build Explorer canvas for Architecture Agent meetings (task list, task detail, test matching, system stats) |
+| `frontend/src/components/Meeting/BlueprintCanvas.tsx` | Build Explorer canvas for Architecture Agent meetings (health grade card, architecture summary, failing tests banner, task list + detail with test details). Uses HealthGradeCard, data from architectureAgentMeeting + meetingService |
 | `frontend/src/components/Meeting/CampaignCanvas.tsx` | Creative asset builder canvas for Media Agent meetings |
 | `frontend/src/components/Meeting/ExplainItCanvas.tsx` | Document editor canvas for Documentation Agent meetings |
 | `frontend/src/components/Meeting/InterfaceDesignerCanvas.tsx` | Interface contract builder canvas for Integration meetings |
@@ -247,6 +247,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/components/TestPanel/AddTestForm.tsx` | Form to add behavioral tests (when/then) |
 | `frontend/src/components/SystemPanel/SystemPanel.tsx` | System main tab: architecture explorer (spec view pre-build, task list + detail during/post-build) |
 | `frontend/src/components/shared/ImpactPreview.tsx` | Pre-execution impact preview card (task estimate, complexity, heaviest reqs) |
+| `frontend/src/components/shared/HealthGradeCard.tsx` | Reusable health grade display (letter grade, score, 4-part breakdown bars). compact prop for canvas embedding |
 
 ### Hooks
 

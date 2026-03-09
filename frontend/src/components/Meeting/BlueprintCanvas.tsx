@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { registerCanvas, type CanvasProps } from './canvasRegistry';
+import HealthGradeCard from '../shared/HealthGradeCard';
 
 interface TaskSummary {
   id: string;
@@ -15,6 +16,19 @@ interface TaskSummary {
 interface TestSummary {
   name: string;
   passed: boolean;
+  details?: string;
+}
+
+interface HealthInfo {
+  grade: string;
+  score: number;
+  breakdown: { tasks_score: number; tests_score: number; corrections_score: number; budget_score: number };
+}
+
+interface ArchitectureInfo {
+  complexity: string;
+  input_count: number;
+  output_count: number;
 }
 
 interface SystemStats {
@@ -49,8 +63,33 @@ function parseTests(data: Record<string, unknown>): TestSummary[] {
     return {
       name: String(test.name ?? ''),
       passed: Boolean(test.passed),
+      details: test.details ? String(test.details) : undefined,
     };
   });
+}
+
+function parseHealthInfo(data: Record<string, unknown>): HealthInfo | null {
+  if (!data.health_grade || !data.health_breakdown) return null;
+  const bd = data.health_breakdown as Record<string, unknown>;
+  return {
+    grade: String(data.health_grade),
+    score: Number(data.health_score ?? 0),
+    breakdown: {
+      tasks_score: Number(bd.tasks_score ?? 0),
+      tests_score: Number(bd.tests_score ?? 0),
+      corrections_score: Number(bd.corrections_score ?? 0),
+      budget_score: Number(bd.budget_score ?? 0),
+    },
+  };
+}
+
+function parseArchitectureInfo(data: Record<string, unknown>): ArchitectureInfo | null {
+  if (!data.complexity) return null;
+  return {
+    complexity: String(data.complexity),
+    input_count: Array.isArray(data.system_inputs) ? data.system_inputs.length : 0,
+    output_count: Array.isArray(data.system_outputs) ? data.system_outputs.length : 0,
+  };
 }
 
 function parseStats(data: Record<string, unknown>): SystemStats | null {
@@ -77,6 +116,9 @@ function BlueprintCanvas({ canvasState }: CanvasProps) {
   const tasks = parseTasks(canvasState.data);
   const tests = parseTests(canvasState.data);
   const stats = parseStats(canvasState.data);
+  const healthInfo = parseHealthInfo(canvasState.data);
+  const archInfo = parseArchitectureInfo(canvasState.data);
+  const failingTests = tests.filter(t => !t.passed);
 
   const selectedTask = tasks.find((t) => t.id === selectedTaskId);
 
@@ -106,8 +148,17 @@ function BlueprintCanvas({ canvasState }: CanvasProps) {
         </p>
       </div>
 
-      {/* Stats bar */}
-      {stats && (
+      {/* Health grade or legacy stats bar */}
+      {healthInfo ? (
+        <div className="mb-4" data-testid="health-grade-section">
+          <HealthGradeCard
+            grade={healthInfo.grade}
+            score={healthInfo.score}
+            breakdown={healthInfo.breakdown}
+            compact
+          />
+        </div>
+      ) : stats ? (
         <div className="grid grid-cols-3 gap-3 mb-4" data-testid="system-stats">
           <div className="rounded-xl bg-atelier-surface/60 backdrop-blur-sm p-3 border border-border-subtle text-center">
             <p className="text-2xl font-bold text-atelier-text">{stats.tasks_done}/{stats.total_tasks}</p>
@@ -120,6 +171,44 @@ function BlueprintCanvas({ canvasState }: CanvasProps) {
           <div className="rounded-xl bg-atelier-surface/60 backdrop-blur-sm p-3 border border-border-subtle text-center">
             <p className="text-2xl font-bold text-atelier-text">{stats.health_score}</p>
             <p className="text-xs text-atelier-text-secondary">Health Score</p>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Architecture summary */}
+      {archInfo && (
+        <div className="flex items-center gap-3 mb-4 rounded-xl bg-atelier-surface/60 backdrop-blur-sm px-4 py-2.5 border border-border-subtle" data-testid="architecture-summary">
+          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+            archInfo.complexity === 'simple' ? 'bg-green-500/20 text-green-400' :
+            archInfo.complexity === 'complex' ? 'bg-red-500/20 text-red-400' :
+            'bg-yellow-500/20 text-yellow-400'
+          }`}>
+            {archInfo.complexity}
+          </span>
+          <span className="text-xs text-atelier-text-secondary">
+            {archInfo.input_count} input{archInfo.input_count !== 1 ? 's' : ''}, {archInfo.output_count} output{archInfo.output_count !== 1 ? 's' : ''}
+          </span>
+        </div>
+      )}
+
+      {/* Failing tests banner */}
+      {failingTests.length > 0 && (
+        <div className="mb-4 rounded-xl bg-red-500/10 border border-red-500/30 p-3" data-testid="failing-tests-banner">
+          <p className="text-xs font-semibold text-red-400 uppercase tracking-wide mb-2">
+            Failing Tests ({failingTests.length})
+          </p>
+          <div className="space-y-1.5">
+            {failingTests.map((test, idx) => (
+              <div key={idx} className="flex items-start gap-2">
+                <span className="w-2 h-2 rounded-full bg-red-400 shrink-0 mt-1" />
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-atelier-text truncate">{test.name}</p>
+                  {test.details && (
+                    <p className="text-xs text-atelier-text-muted mt-0.5 truncate">{test.details}</p>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -213,13 +302,18 @@ function BlueprintCanvas({ canvasState }: CanvasProps) {
                       {matchedTests.map((test, idx) => (
                         <div
                           key={idx}
-                          className="flex items-center gap-2 rounded-lg bg-atelier-surface/40 p-2 border border-border-subtle"
+                          className="flex items-start gap-2 rounded-lg bg-atelier-surface/40 p-2 border border-border-subtle"
                         >
                           <span
-                            className={`w-2 h-2 rounded-full shrink-0 ${test.passed ? 'bg-green-400' : 'bg-red-400'}`}
+                            className={`w-2 h-2 rounded-full shrink-0 mt-1 ${test.passed ? 'bg-green-400' : 'bg-red-400'}`}
                             aria-label={test.passed ? 'Test: Passed' : 'Test: Failed'}
                           />
-                          <p className="text-xs text-atelier-text truncate">{test.name}</p>
+                          <div className="min-w-0">
+                            <p className="text-xs text-atelier-text truncate">{test.name}</p>
+                            {!test.passed && test.details && (
+                              <p className="text-xs text-red-400/80 mt-0.5 truncate">{test.details}</p>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>

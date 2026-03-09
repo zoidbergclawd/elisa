@@ -121,5 +121,34 @@ describe('MeetingService', () => {
       );
       expect(greetingEvent).toBeDefined();
     });
+
+    it('pre-populates blueprint canvas with health grade, breakdown, architecture, and test details', async () => {
+      const invite = await service.createInvite('test-meeting', 'session-1', send);
+      const richContext: MeetingBuildContext = {
+        ...buildContext,
+        healthGrade: 'B',
+        healthScore: 82,
+        healthBreakdown: { tasks_score: 25, tests_score: 35, corrections_score: 12, budget_score: 10 },
+        complexity: 'moderate',
+        systemInputs: [{ name: 'keyboard', type: 'user_input' }],
+        systemOutputs: [{ name: 'display', type: 'visual' }],
+        testResults: [
+          { test_name: 'test_show_temperature', passed: true, details: '' },
+          { test_name: 'test_wind_speed', passed: false, details: 'AssertionError: expected 5 got 0' },
+        ],
+      };
+      const result = await service.acceptMeeting(invite!.id, send, richContext);
+      expect(result!.canvas.data).toMatchObject({
+        health_grade: 'B',
+        health_breakdown: { tasks_score: 25, tests_score: 35, corrections_score: 12, budget_score: 10 },
+        complexity: 'moderate',
+        system_inputs: [{ name: 'keyboard', type: 'user_input' }],
+        system_outputs: [{ name: 'display', type: 'visual' }],
+      });
+      // Tests include details
+      const tests = result!.canvas.data.tests as Array<{ name: string; passed: boolean; details: string }>;
+      expect(tests).toHaveLength(2);
+      expect(tests[1]).toMatchObject({ name: 'test_wind_speed', passed: false, details: 'AssertionError: expected 5 got 0' });
+    });
   });
 });
