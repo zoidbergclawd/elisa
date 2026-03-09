@@ -164,6 +164,9 @@ async function validateStartupHealth(): Promise<void> {
 
 class ConnectionManager {
   private connections = new Map<string, Set<WebSocket>>();
+  // Per-session send queue: serializes all ws.send() calls
+  private sendQueues = new Map<string, Array<{ data: string; eventType: string; resolve: () => void }>>();
+  private draining = new Map<string, boolean>();
 
   connect(sessionId: string, ws: WebSocket): void {
     if (!this.connections.has(sessionId)) {
@@ -182,26 +185,80 @@ class ConnectionManager {
 
   async sendEvent(sessionId: string, event: WSEvent): Promise<void> {
     const conns = this.connections.get(sessionId);
-    if (!conns) return;
+    if (!conns || conns.size === 0) return;
+
     const data = JSON.stringify(event);
-    for (const ws of conns) {
-      try {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(data);
-        } else if (event.type.startsWith('meeting_')) {
-          console.warn(`[ws] dropped ${event.type} for session=${sessionId} (readyState=${ws.readyState})`);
-        }
-      } catch {
-        // ignore send errors
+
+    return new Promise<void>((resolve) => {
+      let queue = this.sendQueues.get(sessionId);
+      if (!queue) {
+        queue = [];
+        this.sendQueues.set(sessionId, queue);
       }
-    }
-    // Yield to the event loop so the proxy can forward this frame
-    // before the next send. Prevents tight loops of ws.send() from
-    // burst-flooding the Vite dev proxy's pipe buffer.
-    await new Promise<void>(resolve => { setImmediate(resolve); });
+      queue.push({ data, eventType: event.type, resolve });
+
+      if (queue.length === 10 || queue.length === 50 || queue.length === 100) {
+        console.warn(`[ws-queue] depth=${queue.length} session=${sessionId} latest=${event.type}`);
+      }
+
+      if (!this.draining.get(sessionId)) {
+        this.drainQueue(sessionId);
+      }
+    });
+  }
+
+  private drainQueue(sessionId: string): void {
+    this.draining.set(sessionId, true);
+    const startTime = Date.now();
+    let count = 0;
+
+    const drainNext = () => {
+      const queue = this.sendQueues.get(sessionId);
+      if (!queue || queue.length === 0) {
+        this.draining.set(sessionId, false);
+        if (count > 5) {
+          console.log(`[ws-queue] drained session=${sessionId} sent=${count} elapsed=${Date.now() - startTime}ms`);
+        }
+        return;
+      }
+
+      const { data, eventType, resolve } = queue.shift()!;
+      const conns = this.connections.get(sessionId);
+
+      if (conns) {
+        for (const ws of conns) {
+          try {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(data);
+            } else if (eventType.startsWith('meeting_')) {
+              console.warn(`[ws] dropped ${eventType} for session=${sessionId} (readyState=${ws.readyState})`);
+            }
+          } catch {
+            // ignore send errors
+          }
+        }
+      }
+
+      count++;
+      resolve();
+
+      // Yield to event loop before next frame so proxy can forward
+      setImmediate(drainNext);
+    };
+
+    // First frame sends immediately (no yield)
+    drainNext();
   }
 
   cleanup(sessionId: string): void {
+    // Resolve pending promises so callers don't hang
+    const queue = this.sendQueues.get(sessionId);
+    if (queue) {
+      for (const entry of queue) entry.resolve();
+      this.sendQueues.delete(sessionId);
+    }
+    this.draining.delete(sessionId);
+
     const conns = this.connections.get(sessionId);
     if (conns) {
       for (const ws of conns) {
