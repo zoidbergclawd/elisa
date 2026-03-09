@@ -318,8 +318,8 @@ describe('POST /api/sessions/:sessionId/meetings/:meetingId/end', () => {
     expect(status).toBe(409);
   });
 
-  it('resets cleanup timer on meeting end', async () => {
-    const sessionId = createSession();
+  it('resets cleanup timer on meeting end when session is done', async () => {
+    const sessionId = createDoneSession();
     const sendEvent = async (event: any) => { sentEvents.push(event); };
     const meeting = await meetingService.createInvite('test-meeting', sessionId, sendEvent as any);
     await meetingService.acceptMeeting(meeting!.id, sendEvent as any);
@@ -330,11 +330,30 @@ describe('POST /api/sessions/:sessionId/meetings/:meetingId/end', () => {
     );
     expect(spy).toHaveBeenCalledWith(sessionId);
   });
+
+  it('does NOT reset cleanup timer on meeting end during build', async () => {
+    const sessionId = createSession(); // state='executing'
+    const sendEvent = async (event: any) => { sentEvents.push(event); };
+    const meeting = await meetingService.createInvite('test-meeting', sessionId, sendEvent as any);
+    await meetingService.acceptMeeting(meeting!.id, sendEvent as any);
+    const spy = vi.spyOn(store, 'scheduleCleanup');
+    await fetchJSON(
+      `/api/sessions/${sessionId}/meetings/${meeting!.id}/end`,
+      { method: 'POST' },
+    );
+    expect(spy).not.toHaveBeenCalled();
+  });
 });
 
-describe('Cleanup timer resets on meeting activity', () => {
-  it('resets cleanup timer on meeting accept', async () => {
-    const sessionId = createSession();
+function createDoneSession(): string {
+  const id = 'done-session';
+  store.create(id, { id, state: 'done', spec: null, tasks: [], agents: [] });
+  return id;
+}
+
+describe('Cleanup timer resets on post-build meeting activity', () => {
+  it('resets cleanup timer on meeting accept when session is done', async () => {
+    const sessionId = createDoneSession();
     const sendEvent = async (event: any) => { sentEvents.push(event); };
     const meeting = await meetingService.createInvite('test-meeting', sessionId, sendEvent as any);
     const spy = vi.spyOn(store, 'scheduleCleanup');
@@ -345,8 +364,20 @@ describe('Cleanup timer resets on meeting activity', () => {
     expect(spy).toHaveBeenCalledWith(sessionId);
   });
 
-  it('resets cleanup timer on meeting message', async () => {
-    const sessionId = createSession();
+  it('does NOT reset cleanup timer on meeting accept during build', async () => {
+    const sessionId = createSession(); // state='executing'
+    const sendEvent = async (event: any) => { sentEvents.push(event); };
+    const meeting = await meetingService.createInvite('test-meeting', sessionId, sendEvent as any);
+    const spy = vi.spyOn(store, 'scheduleCleanup');
+    await fetchJSON(
+      `/api/sessions/${sessionId}/meetings/${meeting!.id}/accept`,
+      { method: 'POST' },
+    );
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('resets cleanup timer on meeting message when session is done', async () => {
+    const sessionId = createDoneSession();
     const sendEvent = async (event: any) => { sentEvents.push(event); };
     const meeting = await meetingService.createInvite('test-meeting', sessionId, sendEvent as any);
     await meetingService.acceptMeeting(meeting!.id, sendEvent as any);
@@ -356,5 +387,18 @@ describe('Cleanup timer resets on meeting activity', () => {
       { method: 'POST', body: JSON.stringify({ content: 'Hello' }) },
     );
     expect(spy).toHaveBeenCalledWith(sessionId);
+  });
+
+  it('does NOT reset cleanup timer on meeting message during build', async () => {
+    const sessionId = createSession(); // state='executing'
+    const sendEvent = async (event: any) => { sentEvents.push(event); };
+    const meeting = await meetingService.createInvite('test-meeting', sessionId, sendEvent as any);
+    await meetingService.acceptMeeting(meeting!.id, sendEvent as any);
+    const spy = vi.spyOn(store, 'scheduleCleanup');
+    await fetchJSON(
+      `/api/sessions/${sessionId}/meetings/${meeting!.id}/message`,
+      { method: 'POST', body: JSON.stringify({ content: 'Hello' }) },
+    );
+    expect(spy).not.toHaveBeenCalled();
   });
 });

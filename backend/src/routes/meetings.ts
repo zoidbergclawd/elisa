@@ -219,7 +219,8 @@ export function createMeetingRouter({ store, meetingService, meetingAgentService
       res.status(409).json({ detail: 'Meeting cannot be accepted (not in invited state)' });
       return;
     }
-    store.scheduleCleanup(sessionId); // Reset 5-min cleanup timer on meeting accept
+    // Reset cleanup timer only post-build (during build it's already cancelled)
+    if (session?.session?.state === 'done') store.scheduleCleanup(sessionId);
     res.json(result);
 
     // Fire-and-forget: generate a contextual agent follow-up after the canned greeting
@@ -296,7 +297,9 @@ export function createMeetingRouter({ store, meetingService, meetingAgentService
       res.status(409).json({ detail: 'Meeting is not active' });
       return;
     }
-    store.scheduleCleanup(sessionId); // Reset 5-min cleanup timer on meeting message
+    // Reset cleanup timer only post-build (during build it's already cancelled)
+    const sessionEntry = store.get(sessionId);
+    if (sessionEntry?.session?.state === 'done') store.scheduleCleanup(sessionId);
 
     // Return kid message immediately (don't block on agent)
     res.json(message);
@@ -485,7 +488,8 @@ export function createMeetingRouter({ store, meetingService, meetingAgentService
     // Resolve any task blocked on this meeting
     const session = store.get(sessionId);
     session?.orchestrator?.resolveMeetingBlock(req.params.meetingId);
-    store.scheduleCleanup(sessionId); // Reset 5-min cleanup timer on meeting end
+    // Reset cleanup timer only post-build (during build it's already cancelled)
+    if (session?.session?.state === 'done') store.scheduleCleanup(sessionId);
     res.json(result);
   });
 
