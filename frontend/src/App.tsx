@@ -492,9 +492,14 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
             {lastBugReport && !isFixing && (
               <div className="mb-4">
                 <button
-                  onClick={() => {
-                    requestFix(lastBugReport);
+                  onClick={async () => {
+                    const report = lastBugReport;
                     setLastBugReport(null);
+                    try {
+                      await requestFix(report);
+                    } catch {
+                      handleBuildEvent({ type: 'error', message: 'Session expired. Please build again.', recoverable: false });
+                    }
                   }}
                   className="w-full px-4 py-3 rounded-xl text-sm cursor-pointer font-medium border border-red-500/30 bg-red-950/30 text-red-400 hover:bg-red-950/50 transition-colors text-center"
                 >

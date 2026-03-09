@@ -274,13 +274,13 @@ export function useMeetingSession(sessionId: string | null) {
   /** Request a targeted bug fix via POST /api/sessions/:id/fix. */
   const requestFix = useCallback(async (bugReport: string) => {
     if (!sessionId) return;
-    try {
-      await authFetch(`/api/sessions/${sessionId}/fix`, {
-        method: 'POST',
-        body: JSON.stringify({ bugReport }),
-      });
-    } catch (err) {
-      console.error('[meeting] requestFix failed:', err);
+    const res = await authFetch(`/api/sessions/${sessionId}/fix`, {
+      method: 'POST',
+      body: JSON.stringify({ bugReport }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(data.detail || 'Fix request failed');
     }
   }, [sessionId]);
 
@@ -294,7 +294,11 @@ export function useMeetingSession(sessionId: string | null) {
       const bugReport = strategy === 'deep'
         ? 'Deep analysis and fix of all failing tests. Review test output, trace root causes, and apply comprehensive fixes.'
         : 'Quick fix for failing tests. Review errors and apply targeted patches.';
-      await requestFix(bugReport);
+      try {
+        await requestFix(bugReport);
+      } catch (err) {
+        console.error('[meeting] canvas requestFix failed:', err instanceof Error ? err.message : err);
+      }
       return;
     }
 
