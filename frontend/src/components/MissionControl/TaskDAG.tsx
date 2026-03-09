@@ -266,14 +266,17 @@ function TaskDAGInner({
         const task = displayTasks.find(t => t.id === node.id)!;
         const isParallel = parallelTaskIds.has(task.id);
         const isMeetingBlocked = meetingBlockedTasks?.includes(task.id) ?? false;
+        const isFixTask = task.id.startsWith('fix-') || task.id === '__fix_pending__';
         const reqColor = getRequirementColor(task);
         const isHighlighted = hoveredReqId
           ? task.requirement_ids?.includes(hoveredReqId)
           : true;
 
-        // Determine border with requirement coloring or meeting-blocked indicator
+        // Determine border with requirement coloring, fix task, or meeting-blocked indicator
         let border = STATUS_BORDERS[task.status] || STATUS_BORDERS.pending;
-        if (isMeetingBlocked) {
+        if (isFixTask) {
+          border = '2px solid #F59E0B';
+        } else if (isMeetingBlocked) {
           border = '2px solid #F59E0B';
         } else if (reqColor && task.status === 'pending') {
           border = `2px solid ${reqColor}40`;
@@ -284,7 +287,12 @@ function TaskDAGInner({
           position: { x: node.x || 0, y: node.y || 0 },
           ariaLabel: `${task.name}, status: ${task.status}, agent: ${task.agent_name}`,
           data: {
-            label: isMeetingBlocked ? (
+            label: isFixTask ? (
+              <>
+                <span className="taskdag-fix-badge" data-testid="fix-badge">Fix</span>
+                {truncate(task.name, 25)}
+              </>
+            ) : isMeetingBlocked ? (
               <>
                 <span className="taskdag-meeting-badge" data-testid="meeting-blocked-badge">Meeting</span>
                 {truncate(task.name, 25)}
@@ -295,6 +303,7 @@ function TaskDAGInner({
             agentRole: agents?.find(a => a.name === task.agent_name)?.role,
             isParallel,
             isComplete,
+            isFixTask,
             isMeetingBlocked,
             description: task.description,
           },
@@ -312,7 +321,7 @@ function TaskDAGInner({
             alignItems: 'center',
             justifyContent: 'center',
             padding: '4px 8px',
-            boxShadow: isMeetingBlocked
+            boxShadow: isFixTask || isMeetingBlocked
               ? '0 2px 12px rgba(245, 158, 11, 0.35)'
               : task.status === 'in_progress'
                 ? '0 2px 12px rgba(61, 143, 214, 0.25)'
@@ -323,7 +332,7 @@ function TaskDAGInner({
                     : 'none',
             opacity: hoveredReqId && !isHighlighted ? 0.3 : 1,
             transition: 'opacity 0.2s ease',
-            animation: isMeetingBlocked
+            animation: isFixTask || isMeetingBlocked
               ? 'taskdag-meeting-pulse 2s infinite'
               : task.status === 'in_progress' ? 'taskdag-pulse 1.5s infinite' : undefined,
           },
@@ -388,6 +397,22 @@ function TaskDAGInner({
           pointer-events: none;
         }
         .taskdag-meeting-badge {
+          position: absolute;
+          top: -8px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: #F59E0B;
+          color: #fff;
+          font-size: 8px;
+          font-weight: 700;
+          padding: 1px 6px;
+          border-radius: 6px;
+          line-height: 1.4;
+          pointer-events: none;
+          white-space: nowrap;
+          animation: taskdag-meeting-pulse 2s infinite;
+        }
+        .taskdag-fix-badge {
           position: absolute;
           top: -8px;
           left: 50%;

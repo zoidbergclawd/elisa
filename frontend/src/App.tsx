@@ -114,7 +114,7 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
     uiState, tasks, agents, events, sessionId,
     teachingMoments, deployUrls, errorNotification, testResults,
     nuggetDir, startBuild, stopBuild, clearErrorNotification, resetToDesign,
-    launchWorkspace,
+    launchWorkspace, isFixing,
   } = useBuildSessionContext();
 
   const {
@@ -135,7 +135,6 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
 
   // Post-bug-report fix state
   const [lastBugReport, setLastBugReport] = useState<string | null>(null);
-  const [fixInProgress, setFixInProgress] = useState(false);
   const prevActiveMeetingRef = useRef<typeof activeMeeting>(null);
 
   useEffect(() => {
@@ -149,7 +148,6 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
         .map(m => m.content);
       if (kidMessages.length > 0) {
         setLastBugReport(kidMessages.join('\n'));
-        setFixInProgress(false);
       }
     }
   }, [activeMeeting]);
@@ -491,12 +489,11 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
               </div>
             )}
             {/* Fix reported bugs -- shown after Bug Detective meeting */}
-            {lastBugReport && !fixInProgress && (
+            {lastBugReport && !isFixing && (
               <div className="mb-4">
                 <button
                   onClick={() => {
                     requestFix(lastBugReport);
-                    setFixInProgress(true);
                     setLastBugReport(null);
                   }}
                   className="w-full px-4 py-3 rounded-xl text-sm cursor-pointer font-medium border border-red-500/30 bg-red-950/30 text-red-400 hover:bg-red-950/50 transition-colors text-center"
@@ -505,7 +502,7 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
                 </button>
               </div>
             )}
-            {fixInProgress && (
+            {isFixing && (
               <div className="mb-4 px-4 py-3 rounded-xl text-sm border border-amber-500/30 bg-amber-950/20 text-amber-400 text-center">
                 Fix in progress...
               </div>

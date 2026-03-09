@@ -76,4 +76,15 @@ describe('MinionSquadPanel', () => {
     render(<MinionSquadPanel agents={agents} uiState="design" />);
     expect(screen.queryByText(/Minions will appear/)).not.toBeInTheDocument();
   });
+
+  it('renders fixer agent with working status during fix', () => {
+    const agents: Agent[] = [
+      { name: 'Builder Bot', role: 'builder', persona: '', status: 'idle' },
+      { name: 'fixer', role: 'builder', persona: 'Bug fixer', status: 'working' },
+    ];
+    render(<MinionSquadPanel agents={agents} uiState="building" />);
+    const fixerAvatar = screen.getByTestId('avatar-fixer');
+    expect(fixerAvatar).toBeInTheDocument();
+    expect(fixerAvatar.getAttribute('data-status')).toBe('working');
+  });
 });

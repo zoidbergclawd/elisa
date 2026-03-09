@@ -217,8 +217,11 @@ describe('Post-bug-report Fix button', () => {
     expect(screen.getByText('Fix reported bugs')).toBeInTheDocument();
   });
 
-  it('calls requestFix and shows progress indicator when Fix button clicked', async () => {
-    await renderWithBugMeetingEnded();
+  it('calls requestFix when Fix button clicked and shows progress when isFixing is true', async () => {
+    const { useBuildSession } = await import('./hooks/useBuildSession');
+    const mockUseBuild = useBuildSession as ReturnType<typeof vi.fn>;
+
+    const result = await renderWithBugMeetingEnded();
 
     const fixButton = screen.getByText('Fix reported bugs');
     await act(async () => { fireEvent.click(fixButton); });
@@ -228,8 +231,12 @@ describe('Post-bug-report Fix button', () => {
       'The button does not work\nAlso the color is wrong'
     );
 
-    // Button should be replaced with progress indicator
+    // Button should be gone (lastBugReport cleared)
     expect(screen.queryByText('Fix reported bugs')).not.toBeInTheDocument();
+
+    // Simulate backend responding with fix_started (isFixing becomes true via context)
+    mockUseBuild.mockReturnValue({ ...buildSessionDefaults, isFixing: true });
+    await act(async () => { result.rerender(<App />); });
     expect(screen.getByText('Fix in progress...')).toBeInTheDocument();
   });
 

@@ -99,6 +99,7 @@ export interface BuildSessionState {
   healthHistory: HealthHistoryEntry[];
   agentOutputs: Record<string, string[]>;
   isFixing: boolean;
+  fixPhase: 'fixing' | 'retesting' | null;
   meetingBlockedTasks: string[];
 }
 
@@ -140,6 +141,7 @@ export const initialState: BuildSessionState = {
   healthHistory: [],
   agentOutputs: {},
   isFixing: false,
+  fixPhase: null,
   meetingBlockedTasks: [],
 };
 
@@ -236,13 +238,41 @@ function handleWSEvent(state: BuildSessionState, event: WSEvent, deploySteps: Ar
       return { ...state, events, isPlanning: false, tasks: planTasks, agents: event.agents };
     }
 
-    case 'task_started':
+    case 'task_started': {
+      const taskExists = state.tasks.some(t => t.id === event.task_id);
+      let updatedTasks: Task[];
+      if (taskExists) {
+        updatedTasks = updateTasks(state.tasks, event.task_id, 'in_progress');
+      } else if (state.isFixing) {
+        // During fix: replace placeholder or append new fix task
+        const hasPlaceholder = state.tasks.some(t => t.id === '__fix_pending__');
+        if (hasPlaceholder) {
+          updatedTasks = state.tasks.map(t =>
+            t.id === '__fix_pending__'
+              ? { ...t, id: event.task_id, status: 'in_progress' as const, agent_name: event.agent_name }
+              : t,
+          );
+        } else {
+          updatedTasks = [...state.tasks, {
+            id: event.task_id,
+            name: 'Bug Fix',
+            description: '',
+            status: 'in_progress' as const,
+            agent_name: event.agent_name,
+            dependencies: [],
+          }];
+        }
+      } else {
+        // Unknown task outside fix flow -- ignore
+        updatedTasks = state.tasks;
+      }
       return {
         ...state,
         events,
-        tasks: updateTasks(state.tasks, event.task_id, 'in_progress'),
+        tasks: updatedTasks,
         agents: updateAgents(state.agents, event.agent_name, 'working'),
       };
+    }
 
     case 'task_completed': {
       const completedTask = state.tasks.find(t => t.id === event.task_id);
@@ -785,15 +815,35 @@ function handleWSEvent(state: BuildSessionState, event: WSEvent, deploySteps: Ar
     case 'workspace_created':
       return { ...state, events, nuggetDir: event.nugget_dir };
 
-    case 'fix_started':
-      return { ...state, events, isFixing: true, uiState: 'building' };
-
-    case 'fix_task_completed': {
-      const fixTask = state.tasks.find(t => t.id === event.taskId);
+    case 'fix_started': {
+      const fixTask: Task = {
+        id: '__fix_pending__',
+        name: 'Bug Fix',
+        description: event.bugReport ?? '',
+        status: 'pending',
+        agent_name: 'fixer',
+        dependencies: [],
+      };
+      const hasFixer = state.agents.some(a => a.name === 'fixer');
+      const fixerAgent: Agent = { name: 'fixer', role: 'builder', persona: 'Bug fixer', status: 'idle' };
       return {
         ...state,
         events,
-        tasks: fixTask
+        isFixing: true,
+        fixPhase: 'fixing',
+        uiState: 'building',
+        tasks: [...state.tasks, fixTask],
+        agents: hasFixer ? state.agents : [...state.agents, fixerAgent],
+      };
+    }
+
+    case 'fix_task_completed': {
+      const fixedTask = state.tasks.find(t => t.id === event.taskId);
+      return {
+        ...state,
+        events,
+        fixPhase: 'retesting',
+        tasks: fixedTask
           ? updateTasks(state.tasks, event.taskId, event.success ? 'done' : 'failed')
           : state.tasks,
       };
@@ -804,6 +854,7 @@ function handleWSEvent(state: BuildSessionState, event: WSEvent, deploySteps: Ar
         ...state,
         events,
         isFixing: false,
+        fixPhase: null,
         uiState: 'done',
         testResults: resolvePendingTests(state.testResults.map(t => ({ ...t })), 'No matching test was generated'),
       };
@@ -1030,6 +1081,7 @@ export function useBuildSession() {
     healthHistory: state.healthHistory,
     agentOutputs: state.agentOutputs,
     isFixing: state.isFixing,
+    fixPhase: state.fixPhase,
     meetingBlockedTasks: state.meetingBlockedTasks,
     handleEvent,
     startBuild,

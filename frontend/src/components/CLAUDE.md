@@ -15,11 +15,11 @@ App.tsx
   AgentTeam/AgentTeamPanel.tsx       Full-width agent cards + comms feed (Agents tab)
   TaskMap/TaskMapPanel.tsx           Full-width interactive task DAG (Tasks tab)
   SystemPanel/SystemPanel.tsx        System main tab: architecture explorer (spec view pre-build, task list + detail during/post-build)
-  MissionControl/MissionControlPanel.tsx  Main mission control layout with narrator feed + minion squad
+  MissionControl/MissionControlPanel.tsx  Main mission control layout with narrator feed + minion squad + fix banner above DAG when isFixing
   MissionControl/MinionSquadPanel.tsx     Minion cards with status badges and task assignments
   MissionControl/NarratorFeed.tsx         Scrolling narrator message feed with mood indicators
   MissionControl/PlanningIndicator.tsx    Planning phase status indicator
-  MissionControl/TaskDAG.tsx         @xyflow/react graph of task dependencies (pulsing amber badge on meeting-blocked tasks)
+  MissionControl/TaskDAG.tsx         @xyflow/react graph of task dependencies (pulsing amber badge on meeting-blocked and fix tasks)
   MissionControl/CommsFeed.tsx       Scrolling agent message log
   MissionControl/MetricsPanel.tsx    Token usage bars per agent, cost display, budget percentage
   MissionControl/FeedbackLoopIndicator.tsx  Correction cycle animation + attempt counter for retrying tasks
@@ -96,5 +96,5 @@ App.tsx
 - BlockCanvas stays mounted (hidden via CSS) to preserve Blockly workspace state across tab switches.
 - Auto-switch: build starts -> Agents tab + Progress bottom tab.
 - Modals use fixed positioning with backdrop overlay. Only one modal shows at a time.
-- Done modal: "Fix It" button appears when any task failed or tests failing, navigates to Team tab for Bug Detective. "Fix reported bugs" button appears after a Bug Detective meeting ends (captures kid messages as bug report, calls `requestFix()` to kick off builder agent, shows progress indicator). "Report a Bug" button always available post-build. "Your team wants to chat" button appears when invites are pending.
+- Done modal: "Fix It" button appears when any task failed or tests failing, navigates to Team tab for Bug Detective. "Fix reported bugs" button appears after a Bug Detective meeting ends (captures kid messages as bug report, calls `requestFix()`). Fix progress uses `isFixing` from build session context (not local state); resets automatically via `fix_tests_completed` event. "Report a Bug" button always available post-build. "Your team wants to chat" button appears when invites are pending.
 - Skills/Rules and workspace state are persisted to localStorage and restored on page load via `syncDesignToStorage` helper.

@@ -83,6 +83,8 @@ export interface BuildSessionContextValue {
     };
   } | null;
   healthHistory: HealthHistoryEntry[];
+  isFixing: boolean;
+  fixPhase: 'fixing' | 'retesting' | null;
   meetingBlockedTasks: string[];
   boundaryAnalysis: {
     inputs: Array<{ name: string; type: string; source?: string }>;

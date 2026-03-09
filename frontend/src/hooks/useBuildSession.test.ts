@@ -1543,4 +1543,92 @@ describe('useBuildSession', () => {
       expect(result.current.testResults[0].details).toBe('No matching test was generated');
     });
   });
+
+  // === Fix flow visual feedback ===
+
+  describe('fix flow visual feedback', () => {
+    it('fix_started adds placeholder fix task and fixer agent, sets fixPhase to fixing', () => {
+      const { result } = renderHook(() => useBuildSession());
+      act(() => result.current.handleEvent(makePlanReady()));
+      act(() => result.current.handleEvent({ type: 'fix_started', bugReport: 'Button is broken' } as WSEvent));
+
+      expect(result.current.isFixing).toBe(true);
+      expect(result.current.fixPhase).toBe('fixing');
+      // Placeholder fix task appended
+      const fixTask = result.current.tasks.find(t => t.id === '__fix_pending__');
+      expect(fixTask).toBeDefined();
+      expect(fixTask!.name).toBe('Bug Fix');
+      expect(fixTask!.description).toBe('Button is broken');
+      expect(fixTask!.status).toBe('pending');
+      expect(fixTask!.agent_name).toBe('fixer');
+      // Fixer agent added
+      const fixer = result.current.agents.find(a => a.name === 'fixer');
+      expect(fixer).toBeDefined();
+      expect(fixer!.role).toBe('builder');
+    });
+
+    it('task_started during fix replaces __fix_pending__ with real task ID', () => {
+      const { result } = renderHook(() => useBuildSession());
+      act(() => result.current.handleEvent(makePlanReady()));
+      act(() => result.current.handleEvent({ type: 'fix_started', bugReport: 'Bug' } as WSEvent));
+      act(() => result.current.handleEvent({ type: 'task_started', task_id: 'fix-abc', agent_name: 'fixer' }));
+
+      // Placeholder replaced
+      expect(result.current.tasks.find(t => t.id === '__fix_pending__')).toBeUndefined();
+      const realTask = result.current.tasks.find(t => t.id === 'fix-abc');
+      expect(realTask).toBeDefined();
+      expect(realTask!.status).toBe('in_progress');
+      expect(realTask!.agent_name).toBe('fixer');
+    });
+
+    it('task_started during fix appends new task when no placeholder exists', () => {
+      const { result } = renderHook(() => useBuildSession());
+      // Manually put state into isFixing without placeholder
+      act(() => result.current.handleEvent(makePlanReady()));
+      act(() => result.current.handleEvent({ type: 'fix_started', bugReport: 'Bug' } as WSEvent));
+      // Replace placeholder first
+      act(() => result.current.handleEvent({ type: 'task_started', task_id: 'fix-1', agent_name: 'fixer' }));
+      // Second fix task -- no placeholder left
+      act(() => result.current.handleEvent({ type: 'task_started', task_id: 'fix-2', agent_name: 'fixer' }));
+
+      expect(result.current.tasks.filter(t => t.id.startsWith('fix-'))).toHaveLength(2);
+    });
+
+    it('fix_task_completed sets fixPhase to retesting', () => {
+      const { result } = renderHook(() => useBuildSession());
+      act(() => result.current.handleEvent(makePlanReady()));
+      act(() => result.current.handleEvent({ type: 'fix_started', bugReport: 'Bug' } as WSEvent));
+      act(() => result.current.handleEvent({ type: 'task_started', task_id: 'fix-abc', agent_name: 'fixer' }));
+      act(() => result.current.handleEvent({ type: 'fix_task_completed', taskId: 'fix-abc', success: true }));
+
+      expect(result.current.fixPhase).toBe('retesting');
+      expect(result.current.isFixing).toBe(true);
+      const fixTask = result.current.tasks.find(t => t.id === 'fix-abc');
+      expect(fixTask!.status).toBe('done');
+    });
+
+    it('fix_tests_completed resets fixPhase to null and isFixing to false', () => {
+      const { result } = renderHook(() => useBuildSession());
+      act(() => result.current.handleEvent(makePlanReady()));
+      act(() => result.current.handleEvent({ type: 'fix_started', bugReport: 'Bug' } as WSEvent));
+      act(() => result.current.handleEvent({ type: 'task_started', task_id: 'fix-abc', agent_name: 'fixer' }));
+      act(() => result.current.handleEvent({ type: 'fix_task_completed', taskId: 'fix-abc', success: true }));
+      act(() => result.current.handleEvent({ type: 'fix_tests_completed', passed: 1, failed: 0, total: 1 }));
+
+      expect(result.current.fixPhase).toBeNull();
+      expect(result.current.isFixing).toBe(false);
+      expect(result.current.uiState).toBe('done');
+    });
+
+    it('does not duplicate fixer agent on repeated fix_started', () => {
+      const { result } = renderHook(() => useBuildSession());
+      act(() => result.current.handleEvent(makePlanReady()));
+      act(() => result.current.handleEvent({ type: 'fix_started', bugReport: 'Bug 1' } as WSEvent));
+      act(() => result.current.handleEvent({ type: 'fix_tests_completed', passed: 1, failed: 0, total: 1 }));
+      act(() => result.current.handleEvent({ type: 'fix_started', bugReport: 'Bug 2' } as WSEvent));
+
+      const fixerAgents = result.current.agents.filter(a => a.name === 'fixer');
+      expect(fixerAgents).toHaveLength(1);
+    });
+  });
 });
