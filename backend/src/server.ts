@@ -185,6 +185,8 @@ class ConnectionManager {
       try {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(data);
+        } else if (event.type.startsWith('meeting_')) {
+          console.warn(`[ws] dropped ${event.type} for session=${sessionId} (readyState=${ws.readyState})`);
         }
       } catch {
         // ignore send errors

@@ -373,6 +373,159 @@ describe('useWebSocket', () => {
     );
   });
 
+  // === Reconnect meeting sync ===
+
+  /** Helper: URL-aware fetch mock for parallel session + meetings fetches */
+  function stubDualFetch(
+    sessionData: Record<string, unknown>,
+    meetingsData: unknown[],
+  ) {
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/meetings')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => meetingsData,
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => sessionData,
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
+  const baseSessionData = {
+    tasks: [{ id: 't1', name: 'Task', description: '', status: 'in_progress', agent_name: 'Sparky', dependencies: [] }],
+    agents: [{ name: 'Sparky', role: 'builder', persona: '', status: 'working' }],
+  };
+
+  async function reconnect(onEvent: ReturnType<typeof vi.fn>) {
+    renderHook(() => useWebSocket({ sessionId: 'sess-1', onEvent }));
+    act(() => MockWebSocket.instances[0].simulateOpen());
+    act(() => MockWebSocket.instances[0].simulateClose());
+    act(() => { vi.advanceTimersByTime(1000); });
+    await act(async () => {
+      MockWebSocket.instances[1].simulateOpen();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+  }
+
+  it('reconnect syncs invited meetings (emits meeting_invite)', async () => {
+    stubDualFetch(baseSessionData, [
+      {
+        id: 'm1', meetingTypeId: 'buddy', status: 'invited',
+        agentName: 'Buddy', title: 'Check-in', description: 'How is it going?',
+        canvas: { type: 'explain-it', data: {} }, messages: [], outcomes: [],
+      },
+    ]);
+
+    const onEvent = vi.fn();
+    await reconnect(onEvent);
+
+    expect(onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'meeting_invite',
+        meetingId: 'm1',
+        meetingTypeId: 'buddy',
+        agentName: 'Buddy',
+        title: 'Check-in',
+        description: 'How is it going?',
+      }),
+    );
+  });
+
+  it('reconnect syncs active meeting with messages and canvas', async () => {
+    stubDualFetch(baseSessionData, [
+      {
+        id: 'm2', meetingTypeId: 'architect', status: 'active',
+        agentName: 'Blueprint', title: 'Review', description: 'Arch review',
+        canvas: { type: 'blueprint', data: { tasks: ['t1'] } },
+        messages: [
+          { role: 'agent', content: 'Welcome!' },
+          { role: 'kid', content: 'Hi!' },
+        ],
+        outcomes: [{ type: 'approval', data: { approved: true } }],
+      },
+    ]);
+
+    const onEvent = vi.fn();
+    await reconnect(onEvent);
+
+    expect(onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'meeting_started', meetingId: 'm2', canvasType: 'blueprint' }),
+    );
+    expect(onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'meeting_message', meetingId: 'm2', role: 'agent', content: 'Welcome!' }),
+    );
+    expect(onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'meeting_message', meetingId: 'm2', role: 'kid', content: 'Hi!' }),
+    );
+    expect(onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'meeting_canvas_update', meetingId: 'm2', canvasType: 'blueprint', data: { tasks: ['t1'] } }),
+    );
+    expect(onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'meeting_outcome', meetingId: 'm2', outcomeType: 'approval' }),
+    );
+  });
+
+  it('reconnect clears stale active meeting when backend shows completed', async () => {
+    stubDualFetch(baseSessionData, [
+      {
+        id: 'm3', meetingTypeId: 'buddy', status: 'completed',
+        agentName: 'Buddy', title: 'Done', description: 'All done',
+        canvas: { type: 'explain-it', data: {} }, messages: [],
+        outcomes: [{ type: 'summary', data: { text: 'Great job' } }],
+      },
+    ]);
+
+    const onEvent = vi.fn();
+    await reconnect(onEvent);
+
+    expect(onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'meeting_ended',
+        meetingId: 'm3',
+        outcomes: [{ type: 'summary', data: { text: 'Great job' } }],
+      }),
+    );
+  });
+
+  it('reconnect handles empty meetings list (no meeting events)', async () => {
+    stubDualFetch(baseSessionData, []);
+
+    const onEvent = vi.fn();
+    await reconnect(onEvent);
+
+    const meetingEvents = onEvent.mock.calls
+      .map(c => c[0])
+      .filter((e: { type: string }) => e.type.startsWith('meeting_'));
+    expect(meetingEvents).toHaveLength(0);
+  });
+
+  it('reconnect meeting fetch failure is silent', async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/meetings')) {
+        return Promise.reject(new Error('Network error'));
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => baseSessionData,
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const onEvent = vi.fn();
+    // Should not throw
+    await reconnect(onEvent);
+
+    // Session sync still works
+    expect(onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'plan_ready' }),
+    );
+  });
+
   it('reconnect emits session_complete when session state is done', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
