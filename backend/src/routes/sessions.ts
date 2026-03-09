@@ -181,13 +181,14 @@ export function createSessionRouter({ store, sendEvent, hardwareService, deviceR
 
     let cancelled = false;
     const sessionId = req.params.id;
+    store.cancelCleanup(sessionId); // Don't clean up during build
     const promise = orchestrator.run(spec);
     promise
       .catch((err) => {
         if (!cancelled) console.error('Orchestrator run error:', err);
       })
       .finally(() => {
-        store.scheduleCleanup(sessionId);
+        store.scheduleCleanup(sessionId); // Re-arm after build completes
       });
 
     entry.cancelFn = () => {

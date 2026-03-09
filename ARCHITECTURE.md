@@ -171,7 +171,7 @@ Note: `reviewing` is a transient state during human gate pauses within execution
 
 ## Storage
 
-- **Session state**: In-memory `Map<sessionId, Session>` with optional JSON persistence for crash recovery
+- **Session state**: In-memory `Map<sessionId, Session>` with optional JSON persistence for crash recovery. Cleanup timer (5 min) starts on WS connect; cancelled at build start, re-armed after build completes. Meeting accepts and fix/launch requests also reset the timer.
 - **Workspace**: Temp directory per session (`/tmp/elisa-nugget-{timestamp}`) or user-chosen directory. Contains generated code, tests, git repo, `.elisa/` metadata, and design artifacts (nugget.json, dag.json, workspace.json, etc.)
 - **localStorage**: Workspace JSON, skills, and rules auto-saved in browser (`elisa:workspace`, `elisa:skills`, `elisa:rules`). Restored on page load.
 - **Nugget files**: `.elisa` zip format for export/import (workspace + skills + rules + generated code)

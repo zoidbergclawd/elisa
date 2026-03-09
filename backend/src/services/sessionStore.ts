@@ -102,6 +102,15 @@ export class SessionStore {
     return count;
   }
 
+  /** Cancel a pending cleanup timer without deleting the session. */
+  cancelCleanup(id: string): void {
+    const timer = this.cleanupTimers.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      this.cleanupTimers.delete(id);
+    }
+  }
+
   /** Schedule cleanup of a session after a grace period. */
   scheduleCleanup(id: string, delayMs = CLEANUP_DELAY_MS): void {
     // Clear any existing timer

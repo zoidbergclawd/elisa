@@ -39,6 +39,17 @@ import type { WSEvent } from './services/phases/types.js';
 
 const wsAlive = new WeakMap<WebSocket, boolean>();
 
+/** Per-connection diagnostics metadata for debugging disconnects. */
+interface WsConnectionMeta {
+  connectedAt: number;
+  sessionId: string;
+  lastPongAt: number;
+  pingsSent: number;
+  pongsReceived: number;
+  lastEventType: string;
+}
+const wsMeta = new WeakMap<WebSocket, WsConnectionMeta>();
+
 // -- State --
 
 const store = new SessionStore();
@@ -230,6 +241,8 @@ class ConnectionManager {
           try {
             if (ws.readyState === WebSocket.OPEN) {
               ws.send(data);
+              const meta = wsMeta.get(ws);
+              if (meta) meta.lastEventType = eventType;
             } else if (eventType.startsWith('meeting_')) {
               console.warn(`[ws] dropped ${eventType} for session=${sessionId} (readyState=${ws.readyState})`);
             }
@@ -452,24 +465,50 @@ export function startServer(
     if (sessionMatch) {
       const wsToken = url.searchParams.get('token');
       if (wsToken !== token) {
+        console.warn(`[ws] upgrade rejected: bad token for session=${sessionMatch[1]}`);
         socket.destroy();
         return;
       }
 
       const sessionId = sessionMatch[1];
       if (!store.has(sessionId)) {
+        console.warn(`[ws] upgrade rejected: session not found id=${sessionId}`);
         socket.destroy();
         return;
       }
 
       wss.handleUpgrade(request, socket, head, (ws) => {
         wsAlive.set(ws, true);
+        const meta: WsConnectionMeta = {
+          connectedAt: Date.now(),
+          sessionId,
+          lastPongAt: Date.now(),
+          pingsSent: 0,
+          pongsReceived: 0,
+          lastEventType: '',
+        };
+        wsMeta.set(ws, meta);
         manager.connect(sessionId, ws);
         store.scheduleCleanup(sessionId); // Reset 5-min cleanup timer on connect/reconnect
-        ws.on('pong', () => { wsAlive.set(ws, true); });
+        // Clear socket-level timeout so Node doesn't close the underlying TCP socket
+        (ws as any)._socket?.setTimeout?.(0);
+        ws.on('pong', () => {
+          wsAlive.set(ws, true);
+          meta.pongsReceived++;
+          meta.lastPongAt = Date.now();
+        });
         ws.on('close', (code, reason) => {
           (ws as any)._closeCode = code;
           (ws as any)._closeReason = reason?.toString() ?? '';
+          const age = ((Date.now() - meta.connectedAt) / 1000).toFixed(1);
+          const pongRatio = meta.pingsSent > 0
+            ? `${meta.pongsReceived}/${meta.pingsSent}`
+            : 'n/a';
+          const buffered = (ws as any).bufferedAmount ?? 0;
+          console.log(
+            `[ws] disconnect session=${sessionId} code=${code} reason="${reason?.toString() ?? ''}"` +
+            ` age=${age}s pongs=${pongRatio} buffered=${buffered} lastEvent=${meta.lastEventType}`,
+          );
           manager.disconnect(sessionId, ws);
         });
         ws.on('error', (err) => {
@@ -642,8 +681,16 @@ export function startServer(
   // WebSocket heartbeat -- protocol-level pings keep connections alive through proxies
   const heartbeatInterval = setInterval(() => {
     for (const ws of manager.allConnections()) {
-      if (wsAlive.get(ws) === false) { ws.terminate(); continue; }
+      if (wsAlive.get(ws) === false) {
+        const meta = wsMeta.get(ws);
+        const age = meta ? ((Date.now() - meta.connectedAt) / 1000).toFixed(1) : '?';
+        console.warn(`[ws] heartbeat terminate session=${meta?.sessionId ?? '?'} age=${age}s (missed pong)`);
+        ws.terminate();
+        continue;
+      }
       wsAlive.set(ws, false);
+      const meta = wsMeta.get(ws);
+      if (meta) meta.pingsSent++;
       ws.ping();
     }
     for (const ws of runtimeConnections) {
@@ -663,10 +710,16 @@ export function startServer(
   }, 600_000);
   pruneInterval.unref();
 
+  // Disable Node HTTP server timeouts so long-running builds aren't killed.
+  // Node 24 defaults requestTimeout to 300s which can close idle WS connections.
+  server.requestTimeout = 0;
+  server.timeout = 0;
+
   return new Promise((resolve) => {
     const host = process.env.HOST ?? '127.0.0.1';
     server.listen(port, host, () => {
       console.log(`Elisa backend listening on ${host}:${port}`);
+      console.log(`[ws] Server timeouts: requestTimeout=${server.requestTimeout} timeout=${server.timeout}`);
       if (process.env.NODE_ENV !== 'production') {
         console.log(`Auth token: ${token}`);
       }
