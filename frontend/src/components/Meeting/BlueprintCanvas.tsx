@@ -137,7 +137,7 @@ function BlueprintCanvas({ canvasState }: CanvasProps) {
   })();
 
   return (
-    <div className="flex flex-col h-full" data-testid="blueprint-canvas">
+    <div className="flex flex-col h-full overflow-y-auto" data-testid="blueprint-canvas">
       {/* Header */}
       <div className="mb-4">
         <h3 className="text-lg font-display font-bold text-atelier-text">
@@ -214,7 +214,7 @@ function BlueprintCanvas({ canvasState }: CanvasProps) {
       )}
 
       {/* Two-panel layout */}
-      <div className="flex-1 flex gap-4 min-h-0">
+      <div className="flex-1 flex gap-4 min-h-[300px]">
         {/* Left panel: scrollable task list */}
         <div className="w-1/2 flex flex-col min-h-0">
           <p className="text-xs font-semibold text-atelier-text-secondary uppercase tracking-wide mb-2">
