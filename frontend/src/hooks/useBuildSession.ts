@@ -98,6 +98,9 @@ export interface BuildSessionState {
   compositionImpacts: Array<{ graph_id: string; changed_node_id: string; affected_nodes: Array<{ node_id: string; label: string; reason: string }>; severity: string }>;
   healthHistory: HealthHistoryEntry[];
   agentOutputs: Record<string, string[]>;
+  isFixing: boolean;
+  fixPhase: 'fixing' | 'retesting' | null;
+  meetingBlockedTasks: string[];
 }
 
 const INITIAL_TOKEN_USAGE: TokenUsage = { input: 0, output: 0, total: 0, costUsd: 0, maxBudget: 500_000, perAgent: {} };
@@ -137,6 +140,9 @@ export const initialState: BuildSessionState = {
   compositionImpacts: [],
   healthHistory: [],
   agentOutputs: {},
+  isFixing: false,
+  fixPhase: null,
+  meetingBlockedTasks: [],
 };
 
 // -- Actions --
@@ -154,6 +160,15 @@ export type BuildSessionAction =
   | { type: 'STOP_BUILD' };
 
 // -- Helpers for task updates --
+
+function resolvePendingTests(testResults: TestResult[], reason: string): TestResult[] {
+  if (!testResults.some(t => t.status === 'pending')) return testResults;
+  return testResults.map(t =>
+    t.status === 'pending'
+      ? { ...t, status: 'failed' as const, details: reason }
+      : t,
+  );
+}
 
 function updateTasks(tasks: Task[], taskId: string, status: Task['status']): Task[] {
   return tasks.map(t => t.id === taskId ? { ...t, status } : t);
@@ -223,13 +238,41 @@ function handleWSEvent(state: BuildSessionState, event: WSEvent, deploySteps: Ar
       return { ...state, events, isPlanning: false, tasks: planTasks, agents: event.agents };
     }
 
-    case 'task_started':
+    case 'task_started': {
+      const taskExists = state.tasks.some(t => t.id === event.task_id);
+      let updatedTasks: Task[];
+      if (taskExists) {
+        updatedTasks = updateTasks(state.tasks, event.task_id, 'in_progress');
+      } else if (state.isFixing) {
+        // During fix: replace placeholder or append new fix task
+        const hasPlaceholder = state.tasks.some(t => t.id === '__fix_pending__');
+        if (hasPlaceholder) {
+          updatedTasks = state.tasks.map(t =>
+            t.id === '__fix_pending__'
+              ? { ...t, id: event.task_id, status: 'in_progress' as const, agent_name: event.agent_name }
+              : t,
+          );
+        } else {
+          updatedTasks = [...state.tasks, {
+            id: event.task_id,
+            name: 'Bug Fix',
+            description: '',
+            status: 'in_progress' as const,
+            agent_name: event.agent_name,
+            dependencies: [],
+          }];
+        }
+      } else {
+        // Unknown task outside fix flow -- ignore
+        updatedTasks = state.tasks;
+      }
       return {
         ...state,
         events,
-        tasks: updateTasks(state.tasks, event.task_id, 'in_progress'),
+        tasks: updatedTasks,
         agents: updateAgents(state.agents, event.agent_name, 'working'),
       };
+    }
 
     case 'task_completed': {
       const completedTask = state.tasks.find(t => t.id === event.task_id);
@@ -364,6 +407,7 @@ function handleWSEvent(state: BuildSessionState, event: WSEvent, deploySteps: Ar
         events,
         uiState: 'done',
         agents: state.agents.map(a => ({ ...a, status: 'done' as const })),
+        testResults: resolvePendingTests(state.testResults, 'No matching test was generated'),
       };
 
     case 'teaching_moment':
@@ -379,16 +423,56 @@ function handleWSEvent(state: BuildSessionState, event: WSEvent, deploySteps: Ar
         }],
       };
 
-    case 'test_result':
+    case 'test_expectations': {
+      // Add pending test entries that don't already exist
+      const existingNames = new Set(state.testResults.map(t => t.test_name));
+      const pendingTests: TestResult[] = event.tests
+        .filter(t => !existingNames.has(t.name))
+        .map(t => ({
+          test_name: t.name,
+          passed: false,
+          details: t.description,
+          status: 'pending' as const,
+        }));
       return {
         ...state,
         events,
-        testResults: [...state.testResults, {
-          test_name: event.test_name,
-          passed: event.passed,
-          details: event.details,
-        }],
+        testResults: [...state.testResults, ...pendingTests],
       };
+    }
+
+    case 'test_result': {
+      const newResult: TestResult = {
+        test_name: event.test_name,
+        passed: event.passed,
+        details: event.details,
+        status: event.passed ? 'passed' : 'failed',
+        task_id: event.task_id,
+      };
+      // Find existing test by name and update in place (pending->failed, failed->passed)
+      const existingIdx = state.testResults.findIndex(t => t.test_name === event.test_name);
+      if (existingIdx >= 0) {
+        const updated = [...state.testResults];
+        updated[existingIdx] = newResult;
+        return { ...state, events, testResults: updated };
+      }
+      // New test not seen before -- append
+      return { ...state, events, testResults: [...state.testResults, newResult] };
+    }
+
+    case 'test_phase_complete': {
+      // Resolve any remaining pending stubs now that real testing is done.
+      // If no real tests ran (total === 0), mark pending stubs as failed.
+      // If some real tests ran, pending stubs are unmatched placeholders -- remove them.
+      const resolved: TestResult[] = event.total === 0
+        ? state.testResults.map(t =>
+            t.status === 'pending'
+              ? { ...t, status: 'failed' as const, details: 'No matching test was generated' }
+              : t,
+          )
+        : state.testResults.filter(t => t.status !== 'pending');
+      return { ...state, events, testResults: resolved };
+    }
 
     case 'coverage_update':
       return { ...state, events, coveragePct: event.percentage };
@@ -712,8 +796,68 @@ function handleWSEvent(state: BuildSessionState, event: WSEvent, deploySteps: Ar
         healthHistory: event.entries,
       };
 
+    case 'meeting_blocking_task':
+      return {
+        ...state,
+        events,
+        meetingBlockedTasks: state.meetingBlockedTasks.includes(event.task_id)
+          ? state.meetingBlockedTasks
+          : [...state.meetingBlockedTasks, event.task_id],
+      };
+
+    case 'meeting_unblocking_task':
+      return {
+        ...state,
+        events,
+        meetingBlockedTasks: state.meetingBlockedTasks.filter(id => id !== event.task_id),
+      };
+
     case 'workspace_created':
       return { ...state, events, nuggetDir: event.nugget_dir };
+
+    case 'fix_started': {
+      const fixTask: Task = {
+        id: '__fix_pending__',
+        name: 'Bug Fix',
+        description: event.bugReport ?? '',
+        status: 'pending',
+        agent_name: 'fixer',
+        dependencies: [],
+      };
+      const hasFixer = state.agents.some(a => a.name === 'fixer');
+      const fixerAgent: Agent = { name: 'fixer', role: 'builder', persona: 'Bug fixer', status: 'idle' };
+      return {
+        ...state,
+        events,
+        isFixing: true,
+        fixPhase: 'fixing',
+        uiState: 'building',
+        tasks: [...state.tasks, fixTask],
+        agents: hasFixer ? state.agents : [...state.agents, fixerAgent],
+      };
+    }
+
+    case 'fix_task_completed': {
+      const fixedTask = state.tasks.find(t => t.id === event.taskId);
+      return {
+        ...state,
+        events,
+        fixPhase: 'retesting',
+        tasks: fixedTask
+          ? updateTasks(state.tasks, event.taskId, event.success ? 'done' : 'failed')
+          : state.tasks,
+      };
+    }
+
+    case 'fix_tests_completed':
+      return {
+        ...state,
+        events,
+        isFixing: false,
+        fixPhase: null,
+        uiState: 'done',
+        testResults: resolvePendingTests(state.testResults.map(t => ({ ...t })), 'No matching test was generated'),
+      };
 
     case 'error': {
       let errorMsg = event.message;
@@ -733,6 +877,9 @@ function handleWSEvent(state: BuildSessionState, event: WSEvent, deploySteps: Ar
         tasks: isDeployError
           ? updateTasksMulti(state.tasks, t => t.id.startsWith('__deploy') && t.status === 'in_progress', 'failed')
           : state.tasks,
+        testResults: !event.recoverable
+          ? resolvePendingTests(state.testResults, 'Build ended with error')
+          : state.testResults,
       };
     }
 
@@ -782,6 +929,7 @@ export function buildSessionReducer(state: BuildSessionState, action: BuildSessi
         ...state,
         uiState: 'done',
         agents: state.agents.map(a => ({ ...a, status: 'done' as const })),
+        testResults: resolvePendingTests(state.testResults, 'Build was stopped'),
       };
 
     default:
@@ -878,6 +1026,25 @@ export function useBuildSession() {
     deployStepsRef.current = [];
   }, []);
 
+  const launchWorkspace = useCallback(async (workspacePath?: string) => {
+    if (!state.sessionId) return;
+    try {
+      const body: Record<string, string> = {};
+      if (workspacePath) body.workspace_path = workspacePath;
+      const res = await authFetch(`/api/sessions/${state.sessionId}/launch`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ detail: res.statusText }));
+        dispatch({ type: 'SET_ERROR', message: data.detail || 'Launch failed', recoverable: true });
+      }
+      // deploy_complete WS event will update deployUrls automatically
+    } catch {
+      dispatch({ type: 'SET_ERROR', message: 'Failed to launch workspace', recoverable: true });
+    }
+  }, [state.sessionId]);
+
   return {
     uiState: state.uiState,
     tasks: state.tasks,
@@ -913,6 +1080,9 @@ export function useBuildSession() {
     compositionImpacts: state.compositionImpacts,
     healthHistory: state.healthHistory,
     agentOutputs: state.agentOutputs,
+    isFixing: state.isFixing,
+    fixPhase: state.fixPhase,
+    meetingBlockedTasks: state.meetingBlockedTasks,
     handleEvent,
     startBuild,
     stopBuild,
@@ -920,5 +1090,6 @@ export function useBuildSession() {
     clearQuestionRequest,
     clearErrorNotification,
     resetToDesign,
+    launchWorkspace,
   };
 }

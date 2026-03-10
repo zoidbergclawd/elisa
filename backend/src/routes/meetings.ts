@@ -124,10 +124,16 @@ function buildMeetingContext(session: SessionEntry | undefined): MeetingBuildCon
     testsTotal: session?.session.testResults?.total ?? 0,
     healthScore: session?.session.healthSummary?.score ?? 0,
     healthGrade: session?.session.healthSummary?.grade ?? '',
-    testResults: (session?.orchestrator?.getTestResults()?.tests ?? []).map(t => ({
+    testResults: (session?.orchestrator?.getTestResults?.()?.tests ?? []).map(t => ({
       test_name: t.test_name,
       passed: t.passed,
+      details: t.details,
     })),
+    healthBreakdown: session?.session.healthSummary?.breakdown,
+    complexity: session?.session.impactEstimate?.complexity,
+    heaviestRequirements: session?.session.impactEstimate?.heaviest_requirements,
+    systemInputs: session?.session.boundaryAnalysis?.inputs,
+    systemOutputs: session?.session.boundaryAnalysis?.outputs,
   };
 }
 
@@ -138,6 +144,41 @@ export function createMeetingRouter({ store, meetingService, meetingAgentService
   function makeSend(sessionId: string): SendEvent {
     return (event) => sendEvent(sessionId, event);
   }
+
+  // Start a kid-initiated meeting (create invite + immediately accept)
+  router.post('/start', async (req, res) => {
+    const sessionId = (req.params as Record<string, string>).sessionId;
+    const entry = store.get(sessionId);
+    if (!entry) {
+      res.status(404).json({ detail: 'Session not found' });
+      return;
+    }
+    const { meetingTypeId } = req.body as { meetingTypeId?: string };
+    if (!meetingTypeId) {
+      res.status(400).json({ detail: 'meetingTypeId required' });
+      return;
+    }
+
+    const send = makeSend(sessionId);
+    const meeting = await meetingService.createInvite(meetingTypeId, sessionId, send);
+    if (!meeting) {
+      res.status(400).json({ detail: `Unknown meeting type: ${meetingTypeId}` });
+      return;
+    }
+
+    // Mark as kid-initiated so auto-end logic is skipped
+    meeting.kidInitiated = true;
+
+    // Immediately accept with build context
+    const buildContext = buildMeetingContext(entry);
+    await meetingService.acceptMeeting(meeting.id, send, buildContext);
+
+    // Resolve meeting block if orchestrator is waiting
+    entry.orchestrator?.resolveMeetingBlock(meeting.id);
+
+    store.scheduleCleanup(sessionId); // Reset 5-min cleanup timer on meeting start
+    res.json({ meetingId: meeting.id });
+  });
 
   // List all meetings for a session
   router.get('/', (req, res) => {
@@ -184,6 +225,8 @@ export function createMeetingRouter({ store, meetingService, meetingAgentService
       res.status(409).json({ detail: 'Meeting cannot be accepted (not in invited state)' });
       return;
     }
+    // Reset cleanup timer only post-build (during build it's already cancelled)
+    if (session?.session?.state === 'done') store.scheduleCleanup(sessionId);
     res.json(result);
 
     // Fire-and-forget: generate a contextual agent follow-up after the canned greeting
@@ -260,6 +303,9 @@ export function createMeetingRouter({ store, meetingService, meetingAgentService
       res.status(409).json({ detail: 'Meeting is not active' });
       return;
     }
+    // Reset cleanup timer only post-build (during build it's already cancelled)
+    const sessionEntry = store.get(sessionId);
+    if (sessionEntry?.session?.state === 'done') store.scheduleCleanup(sessionId);
 
     // Return kid message immediately (don't block on agent)
     res.json(message);
@@ -270,10 +316,35 @@ export function createMeetingRouter({ store, meetingService, meetingAgentService
     const priorMeeting = meetingService.getMeeting(meetingId);
     const agentMsgsBefore = (priorMeeting?.messages ?? []).filter((m: MeetingMessage) => m.role === 'agent');
     const lastAgentMsg = agentMsgsBefore[agentMsgsBefore.length - 1];
-    const shouldAutoEnd = lastAgentMsg && (
+    const shouldAutoEnd = !priorMeeting?.kidInitiated && lastAgentMsg && (
       (isClosingQuestion(lastAgentMsg.content) && isAffirmativeResponse(content.trim())) ||
       (isDismissalQuestion(lastAgentMsg.content) && isNegativeResponse(content.trim()))
     );
+
+    // Helper: run auto-end (materialize + close meeting + unblock pipeline)
+    const tryAutoEnd = async () => {
+      if (!shouldAutoEnd) return;
+      const meetingNow = meetingService.getMeeting(meetingId);
+      if (!meetingNow || meetingNow.status !== 'active') return;
+
+      // Auto-materialize if canvas type supports it
+      const canvasType = meetingNow.canvas.type;
+      if (getMaterializableTypes().includes(canvasType) && Object.keys(meetingNow.canvas.data).length > 0) {
+        const sessionNow = store.get(sessionId);
+        const nuggetDir = sessionNow?.orchestrator?.nuggetDir;
+        if (nuggetDir) {
+          try {
+            materialize(canvasType, meetingNow.canvas.data as Record<string, unknown>, nuggetDir);
+          } catch (err) {
+            console.error('[meetings] auto-materialize failed:', err instanceof Error ? err.message : err);
+          }
+        }
+      }
+      // End the meeting
+      await meetingService.endMeeting(meetingId, makeSend(sessionId));
+      const sessionNow = store.get(sessionId);
+      sessionNow?.orchestrator?.resolveMeetingBlock(meetingId);
+    };
 
     // Fire-and-forget: generate agent response asynchronously
     const meetingType = meetingService.getMeetingType(meeting.meetingTypeId);
@@ -296,30 +367,6 @@ export function createMeetingRouter({ store, meetingService, meetingAgentService
           if (response.canvasUpdate && Object.keys(response.canvasUpdate).length > 0 && !skipCanvasUpdate) {
             await meetingService.updateCanvas(meetingId, response.canvasUpdate, makeSend(sessionId));
           }
-
-          // Auto-end: materialize canvas data and close the meeting
-          if (shouldAutoEnd) {
-            const meetingNow = meetingService.getMeeting(meetingId);
-            if (meetingNow && meetingNow.status === 'active') {
-              // Auto-materialize if canvas type supports it
-              const canvasType = meetingNow.canvas.type;
-              if (getMaterializableTypes().includes(canvasType) && Object.keys(meetingNow.canvas.data).length > 0) {
-                const sessionNow = store.get(sessionId);
-                const nuggetDir = sessionNow?.orchestrator?.nuggetDir;
-                if (nuggetDir) {
-                  try {
-                    materialize(canvasType, meetingNow.canvas.data as Record<string, unknown>, nuggetDir);
-                  } catch (err) {
-                    console.error('[meetings] auto-materialize failed:', err instanceof Error ? err.message : err);
-                  }
-                }
-              }
-              // End the meeting
-              await meetingService.endMeeting(meetingId, makeSend(sessionId));
-              const sessionNow = store.get(sessionId);
-              sessionNow?.orchestrator?.resolveMeetingBlock(meetingId);
-            }
-          }
         })
         .catch((err) => {
           console.error('[meetings] agent response failed:', err instanceof Error ? err.message : err);
@@ -330,7 +377,19 @@ export function createMeetingRouter({ store, meetingService, meetingAgentService
             "Hmm, let me think... Can you ask me again?",
             makeSend(sessionId),
           ).catch((fallbackErr) => { console.error('[meetings] fallback message failed:', fallbackErr instanceof Error ? fallbackErr.message : fallbackErr); });
+        })
+        .finally(() => {
+          // Auto-end runs after agent response (success or failure) so the meeting
+          // always closes when the kid confirmed readiness.
+          tryAutoEnd().catch((err) => {
+            console.error('[meetings] auto-end failed:', err instanceof Error ? err.message : err);
+          });
         });
+    } else if (shouldAutoEnd) {
+      // No meeting type (edge case) but auto-end was triggered -- still close the meeting
+      tryAutoEnd().catch((err) => {
+        console.error('[meetings] auto-end failed:', err instanceof Error ? err.message : err);
+      });
     }
   });
 
@@ -435,6 +494,8 @@ export function createMeetingRouter({ store, meetingService, meetingAgentService
     // Resolve any task blocked on this meeting
     const session = store.get(sessionId);
     session?.orchestrator?.resolveMeetingBlock(req.params.meetingId);
+    // Reset cleanup timer only post-build (during build it's already cancelled)
+    if (session?.session?.state === 'done') store.scheduleCleanup(sessionId);
     res.json(result);
   });
 

@@ -13,6 +13,8 @@ export default defineConfig({
       '/ws': {
         target: 'ws://localhost:8000',
         ws: true,
+        timeout: 0,
+        proxyTimeout: 0,
       },
     },
   },

@@ -24,6 +24,7 @@ import type { NarratorService } from '../narratorService.js';
 import type { PermissionPolicy } from '../permissionPolicy.js';
 import type { DeviceRegistry } from '../deviceRegistry.js';
 import type { FeedbackLoopTracker } from '../feedbackLoopTracker.js';
+import type { TestRunner } from '../testRunner.js';
 import { ContextManager } from '../../utils/contextManager.js';
 import type { TokenTracker } from '../../utils/tokenTracker.js';
 import { TaskDAG } from '../../utils/dag.js';
@@ -46,6 +47,7 @@ export interface TaskExecutorDeps {
   permissionPolicy?: PermissionPolicy;
   feedbackLoopTracker?: FeedbackLoopTracker;
   deviceRegistry?: DeviceRegistry;
+  testRunner?: TestRunner;
 }
 
 export interface TaskExecutionResult {
@@ -129,6 +131,26 @@ export class TaskExecutor {
     });
 
     let userPrompt = builtUserPrompt;
+
+    // Emit test expectations before execution so the Tests tab shows pending tests
+    const expectedTests = this.buildTestExpectations(task);
+    if (expectedTests.length > 0) {
+      await ctx.send({ type: 'test_expectations', task_id: taskId, tests: expectedTests });
+    }
+
+    // Generate test file with FAIL stubs (TDD "red" phase)
+    this.generateTestFile(task, options.nuggetDir);
+
+    // Emit initial failing test results so UI transitions pending -> red
+    for (const exp of expectedTests) {
+      await ctx.send({
+        type: 'test_result',
+        test_name: exp.name,
+        passed: false,
+        details: 'Not yet implemented',
+        task_id: taskId,
+      });
+    }
 
     let retryCount = 0;
     const maxRetries = 2;
@@ -421,6 +443,27 @@ export class TaskExecutor {
       });
     }
 
+    // Per-task TDD: run this task's test file and emit results (red -> green)
+    if (this.deps.testRunner) {
+      const testFile = path.join(options.nuggetDir, 'tests', `test_${taskId}.js`);
+      if (fs.existsSync(testFile)) {
+        const testResult = await this.deps.testRunner.runSingleTestFile(testFile, options.nuggetDir);
+        for (const test of testResult.tests) {
+          await ctx.send({
+            type: 'test_result',
+            test_name: test.test_name,
+            passed: test.passed,
+            details: test.details,
+            task_id: taskId,
+          });
+        }
+        // Save output for retry context
+        const testOutputPath = path.join(options.nuggetDir, '.elisa', 'status', 'test_output.txt');
+        const outputLines = testResult.tests.map(t => `${t.passed ? 'PASS' : 'FAIL'}: ${t.test_name}`);
+        fs.writeFileSync(testOutputPath, outputLines.join('\n'), 'utf-8');
+      }
+    }
+
     await ctx.send({
       type: 'task_completed',
       task_id: taskId,
@@ -658,5 +701,49 @@ export class TaskExecutor {
         }),
       ]);
     };
+  }
+
+  /**
+   * Parse a task's acceptance criteria into test expectation stubs.
+   * Each criterion becomes a pending test entry shown on the Tests tab.
+   */
+  buildTestExpectations(task: Task): Array<{ name: string; description: string }> {
+    const criteria = task.acceptance_criteria;
+    if (!criteria || criteria.length === 0) return [];
+
+    return criteria.map((criterion, i) => {
+      const trimmed = criterion.trim();
+      // Convert the criterion text into a test-style name
+      const name = trimmed
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, '')
+        .replace(/\s+/g, '_')
+        .slice(0, 80) || `criterion_${i + 1}`;
+      return { name: `test_${name}`, description: trimmed };
+    });
+  }
+
+  /**
+   * Generate a JS test file from acceptance criteria.
+   * Each criterion becomes a console.log('FAIL: test_name') line.
+   */
+  generateTestFile(task: Task, nuggetDir: string): string | null {
+    const expectations = this.buildTestExpectations(task);
+    if (expectations.length === 0) return null;
+
+    const lines = [
+      `// TDD tests for task: ${task.name ?? task.id}`,
+      '// Make these tests pass by implementing the features!',
+      '',
+    ];
+    for (const exp of expectations) {
+      lines.push(`console.log('FAIL: ${exp.name}');`);
+    }
+
+    const testsDir = path.join(nuggetDir, 'tests');
+    fs.mkdirSync(testsDir, { recursive: true });
+    const testFile = path.join(testsDir, `test_${task.id}.js`);
+    fs.writeFileSync(testFile, lines.join('\n') + '\n', 'utf-8');
+    return testFile;
   }
 }

@@ -51,7 +51,11 @@ export interface BuildSession {
   tasks: Task[];
   agents: Agent[];
   testResults?: { passed: number; total: number };
-  healthSummary?: { score: number; grade: string };
+  individualTestResults?: Array<{ test_name: string; passed: boolean; details: string }>;
+  testPhaseComplete?: boolean;
+  healthSummary?: { score: number; grade: string; breakdown: { tasks_score: number; tests_score: number; corrections_score: number; budget_score: number } };
+  impactEstimate?: { estimated_tasks: number; complexity: string; heaviest_requirements: string[] };
+  boundaryAnalysis?: { inputs: Array<{ name: string; type: string; source?: string }>; outputs: Array<{ name: string; type: string; source?: string }>; boundary_portals: string[] };
 }
 
 export interface AgentResult {

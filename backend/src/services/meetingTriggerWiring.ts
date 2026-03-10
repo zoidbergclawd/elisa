@@ -5,6 +5,10 @@
  * meeting invites when matches are found. Respects system level gating:
  * auto-invites only fire at Explorer level (shouldAutoInviteMeetings).
  *
+ * Team filtering: if the spec includes a `meeting_team` array, only
+ * always-on defaults and explicitly selected agents fire. Without
+ * team blocks, only always-on defaults fire.
+ *
  * Deduplicates per meeting type per session: once a meeting type has been
  * invited in a session, subsequent matching events are ignored.
  */
@@ -14,13 +18,25 @@ import type { MeetingRegistry } from './meetingRegistry.js';
 import type { MeetingService } from './meetingService.js';
 import type { SendEvent } from './phases/types.js';
 import type { SystemLevel } from './systemLevelService.js';
+import type { NuggetSpec } from '../utils/specValidator.js';
 import { shouldAutoInviteMeetings } from './systemLevelService.js';
+
+/** Meeting types that always fire without needing team blocks. */
+const ALWAYS_ON = new Set([
+  'buddy-agent',
+  'doc-agent',
+  'architecture-agent',
+  'debug-convergence',
+  'design-task-agent',
+]);
 
 export class MeetingTriggerWiring {
   private triggerEngine: MeetingTriggerEngine;
   private meetingService: MeetingService;
   /** Tracks which meeting type IDs have already been invited per session. */
   private invitedTypes = new Map<string, Set<string>>();
+  /** NuggetSpec per session for team filtering. */
+  private sessionSpecs = new Map<string, NuggetSpec>();
 
   constructor(registry: MeetingRegistry, meetingService: MeetingService) {
     this.triggerEngine = new MeetingTriggerEngine(registry);
@@ -28,9 +44,35 @@ export class MeetingTriggerWiring {
   }
 
   /**
+   * Set the NuggetSpec for a session so team filtering can reference it.
+   */
+  setSpec(sessionId: string, spec: NuggetSpec): void {
+    this.sessionSpecs.set(sessionId, spec);
+  }
+
+  /**
+   * Check whether a meeting type is enabled for this session based on the
+   * meeting_team spec field. Always-on types bypass the filter.
+   */
+  private isEnabledForSession(meetingTypeId: string, sessionId: string): boolean {
+    if (ALWAYS_ON.has(meetingTypeId)) return true;
+
+    const spec = this.sessionSpecs.get(sessionId);
+    const team = spec?.meeting_team;
+    // No team blocks at all -> only defaults fire
+    if (!team || team.length === 0) return false;
+
+    return team.some(m =>
+      (m.type === 'builtin' && m.meetingTypeId === meetingTypeId) ||
+      (m.type === 'custom' && m.meetingTypeId === meetingTypeId),
+    );
+  }
+
+  /**
    * Evaluate a build event and create meeting invites for any matching types.
    * No-ops if the system level does not allow auto-invites.
    * Deduplicates: each meeting type fires at most once per session.
+   * Applies team filtering.
    */
   async evaluateAndInvite(
     eventType: string,
@@ -44,6 +86,7 @@ export class MeetingTriggerWiring {
     const matches = this.triggerEngine.evaluate(eventType, eventData);
     for (const match of matches) {
       if (this.hasBeenInvited(sessionId, match.meetingType.id)) continue;
+      if (!this.isEnabledForSession(match.meetingType.id, sessionId)) continue;
 
       await this.meetingService.createInvite(
         match.meetingType.id,
@@ -57,6 +100,7 @@ export class MeetingTriggerWiring {
   /**
    * Evaluate task_starting triggers and create meeting invites for matching types.
    * Returns IDs of created meetings so callers can block on them.
+   * Applies team filtering.
    */
   async evaluateAndInviteForTask(
     taskData: {
@@ -76,6 +120,8 @@ export class MeetingTriggerWiring {
     const meetingIds: string[] = [];
 
     for (const match of matches) {
+      if (!this.isEnabledForSession(match.meetingType.id, sessionId)) continue;
+
       const meeting = await this.meetingService.createInvite(
         match.meetingType.id,
         sessionId,
@@ -95,10 +141,11 @@ export class MeetingTriggerWiring {
   }
 
   /**
-   * Clear dedup state for a session (call on session cleanup).
+   * Clear dedup state and spec for a session (call on session cleanup).
    */
   clearSession(sessionId: string): void {
     this.invitedTypes.delete(sessionId);
+    this.sessionSpecs.delete(sessionId);
   }
 
   private hasBeenInvited(sessionId: string, meetingTypeId: string): boolean {

@@ -52,7 +52,7 @@ describe('constants', () => {
     expect(DEFAULT_TOKEN_BUDGET).toBe(500_000);
   });
 
-  it('MEETING_AGENT_TIMEOUT_MS is 15 seconds (P2 #19 regression)', () => {
-    expect(MEETING_AGENT_TIMEOUT_MS).toBe(15_000);
+  it('MEETING_AGENT_TIMEOUT_MS is 45 seconds (#200 timeout fix)', () => {
+    expect(MEETING_AGENT_TIMEOUT_MS).toBe(45_000);
   });
 });

@@ -142,6 +142,48 @@ describe('TestPhase', () => {
     expect(result.testResults).toBe(runnerResult);
   });
 
+  it('emits test_phase_complete after individual test_result events', async () => {
+    vi.mocked(testRunner.runTests).mockResolvedValue({
+      tests: [{ test_name: 'a', passed: true, details: 'ok' }],
+      passed: 1,
+      failed: 0,
+      total: 1,
+      coverage_pct: null,
+      coverage_details: null,
+    });
+
+    const ctx = makeCtx();
+    const phase = new TestPhase(testRunner, teachingEngine);
+    await phase.execute(ctx);
+
+    const calls = vi.mocked(ctx.send).mock.calls.map(([ev]) => ev.type);
+    const resultIdx = calls.indexOf('test_result');
+    const completeIdx = calls.indexOf('test_phase_complete');
+    expect(completeIdx).toBeGreaterThan(resultIdx);
+
+    const completeEvent = vi.mocked(ctx.send).mock.calls.find(([ev]) => ev.type === 'test_phase_complete');
+    expect(completeEvent![0]).toMatchObject({ type: 'test_phase_complete', passed: 1, failed: 0, total: 1 });
+  });
+
+  it('emits test_phase_complete with zeros when no tests exist', async () => {
+    vi.mocked(testRunner.runTests).mockResolvedValue({
+      tests: [],
+      passed: 0,
+      failed: 0,
+      total: 0,
+      coverage_pct: null,
+      coverage_details: null,
+    });
+
+    const ctx = makeCtx();
+    const phase = new TestPhase(testRunner, teachingEngine);
+    await phase.execute(ctx);
+
+    const completeEvent = vi.mocked(ctx.send).mock.calls.find(([ev]) => ev.type === 'test_phase_complete');
+    expect(completeEvent).toBeDefined();
+    expect(completeEvent![0]).toMatchObject({ type: 'test_phase_complete', passed: 0, failed: 0, total: 0 });
+  });
+
   it('calls logger.testResults with correct arguments', async () => {
     vi.mocked(testRunner.runTests).mockResolvedValue({
       tests: [],

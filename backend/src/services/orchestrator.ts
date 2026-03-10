@@ -13,6 +13,8 @@ import { PlanPhase } from './phases/planPhase.js';
 import { ExecutePhase } from './phases/executePhase.js';
 import { TestPhase } from './phases/testPhase.js';
 import { DeployPhase } from './phases/deployPhase.js';
+import { TaskExecutor } from './phases/taskExecutor.js';
+import { PromptBuilder } from './phases/promptBuilder.js';
 import { AgentRunner } from './agentRunner.js';
 import { GitService } from './gitService.js';
 import { HardwareService } from './hardwareService.js';
@@ -23,6 +25,7 @@ import { TestRunner } from './testRunner.js';
 import { NarratorService } from './narratorService.js';
 import { PermissionPolicy } from './permissionPolicy.js';
 import { ContextManager } from '../utils/contextManager.js';
+import { TaskDAG } from '../utils/dag.js';
 import { SessionLogger } from '../utils/sessionLogger.js';
 import { TokenTracker } from '../utils/tokenTracker.js';
 import { DeviceRegistry } from './deviceRegistry.js';
@@ -131,8 +134,26 @@ export class Orchestrator {
       const planResult = await this.planPhase.execute(ctx, spec);
       this.nuggetType = planResult.nuggetType;
 
-      // Evaluate meeting triggers after planning (mid-build)
+      // Provide spec to meeting trigger wiring for team filtering
       const systemLevel = getLevel(spec);
+      this.meetingTriggerWiring?.setSpec(this.session.id, spec);
+
+      // Register custom meeting types from team blocks
+      if (this.meetingRegistry && spec.meeting_team) {
+        const customEntries = spec.meeting_team
+          .filter(m => m.type === 'custom' && m.name)
+          .map(m => ({ name: m.name!, persona: m.persona ?? '', canvasType: m.canvasType ?? 'explain-it' }));
+        if (customEntries.length > 0) {
+          const dynamicIds = this.meetingRegistry.registerDynamic(this.session.id, customEntries);
+          // Update meeting_team entries with generated IDs so trigger filtering works
+          let idx = 0;
+          for (const m of spec.meeting_team) {
+            if (m.type === 'custom' && m.name && idx < dynamicIds.length) {
+              m.meetingTypeId = dynamicIds[idx++];
+            }
+          }
+        }
+      }
       // Derive device types from plugin IDs (e.g. 'esp32-s3-box3-agent' -> board variant 'box-3' via registry)
       const deviceTypes: string[] = [];
       for (const d of spec.devices ?? []) {
@@ -194,6 +215,7 @@ export class Orchestrator {
         narratorService: this.narratorService,
         permissionPolicy: this.permissionPolicy,
         deviceRegistry: this.deviceRegistry,
+        testRunner: this.testRunner,
         feedbackLoopTracker,
         meetingTriggerWiring: this.meetingTriggerWiring,
         meetingService: this.meetingService,
@@ -255,12 +277,14 @@ export class Orchestrator {
 
       // Write test/health results to session for meeting context
       this.session.testResults = { passed: testsPassing, total: testResults.length };
+      this.session.individualTestResults = testResults;
+      this.session.testPhaseComplete = true;
 
       // Health history: load, record current build, emit, persist
       const healthHistory = new HealthHistoryService(this.nuggetDir);
       healthHistory.load();
       const healthSummary = this.healthTracker.getSummary();
-      this.session.healthSummary = { score: healthSummary.health_score, grade: healthSummary.grade };
+      this.session.healthSummary = { score: healthSummary.health_score, grade: healthSummary.grade, breakdown: healthSummary.breakdown };
       healthHistory.record(spec.nugget?.goal ?? 'Build', healthSummary);
       await healthHistory.emitHistory(this.send);
 
@@ -375,6 +399,85 @@ export class Orchestrator {
     });
   }
 
+  /**
+   * Run a targeted bug fix after a completed build.
+   * Creates a single fix task, executes it via TaskExecutor, then re-runs tests.
+   */
+  async runFix(bugReport: string): Promise<void> {
+    await this.send({ type: 'fix_started', bugReport });
+
+    const taskId = `fix-${Date.now()}`;
+    const taskName = `Fix: ${bugReport.slice(0, 50)}`;
+    const fixTask: Task = {
+      id: taskId,
+      name: taskName,
+      description: bugReport,
+      status: 'pending',
+      agent_name: 'fixer',
+      dependencies: [],
+      acceptance_criteria: ['Bug described in the report is fixed', 'Existing tests still pass'],
+    };
+
+    const fixAgent: Agent = {
+      name: 'fixer',
+      role: 'builder',
+      persona: 'Bug fixer',
+      status: 'idle',
+    };
+
+    // Add the fix task to the session so the frontend can track it
+    this.session.tasks.push(fixTask);
+    if (!this.session.agents.find(a => a.name === 'fixer')) {
+      this.session.agents.push(fixAgent);
+    }
+
+    const promptBuilder = new PromptBuilder();
+    const taskExecutor = new TaskExecutor({
+      agentRunner: this.agentRunner,
+      git: this.git,
+      teachingEngine: this.teachingEngine,
+      tokenTracker: this.tokenTracker,
+      context: this.context,
+      promptBuilder,
+      portalService: this.portalService,
+    });
+
+    const dag = new TaskDAG();
+    dag.addTask(taskId, []);
+
+    const ctx = this.makeContext();
+
+    const success = await taskExecutor.executeTask(fixTask, fixAgent, ctx, {
+      taskMap: { [taskId]: fixTask },
+      taskSummaries: {},
+      tasks: [fixTask],
+      agents: [fixAgent],
+      nuggetDir: this.nuggetDir,
+      gitMutex: async (fn) => { await fn(); },
+      questionResolvers: this.questionResolvers,
+      gateResolver: this.gateResolver,
+      dag,
+      completed: new Set(),
+      commits: this.commits,
+    });
+
+    await this.send({ type: 'fix_task_completed', taskId, success });
+
+    // Re-run tests
+    const testResult = await this.testPhase.execute(this.makeContext());
+    const results = testResult.testResults;
+    this.testResults = results;
+    this.session.individualTestResults = results.tests;
+    this.session.testPhaseComplete = true;
+
+    await this.send({
+      type: 'fix_tests_completed',
+      passed: results.passed,
+      failed: results.failed,
+      total: results.total,
+    });
+  }
+
   /** Signal cancellation to the execution loop and release resources. */
   cancel(): void {
     this.abortController.abort();
@@ -382,6 +485,10 @@ export class Orchestrator {
 
   /** Clean up the nugget temp directory immediately (skipped for user workspaces). */
   cleanup(): void {
+    // Clean up dynamic meeting types and trigger wiring state
+    this.meetingRegistry?.unregisterDynamic(this.session.id);
+    this.meetingTriggerWiring?.clearSession(this.session.id);
+
     // Kill web server process if running
     if (this.webServerProcess) {
       try { this.webServerProcess.kill(); } catch { /* ignore */ }

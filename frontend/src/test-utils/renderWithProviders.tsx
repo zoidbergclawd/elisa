@@ -51,6 +51,9 @@ export const defaultBuildSessionValue: BuildSessionContextValue = {
   healthUpdate: null,
   healthSummary: null,
   healthHistory: [],
+  isFixing: false,
+  fixPhase: null,
+  meetingBlockedTasks: [],
   boundaryAnalysis: null,
   handleEvent: () => {},
   startBuild: async () => {},
@@ -59,6 +62,7 @@ export const defaultBuildSessionValue: BuildSessionContextValue = {
   clearQuestionRequest: () => {},
   clearErrorNotification: () => {},
   resetToDesign: () => {},
+  launchWorkspace: async () => {},
 };
 
 export const defaultWorkspaceValue: WorkspaceContextValue = {
@@ -102,5 +106,6 @@ export const defaultMeetingValue: MeetingContextValue = {
   endMeeting: async () => {},
   updateCanvas: async () => {},
   materializeArtifacts: async () => null,
+  requestFix: async () => {},
   resetMeetings: () => {},
 };

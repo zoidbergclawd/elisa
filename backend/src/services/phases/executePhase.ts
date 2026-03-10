@@ -20,6 +20,7 @@ import { PortalService } from '../portalService.js';
 import { NarratorService } from '../narratorService.js';
 import { PermissionPolicy } from '../permissionPolicy.js';
 import type { DeviceRegistry } from '../deviceRegistry.js';
+import type { TestRunner } from '../testRunner.js';
 import type { FeedbackLoopTracker } from '../feedbackLoopTracker.js';
 import { ContextManager } from '../../utils/contextManager.js';
 import { TokenTracker, DEFAULT_RESERVED_PER_TASK } from '../../utils/tokenTracker.js';
@@ -61,6 +62,7 @@ export interface ExecuteDeps {
   narratorService?: NarratorService;
   permissionPolicy?: PermissionPolicy;
   deviceRegistry?: DeviceRegistry;
+  testRunner?: TestRunner;
   feedbackLoopTracker?: FeedbackLoopTracker;
   meetingTriggerWiring?: MeetingTriggerWiring;
   meetingService?: MeetingService;
@@ -91,6 +93,7 @@ export class ExecutePhase {
       permissionPolicy: deps.permissionPolicy,
       feedbackLoopTracker: deps.feedbackLoopTracker,
       deviceRegistry: deps.deviceRegistry,
+      testRunner: deps.testRunner,
     });
     this.deviceFileValidator = deps.deviceFileValidator ?? (
       deps.deviceRegistry
@@ -109,6 +112,7 @@ export class ExecutePhase {
     const inFlight = new Map<string, Promise<void>>();
     const meetingBlocked = new Set<string>();
     const meetingEvaluated = new Set<string>();
+    const meetingPending = new Set<string>(); // Tasks awaiting meeting gate (#178)
     const meetingDesignContext = new Map<string, Record<string, unknown>>();
     const MAX_CONCURRENT = MAX_CONCURRENT_TASKS;
 
@@ -153,8 +157,8 @@ export class ExecutePhase {
           const success = await this.executeOneTask(ctx, taskId, completed, meetingDesignContext.get(taskId));
           if (success) {
             completed.add(taskId);
-            // Evaluate mid-build meeting triggers after each successful task
-            await this.evaluateTaskCompletedMeetings(ctx, completed.size);
+            // Fire-and-forget: don't block the parallel pool
+            this.evaluateTaskCompletedMeetings(ctx, completed.size).catch(() => {});
           } else {
             failed.add(taskId);
           }
@@ -183,18 +187,26 @@ export class ExecutePhase {
 
       // Pre-pass: evaluate meetings for ready tasks not yet blocked or in-flight.
       // meetingEvaluated prevents re-triggering after a meeting ends for the same task.
+      // Sequential gating (#178): only allow ONE meetingBlocked task at a time to avoid
+      // flooding the kid with multiple design review invites simultaneously.
+      // Tasks that would trigger a meeting but are gated go into meetingPending
+      // so they aren't launched without their design review.
       for (const taskId of ready) {
         if (meetingBlocked.has(taskId) || meetingEvaluated.has(taskId) || failed.has(taskId) || skipped.has(taskId)) continue;
-        if (this.wouldTriggerMeeting(taskId)) {
-          meetingEvaluated.add(taskId);
-          meetingBlocked.add(taskId);
-          // Fire-and-forget: create invites, wait for meetings, capture design context, then unblock
-          this.waitForMeetings(ctx, taskId, meetingBlocked, meetingDesignContext);
+        if (!this.wouldTriggerMeeting(taskId)) continue;
+        if (meetingBlocked.size > 0) {
+          meetingPending.add(taskId);
+          continue;
         }
+        meetingPending.delete(taskId);
+        meetingEvaluated.add(taskId);
+        meetingBlocked.add(taskId);
+        // Fire-and-forget: create invites, wait for meetings, capture design context, then unblock
+        this.waitForMeetings(ctx, taskId, meetingBlocked, meetingDesignContext);
       }
 
-      // Deadlock check: no in-flight tasks and no meeting-blocked tasks
-      if (ready.length === 0 && inFlight.size === 0 && meetingBlocked.size === 0) {
+      // Deadlock check: no in-flight tasks and no meeting-blocked/pending tasks
+      if (ready.length === 0 && inFlight.size === 0 && meetingBlocked.size === 0 && meetingPending.size === 0) {
         await ctx.send({
           type: 'error',
           message: 'Some tasks are blocked and cannot proceed.',
@@ -215,8 +227,8 @@ export class ExecutePhase {
         }
       }
 
-      // Filter: exclude failed, skipped, in-flight, and meeting-blocked tasks
-      const launchable = ready.filter((id) => !failed.has(id) && !skipped.has(id) && !inFlight.has(id) && !meetingBlocked.has(id));
+      // Filter: exclude failed, skipped, in-flight, meeting-blocked, and meeting-pending tasks
+      const launchable = ready.filter((id) => !failed.has(id) && !skipped.has(id) && !inFlight.has(id) && !meetingBlocked.has(id) && !meetingPending.has(id));
 
       // Fill available slots with ready tasks (streaming-parallel)
       const slots = MAX_CONCURRENT - inFlight.size;
@@ -228,6 +240,28 @@ export class ExecutePhase {
           continue;
         }
         launchTask(taskId);
+      }
+
+      // Early meeting look-ahead: when idle slots exist, proactively trigger
+      // meeting invites for not-yet-ready tasks so kids can chat while other
+      // tasks run, reducing idle time.
+      // Sequential gating applies here too: skip if a meeting is already active (#178).
+      if (inFlight.size > 0 && inFlight.size < MAX_CONCURRENT && meetingBlocked.size === 0) {
+        for (const task of this.deps.tasks) {
+          const tid = task.id;
+          if (
+            completed.has(tid) || failed.has(tid) || skipped.has(tid) ||
+            inFlight.has(tid) || meetingEvaluated.has(tid) || meetingBlocked.has(tid)
+          ) continue;
+          // Skip tasks that are already ready (handled by the pre-pass above)
+          if (ready.includes(tid)) continue;
+          if (meetingBlocked.size > 0) break;
+          if (this.wouldTriggerMeeting(tid)) {
+            meetingEvaluated.add(tid);
+            meetingBlocked.add(tid);
+            this.waitForMeetings(ctx, tid, meetingBlocked, meetingDesignContext);
+          }
+        }
       }
 
       // Wait for at least one in-flight task to complete before re-evaluating
@@ -314,6 +348,9 @@ export class ExecutePhase {
       return;
     }
 
+    // Emit meeting_blocking_task event
+    await ctx.send({ type: 'meeting_blocking_task', task_id: taskId, meeting_type_id: 'design-task-agent' });
+
     // Block for each created meeting until resolved or timed out
     for (const meetingId of meetingIds) {
       await new Promise<void>((resolve) => {
@@ -349,6 +386,8 @@ export class ExecutePhase {
       }
     }
 
+    // Emit meeting_unblocking_task event
+    await ctx.send({ type: 'meeting_unblocking_task', task_id: taskId });
     meetingBlocked.delete(taskId);
   }
 

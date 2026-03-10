@@ -155,6 +155,15 @@ export function setMockDefaults(): void {
     coverage_details: null,
   });
 
+  vi.mocked(TestRunner.prototype.runSingleTestFile).mockResolvedValue({
+    tests: [],
+    passed: 0,
+    failed: 0,
+    total: 0,
+    coverage_pct: null,
+    coverage_details: null,
+  });
+
   vi.mocked(TeachingEngine.prototype.getMoment).mockResolvedValue(null);
   vi.mocked(TeachingEngine.prototype.getShownConcepts).mockReturnValue([]);
 

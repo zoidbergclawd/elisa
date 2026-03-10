@@ -33,6 +33,7 @@ vi.mock('../../services/gitService.js', () => {
 vi.mock('../../services/testRunner.js', () => {
   const TestRunner = vi.fn();
   TestRunner.prototype.runTests = vi.fn();
+  TestRunner.prototype.runSingleTestFile = vi.fn();
   return { TestRunner };
 });
 
@@ -408,8 +409,10 @@ describe('spec-driven behavior', () => {
     await orchestrator.run(withTesterSpec);
 
     const testEvents = eventsOfType(events, 'test_result');
-    expect(testEvents.length).toBe(2);
-    expect(testEvents[0].passed).toBe(true);
+    // Per-task TDD emits initial FAIL results, test phase emits real results
+    const passedTests = testEvents.filter((e: any) => e.passed === true);
+    expect(passedTests.length).toBe(2);
+    expect(passedTests[0].test_name).toBe('test_add_item');
   });
 
   it('emits coverage_update when test runner reports coverage', async () => {

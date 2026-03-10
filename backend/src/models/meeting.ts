@@ -44,5 +44,6 @@ export interface MeetingSession {
   title: string;
   description: string;
   focusContext?: string;
+  kidInitiated?: boolean;
   createdAt: number;
 }

@@ -126,6 +126,39 @@ describe('SessionStore persistence integration', () => {
     expect(store.recover()).toBe(0);
   });
 
+  it('cancelCleanup prevents session deletion', () => {
+    vi.useFakeTimers();
+    const store = new SessionStore();
+    store.create('s1', makeSession('s1'));
+    store.scheduleCleanup('s1', 100);
+    store.cancelCleanup('s1');
+    vi.advanceTimersByTime(200);
+    expect(store.has('s1')).toBe(true);
+    vi.useRealTimers();
+  });
+
+  it('cancelCleanup followed by re-schedule works', () => {
+    vi.useFakeTimers();
+    const store = new SessionStore();
+    store.create('s1', makeSession('s1'));
+    store.scheduleCleanup('s1', 100);
+    store.cancelCleanup('s1');
+    vi.advanceTimersByTime(200);
+    expect(store.has('s1')).toBe(true);
+    // Re-schedule and verify it fires
+    store.scheduleCleanup('s1', 50);
+    vi.advanceTimersByTime(50);
+    expect(store.has('s1')).toBe(false);
+    vi.useRealTimers();
+  });
+
+  it('cancelCleanup is a no-op when no timer exists', () => {
+    const store = new SessionStore();
+    store.create('s1', makeSession('s1'));
+    expect(() => store.cancelCleanup('s1')).not.toThrow();
+    expect(store.has('s1')).toBe(true);
+  });
+
   it('converts ISO savedAt string to numeric createdAt so pruneStale arithmetic works (#74)', () => {
     const twoHoursAgo = new Date(Date.now() - 7_200_000).toISOString();
     mockLoadAll.mockReturnValue([

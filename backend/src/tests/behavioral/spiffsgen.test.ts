@@ -148,8 +148,9 @@ describe('bundled spiffsgen.py SPIFFS image generation', () => {
       '--use-magic-len',
     ];
 
-    // Use python3 since python may not exist on all systems
-    await execFileAsync('python3', args, { timeout: 15_000 });
+    // Use python3 on Unix, python on Windows
+    const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
+    await execFileAsync(pythonCmd, args, { timeout: 15_000 });
 
     // Verify the output image exists and has non-zero size
     expect(fs.existsSync(outputImage)).toBe(true);

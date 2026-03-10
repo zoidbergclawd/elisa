@@ -57,6 +57,14 @@ vi.mock('../../services/testRunner.js', () => {
     coverage_pct: null,
     coverage_details: null,
   });
+  TestRunner.prototype.runSingleTestFile = vi.fn().mockResolvedValue({
+    tests: [],
+    passed: 0,
+    failed: 0,
+    total: 0,
+    coverage_pct: null,
+    coverage_details: null,
+  });
   return { TestRunner };
 });
 

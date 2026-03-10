@@ -4,6 +4,7 @@ import { useReducer, useCallback, useMemo } from 'react';
 import type { WSEvent } from '../types';
 import type { MeetingInvite } from '../components/shared/MeetingInviteToast';
 import { authFetch } from '../lib/apiClient';
+import { playMeetingChime } from '../lib/playChime';
 
 // -- State --
 
@@ -51,6 +52,7 @@ type MeetingAction =
   | { type: 'MEETING_ENDED'; meetingId: string; outcomes: Array<{ type: string; data: Record<string, unknown> }> }
   | { type: 'CLEAR_INVITE'; meetingId: string }
   | { type: 'CLEAR_ALL_INVITES' }
+  | { type: 'DISMISS_TOAST'; meetingId: string }
   | { type: 'RESET' };
 
 // -- Reducer --
@@ -140,6 +142,14 @@ function meetingReducer(state: MeetingSessionState, action: MeetingAction): Meet
     case 'CLEAR_ALL_INVITES':
       return { ...state, inviteQueue: [] };
 
+    case 'DISMISS_TOAST':
+      return {
+        ...state,
+        inviteQueue: state.inviteQueue.map(inv =>
+          inv.meetingId === action.meetingId ? { ...inv, toastDismissed: true } : inv,
+        ),
+      };
+
     case 'RESET':
       return initialState;
 
@@ -157,6 +167,7 @@ export function useMeetingSession(sessionId: string | null) {
   const handleMeetingEvent = useCallback((event: WSEvent): boolean => {
     switch (event.type) {
       case 'meeting_invite':
+        playMeetingChime();
         dispatch({
           type: 'MEETING_INVITE',
           meetingId: event.meetingId,
@@ -260,9 +271,37 @@ export function useMeetingSession(sessionId: string | null) {
     dispatch({ type: 'MEETING_ENDED', meetingId, outcomes: state.activeMeeting.outcomes });
   }, [sessionId, state.activeMeeting]);
 
+  /** Request a targeted bug fix via POST /api/sessions/:id/fix. */
+  const requestFix = useCallback(async (bugReport: string) => {
+    if (!sessionId) return;
+    const res = await authFetch(`/api/sessions/${sessionId}/fix`, {
+      method: 'POST',
+      body: JSON.stringify({ bugReport }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(data.detail || 'Fix request failed');
+    }
+  }, [sessionId]);
+
   /** Update the canvas state. Persists finalize/save actions to the backend. */
   const updateCanvas = useCallback(async (data: Record<string, unknown>) => {
     if (!state.activeMeeting) return;
+
+    // Intercept fix requests and route to the fix endpoint
+    if (data.type === 'request_fix' && sessionId) {
+      const strategy = String(data.strategy ?? 'quick');
+      const bugReport = strategy === 'deep'
+        ? 'Deep analysis and fix of all failing tests. Review test output, trace root causes, and apply comprehensive fixes.'
+        : 'Quick fix for failing tests. Review errors and apply targeted patches.';
+      try {
+        await requestFix(bugReport);
+      } catch (err) {
+        console.error('[meeting] canvas requestFix failed:', err instanceof Error ? err.message : err);
+      }
+      return;
+    }
+
     dispatch({
       type: 'MEETING_CANVAS_UPDATE',
       meetingId: state.activeMeeting.meetingId,
@@ -278,7 +317,7 @@ export function useMeetingSession(sessionId: string | null) {
         body: JSON.stringify({ outcomeType: dataType, data }),
       }).catch((err) => { console.error('[meeting] outcome save failed:', err); });
     }
-  }, [sessionId, state.activeMeeting]);
+  }, [sessionId, state.activeMeeting, requestFix]);
 
   /** Materialize canvas data into real files in the workspace. */
   const materializeArtifacts = useCallback(async (data: Record<string, unknown>): Promise<{ files: string[]; primaryFile: string } | null> => {
@@ -299,6 +338,21 @@ export function useMeetingSession(sessionId: string | null) {
     }
   }, [sessionId, state.activeMeeting]);
 
+  /** Start a kid-initiated meeting with a specific agent type.
+   *  Creates an invite on the backend and immediately accepts it. */
+  const startDirectMeeting = useCallback(async (meetingTypeId: string) => {
+    if (!sessionId) return;
+    const resp = await authFetch(`/api/sessions/${sessionId}/meetings/start`, {
+      method: 'POST',
+      body: JSON.stringify({ meetingTypeId }),
+    });
+    if (!resp.ok) {
+      const detail = await resp.json().catch(() => null);
+      throw new Error(detail?.detail ?? `Meeting start failed (HTTP ${resp.status})`);
+    }
+    // Backend creates + accepts in one call, WS events will update state
+  }, [sessionId]);
+
   /** Clear all meeting state (invites + active meeting). Used on session reset. */
   const resetMeetings = useCallback(() => {
     dispatch({ type: 'RESET' });
@@ -309,8 +363,16 @@ export function useMeetingSession(sessionId: string | null) {
     dispatch({ type: 'CLEAR_ALL_INVITES' });
   }, []);
 
-  /** First invite in queue (for toast display). */
-  const nextInvite = useMemo(() => state.inviteQueue[0] ?? null, [state.inviteQueue]);
+  /** Dismiss toast without declining -- invite stays in queue for Team tab. */
+  const dismissToast = useCallback((meetingId: string) => {
+    dispatch({ type: 'DISMISS_TOAST', meetingId });
+  }, []);
+
+  /** First non-dismissed invite in queue (for toast display). */
+  const nextInvite = useMemo(
+    () => state.inviteQueue.find(inv => !inv.toastDismissed) ?? null,
+    [state.inviteQueue],
+  );
 
   return {
     inviteQueue: state.inviteQueue,
@@ -322,10 +384,13 @@ export function useMeetingSession(sessionId: string | null) {
     handleMeetingEvent,
     acceptInvite,
     declineInvite,
+    dismissToast,
+    startDirectMeeting,
     sendMessage,
     endMeeting,
     updateCanvas,
     materializeArtifacts,
+    requestFix,
     resetMeetings,
     clearAllInvites,
   };

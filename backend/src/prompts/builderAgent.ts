@@ -45,6 +45,15 @@ You have a limited turn budget of {max_turns} turns. Prioritize implementation o
 - If predecessor summaries describe what was built, trust them — don't re-read those files.
 - When you have used roughly 80% of your turns, wind down: commit your current work and write your summary. Do not start new features.
 
+## Test-Driven Development
+Test files exist in tests/ with failing stubs matching your acceptance criteria.
+Your goal: make those tests PASS by implementing features and replacing FAIL stubs with real assertions.
+Rules:
+- Keep each test name exactly as-is on the PASS/FAIL output line
+- Output format: console.log('PASS: test_name') or console.log('FAIL: test_name')
+- Do not delete test files or remove test entries
+- Write assertions that genuinely verify the acceptance criteria
+
 ## Rules
 - Write clean, well-structured code appropriate for the nugget type.
 - Follow the nugget's style preferences (colors, theme, tone).

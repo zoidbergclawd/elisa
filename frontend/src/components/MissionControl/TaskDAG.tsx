@@ -51,6 +51,7 @@ export interface TaskDAGProps {
   contextFlows?: ContextFlow[];
   requirements?: Array<{ type: string; description: string }>;
   isComplete?: boolean;
+  meetingBlockedTasks?: string[];
 }
 
 function truncate(str: string, max: number): string {
@@ -163,6 +164,7 @@ function TaskDAGInner({
   contextFlows,
   requirements,
   isComplete,
+  meetingBlockedTasks,
 }: TaskDAGProps) {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
@@ -263,14 +265,20 @@ function TaskDAGInner({
       const layoutNodes: Node[] = (layout.children || []).map(node => {
         const task = displayTasks.find(t => t.id === node.id)!;
         const isParallel = parallelTaskIds.has(task.id);
+        const isMeetingBlocked = meetingBlockedTasks?.includes(task.id) ?? false;
+        const isFixTask = task.id.startsWith('fix-') || task.id === '__fix_pending__';
         const reqColor = getRequirementColor(task);
         const isHighlighted = hoveredReqId
           ? task.requirement_ids?.includes(hoveredReqId)
           : true;
 
-        // Determine border with requirement coloring
+        // Determine border with requirement coloring, fix task, or meeting-blocked indicator
         let border = STATUS_BORDERS[task.status] || STATUS_BORDERS.pending;
-        if (reqColor && task.status === 'pending') {
+        if (isFixTask) {
+          border = '2px solid #F59E0B';
+        } else if (isMeetingBlocked) {
+          border = '2px solid #F59E0B';
+        } else if (reqColor && task.status === 'pending') {
           border = `2px solid ${reqColor}40`;
         }
 
@@ -279,12 +287,24 @@ function TaskDAGInner({
           position: { x: node.x || 0, y: node.y || 0 },
           ariaLabel: `${task.name}, status: ${task.status}, agent: ${task.agent_name}`,
           data: {
-            label: truncate(task.name, 25),
+            label: isFixTask ? (
+              <>
+                <span className="taskdag-fix-badge" data-testid="fix-badge">Fix</span>
+                {truncate(task.name, 25)}
+              </>
+            ) : isMeetingBlocked ? (
+              <>
+                <span className="taskdag-meeting-badge" data-testid="meeting-blocked-badge">Meeting</span>
+                {truncate(task.name, 25)}
+              </>
+            ) : truncate(task.name, 25),
             agentName: task.agent_name,
             status: task.status,
             agentRole: agents?.find(a => a.name === task.agent_name)?.role,
             isParallel,
             isComplete,
+            isFixTask,
+            isMeetingBlocked,
             description: task.description,
           },
           style: {
@@ -301,16 +321,20 @@ function TaskDAGInner({
             alignItems: 'center',
             justifyContent: 'center',
             padding: '4px 8px',
-            boxShadow: task.status === 'in_progress'
-              ? '0 2px 12px rgba(61, 143, 214, 0.25)'
-              : task.status === 'done'
-                ? '0 2px 12px rgba(45, 159, 62, 0.20)'
-                : task.status === 'pending'
-                  ? '0 1px 3px rgba(0, 0, 0, 0.06)'
-                  : 'none',
+            boxShadow: isFixTask || isMeetingBlocked
+              ? '0 2px 12px rgba(245, 158, 11, 0.35)'
+              : task.status === 'in_progress'
+                ? '0 2px 12px rgba(61, 143, 214, 0.25)'
+                : task.status === 'done'
+                  ? '0 2px 12px rgba(45, 159, 62, 0.20)'
+                  : task.status === 'pending'
+                    ? '0 1px 3px rgba(0, 0, 0, 0.06)'
+                    : 'none',
             opacity: hoveredReqId && !isHighlighted ? 0.3 : 1,
             transition: 'opacity 0.2s ease',
-            animation: task.status === 'in_progress' ? 'taskdag-pulse 1.5s infinite' : undefined,
+            animation: isFixTask || isMeetingBlocked
+              ? 'taskdag-meeting-pulse 2s infinite'
+              : task.status === 'in_progress' ? 'taskdag-pulse 1.5s infinite' : undefined,
           },
         };
       });
@@ -333,7 +357,7 @@ function TaskDAGInner({
     } catch {
       // Layout failed, skip
     }
-  }, [displayTasks, agents, elkGraph, fitView, parallelTaskIds, hoveredReqId, isComplete]);
+  }, [displayTasks, agents, elkGraph, fitView, parallelTaskIds, hoveredReqId, isComplete, meetingBlockedTasks]);
 
   useEffect(() => {
     layoutNodes(); // eslint-disable-line react-hooks/set-state-in-effect
@@ -355,6 +379,10 @@ function TaskDAGInner({
         .react-flow__background {
           background: transparent !important;
         }
+        @keyframes taskdag-meeting-pulse {
+          0%, 100% { box-shadow: 0 2px 12px rgba(245, 158, 11, 0.35); }
+          50% { box-shadow: 0 2px 18px rgba(245, 158, 11, 0.55); }
+        }
         .taskdag-parallel-badge {
           position: absolute;
           top: -6px;
@@ -367,6 +395,38 @@ function TaskDAGInner({
           border-radius: 6px;
           line-height: 1.2;
           pointer-events: none;
+        }
+        .taskdag-meeting-badge {
+          position: absolute;
+          top: -8px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: #F59E0B;
+          color: #fff;
+          font-size: 8px;
+          font-weight: 700;
+          padding: 1px 6px;
+          border-radius: 6px;
+          line-height: 1.4;
+          pointer-events: none;
+          white-space: nowrap;
+          animation: taskdag-meeting-pulse 2s infinite;
+        }
+        .taskdag-fix-badge {
+          position: absolute;
+          top: -8px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: #F59E0B;
+          color: #fff;
+          font-size: 8px;
+          font-weight: 700;
+          padding: 1px 6px;
+          border-radius: 6px;
+          line-height: 1.4;
+          pointer-events: none;
+          white-space: nowrap;
+          animation: taskdag-meeting-pulse 2s infinite;
         }
       `}</style>
 
@@ -455,6 +515,7 @@ export default function TaskDAG({
   contextFlows,
   requirements,
   isComplete,
+  meetingBlockedTasks,
 }: TaskDAGProps) {
   if (tasks.length === 0) return null;
   return (
@@ -467,6 +528,7 @@ export default function TaskDAG({
         contextFlows={contextFlows}
         requirements={requirements}
         isComplete={isComplete}
+        meetingBlockedTasks={meetingBlockedTasks}
       />
     </ReactFlowProvider>
   );

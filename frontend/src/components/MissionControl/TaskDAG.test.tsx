@@ -350,6 +350,58 @@ describe('TaskDAG', () => {
     }
   });
 
+  // -- Meeting blocked badge tests (#199) --
+
+  it('sets isMeetingBlocked in node data when task is in meetingBlockedTasks', async () => {
+    const tasks: Task[] = [
+      { id: '1', name: 'Design sprites', description: '', status: 'pending', agent_name: 'Builder', dependencies: [] },
+      { id: '2', name: 'Build UI', description: '', status: 'pending', agent_name: 'Builder', dependencies: ['1'] },
+    ];
+    render(<TaskDAG tasks={tasks} meetingBlockedTasks={['1']} />);
+    await waitFor(() => {
+      const nodes = (lastReactFlowProps.nodes as Array<{ id: string; data: { isMeetingBlocked: boolean } }>);
+      expect(nodes).toBeDefined();
+      if (nodes && nodes.length > 0) {
+        const blockedNode = nodes.find(n => n.id === '1');
+        const unblockedNode = nodes.find(n => n.id === '2');
+        expect(blockedNode?.data.isMeetingBlocked).toBe(true);
+        expect(unblockedNode?.data.isMeetingBlocked).toBe(false);
+      }
+    });
+  });
+
+  it('applies amber border and meeting-pulse animation to meeting-blocked nodes', async () => {
+    const tasks: Task[] = [
+      { id: '1', name: 'Design sprites', description: '', status: 'pending', agent_name: 'Builder', dependencies: [] },
+    ];
+    render(<TaskDAG tasks={tasks} meetingBlockedTasks={['1']} />);
+    await waitFor(() => {
+      const nodes = (lastReactFlowProps.nodes as Array<{ id: string; style: Record<string, unknown> }>);
+      expect(nodes).toBeDefined();
+      if (nodes && nodes.length > 0) {
+        const node = nodes[0];
+        expect(node.style.border).toBe('2px solid #F59E0B');
+        expect(node.style.animation).toBe('taskdag-meeting-pulse 2s infinite');
+      }
+    });
+  });
+
+  it('does not apply meeting styles when meetingBlockedTasks is empty', async () => {
+    const tasks: Task[] = [
+      { id: '1', name: 'Build UI', description: '', status: 'pending', agent_name: 'Builder', dependencies: [] },
+    ];
+    render(<TaskDAG tasks={tasks} meetingBlockedTasks={[]} />);
+    await waitFor(() => {
+      const nodes = (lastReactFlowProps.nodes as Array<{ id: string; style: Record<string, unknown>; data: { isMeetingBlocked: boolean } }>);
+      expect(nodes).toBeDefined();
+      if (nodes && nodes.length > 0) {
+        expect(nodes[0].data.isMeetingBlocked).toBe(false);
+        expect(nodes[0].style.border).not.toContain('#F59E0B');
+        expect(nodes[0].style.animation).toBeUndefined();
+      }
+    });
+  });
+
   it('hides edge tooltip on pane click', async () => {
     const tasks: Task[] = [
       { id: '1', name: 'Plan', description: '', status: 'done', agent_name: 'Planner', dependencies: [] },

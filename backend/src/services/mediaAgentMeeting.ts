@@ -1,12 +1,12 @@
-/** Media Agent meeting type — helps kids create visual assets and marketing materials. */
+/** Marketing Agent meeting type -- helps kids design campaigns to launch their products. */
 
 import type { MeetingType } from '../models/meeting.js';
 import type { MeetingRegistry } from './meetingRegistry.js';
 
 export const MEDIA_AGENT_MEETING: MeetingType = {
   id: 'media-agent',
-  name: 'Media Agent',
-  agentName: 'Canvas',
+  name: 'Marketing Agent',
+  agentName: 'Marketing',
   canvasType: 'campaign',
   triggerConditions: [
     {
@@ -19,12 +19,12 @@ export const MEDIA_AGENT_MEETING: MeetingType = {
     },
   ],
   persona:
-    "I'm Canvas, your Art and Media Expert! I help you create posters, storyboards, and visual assets for your project. " +
-    "Every great system needs a great story — let's tell yours!",
+    "I'm Marketing, your Campaign Expert! I help you design a campaign to launch your product -- " +
+    "posters, social cards, storyboards, and more. Every great product needs a great launch!",
 };
 
 /**
- * Register the Media Agent meeting type with the given registry.
+ * Register the Marketing Agent meeting type with the given registry.
  */
 export function registerMediaAgentMeeting(registry: MeetingRegistry): void {
   registry.register(MEDIA_AGENT_MEETING);

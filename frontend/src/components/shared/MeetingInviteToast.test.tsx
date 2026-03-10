@@ -63,7 +63,7 @@ describe('MeetingInviteToast', () => {
     expect(onDecline).toHaveBeenCalledWith('meeting-1');
   });
 
-  it('auto-dismisses after 30 seconds by calling onDecline', () => {
+  it('auto-dismisses after 30 seconds by calling onDecline when no onDismissToast', () => {
     const onDecline = vi.fn();
     render(
       <MeetingInviteToast invite={mockInvite} onAccept={vi.fn()} onDecline={onDecline} />,
@@ -76,6 +76,21 @@ describe('MeetingInviteToast', () => {
     });
 
     expect(onDecline).toHaveBeenCalledWith('meeting-1');
+  });
+
+  it('auto-dismisses after 30 seconds by calling onDismissToast when provided', () => {
+    const onDecline = vi.fn();
+    const onDismissToast = vi.fn();
+    render(
+      <MeetingInviteToast invite={mockInvite} onAccept={vi.fn()} onDecline={onDecline} onDismissToast={onDismissToast} />,
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(30_000);
+    });
+
+    expect(onDismissToast).toHaveBeenCalledWith('meeting-1');
+    expect(onDecline).not.toHaveBeenCalled();
   });
 
   it('does not auto-dismiss before 30 seconds', () => {
@@ -118,6 +133,43 @@ describe('MeetingInviteToast', () => {
     const toast = screen.getByRole('alert');
     expect(toast.className).toContain('z-40');
     expect(toast.className).not.toContain('z-[60]');
+  });
+
+  it('calls onDismissToast for correct meetingId when invite changes (queue simulation)', () => {
+    const onDecline = vi.fn();
+    const onDismissToast = vi.fn();
+    const secondInvite: MeetingInvite = {
+      meetingId: 'meeting-2',
+      meetingTypeId: 'another-type',
+      agentName: 'Scribe',
+      title: 'Doc Review',
+      description: 'Let me document this!',
+    };
+
+    const { rerender } = render(
+      <MeetingInviteToast invite={mockInvite} onAccept={vi.fn()} onDecline={onDecline} onDismissToast={onDismissToast} />,
+    );
+
+    // Auto-dismiss first invite
+    act(() => {
+      vi.advanceTimersByTime(30_000);
+    });
+    expect(onDismissToast).toHaveBeenCalledWith('meeting-1');
+    expect(onDismissToast).toHaveBeenCalledTimes(1);
+
+    // Parent shows next invite from queue
+    rerender(
+      <MeetingInviteToast invite={secondInvite} onAccept={vi.fn()} onDecline={onDecline} onDismissToast={onDismissToast} />,
+    );
+
+    // Auto-dismiss second invite
+    act(() => {
+      vi.advanceTimersByTime(30_000);
+    });
+    expect(onDismissToast).toHaveBeenCalledWith('meeting-2');
+    expect(onDismissToast).toHaveBeenCalledTimes(2);
+    // onDecline should never have been called since onDismissToast is provided
+    expect(onDecline).not.toHaveBeenCalled();
   });
 
   it('resumes auto-dismiss when pauseAutoDismiss changes to false', () => {

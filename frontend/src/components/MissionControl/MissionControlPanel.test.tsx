@@ -126,4 +126,23 @@ describe('MissionControlPanel', () => {
     renderPanel({ buildSession: { isPlanning: true } });
     expect(screen.queryByTestId('impact-preview')).not.toBeInTheDocument();
   });
+
+  // --- Fix banner ---
+
+  it('renders fix banner with "Fixing bug..." when isFixing=true and fixPhase=fixing', () => {
+    renderPanel({ buildSession: { isFixing: true, fixPhase: 'fixing' } });
+    expect(screen.getByTestId('fix-banner')).toBeInTheDocument();
+    expect(screen.getByText('Fixing bug...')).toBeInTheDocument();
+  });
+
+  it('renders fix banner with "Re-running tests..." when fixPhase=retesting', () => {
+    renderPanel({ buildSession: { isFixing: true, fixPhase: 'retesting' } });
+    expect(screen.getByTestId('fix-banner')).toBeInTheDocument();
+    expect(screen.getByText('Re-running tests...')).toBeInTheDocument();
+  });
+
+  it('does NOT render fix banner when isFixing=false', () => {
+    renderPanel({ buildSession: { isFixing: false, fixPhase: null } });
+    expect(screen.queryByTestId('fix-banner')).not.toBeInTheDocument();
+  });
 });

@@ -20,16 +20,19 @@ frontend/ (React 19 + Vite)         backend/ (Express 5 + TypeScript)
 | (TaskDAG, CommsFeed,  |<---------|  -> AutoTestMatcher        |
 |  Metrics, Deploy)     |  events  |  -> MetaPlanner (Claude)   |
 |                       |           |  -> MeetingTriggerWiring   |
-| BottomBar             |           |  -> PortalService (MCP/CLI)|
-| (Timeline, Tests,     |           |  -> AgentRunner (SDK)      |
-|  Trace, Board, Learn, |           |  -> TestRunner (pytest/node)|
-|  Progress, System,    |           |  -> GitService (simple-git)|
-|  Health, Tokens —     |           |  -> HardwareService       |
-|  contextual           |           |  -> TeachingEngine         |
-|  visibility)          |           |  -> HealthTracker          |
-|                       |           |  -> TraceabilityTracker    |
-| FlashWizardModal      |           |  -> DeviceRegistry         |
-| (multi-device flash)  |           |     (plugin manifests)     |
+| SystemPanel           |           |  -> PortalService (MCP/CLI)|
+| (architecture         |           |  -> AgentRunner (SDK)      |
+|  explorer)            |           |  -> TestRunner (pytest/node)|
+| BottomBar             |           |  -> GitService (simple-git)|
+| (Trace, Board, Learn, |           |  -> HardwareService       |
+|  Progress, Health,    |           |  -> TeachingEngine         |
+|  Tokens — contextual  |           |  -> HealthTracker          |
+|  visibility)          |           |  -> TraceabilityTracker    |
+|                       |           |  -> DeviceRegistry         |
+|                       |           |     (plugin manifests)     |
+|                       |           |                           |
+| FlashWizardModal      |           |                           |
+| (multi-device flash)  |           |                           |
 +-----------------------+           +---------------------------+
                                               |
                                     runs agents via SDK query() API
@@ -85,6 +88,12 @@ Root `package.json` manages Electron and build tooling. Frontend and backend rem
                If CLI portals: execute via CliPortalAdapter (no shell)
    j. COMPLETE: evaluateAndInvite('session_complete') -> Architecture agent meeting
 5. session_complete event with summary
+6. Post-build actions (optional):
+   - FIX: POST /api/sessions/:id/fix with bugReport -> Orchestrator.runFix()
+          creates targeted fix task -> re-runs tests -> emits fix_* events
+   - LAUNCH: POST /api/sessions/:id/launch -> finds index.html in workspace
+             (dist/ > build/ > public/ > src/ > root) -> spawns local serve
+             process -> returns preview URL (no rebuild required)
 ```
 
 Human gates can pause execution at any point, requiring user approval via REST endpoint.
@@ -106,7 +115,7 @@ The `DeviceRegistry` service loads all plugins at startup, validates manifests, 
 
 | Channel | Direction | Purpose |
 |---------|-----------|---------|
-| REST | client -> server | Commands: create session, start build, gate responses, question answers |
+| REST | client -> server | Commands: create session, start build, fix, launch, gate responses, question answers |
 | WebSocket | server -> client | Events: task progress, agent output, test results, teaching moments, errors |
 
 WebSocket path: `/ws/session/:sessionId`
@@ -136,11 +145,14 @@ Each agent runs via the Claude Agent SDK's `query()` API with role-specific syst
 
 ```
 idle -> planning -> executing -> testing -> deploying -> done
-                       ^                                        |
-                   human gates (pause/resume via REST)   keep working
-                                                                |
-                                                                v
-                                                             design (iterative build)
+                       ^                                   |    |
+                   human gates (pause/resume via REST)     |  keep working
+                                                           |    |
+                                                           |    v
+                                                           | design (iterative build)
+                                                           |
+                                                           +-> fix (POST /fix: targeted bug fix -> re-test)
+                                                           +-> launch (POST /launch: serve without rebuild)
 
 Note: `reviewing` is a transient state during human gate pauses within execution, not a separate pipeline phase. Reviewer agents execute as tasks within the execute phase.
 ```
@@ -152,13 +164,14 @@ Note: `reviewing` is a transient state during human gate pauses within execution
 - **Context chain**: After each task, a summary is written to `.elisa/context/nugget_context.md`. Subsequent agents receive this as input, creating a chain of context.
 - **Graceful degradation**: Missing tools (git, pytest, mpremote, serialport) cause warnings, not crashes.
 - **Bearer token auth**: Server generates a random auth token on startup. All `/api/*` routes (except `/api/health`) require `Authorization: Bearer <token>`. WebSocket upgrades require `?token=<token>` query param. In Electron, token is shared to renderer via IPC.
+- **WebSocket heartbeat + send queue**: Server sends protocol-level ping frames every 30s via `ws.ping()`. Connections missing a pong cycle are terminated. `sendEvent()` serializes all sends through a per-session FIFO queue with `setImmediate` yields between frames, preventing burst-flooding the Vite dev proxy even from concurrent fire-and-forget callers.
 - **Content safety**: All agent prompts include a Content Safety section enforcing age-appropriate output (ages 8-14). User-controlled placeholder values are sanitized before prompt interpolation. Runtime responses are post-processed through a mandatory content filter (PII redaction, inappropriate topic blocking) before delivery.
 - **Abort propagation**: Orchestrator's AbortController signal is forwarded to each agent's SDK `query()` call. On cancel or error, agents are aborted immediately.
 - **API key management**: In dev, read from `ANTHROPIC_API_KEY` env var. In Electron, encrypted via OS keychain (`safeStorage`) and stored locally. Child processes (test runners, flash scripts, builds) receive sanitized env without the API key.
 
 ## Storage
 
-- **Session state**: In-memory `Map<sessionId, Session>` with optional JSON persistence for crash recovery
+- **Session state**: In-memory `Map<sessionId, Session>` with optional JSON persistence for crash recovery. Cleanup timer (5 min) starts on WS connect; cancelled at build start, re-armed after build completes. Meeting accepts and fix/launch requests also reset the timer.
 - **Workspace**: Temp directory per session (`/tmp/elisa-nugget-{timestamp}`) or user-chosen directory. Contains generated code, tests, git repo, `.elisa/` metadata, and design artifacts (nugget.json, dag.json, workspace.json, etc.)
 - **localStorage**: Workspace JSON, skills, and rules auto-saved in browser (`elisa:workspace`, `elisa:skills`, `elisa:rules`). Restored on page load.
 - **Nugget files**: `.elisa` zip format for export/import (workspace + skills + rules + generated code)
@@ -208,6 +221,43 @@ The ESP32-S3-BOX-3 voice agent plugin uses `esptool` for binary firmware flash:
 4. Runtime config (agent_id, api_key, runtime_url) written as `runtime_config.json` alongside firmware
 5. On redeploy, `redeployClassifier.classifyChanges()` determines whether to reflash or just update config
 6. Art Agent meeting (`art-agent` type) triggers on both `plan_ready` (when BOX-3 in device_types) and `deploy_started` for BOX-3 theme customization
+
+## Agent Meeting System
+
+AI agent personas pop up during builds to collaborate with kids via chat + interactive canvases.
+
+### Meeting Lifecycle
+
+```
+invited -> (accept) -> active -> (end) -> completed
+        -> (decline) -> declined
+```
+
+### Team Concept
+
+Agents are either **always-on defaults** (fire without blocks) or **opt-in** (require `team_member` Blockly blocks).
+
+| Always-On | Trigger |
+|-----------|---------|
+| Buddy | 25% tasks done |
+| Scribe | 50% tasks done |
+| Blueprint | session_complete |
+| Bug Detective | convergence_stalled |
+| Pixel (design review) | task_starting + design keywords |
+
+Opt-in agents: Marketing, Social Media, Styler, Pixel (art/theme), Interface Designer, and kid-defined custom agents.
+
+### Meeting Type Registry
+
+Static types registered at startup via `register<Type>Meeting(registry)`. Dynamic types created per-session via `registerDynamic(sessionId, specs)` for custom kid-defined agents with auto-assigned triggers based on canvas type.
+
+### Canvas Types
+
+`canvasRegistry.ts` maps canvas type strings to React components. 13 types: agent-studio, blueprint, bug-detective, campaign, code-explorer, design-preview, explain-it, interface-designer, launch-pad, live-preview, test-dashboard, theme-picker, whiteboard.
+
+### Persistent Team Tab
+
+`TeamPanel` provides always-available team access. `TeamMemberList` shows agents with invite badges. `TeamConversation` reuses `ChatPanel` + `CanvasPanel` via `MeetingLayout`. Auto-dismiss on `MeetingInviteToast` preserves invites in queue for Team tab.
 
 ## Module-Level Documentation
 

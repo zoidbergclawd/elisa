@@ -693,6 +693,49 @@ describe('useMeetingSession', () => {
     });
   });
 
+  describe('startDirectMeeting', () => {
+    it('calls POST /meetings/start and does not throw on success', async () => {
+      const { authFetch } = await import('../lib/apiClient');
+      const mockFetch = authFetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ meetingId: 'mtg-1' }) });
+
+      const { result } = renderHook(() => useMeetingSession('session-1'));
+      await act(async () => {
+        await result.current.startDirectMeeting('debug-convergence');
+      });
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/sessions/session-1/meetings/start',
+        expect.objectContaining({ method: 'POST' }),
+      );
+    });
+
+    it('throws on non-OK response', async () => {
+      const { authFetch } = await import('../lib/apiClient');
+      const mockFetch = authFetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false, status: 404,
+        json: async () => ({ detail: 'Session not found' }),
+      });
+
+      const { result } = renderHook(() => useMeetingSession('session-1'));
+      await expect(
+        act(async () => { await result.current.startDirectMeeting('debug-convergence'); })
+      ).rejects.toThrow('Session not found');
+    });
+
+    it('does nothing when sessionId is null', async () => {
+      const { authFetch } = await import('../lib/apiClient');
+      const mockFetch = authFetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockClear();
+
+      const { result } = renderHook(() => useMeetingSession(null));
+      await act(async () => {
+        await result.current.startDirectMeeting('debug-convergence');
+      });
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+  });
+
   describe('isAgentThinking (P2 #19 regression)', () => {
     it('starts as false', () => {
       const { result } = renderHook(() => useMeetingSession('session-1'));

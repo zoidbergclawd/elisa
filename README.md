@@ -47,9 +47,9 @@ See [Getting Started](docs/getting-started.md) for full setup. Tested on Windows
 
 **Block-Based Design** -- Snap together blocks across 9 categories to describe your project: goals, requirements, style, agents, flow control, hardware, deployment, skills, and rules. No code required.
 
-**AI Agent Orchestration** -- A meta-planner decomposes your spec into a task DAG. Builder, tester, reviewer, and custom agents execute tasks with dependency ordering, retries, and inter-agent communication.
+**AI Agent Team** -- A meta-planner decomposes your spec into a task DAG. Builder, tester, reviewer, and custom agents execute tasks with dependency ordering, retries, and inter-agent communication. Specialized agent teammates (Buddy, Scribe, Blueprint, Pixel, and more) pop up during builds to collaborate via chat and interactive canvases.
 
-**Live Build Visibility** -- Watch the build in a three-pane layout: block editor (left), mission control with task graph and agent comms (right), and a bottom bar with git timeline, test results, serial output, and teaching moments.
+**Live Build Visibility** -- Watch the build in a tabbed layout: block editor, mission control with task graph and agent comms, a system tab showing boundary I/O visualization, a tests tab with live pass/fail and pre-generated expectations, and a bottom bar with railroad-style git timeline, serial output, health dashboard, and teaching moments.
 
 **Hardware Integration** -- Target ESP32 boards directly via the device plugin system. Built-in plugins for Heltec WiFi LoRa V3/V4 (sensor nodes, gateways with LoRa + OLED), LED blink, and cloud dashboards. Auto-detect, compile, and flash over USB. See [Creating Device Plugins](docs/creating-device-plugins.md).
 
@@ -58,6 +58,10 @@ See [Getting Started](docs/getting-started.md) for full setup. Tested on Windows
 **Human-in-the-Loop** -- Insert "check with me" gates at any point. Agents pause and ask for approval before continuing. Answer agent questions mid-build.
 
 **Teaching Moments** -- A teaching engine surfaces age-appropriate explanations of programming concepts as agents work, turning every build into a learning session.
+
+**Bug Fix Workflow** -- After a build, use the "Fix It" flow to target specific bugs. The fix endpoint creates a focused repair task, re-runs tests, and reports results -- no full rebuild needed.
+
+**Launch Without Rebuild** -- Re-serve a previously built nugget instantly. The launch endpoint finds the built output and starts a local preview server without re-running the build pipeline.
 
 **Skills and Rules** -- Create reusable prompt snippets (skills) and trigger-based rules that shape agent behavior across builds.
 
@@ -91,7 +95,8 @@ Electron Shell (main.ts)
         |                                               |
     Blockly Editor                              Orchestrator Pipeline
     Mission Control                         PlanPhase -> ExecutePhase
-    Bottom Bar                              TestPhase -> DeployPhase
+    System Panel                            TestPhase -> DeployPhase
+    Bottom Bar                              Fix + Launch (post-build)
                                             AgentRunner (Claude Agent SDK)
                                             GitService, TestRunner
                                             HardwareService, DeviceRegistry

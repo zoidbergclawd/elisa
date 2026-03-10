@@ -18,7 +18,12 @@ export interface MeetingBuildContext {
   testsTotal?: number;
   healthScore?: number;
   healthGrade?: string;
-  testResults?: Array<{ test_name: string; passed: boolean }>;
+  testResults?: Array<{ test_name: string; passed: boolean; details?: string }>;
+  healthBreakdown?: { tasks_score: number; tests_score: number; corrections_score: number; budget_score: number };
+  complexity?: string;
+  heaviestRequirements?: string[];
+  systemInputs?: Array<{ name: string; type: string; source?: string }>;
+  systemOutputs?: Array<{ name: string; type: string; source?: string }>;
 }
 
 interface AgentResponse {
@@ -50,6 +55,19 @@ const CANVAS_INSTRUCTIONS: Record<string, string> = {
   'bug-detective':
     'ALWAYS include a ```canvas JSON block when analyzing a bug. ' +
     'Required fields: test_name (string), when (string -- trigger condition), then_expected (string -- what should happen), then_actual (string -- what actually happened), diagnosis_notes (array of strings with analysis steps).',
+  'test-dashboard':
+    'ALWAYS include a ```canvas JSON block with test results. ' +
+    'Required fields: tests (array of {name, status: "passed"|"failed", expected?, actual?, error?}), ' +
+    'errors (array of {task, message, stack?}).',
+  'live-preview':
+    'ALWAYS include a ```canvas JSON block with preview info. ' +
+    'Required fields: previewUrl (string -- URL to the local web preview), refreshToken (number -- increment to trigger refresh).',
+  'code-explorer':
+    'ALWAYS include a ```canvas JSON block with code to explore. ' +
+    'Required fields: files (array of {path, content, annotations: [{line, text}]}), activeFile (string -- path of file to show).',
+  'whiteboard':
+    'ALWAYS include a ```canvas JSON block with drawing annotations. ' +
+    'Required fields: annotations (array of {x, y, text}), background (CSS color string).',
   'design-preview':
     'ALWAYS include a ```canvas JSON block with EVERY message so the kid sees the design evolve live. ' +
     'Required fields: scene_title (string), description (string), ' +
@@ -79,6 +97,8 @@ const MEETING_TOPIC_DESCRIPTIONS: Record<string, string> = {
     'This meeting is about designing how the kid\'s nuggets connect and communicate.',
   'bug-detective':
     'This meeting is about diagnosing and understanding a bug in the kid\'s project.',
+  'test-dashboard':
+    'This meeting is about reviewing test results and helping fix failing tests in the kid\'s project.',
   'design-preview':
     'This meeting is about collaboratively designing visual elements (sprites, backgrounds, UI) for the kid\'s project.',
 };
@@ -128,7 +148,7 @@ export class MeetingAgentService {
       : undefined;
 
     if (canvasResult.status === 'rejected') {
-      console.error('[meetingAgent] canvas call failed:', canvasResult.reason instanceof Error ? canvasResult.reason.message : canvasResult.reason);
+      console.warn('[meetingAgent] canvas call failed:', canvasResult.reason instanceof Error ? canvasResult.reason.message : canvasResult.reason);
     }
 
     return { text, canvasUpdate };
@@ -214,6 +234,32 @@ export class MeetingAgentService {
 
     if (ctx.devices.length > 0) {
       parts.push(`Devices: ${ctx.devices.map(d => `${d.name} (${d.type})`).join(', ')}`);
+    }
+
+    if (ctx.healthBreakdown) {
+      parts.push(`\n## Build Health`);
+      parts.push(`Grade: ${ctx.healthGrade ?? 'N/A'} (Score: ${ctx.healthScore ?? 0}/100)`);
+      parts.push(`Breakdown: Tasks ${ctx.healthBreakdown.tasks_score}/30, Tests ${ctx.healthBreakdown.tests_score}/40, No corrections ${ctx.healthBreakdown.corrections_score}/20, Budget ${ctx.healthBreakdown.budget_score}/10`);
+    }
+
+    const failingTests = (ctx.testResults ?? []).filter(t => !t.passed);
+    if (failingTests.length > 0) {
+      parts.push(`\n## Failing Tests`);
+      for (const t of failingTests.slice(0, 5)) {
+        parts.push(`- ${t.test_name}${t.details ? ': ' + t.details : ''}`);
+      }
+      parts.push('You can explain these failures to the kid if they ask.');
+    }
+
+    if (ctx.complexity) {
+      parts.push(`\n## Architecture`);
+      parts.push(`Complexity: ${ctx.complexity}`);
+      if (ctx.systemInputs && ctx.systemInputs.length > 0) {
+        parts.push(`Inputs: ${ctx.systemInputs.map(i => i.name).join(', ')}`);
+      }
+      if (ctx.systemOutputs && ctx.systemOutputs.length > 0) {
+        parts.push(`Outputs: ${ctx.systemOutputs.map(o => o.name).join(', ')}`);
+      }
     }
 
     if (options?.focusContext) {

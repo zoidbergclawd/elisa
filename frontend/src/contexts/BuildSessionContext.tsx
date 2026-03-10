@@ -83,6 +83,9 @@ export interface BuildSessionContextValue {
     };
   } | null;
   healthHistory: HealthHistoryEntry[];
+  isFixing: boolean;
+  fixPhase: 'fixing' | 'retesting' | null;
+  meetingBlockedTasks: string[];
   boundaryAnalysis: {
     inputs: Array<{ name: string; type: string; source?: string }>;
     outputs: Array<{ name: string; type: string; source?: string }>;
@@ -102,6 +105,7 @@ export interface BuildSessionContextValue {
   clearQuestionRequest: () => void;
   clearErrorNotification: () => void;
   resetToDesign: () => void;
+  launchWorkspace: (workspacePath?: string) => Promise<void>;
 }
 
 const BuildSessionContext = createContext<BuildSessionContextValue | null>(null);

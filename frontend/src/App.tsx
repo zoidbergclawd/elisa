@@ -8,8 +8,10 @@ import WorkspaceSidebar from './components/BlockCanvas/WorkspaceSidebar';
 import MissionControlPanel from './components/MissionControl/MissionControlPanel';
 import TeachingToast from './components/shared/TeachingToast';
 import MeetingInviteToast from './components/shared/MeetingInviteToast';
-import MeetingInviteCard from './components/shared/MeetingInviteCard';
 import MeetingModal from './components/Meeting/MeetingModal';
+import TeamPanel from './components/TeamPanel/TeamPanel';
+import SystemPanel from './components/SystemPanel/SystemPanel';
+import TestPanel from './components/TestPanel/TestPanel';
 import ReadinessBadge from './components/shared/ReadinessBadge';
 import LevelBadge from './components/shared/LevelBadge';
 import ModalHost from './components/shared/ModalHost';
@@ -110,17 +112,18 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
 
   const {
     uiState, tasks, agents, events, sessionId,
-    teachingMoments, deployUrls, errorNotification,
+    teachingMoments, deployUrls, errorNotification, testResults,
     nuggetDir, startBuild, stopBuild, clearErrorNotification, resetToDesign,
+    launchWorkspace, isFixing,
   } = useBuildSessionContext();
 
   const {
     inviteQueue, nextInvite, activeMeeting, isAgentThinking,
     messages: meetingMessages, canvasState: meetingCanvasState,
-    handleMeetingEvent, acceptInvite, declineInvite,
+    handleMeetingEvent, acceptInvite, declineInvite, dismissToast, startDirectMeeting,
     sendMessage: sendMeetingMessage, endMeeting, updateCanvas: updateMeetingCanvas,
     materializeArtifacts: materializeMeetingArtifacts,
-    resetMeetings,
+    requestFix, resetMeetings,
   } = useMeetingContext();
 
   const {
@@ -129,6 +132,25 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
     handleOpenFolder, ensureWorkspacePath, reinterpretWorkspace, systemLevel,
     deviceManifests,
   } = useWorkspaceContext();
+
+  // Post-bug-report fix state
+  const [lastBugReport, setLastBugReport] = useState<string | null>(null);
+  const prevActiveMeetingRef = useRef<typeof activeMeeting>(null);
+
+  useEffect(() => {
+    const prev = prevActiveMeetingRef.current;
+    prevActiveMeetingRef.current = activeMeeting;
+
+    // Bug Detective meeting just ended: extract kid messages as bug report
+    if (prev && !activeMeeting && prev.meetingTypeId === 'debug-convergence') {
+      const kidMessages = prev.messages
+        .filter(m => m.role === 'kid')
+        .map(m => m.content);
+      if (kidMessages.length > 0) {
+        setLastBugReport(kidMessages.join('\n'));
+      }
+    }
+  }, [activeMeeting]);
 
   // Route WS events to both build session and meeting session handlers
   const handleAllEvents = useCallback((event: WSEvent) => {
@@ -193,6 +215,13 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
     }
   }, [uiState]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Auto-switch to team tab when a meeting becomes active
+  useEffect(() => {
+    if (activeMeeting && activeMainTab !== 'team') {
+      setActiveMainTab('team'); // eslint-disable-line react-hooks/set-state-in-effect -- intentional tab auto-switch on meeting accept
+    }
+  }, [activeMeeting]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Show board-detected modal when a board is newly plugged in
   useEffect(() => {
     if (!justConnected || !boardInfo) return;
@@ -224,6 +253,33 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
     await startBuild(spec, waitForOpen, wp, workspaceJson ?? undefined);
   };
 
+  const [launching, setLaunching] = useState(false);
+  const handleLaunch = async () => {
+    if (!workspacePath) return;
+    setLaunching(true);
+    try {
+      if (sessionId) {
+        // Reuse existing session
+        await launchWorkspace(workspacePath);
+      } else {
+        // Create a temporary session just for launching
+        const res = await authFetch('/api/sessions', { method: 'POST' });
+        if (!res.ok) return;
+        const { session_id } = await res.json();
+        const launchRes = await authFetch(`/api/sessions/${session_id}/launch`, {
+          method: 'POST',
+          body: JSON.stringify({ workspace_path: workspacePath }),
+        });
+        if (launchRes.ok) {
+          const { url } = await launchRes.json();
+          window.open(url, '_blank');
+        }
+      }
+    } finally {
+      setLaunching(false);
+    }
+  };
+
   const handleBoardDismiss = useCallback(() => {
     if (boardInfo) boardDismissedPortsRef.current.add(boardInfo.port);
     setBoardDetectedModalOpen(false);
@@ -243,10 +299,21 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
             onTabChange={setActiveMainTab}
             tasks={tasks}
             agents={agents}
+            pendingInviteCount={inviteQueue.length}
+            failingTestCount={testResults.filter(t => t.passed === false).length}
           />
         </div>
         <div className="flex items-center gap-3">
           {spec && <LevelBadge level={systemLevel} />}
+          {uiState === 'design' && workspacePath && (
+            <button
+              onClick={handleLaunch}
+              disabled={launching}
+              className="px-4 py-1.5 rounded-lg text-xs font-medium cursor-pointer border border-accent-sky/30 bg-accent-sky/10 text-accent-sky hover:bg-accent-sky/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {launching ? 'Launching...' : 'Launch'}
+            </button>
+          )}
           <GoButton
             disabled={uiState !== 'design' || !spec?.nugget.goal || health.status !== 'ready'}
             onClick={handleGo}
@@ -302,6 +369,27 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
             <MissionControlPanel />
           </div>
         )}
+
+        {/* System tab */}
+        {activeMainTab === 'system' && (
+          <div className="w-full h-full">
+            <SystemPanel />
+          </div>
+        )}
+
+        {/* Tests tab */}
+        {activeMainTab === 'tests' && (
+          <div className="w-full h-full">
+            <TestPanel />
+          </div>
+        )}
+
+        {/* Team tab */}
+        {activeMainTab === 'team' && (
+          <div className="w-full h-full">
+            <TeamPanel />
+          </div>
+        )}
       </main>
 
       {/* Bottom bar */}
@@ -352,8 +440,8 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
         </div>
       )}
 
-      {/* Done mode overlay -- hidden when a meeting modal is active (z-50 > z-40) */}
-      {uiState === 'done' && !activeMeeting && (
+      {/* Done mode overlay -- hidden when meeting modal open or Team tab active */}
+      {uiState === 'done' && !activeMeeting && activeMainTab !== 'team' && (
         <div className="fixed inset-0 modal-backdrop z-40 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="done-modal-title">
           <div className={`glass-elevated rounded-2xl shadow-2xl p-8 mx-4 text-center animate-float-in ${inviteQueue.length > 0 ? 'max-w-lg' : 'max-w-md'}`}>
             <h2 id="done-modal-title" className="text-2xl font-display font-bold mb-4 gradient-text-warm">Nugget Complete!</h2>
@@ -372,34 +460,94 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
                 </ul>
               </div>
             )}
-            {/* Meeting invite cards embedded in done modal */}
-            {inviteQueue.length > 0 && (
+            {/* Fix It button when tasks failed or tests failing */}
+            {(tasks.some(t => t.status === 'failed') || testResults.some(t => t.passed === false)) && (
               <div className="mb-4">
-                <h3 className="text-sm font-semibold text-accent-sky mb-3">Your agents want to meet!</h3>
-                <div className="flex gap-3 justify-center flex-wrap">
-                  {inviteQueue.map(invite => (
-                    <MeetingInviteCard
-                      key={invite.meetingId}
-                      invite={invite}
-                      onAccept={acceptInvite}
-                      onDecline={declineInvite}
-                    />
-                  ))}
-                </div>
+                <button
+                  onClick={async () => {
+                    try { await startDirectMeeting('debug-convergence'); }
+                    catch { handleBuildEvent({ type: 'error', message: 'Session expired. Please build again.', recoverable: false }); }
+                  }}
+                  className="w-full px-4 py-3 rounded-xl text-sm cursor-pointer font-medium border border-red-500/30 bg-red-950/30 text-red-400 hover:bg-red-950/50 transition-colors text-center"
+                >
+                  Fix It -- Debug with Bug Detective
+                </button>
               </div>
             )}
-            <div className="flex flex-col items-center gap-2">
+            {/* Report a Bug button -- always available post-build */}
+            {!tasks.some(t => t.status === 'failed') && !testResults.some(t => t.passed === false) && (
+              <div className="mb-4">
+                <button
+                  onClick={async () => {
+                    try { await startDirectMeeting('debug-convergence'); }
+                    catch { handleBuildEvent({ type: 'error', message: 'Session expired. Please build again.', recoverable: false }); }
+                  }}
+                  className="w-full px-4 py-3 rounded-xl text-sm cursor-pointer border border-amber-500/30 bg-amber-950/20 text-amber-400 hover:bg-amber-950/40 transition-colors text-center"
+                >
+                  Report a Bug
+                </button>
+              </div>
+            )}
+            {/* Fix reported bugs -- shown after Bug Detective meeting */}
+            {lastBugReport && !isFixing && (
+              <div className="mb-4">
+                <button
+                  onClick={async () => {
+                    const report = lastBugReport;
+                    setLastBugReport(null);
+                    try {
+                      await requestFix(report);
+                    } catch {
+                      handleBuildEvent({ type: 'error', message: 'Session expired. Please build again.', recoverable: false });
+                    }
+                  }}
+                  className="w-full px-4 py-3 rounded-xl text-sm cursor-pointer font-medium border border-red-500/30 bg-red-950/30 text-red-400 hover:bg-red-950/50 transition-colors text-center"
+                >
+                  Fix reported bugs
+                </button>
+              </div>
+            )}
+            {isFixing && (
+              <div className="mb-4 px-4 py-3 rounded-xl text-sm border border-amber-500/30 bg-amber-950/20 text-amber-400 text-center">
+                Fix in progress...
+              </div>
+            )}
+            {/* Pending meeting invites -- accept directly (opens modal overlay) */}
+            {inviteQueue.length > 0 && (
+              <div className="mb-4 space-y-2">
+                <p className="text-xs font-semibold text-accent-sky">Your team wants to chat:</p>
+                {inviteQueue.map(invite => (
+                  <button
+                    key={invite.meetingId}
+                    onClick={() => acceptInvite(invite.meetingId)}
+                    className="w-full px-4 py-2.5 rounded-xl text-sm cursor-pointer border border-accent-sky/30 bg-accent-sky/10 text-accent-sky hover:bg-accent-sky/20 transition-colors text-left flex items-center gap-2"
+                  >
+                    <span className="font-medium">{invite.agentName}</span>
+                    <span className="text-accent-sky/60 text-xs truncate">{invite.title}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="flex flex-col items-center gap-2 w-full">
               {Object.entries(deployUrls).map(([target, url]) => (
                 <a
                   key={target}
                   href={url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="go-btn px-6 py-2.5 rounded-xl text-sm inline-block"
+                  className="go-btn w-full px-6 py-2.5 rounded-xl text-sm text-center inline-block"
                 >
                   {Object.keys(deployUrls).length > 1 ? `Open ${target}` : 'Open in Browser'}
                 </a>
               ))}
+              {(nuggetDir || workspacePath) && (
+                <button
+                  onClick={() => launchWorkspace(nuggetDir || workspacePath || undefined)}
+                  className="w-full px-6 py-2.5 rounded-xl text-sm cursor-pointer border border-border-subtle text-atelier-text-secondary hover:bg-atelier-surface/60 hover:text-atelier-text transition-colors"
+                >
+                  {Object.keys(deployUrls).length > 0 ? 'Relaunch Preview' : 'Launch Preview'}
+                </button>
+              )}
               <button
                 onClick={() => {
                   if (sessionId) {
@@ -407,7 +555,7 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
                   }
                   window.location.reload();
                 }}
-                className="go-btn px-6 py-2.5 rounded-xl text-sm cursor-pointer"
+                className="w-full px-6 py-2.5 rounded-xl text-sm cursor-pointer border border-border-subtle text-atelier-text-secondary hover:bg-atelier-surface/60 hover:text-atelier-text transition-colors"
               >
                 Build something new
               </button>
@@ -417,7 +565,7 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
                   resetToDesign();
                   setActiveMainTab('workspace');
                 }}
-                className="px-6 py-2.5 rounded-xl text-sm cursor-pointer border border-atelier-text-muted/30 text-atelier-text-secondary hover:bg-atelier-surface/60 hover:text-atelier-text transition-colors"
+                className="w-full px-6 py-2.5 rounded-xl text-sm cursor-pointer text-atelier-text-muted hover:text-atelier-text-secondary transition-colors"
               >
                 Keep working on this nugget
               </button>
@@ -429,18 +577,19 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
       {/* Teaching toast overlay */}
       <TeachingToast moment={currentToast} onDismiss={handleDismissToast} />
 
-      {/* Meeting invite toast -- shown during builds, hidden at completion (cards shown in done modal instead) */}
+      {/* Meeting invite toast -- shown during builds, hidden at completion (summary in done modal instead) */}
       {uiState !== 'done' && (
         <MeetingInviteToast
           invite={nextInvite}
           onAccept={acceptInvite}
           onDecline={declineInvite}
+          onDismissToast={dismissToast}
           pauseAutoDismiss={!!activeMeeting}
         />
       )}
 
-      {/* Active meeting modal */}
-      {activeMeeting && (
+      {/* Active meeting modal -- hidden when Team tab is active (TeamConversation handles it inline) */}
+      {activeMeeting && activeMainTab !== 'team' && (
         <MeetingModal
           meetingId={activeMeeting.meetingId}
           agentName={activeMeeting.agentName}

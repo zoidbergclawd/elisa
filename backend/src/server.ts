@@ -35,7 +35,21 @@ import { createSpecGraphRouter } from './routes/specGraph.js';
 import { getAnthropicClient } from './utils/anthropicClient.js';
 import { getLanUrl } from './utils/lanUrl.js';
 import { getDevicesDir } from './utils/resourcePath.js';
+import { WS_PING_INTERVAL_MS } from './utils/constants.js';
 import type { WSEvent } from './services/phases/types.js';
+
+const wsAlive = new WeakMap<WebSocket, boolean>();
+
+/** Per-connection diagnostics metadata for debugging disconnects. */
+interface WsConnectionMeta {
+  connectedAt: number;
+  sessionId: string;
+  lastPongAt: number;
+  pingsSent: number;
+  pongsReceived: number;
+  lastEventType: string;
+}
+const wsMeta = new WeakMap<WebSocket, WsConnectionMeta>();
 
 // -- State --
 
@@ -56,6 +70,10 @@ meetingRegistry.register({
   persona: 'A friendly debugging expert who helps kids figure out why code is not working. Patient, curious, and encouraging.',
 });
 
+// Register Buddy Agent meeting type (mid-build check-in)
+import { registerBuddyAgentMeeting } from './services/buddyAgentMeeting.js';
+registerBuddyAgentMeeting(meetingRegistry);
+
 // Register Art Agent meeting type (BOX-3 theme customization)
 import { registerArtAgentMeeting } from './services/artAgentMeeting.js';
 registerArtAgentMeeting(meetingRegistry);
@@ -71,6 +89,10 @@ registerWebDesignAgentMeeting(meetingRegistry);
 // Register Media Agent meeting type (visual assets and marketing)
 import { registerMediaAgentMeeting } from './services/mediaAgentMeeting.js';
 registerMediaAgentMeeting(meetingRegistry);
+
+// Register Social Media Agent meeting type (social media campaigns)
+import { registerSocialMediaAgentMeeting } from './services/socialMediaAgentMeeting.js';
+registerSocialMediaAgentMeeting(meetingRegistry);
 
 // Register Architecture Agent meeting type (system understanding capstone)
 import { registerArchitectureAgentMeeting } from './services/architectureAgentMeeting.js';
@@ -154,34 +176,103 @@ async function validateStartupHealth(): Promise<void> {
 
 class ConnectionManager {
   private connections = new Map<string, Set<WebSocket>>();
+  // Per-session send queue: serializes all ws.send() calls
+  private sendQueues = new Map<string, Array<{ data: string; eventType: string; resolve: () => void }>>();
+  private draining = new Map<string, boolean>();
 
   connect(sessionId: string, ws: WebSocket): void {
     if (!this.connections.has(sessionId)) {
       this.connections.set(sessionId, new Set());
     }
     this.connections.get(sessionId)!.add(ws);
+    console.log(`[ws] connect session=${sessionId} total=${this.connections.get(sessionId)!.size}`);
   }
 
   disconnect(sessionId: string, ws: WebSocket): void {
+    const code = (ws as any)._closeCode ?? 'unknown';
+    const reason = (ws as any)._closeReason ?? '';
+    console.log(`[ws] disconnect session=${sessionId} code=${code} reason="${reason}"`);
     this.connections.get(sessionId)?.delete(ws);
   }
 
   async sendEvent(sessionId: string, event: WSEvent): Promise<void> {
     const conns = this.connections.get(sessionId);
-    if (!conns) return;
+    if (!conns || conns.size === 0) return;
+
     const data = JSON.stringify(event);
-    for (const ws of conns) {
-      try {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(data);
-        }
-      } catch {
-        // ignore send errors
+
+    return new Promise<void>((resolve) => {
+      let queue = this.sendQueues.get(sessionId);
+      if (!queue) {
+        queue = [];
+        this.sendQueues.set(sessionId, queue);
       }
-    }
+      queue.push({ data, eventType: event.type, resolve });
+
+      if (queue.length === 10 || queue.length === 50 || queue.length === 100) {
+        console.warn(`[ws-queue] depth=${queue.length} session=${sessionId} latest=${event.type}`);
+      }
+
+      if (!this.draining.get(sessionId)) {
+        this.drainQueue(sessionId);
+      }
+    });
+  }
+
+  private drainQueue(sessionId: string): void {
+    this.draining.set(sessionId, true);
+    const startTime = Date.now();
+    let count = 0;
+
+    const drainNext = () => {
+      const queue = this.sendQueues.get(sessionId);
+      if (!queue || queue.length === 0) {
+        this.draining.set(sessionId, false);
+        if (count > 5) {
+          console.log(`[ws-queue] drained session=${sessionId} sent=${count} elapsed=${Date.now() - startTime}ms`);
+        }
+        return;
+      }
+
+      const { data, eventType, resolve } = queue.shift()!;
+      const conns = this.connections.get(sessionId);
+
+      if (conns) {
+        for (const ws of conns) {
+          try {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(data);
+              const meta = wsMeta.get(ws);
+              if (meta) meta.lastEventType = eventType;
+            } else if (eventType.startsWith('meeting_')) {
+              console.warn(`[ws] dropped ${eventType} for session=${sessionId} (readyState=${ws.readyState})`);
+            }
+          } catch {
+            // ignore send errors
+          }
+        }
+      }
+
+      count++;
+      resolve();
+
+      // Yield to event loop before next frame so proxy can forward
+      setImmediate(drainNext);
+    };
+
+    // First frame sends immediately (no yield)
+    drainNext();
   }
 
   cleanup(sessionId: string): void {
+    // Resolve pending promises so callers don't hang
+    const queue = this.sendQueues.get(sessionId);
+    if (queue) {
+      for (const entry of queue) entry.resolve();
+      this.sendQueues.delete(sessionId);
+    }
+    this.draining.delete(sessionId);
+
     const conns = this.connections.get(sessionId);
     if (conns) {
       for (const ws of conns) {
@@ -190,9 +281,16 @@ class ConnectionManager {
       this.connections.delete(sessionId);
     }
   }
+
+  *allConnections(): IterableIterator<WebSocket> {
+    for (const conns of this.connections.values()) {
+      for (const ws of conns) yield ws;
+    }
+  }
 }
 
 const manager = new ConnectionManager();
+const runtimeConnections = new Set<WebSocket>();
 
 // Wire up WebSocket + meeting cleanup when sessions are removed
 store.onCleanup = (sessionId: string) => {
@@ -368,19 +466,55 @@ export function startServer(
     if (sessionMatch) {
       const wsToken = url.searchParams.get('token');
       if (wsToken !== token) {
+        console.warn(`[ws] upgrade rejected: bad token for session=${sessionMatch[1]}`);
         socket.destroy();
         return;
       }
 
       const sessionId = sessionMatch[1];
       if (!store.has(sessionId)) {
+        console.warn(`[ws] upgrade rejected: session not found id=${sessionId}`);
         socket.destroy();
         return;
       }
 
       wss.handleUpgrade(request, socket, head, (ws) => {
+        wsAlive.set(ws, true);
+        const meta: WsConnectionMeta = {
+          connectedAt: Date.now(),
+          sessionId,
+          lastPongAt: Date.now(),
+          pingsSent: 0,
+          pongsReceived: 0,
+          lastEventType: '',
+        };
+        wsMeta.set(ws, meta);
         manager.connect(sessionId, ws);
-        ws.on('close', () => manager.disconnect(sessionId, ws));
+        store.scheduleCleanup(sessionId); // Reset 5-min cleanup timer on connect/reconnect
+        // Clear socket-level timeout so Node doesn't close the underlying TCP socket
+        (ws as any)._socket?.setTimeout?.(0);
+        ws.on('pong', () => {
+          wsAlive.set(ws, true);
+          meta.pongsReceived++;
+          meta.lastPongAt = Date.now();
+        });
+        ws.on('close', (code, reason) => {
+          (ws as any)._closeCode = code;
+          (ws as any)._closeReason = reason?.toString() ?? '';
+          const age = ((Date.now() - meta.connectedAt) / 1000).toFixed(1);
+          const pongRatio = meta.pingsSent > 0
+            ? `${meta.pongsReceived}/${meta.pingsSent}`
+            : 'n/a';
+          const buffered = (ws as any).bufferedAmount ?? 0;
+          console.log(
+            `[ws] disconnect session=${sessionId} code=${code} reason="${reason?.toString() ?? ''}"` +
+            ` age=${age}s pongs=${pongRatio} buffered=${buffered} lastEvent=${meta.lastEventType}`,
+          );
+          manager.disconnect(sessionId, ws);
+        });
+        ws.on('error', (err) => {
+          console.error(`[ws] error session=${sessionId}:`, err.message);
+        });
         ws.on('message', () => {
           // Client keepalive; ignore content
         });
@@ -400,6 +534,10 @@ export function startServer(
       }
 
       runtimeWss.handleUpgrade(request, socket, head, (ws) => {
+        wsAlive.set(ws, true);
+        runtimeConnections.add(ws);
+        ws.on('close', () => { runtimeConnections.delete(ws); });
+        ws.on('pong', () => { wsAlive.set(ws, true); });
         ws.on('message', async (raw) => {
           try {
             const msg = JSON.parse(String(raw));
@@ -510,8 +648,10 @@ export function startServer(
     // Cancel all running orchestrators
     store.cancelAll();
 
-    // Close WebSocket server
+    // Stop heartbeat and close WebSocket servers
+    clearInterval(heartbeatInterval);
     wss.close();
+    runtimeWss.close();
 
     // Close HTTP server with a 10s force-exit
     server.close(() => {
@@ -527,6 +667,41 @@ export function startServer(
   process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
   process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
+  // Event loop lag monitor -- logs when the loop is blocked > 100ms
+  let lastLagCheck = Date.now();
+  const lagInterval = setInterval(() => {
+    const now = Date.now();
+    const lag = now - lastLagCheck - 2000; // expected interval is 2000ms
+    lastLagCheck = now;
+    if (lag > 100) {
+      console.warn(`[diagnostics] Event loop lag: ${lag}ms`);
+    }
+  }, 2000);
+  lagInterval.unref();
+
+  // WebSocket heartbeat -- protocol-level pings keep connections alive through proxies
+  const heartbeatInterval = setInterval(() => {
+    for (const ws of manager.allConnections()) {
+      if (wsAlive.get(ws) === false) {
+        const meta = wsMeta.get(ws);
+        const age = meta ? ((Date.now() - meta.connectedAt) / 1000).toFixed(1) : '?';
+        console.warn(`[ws] heartbeat terminate session=${meta?.sessionId ?? '?'} age=${age}s (missed pong)`);
+        ws.terminate();
+        continue;
+      }
+      wsAlive.set(ws, false);
+      const meta = wsMeta.get(ws);
+      if (meta) meta.pingsSent++;
+      ws.ping();
+    }
+    for (const ws of runtimeConnections) {
+      if (wsAlive.get(ws) === false) { ws.terminate(); continue; }
+      wsAlive.set(ws, false);
+      ws.ping();
+    }
+  }, WS_PING_INTERVAL_MS);
+  heartbeatInterval.unref();
+
   // Prune stale sessions every 10 minutes
   const pruneInterval = setInterval(() => {
     const pruned = store.pruneStale();
@@ -536,10 +711,16 @@ export function startServer(
   }, 600_000);
   pruneInterval.unref();
 
+  // Disable Node HTTP server timeouts so long-running builds aren't killed.
+  // Node 24 defaults requestTimeout to 300s which can close idle WS connections.
+  server.requestTimeout = 0;
+  server.timeout = 0;
+
   return new Promise((resolve) => {
     const host = process.env.HOST ?? '127.0.0.1';
     server.listen(port, host, () => {
       console.log(`Elisa backend listening on ${host}:${port}`);
+      console.log(`[ws] Server timeouts: requestTimeout=${server.requestTimeout} timeout=${server.timeout}`);
       if (process.env.NODE_ENV !== 'production') {
         console.log(`Auth token: ${token}`);
       }

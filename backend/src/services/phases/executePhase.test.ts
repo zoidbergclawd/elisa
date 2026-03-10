@@ -1014,3 +1014,96 @@ describe('sanitizePlaceholder', () => {
     expect(sanitizePlaceholder('Color #ff0000')).toBe('Color #ff0000');
   });
 });
+
+// ============================================================
+// Meeting blocking events (#199)
+// ============================================================
+
+describe('meeting blocking events', () => {
+  it('emits meeting_blocking_task and meeting_unblocking_task when a task waits for meetings', async () => {
+    const executeMock = vi.fn().mockResolvedValue(makeSuccessResult());
+    const task = makeTask('task-1', 'Design sprite art', 'Builder Bot');
+    const agent = makeAgent('Builder Bot');
+
+    // Create a meeting trigger wiring that returns a meeting ID
+    let resolverFn: (() => void) | undefined;
+    const meetingBlockResolvers = new Map<string, () => void>();
+    const mockMeetingTriggerWiring = {
+      evaluateAndInviteForTask: vi.fn().mockResolvedValue(['meeting-123']),
+    };
+
+    const deps = makeDeps(executeMock, {
+      tasks: [task],
+      agents: [agent],
+      meetingTriggerWiring: mockMeetingTriggerWiring as any,
+      meetingBlockResolvers,
+      sessionId: 'test-session',
+      systemLevel: 'builder' as any,
+    });
+
+    const ctx = makeCtx();
+    const phase = new ExecutePhase(deps);
+
+    // Run execute -- the task should become meeting-blocked
+    const executePromise = phase.execute(ctx);
+
+    // Wait until meeting_blocking_task is emitted
+    await vi.waitFor(() => {
+      expect(events.some(e => e.type === 'meeting_blocking_task')).toBe(true);
+    }, { timeout: 5000 });
+
+    const blockingEvent = events.find(e => e.type === 'meeting_blocking_task');
+    expect(blockingEvent).toMatchObject({
+      type: 'meeting_blocking_task',
+      task_id: 'task-1',
+      meeting_type_id: 'design-task-agent',
+    });
+
+    // Resolve the meeting block
+    const resolver = meetingBlockResolvers.get('meeting-123');
+    expect(resolver).toBeDefined();
+    resolver!();
+
+    // Wait for execution to complete
+    await executePromise;
+
+    // Verify meeting_unblocking_task was emitted
+    const unblockingEvent = events.find(e => e.type === 'meeting_unblocking_task');
+    expect(unblockingEvent).toMatchObject({
+      type: 'meeting_unblocking_task',
+      task_id: 'task-1',
+    });
+
+    // The blocking event should come before the unblocking event
+    const blockIdx = events.findIndex(e => e.type === 'meeting_blocking_task');
+    const unblockIdx = events.findIndex(e => e.type === 'meeting_unblocking_task');
+    expect(blockIdx).toBeLessThan(unblockIdx);
+  });
+
+  it('does not emit blocking events when no meetings are created', async () => {
+    const executeMock = vi.fn().mockResolvedValue(makeSuccessResult());
+    const task = makeTask('task-1', 'Design sprite art', 'Builder Bot');
+    const agent = makeAgent('Builder Bot');
+
+    const mockMeetingTriggerWiring = {
+      evaluateAndInviteForTask: vi.fn().mockResolvedValue([]),
+    };
+
+    const deps = makeDeps(executeMock, {
+      tasks: [task],
+      agents: [agent],
+      meetingTriggerWiring: mockMeetingTriggerWiring as any,
+      meetingBlockResolvers: new Map(),
+      sessionId: 'test-session',
+      systemLevel: 'builder' as any,
+    });
+
+    const ctx = makeCtx();
+    const phase = new ExecutePhase(deps);
+
+    await phase.execute(ctx);
+
+    expect(events.filter(e => e.type === 'meeting_blocking_task')).toHaveLength(0);
+    expect(events.filter(e => e.type === 'meeting_unblocking_task')).toHaveLength(0);
+  });
+});

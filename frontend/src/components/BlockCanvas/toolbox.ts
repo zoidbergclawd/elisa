@@ -103,6 +103,15 @@ export const toolbox = {
     },
     {
       kind: 'category',
+      name: 'Team',
+      colour: '45',
+      contents: [
+        { kind: 'block', type: 'team_member' },
+        { kind: 'block', type: 'team_member_custom' },
+      ],
+    },
+    {
+      kind: 'category',
       name: 'Flow',
       colour: '60',
       contents: [

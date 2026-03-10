@@ -1,6 +1,6 @@
 /** Tests for meeting route handlers. Uses lightweight Express app with real HTTP. */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import http from 'node:http';
 import express from 'express';
 import { MeetingRegistry } from '../../services/meetingRegistry.js';
@@ -222,6 +222,74 @@ describe('POST /api/sessions/:sessionId/meetings/:meetingId/message', () => {
   });
 });
 
+describe('POST /api/sessions/:sessionId/meetings/start', () => {
+  it('creates meeting and immediately accepts it, returns meetingId', async () => {
+    const sessionId = createSession();
+    const { status, body } = await fetchJSON(
+      `/api/sessions/${sessionId}/meetings/start`,
+      { method: 'POST', body: JSON.stringify({ meetingTypeId: 'test-meeting' }) },
+    );
+    expect(status).toBe(200);
+    expect(body.meetingId).toBeDefined();
+
+    // Verify the meeting is now active (accepted, not just invited)
+    const meeting = meetingService.getMeeting(body.meetingId);
+    expect(meeting).toBeDefined();
+    expect(meeting!.status).toBe('active');
+  });
+
+  it('returns 400 for missing meetingTypeId', async () => {
+    const sessionId = createSession();
+    const { status, body } = await fetchJSON(
+      `/api/sessions/${sessionId}/meetings/start`,
+      { method: 'POST', body: JSON.stringify({}) },
+    );
+    expect(status).toBe(400);
+    expect(body.detail).toBe('meetingTypeId required');
+  });
+
+  it('returns 404 for unknown session', async () => {
+    const { status } = await fetchJSON(
+      `/api/sessions/nonexistent/meetings/start`,
+      { method: 'POST', body: JSON.stringify({ meetingTypeId: 'test-meeting' }) },
+    );
+    expect(status).toBe(404);
+  });
+
+  it('returns 400 for unknown meeting type', async () => {
+    const sessionId = createSession();
+    const { status, body } = await fetchJSON(
+      `/api/sessions/${sessionId}/meetings/start`,
+      { method: 'POST', body: JSON.stringify({ meetingTypeId: 'nonexistent-type' }) },
+    );
+    expect(status).toBe(400);
+    expect(body.detail).toContain('Unknown meeting type');
+  });
+
+  it('emits meeting_started event via sendEvent', async () => {
+    const sessionId = createSession();
+    sentEvents = [];
+    const { status } = await fetchJSON(
+      `/api/sessions/${sessionId}/meetings/start`,
+      { method: 'POST', body: JSON.stringify({ meetingTypeId: 'test-meeting' }) },
+    );
+    expect(status).toBe(200);
+
+    const startedEvents = sentEvents.filter(e => e.type === 'meeting_started');
+    expect(startedEvents.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('resets cleanup timer on successful meeting start', async () => {
+    const sessionId = createSession();
+    const spy = vi.spyOn(store, 'scheduleCleanup');
+    await fetchJSON(
+      `/api/sessions/${sessionId}/meetings/start`,
+      { method: 'POST', body: JSON.stringify({ meetingTypeId: 'test-meeting' }) },
+    );
+    expect(spy).toHaveBeenCalledWith(sessionId);
+  });
+});
+
 describe('POST /api/sessions/:sessionId/meetings/:meetingId/end', () => {
   it('ends an active meeting', async () => {
     const sessionId = createSession();
@@ -248,5 +316,89 @@ describe('POST /api/sessions/:sessionId/meetings/:meetingId/end', () => {
       { method: 'POST' },
     );
     expect(status).toBe(409);
+  });
+
+  it('resets cleanup timer on meeting end when session is done', async () => {
+    const sessionId = createDoneSession();
+    const sendEvent = async (event: any) => { sentEvents.push(event); };
+    const meeting = await meetingService.createInvite('test-meeting', sessionId, sendEvent as any);
+    await meetingService.acceptMeeting(meeting!.id, sendEvent as any);
+    const spy = vi.spyOn(store, 'scheduleCleanup');
+    await fetchJSON(
+      `/api/sessions/${sessionId}/meetings/${meeting!.id}/end`,
+      { method: 'POST' },
+    );
+    expect(spy).toHaveBeenCalledWith(sessionId);
+  });
+
+  it('does NOT reset cleanup timer on meeting end during build', async () => {
+    const sessionId = createSession(); // state='executing'
+    const sendEvent = async (event: any) => { sentEvents.push(event); };
+    const meeting = await meetingService.createInvite('test-meeting', sessionId, sendEvent as any);
+    await meetingService.acceptMeeting(meeting!.id, sendEvent as any);
+    const spy = vi.spyOn(store, 'scheduleCleanup');
+    await fetchJSON(
+      `/api/sessions/${sessionId}/meetings/${meeting!.id}/end`,
+      { method: 'POST' },
+    );
+    expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+function createDoneSession(): string {
+  const id = 'done-session';
+  store.create(id, { id, state: 'done', spec: null, tasks: [], agents: [] });
+  return id;
+}
+
+describe('Cleanup timer resets on post-build meeting activity', () => {
+  it('resets cleanup timer on meeting accept when session is done', async () => {
+    const sessionId = createDoneSession();
+    const sendEvent = async (event: any) => { sentEvents.push(event); };
+    const meeting = await meetingService.createInvite('test-meeting', sessionId, sendEvent as any);
+    const spy = vi.spyOn(store, 'scheduleCleanup');
+    await fetchJSON(
+      `/api/sessions/${sessionId}/meetings/${meeting!.id}/accept`,
+      { method: 'POST' },
+    );
+    expect(spy).toHaveBeenCalledWith(sessionId);
+  });
+
+  it('does NOT reset cleanup timer on meeting accept during build', async () => {
+    const sessionId = createSession(); // state='executing'
+    const sendEvent = async (event: any) => { sentEvents.push(event); };
+    const meeting = await meetingService.createInvite('test-meeting', sessionId, sendEvent as any);
+    const spy = vi.spyOn(store, 'scheduleCleanup');
+    await fetchJSON(
+      `/api/sessions/${sessionId}/meetings/${meeting!.id}/accept`,
+      { method: 'POST' },
+    );
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('resets cleanup timer on meeting message when session is done', async () => {
+    const sessionId = createDoneSession();
+    const sendEvent = async (event: any) => { sentEvents.push(event); };
+    const meeting = await meetingService.createInvite('test-meeting', sessionId, sendEvent as any);
+    await meetingService.acceptMeeting(meeting!.id, sendEvent as any);
+    const spy = vi.spyOn(store, 'scheduleCleanup');
+    await fetchJSON(
+      `/api/sessions/${sessionId}/meetings/${meeting!.id}/message`,
+      { method: 'POST', body: JSON.stringify({ content: 'Hello' }) },
+    );
+    expect(spy).toHaveBeenCalledWith(sessionId);
+  });
+
+  it('does NOT reset cleanup timer on meeting message during build', async () => {
+    const sessionId = createSession(); // state='executing'
+    const sendEvent = async (event: any) => { sentEvents.push(event); };
+    const meeting = await meetingService.createInvite('test-meeting', sessionId, sendEvent as any);
+    await meetingService.acceptMeeting(meeting!.id, sendEvent as any);
+    const spy = vi.spyOn(store, 'scheduleCleanup');
+    await fetchJSON(
+      `/api/sessions/${sessionId}/meetings/${meeting!.id}/message`,
+      { method: 'POST', body: JSON.stringify({ content: 'Hello' }) },
+    );
+    expect(spy).not.toHaveBeenCalled();
   });
 });

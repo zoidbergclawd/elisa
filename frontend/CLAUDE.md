@@ -20,12 +20,15 @@ src/
     AgentTeam/               Full-width agent cards + comms feed panel (Agents tab)
     TaskMap/                 Full-width interactive task DAG panel (Tasks tab)
     MissionControl/          MissionControlPanel (layout), MinionSquadPanel, NarratorFeed, TaskDAG, CommsFeed, MetricsPanel
-    BottomBar/               Resizable bottom tabs with contextual visibility: timeline, tests, trace, board, learn, progress, system, health, tokens
+    BottomBar/               Resizable bottom tabs with contextual visibility: trace, board, learn, progress, health, tokens
     Skills/                  Skills editor modal + template library + SkillFlowEditor (visual flow editor)
     Rules/                   Rules editor modal + template library
     Portals/                 Portals editor modal + registry
-    Meeting/                 Agent Meeting framework: MeetingModal, canvasRegistry, DefaultCanvas, ThemePickerCanvas, BugDetectiveCanvas, BlueprintCanvas, CampaignCanvas, ExplainItCanvas, InterfaceDesignerCanvas, LaunchPadCanvas, AgentStudioCanvas, FacePreview
-    shared/                  MainTabBar, GoButton, ModalHost, HumanGateModal, QuestionModal, TeachingToast, AgentAvatar, ReadinessBadge, ExamplePickerModal, DirectoryPickerModal, FlashWizardModal, MeetingInviteToast, MeetingInviteCard, DisplayThemePreview, EsptoolFlashStep, ImpactPreview
+    Meeting/                 Agent Meeting framework: MeetingModal (composes ChatPanel+CanvasPanel+MeetingLayout), canvasRegistry, DefaultCanvas, ThemePickerCanvas, BugDetectiveCanvas, BlueprintCanvas, CampaignCanvas, ExplainItCanvas, InterfaceDesignerCanvas, LaunchPadCanvas, AgentStudioCanvas, FacePreview
+    SystemPanel/             System main tab: architecture explorer (spec view pre-build, task list + detail during/post-build)
+    TestPanel/               Tests main tab: TestPanel, TestList, AddTestForm (behavioral test management)
+    TeamPanel/               Persistent Team tab: TeamPanel, TeamMemberList, TeamConversation (reuses ChatPanel+CanvasPanel)
+    shared/                  MainTabBar (workspace/mission/team), GoButton, ModalHost, HumanGateModal, QuestionModal, TeachingToast, AgentAvatar, ReadinessBadge, ExamplePickerModal, DirectoryPickerModal, FlashWizardModal, MeetingInviteToast (auto-dismiss preserves invite), DisplayThemePreview, EsptoolFlashStep, ImpactPreview
   hooks/
     useBuildSession.ts       Build session state via useReducer (typed actions + reducer)
     useWorkspaceIO.ts        Workspace file I/O: open/save/load nugget, open folder, select example, syncDesignToStorage
@@ -54,7 +57,7 @@ Workspace JSON, skills, and rules auto-save to `localStorage` on every change an
 
 UI phases: `design` | `building` | `review` | `deploy` | `done`
 
-Main tabs: `workspace` | `agents` | `tasks` (auto-switches to `agents` when build starts)
+Main tabs: `workspace` | `mission` | `system` | `tests` (badge shows failing test count) | `team` (badge shows pending invite count)
 
 ## Communication with Backend
 

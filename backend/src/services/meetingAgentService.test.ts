@@ -356,7 +356,8 @@ describe('MeetingAgentService (dual-call)', () => {
   });
 
   it('logs errors to console.error on failures', async () => {
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     mockCreate
       .mockRejectedValueOnce(new Error('chat_fail'))
       .mockRejectedValueOnce(new Error('canvas_fail'));
@@ -367,9 +368,10 @@ describe('MeetingAgentService (dual-call)', () => {
       buildContext,
     );
 
-    expect(consoleSpy).toHaveBeenCalledWith('[meetingAgent] chat call failed:', 'chat_fail');
-    expect(consoleSpy).toHaveBeenCalledWith('[meetingAgent] canvas call failed:', 'canvas_fail');
-    consoleSpy.mockRestore();
+    expect(errorSpy).toHaveBeenCalledWith('[meetingAgent] chat call failed:', 'chat_fail');
+    expect(warnSpy).toHaveBeenCalledWith('[meetingAgent] canvas call failed:', 'canvas_fail');
+    errorSpy.mockRestore();
+    warnSpy.mockRestore();
   });
 
   it('canvas handles complex draw code with braces', async () => {

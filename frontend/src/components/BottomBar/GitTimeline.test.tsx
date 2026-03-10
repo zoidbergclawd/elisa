@@ -19,31 +19,46 @@ describe('GitTimeline', () => {
     expect(screen.getByText('Commits will appear here as agents work')).toBeInTheDocument();
   });
 
-  it('renders commit entries', () => {
-    const commits = [makeCommit()];
-    render(<GitTimeline commits={commits} />);
-    expect(screen.getByText('Sparky:')).toBeInTheDocument();
-    expect(screen.getByText(/Build login/)).toBeInTheDocument();
-  });
-
-  it('renders multiple commits', () => {
+  it('renders a commit node for each commit', () => {
     const commits = [
-      makeCommit({ sha: 'aaa', agent_name: 'Sparky', message: 'First' }),
-      makeCommit({ sha: 'bbb', agent_name: 'Checkers', message: 'Second' }),
+      makeCommit({ sha: 'aaa', agent_name: 'Sparky Builder', message: 'First' }),
+      makeCommit({ sha: 'bbb', agent_name: 'Checkers Tester', message: 'Second' }),
     ];
     render(<GitTimeline commits={commits} />);
-    expect(screen.getByText('Sparky:')).toBeInTheDocument();
-    expect(screen.getByText('Checkers:')).toBeInTheDocument();
+    expect(screen.getByTestId('commit-node-aaa')).toBeInTheDocument();
+    expect(screen.getByTestId('commit-node-bbb')).toBeInTheDocument();
+  });
+
+  it('renders the horizontal rail line', () => {
+    render(<GitTimeline commits={[makeCommit()]} />);
+    expect(screen.getByTestId('rail-line')).toBeInTheDocument();
+  });
+
+  it('shows tooltip on hover with agent name, message, and file count', () => {
+    const commits = [makeCommit({ files_changed: ['a.py', 'b.py'] })];
+    render(<GitTimeline commits={commits} />);
+    fireEvent.mouseEnter(screen.getByTestId('commit-node-abc1234'));
+    const tooltip = screen.getByTestId('commit-tooltip');
+    expect(tooltip).toBeInTheDocument();
+    expect(tooltip).toHaveTextContent('Sparky');
+    expect(tooltip).toHaveTextContent('Build login');
+    expect(tooltip).toHaveTextContent('2 files changed');
+  });
+
+  it('hides tooltip on mouse leave', () => {
+    render(<GitTimeline commits={[makeCommit()]} />);
+    const node = screen.getByTestId('commit-node-abc1234');
+    fireEvent.mouseEnter(node);
+    expect(screen.getByTestId('commit-tooltip')).toBeInTheDocument();
+    fireEvent.mouseLeave(node);
+    expect(screen.queryByTestId('commit-tooltip')).not.toBeInTheDocument();
   });
 
   it('expands to show files on click', () => {
     const commits = [makeCommit({ files_changed: ['src/login.py', 'src/auth.py'] })];
     render(<GitTimeline commits={commits} />);
-    // Files should not be visible initially
     expect(screen.queryByText('src/login.py')).not.toBeInTheDocument();
-    // Click the commit entry
-    fireEvent.click(screen.getByText('Sparky:'));
-    // Files should now be visible
+    fireEvent.click(screen.getByTestId('commit-node-abc1234'));
     expect(screen.getByText('src/login.py')).toBeInTheDocument();
     expect(screen.getByText('src/auth.py')).toBeInTheDocument();
   });
@@ -51,18 +66,35 @@ describe('GitTimeline', () => {
   it('collapses files on second click', () => {
     const commits = [makeCommit({ files_changed: ['src/login.py'] })];
     render(<GitTimeline commits={commits} />);
-    const button = screen.getByText('Sparky:');
-    fireEvent.click(button);
+    const node = screen.getByTestId('commit-node-abc1234');
+    fireEvent.click(node);
     expect(screen.getByText('src/login.py')).toBeInTheDocument();
-    fireEvent.click(button);
+    fireEvent.click(node);
     expect(screen.queryByText('src/login.py')).not.toBeInTheDocument();
   });
 
   it('does not show file list when files_changed is empty', () => {
     const commits = [makeCommit({ files_changed: [] })];
     render(<GitTimeline commits={commits} />);
-    fireEvent.click(screen.getByText('Sparky:'));
-    // No file entries should appear
-    expect(screen.queryByText('src/')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('commit-node-abc1234'));
+    expect(screen.queryByTestId('commit-files')).not.toBeInTheDocument();
+  });
+
+  it('shows tooltip with singular file text for 1 file', () => {
+    const commits = [makeCommit({ files_changed: ['one.py'] })];
+    render(<GitTimeline commits={commits} />);
+    fireEvent.mouseEnter(screen.getByTestId('commit-node-abc1234'));
+    expect(screen.getByTestId('commit-tooltip')).toHaveTextContent('1 file changed');
+  });
+
+  it('hides tooltip when node is expanded (click replaces tooltip)', () => {
+    const commits = [makeCommit()];
+    render(<GitTimeline commits={commits} />);
+    const node = screen.getByTestId('commit-node-abc1234');
+    fireEvent.mouseEnter(node);
+    expect(screen.getByTestId('commit-tooltip')).toBeInTheDocument();
+    fireEvent.click(node);
+    // Tooltip should be hidden when expanded
+    expect(screen.queryByTestId('commit-tooltip')).not.toBeInTheDocument();
   });
 });

@@ -89,72 +89,78 @@ export class TestRunner {
     return pyResult ?? jsResult!;
   }
 
-  private async runJsTests(workDir: string, testsDir: string): Promise<TestRunResult> {
-    const entries = fs.readdirSync(testsDir).filter(f => f.endsWith('.js') || f.endsWith('.mjs'));
+  async runSingleTestFile(filePath: string, workDir: string): Promise<TestRunResult> {
     const tests: Array<{ test_name: string; passed: boolean; details: string }> = [];
     let passedCount = 0;
     let failedCount = 0;
+    let stdout = '';
+    let exitCode = 0;
+    const file = path.basename(filePath);
 
-    for (const file of entries) {
-      const filePath = path.join(testsDir, file);
-      let stdout = '';
-      let exitCode = 0;
-
-      try {
-        let childProc: import('node:child_process').ChildProcess | undefined;
-        const execPromise = new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
-          childProc = execFile('node', [filePath], { cwd: workDir, env: safeEnv() }, (err, stdout, stderr) => {
-            if (err) {
-              const execErr = err as ExecError;
-              if (stdout != null) execErr.stdout = stdout;
-              if (stderr != null) execErr.stderr = stderr;
-              reject(execErr);
-            } else {
-              resolve({ stdout: stdout ?? '', stderr: stderr ?? '' });
-            }
-          });
+    try {
+      let childProc: import('node:child_process').ChildProcess | undefined;
+      const execPromise = new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+        childProc = execFile('node', [filePath], { cwd: workDir, env: safeEnv() }, (err, stdoutBuf, stderrBuf) => {
+          if (err) {
+            const execErr = err as ExecError;
+            if (stdoutBuf != null) execErr.stdout = stdoutBuf;
+            if (stderrBuf != null) execErr.stderr = stderrBuf;
+            reject(execErr);
+          } else {
+            resolve({ stdout: stdoutBuf ?? '', stderr: stderrBuf ?? '' });
+          }
         });
-        const result = await withTimeout(
-          execPromise,
-          TEST_TIMEOUT_MS,
-          { childProcess: childProc },
-        );
-        stdout = result.stdout ?? '';
-      } catch (err: unknown) {
-        const execErr = err as ExecError;
-        if (err instanceof TimeoutError) {
-          tests.push({ test_name: file, passed: false, details: 'Test run timed out' });
-          failedCount++;
-          continue;
-        }
-        if (execErr.code === 'ENOENT') {
-          tests.push({ test_name: file, passed: false, details: 'node not found' });
-          failedCount++;
-          continue;
-        }
-        // Non-zero exit code -- test failure
-        stdout = execErr.stdout ?? '';
-        exitCode = execErr.status ?? 1;
+      });
+      const result = await withTimeout(
+        execPromise,
+        TEST_TIMEOUT_MS,
+        { childProcess: childProc },
+      );
+      stdout = result.stdout ?? '';
+    } catch (err: unknown) {
+      const execErr = err as ExecError;
+      if (err instanceof TimeoutError) {
+        return { tests: [{ test_name: file, passed: false, details: 'Test run timed out' }], passed: 0, failed: 1, total: 1, coverage_pct: null, coverage_details: null };
       }
+      if (execErr.code === 'ENOENT') {
+        return { tests: [{ test_name: file, passed: false, details: 'node not found' }], passed: 0, failed: 1, total: 1, coverage_pct: null, coverage_details: null };
+      }
+      stdout = execErr.stdout ?? '';
+      exitCode = execErr.status ?? 1;
+    }
 
-      // Try to parse granular test output
-      const parsed = parseJsTestOutput(stdout);
-      if (parsed.length > 0) {
-        for (const t of parsed) {
-          tests.push(t);
-          if (t.passed) passedCount++;
-          else failedCount++;
-        }
-      } else {
-        // Fall back: count the whole file as one test
-        const passed = exitCode === 0;
-        tests.push({ test_name: file, passed, details: passed ? 'PASSED' : 'FAILED' });
-        if (passed) passedCount++;
+    const parsed = parseJsTestOutput(stdout);
+    if (parsed.length > 0) {
+      for (const t of parsed) {
+        tests.push(t);
+        if (t.passed) passedCount++;
         else failedCount++;
       }
+    } else {
+      const passed = exitCode === 0;
+      tests.push({ test_name: file, passed, details: passed ? 'PASSED' : 'FAILED' });
+      if (passed) passedCount++;
+      else failedCount++;
     }
 
     return { tests, passed: passedCount, failed: failedCount, total: passedCount + failedCount, coverage_pct: null, coverage_details: null };
+  }
+
+  private async runJsTests(workDir: string, testsDir: string): Promise<TestRunResult> {
+    const entries = fs.readdirSync(testsDir).filter(f => f.endsWith('.js') || f.endsWith('.mjs'));
+    const allTests: Array<{ test_name: string; passed: boolean; details: string }> = [];
+    let totalPassed = 0;
+    let totalFailed = 0;
+
+    for (const file of entries) {
+      const filePath = path.join(testsDir, file);
+      const result = await this.runSingleTestFile(filePath, workDir);
+      allTests.push(...result.tests);
+      totalPassed += result.passed;
+      totalFailed += result.failed;
+    }
+
+    return { tests: allTests, passed: totalPassed, failed: totalFailed, total: totalPassed + totalFailed, coverage_pct: null, coverage_details: null };
   }
 
   private async runPytest(workDir: string, testsDir: string): Promise<TestRunResult> {

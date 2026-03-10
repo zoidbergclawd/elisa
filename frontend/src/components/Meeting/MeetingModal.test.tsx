@@ -73,11 +73,11 @@ describe('MeetingModal', () => {
     expect(input.value).toBe('');
   });
 
-  it('calls onEndMeeting when End Meeting is clicked', () => {
+  it('calls onEndMeeting when Save & End is clicked', () => {
     const onEndMeeting = vi.fn();
     render(<MeetingModal {...defaultProps} onEndMeeting={onEndMeeting} />);
 
-    fireEvent.click(screen.getByText('End Meeting'));
+    fireEvent.click(screen.getByText('Save & End'));
     expect(onEndMeeting).toHaveBeenCalled();
   });
 

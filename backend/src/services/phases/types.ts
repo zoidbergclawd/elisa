@@ -30,7 +30,7 @@ export type WSEvent =
   | { type: 'deploy_checklist'; rules: Array<{ name: string; prompt: string }> }
   | { type: 'teaching_moment'; concept: string; headline: string; explanation: string; tell_me_more?: string; related_concepts?: string[] }
   | { type: 'commit_created'; sha: string; message: string; agent_name: string; task_id: string; timestamp: string; files_changed: string[] }
-  | { type: 'test_result'; test_name: string; passed: boolean; details: string }
+  | { type: 'test_result'; test_name: string; passed: boolean; details: string; task_id?: string }
   | { type: 'coverage_update'; percentage: number; details?: Record<string, { statements: number; covered: number; percentage: number }> }
   | { type: 'token_usage'; agent_name: string; input_tokens: number; output_tokens: number; cost_usd: number }
   | { type: 'budget_warning'; total_tokens: number; max_budget: number; cost_usd: number }
@@ -73,7 +73,14 @@ export type WSEvent =
   | { type: 'composition_impact'; graph_id: string; changed_node_id: string; affected_nodes: Array<{ node_id: string; label: string; reason: string }>; severity: string }
   | { type: 'composition_started'; graph_id: string; node_ids: string[] }
   | { type: 'health_history'; entries: Array<{ timestamp: string; goal: string; score: number; grade: 'A' | 'B' | 'C' | 'D' | 'F'; breakdown: { tasks: number; tests: number; corrections: number; budget: number } }> }
-  | { type: 'spec_validation_warning'; truncated_fields: Array<{ path: string; max_length: number; actual_length: number }> };
+  | { type: 'spec_validation_warning'; truncated_fields: Array<{ path: string; max_length: number; actual_length: number }> }
+  | { type: 'test_expectations'; task_id: string; tests: Array<{ name: string; description: string }> }
+  | { type: 'test_phase_complete'; passed: number; failed: number; total: number }
+  | { type: 'fix_started'; bugReport: string }
+  | { type: 'fix_task_completed'; taskId: string; success: boolean }
+  | { type: 'fix_tests_completed'; passed: number; failed: number; total: number }
+  | { type: 'meeting_blocking_task'; task_id: string; meeting_type_id: string }
+  | { type: 'meeting_unblocking_task'; task_id: string };
 
 export type SendEvent = (event: WSEvent) => Promise<void>;
 

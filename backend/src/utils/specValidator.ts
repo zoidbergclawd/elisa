@@ -184,6 +184,16 @@ const CompositionSchema = z.object({
   requires: z.array(InterfaceRequireSchema).max(20).optional(),
 }).strict();
 
+// --- Agent Team: meeting team member schema ---
+
+const MeetingTeamMemberSchema = z.object({
+  type: z.enum(['builtin', 'custom']),
+  meetingTypeId: z.string().max(100).optional(),
+  name: z.string().max(200).optional(),
+  persona: z.string().max(500).optional(),
+  canvasType: z.string().max(50).optional(),
+}).strict();
+
 export const NuggetSpecSchema = z.object({
   nugget: z.object({
     goal: z.string().max(2000).optional(),
@@ -229,6 +239,7 @@ export const NuggetSpecSchema = z.object({
   runtime: RuntimeConfigSchema.optional(),
   knowledge: KnowledgeConfigSchema.optional(),
   composition: CompositionSchema.optional(),
+  meeting_team: z.array(MeetingTeamMemberSchema).max(20).optional(),
 }).strict();
 
 /** Inferred TypeScript type from the NuggetSpec Zod schema. */

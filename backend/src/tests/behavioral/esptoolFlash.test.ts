@@ -575,7 +575,7 @@ describe('EsptoolFlashStrategy.flash', () => {
     expect(result.message).toContain('120');
   });
 
-  it('writes runtime_config.json when injections are present', async () => {
+  it('builds runtime config when injections are present', async () => {
     setupEsptoolAvailable();
     const strategy = new EsptoolFlashStrategy();
     const params = makeEsptoolFlashParams({
@@ -586,15 +586,10 @@ describe('EsptoolFlashStrategy.flash', () => {
       },
     });
 
-    await strategy.flash(params);
+    const result = await strategy.flash(params);
 
-    const configPath = path.join(params.nuggetDir, 'runtime_config.json');
-    expect(fs.existsSync(configPath)).toBe(true);
-
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-    expect(config.agent_id).toBe('agent-123');
-    expect(config.api_key).toBe('sk-test-key');
-    expect(config.runtime_url).toBe('https://runtime.example.com');
+    // Flash should succeed (config is built internally, written via SPIFFS when spiffs config present)
+    expect(result.success).toBe(true);
   });
 
   it('does NOT write runtime_config.json when no injections', async () => {
@@ -759,19 +754,33 @@ describe('EsptoolFlashStrategy.flash', () => {
     expect(opts.timeout).toBe(120_000);
   });
 
-  it('reports progress for writing runtime config step', async () => {
+  it('reports progress for building config partition when spiffs config present', async () => {
     setupEsptoolAvailable();
     const onProgress = vi.fn();
     const strategy = new EsptoolFlashStrategy();
     const params = makeEsptoolFlashParams({
       onProgress,
       injections: { agent_id: 'test-agent' },
+      flashConfig: {
+        firmware_file: 'firmware.bin',
+        flash_offset: '0x0',
+        baud_rate: 460800,
+        chip: 'esp32s3',
+        prompt_message: 'Plug in BOX-3',
+        spiffs: {
+          size: '0x100000',
+          offset: '0x310000',
+          page_size: 256,
+          obj_name_len: 32,
+          meta_len: 4,
+        },
+      },
     });
 
     await strategy.flash(params);
 
     const steps = onProgress.mock.calls.map((c: any[]) => c[0]);
-    expect(steps).toContain('Writing runtime configuration...');
+    expect(steps).toContain('Building config partition...');
   });
 });
 

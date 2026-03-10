@@ -11,6 +11,7 @@ export default function MissionControlPanel() {
   const {
     tasks, agents, events, narratorMessages,
     uiState, isPlanning, contextFlows, correctionCycles, impactEstimate,
+    meetingBlockedTasks, isFixing, fixPhase,
   } = useBuildSessionContext();
   const { spec } = useWorkspaceContext();
   const hasContent = tasks.length > 0;
@@ -22,6 +23,15 @@ export default function MissionControlPanel() {
     <div className="flex flex-col lg:flex-row h-full overflow-hidden">
       {/* Left panel: Task DAG */}
       <div className="flex-1 lg:w-3/5 min-h-0 overflow-hidden p-4">
+        {/* Fix banner: shown above DAG during fix flow */}
+        {isFixing && fixPhase && (
+          <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-500/30 bg-amber-950/20" data-testid="fix-banner">
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+            <span className="text-sm text-amber-400 font-medium">
+              {fixPhase === 'fixing' ? 'Fixing bug...' : 'Re-running tests...'}
+            </span>
+          </div>
+        )}
         {/* Impact Preview: shown during planning when estimate is available */}
         {isPlanning && impactEstimate && (
           <div className="mb-3" data-testid="impact-preview-wrapper">
@@ -37,6 +47,7 @@ export default function MissionControlPanel() {
             contextFlows={contextFlows}
             requirements={requirements}
             isComplete={isComplete}
+            meetingBlockedTasks={meetingBlockedTasks}
           />
         ) : isPlanning ? (
           <PlanningIndicator />
