@@ -197,7 +197,7 @@ Client sends `turn` (text) or `audio_turn` (audio) messages. Server responds wit
 
 ## Key Patterns
 
-- **Session state**: In-memory Maps with optional JSON persistence for checkpoint/recovery. Cleanup timer (5 min) starts on WS connect; cancelled at build start, re-armed in `.finally()` after build completes. Meeting activity (accept, message, end), kid-initiated meeting starts, and fix/launch requests also reset the timer.
+- **Session state**: In-memory Maps with optional JSON persistence for checkpoint/recovery. Cleanup timer (5 min) starts on WS connect; cancelled at build start, re-armed in `.finally()` after build completes. Meeting activity (accept, message, end), kid-initiated meeting starts, and fix/launch requests also reset the timer. `impactEstimate` and `boundaryAnalysis` persisted on session during plan phase for Blueprint meeting context.
 - **NuggetSpec validation**: Zod schema validates at `/api/sessions/:id/start` (string caps, array limits, portal command allowlist).
 - **SDK query per task**: Each agent task calls `query()` from `@anthropic-ai/claude-agent-sdk` with `permissionMode: 'bypassPermissions'`. Default `maxTurns=25` (`MAX_TURNS_DEFAULT`). On retry, grants 10 additional turns per attempt (`MAX_TURNS_RETRY_INCREMENT`), so retries progress: 25 → 35 → 45.
 - **Stale metadata cleanup**: On each build, `setupWorkspace()` removes `.elisa/{comms,context,status}` from previous sessions before recreating them. Preserves `.elisa/logs/`, source files, and `.git/`.

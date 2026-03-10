@@ -127,7 +127,13 @@ function buildMeetingContext(session: SessionEntry | undefined): MeetingBuildCon
     testResults: (session?.orchestrator?.getTestResults?.()?.tests ?? []).map(t => ({
       test_name: t.test_name,
       passed: t.passed,
+      details: t.details,
     })),
+    healthBreakdown: session?.session.healthSummary?.breakdown,
+    complexity: session?.session.impactEstimate?.complexity,
+    heaviestRequirements: session?.session.impactEstimate?.heaviest_requirements,
+    systemInputs: session?.session.boundaryAnalysis?.inputs,
+    systemOutputs: session?.session.boundaryAnalysis?.outputs,
   };
 }
 

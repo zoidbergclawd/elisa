@@ -333,12 +333,17 @@ export class MeetingService {
         const done = ctx.tasks.filter(t => t.status === 'done').length;
         return {
           tasks: ctx.tasks.map(t => ({ ...t, name: t.title })),
-          tests: (ctx.testResults ?? []).map(t => ({ name: t.test_name, passed: t.passed })),
+          tests: (ctx.testResults ?? []).map(t => ({ name: t.test_name, passed: t.passed, details: t.details ?? '' })),
           total_tasks: ctx.tasks.length,
           tasks_done: done,
           tests_passing: ctx.testsPassing ?? 0,
           tests_total: ctx.testsTotal ?? 0,
           health_score: ctx.healthScore ?? 0,
+          health_grade: ctx.healthGrade ?? '',
+          health_breakdown: ctx.healthBreakdown ?? null,
+          complexity: ctx.complexity ?? null,
+          system_inputs: ctx.systemInputs ?? [],
+          system_outputs: ctx.systemOutputs ?? [],
         };
       }
       case 'theme-picker':

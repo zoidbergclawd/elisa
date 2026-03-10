@@ -283,7 +283,7 @@ export class Orchestrator {
       const healthHistory = new HealthHistoryService(this.nuggetDir);
       healthHistory.load();
       const healthSummary = this.healthTracker.getSummary();
-      this.session.healthSummary = { score: healthSummary.health_score, grade: healthSummary.grade };
+      this.session.healthSummary = { score: healthSummary.health_score, grade: healthSummary.grade, breakdown: healthSummary.breakdown };
       healthHistory.record(spec.nugget?.goal ?? 'Build', healthSummary);
       await healthHistory.emitHistory(this.send);
 

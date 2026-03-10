@@ -46,6 +46,7 @@ App.tsx
   shared/MeetingInviteCard.tsx       Inline meeting invite card for embedding in done modal (non-positioned, flow layout)
   shared/LevelBadge.tsx             System level badge (Explorer/Builder/Architect) in header
   shared/ImpactPreview.tsx          Pre-execution impact preview card (task estimate, complexity, heaviest reqs)
+  shared/HealthGradeCard.tsx        Reusable health grade display (letter grade, score, 4-part breakdown bars). compact prop for canvas embedding. Used by HealthDashboard and BlueprintCanvas.
   shared/DisplayThemePreview.tsx    BOX-3 display theme preview (320x240 ratio, theme colors, avatar style)
   shared/EsptoolFlashStep.tsx       Esptool flash progress UI (port detection, manual override, progress bar)
   Meeting/MeetingModal.tsx           Full-screen meeting modal, composes ChatPanel + CanvasPanel via MeetingLayout
@@ -57,7 +58,7 @@ App.tsx
   Meeting/DefaultCanvas.tsx          Placeholder canvas shown when no specialized canvas is registered
   Meeting/ThemePickerCanvas.tsx      BOX-3 display theme picker canvas for Art Agent meetings (reads canvasState.data.currentTheme)
   Meeting/BugDetectiveCanvas.tsx     Bug diagnosis canvas for debug-convergence meetings (expected vs actual, fix decision)
-  Meeting/BlueprintCanvas.tsx        Build Explorer canvas for Architecture Agent meetings (task list, task detail, test matching, system stats)
+  Meeting/BlueprintCanvas.tsx        Build Explorer canvas for Architecture Agent meetings (health grade card, architecture summary, failing tests banner with details, task list + detail with test error details)
   Meeting/CampaignCanvas.tsx         Creative asset builder canvas for Media Agent meetings (poster, social card, storyboard)
   Meeting/DesignPreviewCanvas.tsx    Design preview canvas with Canvas 2D rendering for Design Review meetings (SceneComposition sub-component executes agent-generated draw code, drawBackground handles CSS gradients with percentage stops, fallback circles for elements without draw code)
   Meeting/InterfaceDesignerCanvas.tsx Interface contract builder canvas for Integration meetings (provides/requires/connections)
@@ -94,7 +95,7 @@ App.tsx
 - App.tsx is a thin layout shell; `ModalHost` renders all modals; hooks own the state logic.
 - WSEvent discriminated union ensures exhaustive handling of all event types.
 - BlockCanvas stays mounted (hidden via CSS) to preserve Blockly workspace state across tab switches.
-- Auto-switch: build starts -> Agents tab + Progress bottom tab.
+- Auto-switch: build starts -> Agents tab + Progress bottom tab. Health tab no longer auto-switches post-build (Blueprint meeting is the primary post-build summary).
 - Modals use fixed positioning with backdrop overlay. Only one modal shows at a time.
 - Done modal: "Fix It" button appears when any task failed or tests failing, navigates to Team tab for Bug Detective. "Fix reported bugs" button appears after a Bug Detective meeting ends (captures kid messages as bug report, calls `requestFix()`). Fix progress uses `isFixing` from build session context (not local state); resets automatically via `fix_tests_completed` event. "Report a Bug" button always available post-build. "Your team wants to chat" button appears when invites are pending.
 - Skills/Rules and workspace state are persisted to localStorage and restored on page load via `syncDesignToStorage` helper.

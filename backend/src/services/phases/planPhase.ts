@@ -138,6 +138,7 @@ export class PlanPhase {
 
     // Emit impact_estimate for pre-execution preview
     const impact = estimateImpact(spec);
+    ctx.session.impactEstimate = { estimated_tasks: impact.estimated_tasks, complexity: impact.complexity, heaviest_requirements: impact.heaviest_requirements };
     await ctx.send({
       type: 'impact_estimate',
       estimated_tasks: impact.estimated_tasks,
@@ -148,6 +149,7 @@ export class PlanPhase {
 
     // Emit boundary_analysis
     const boundary = analyzeBoundary(spec);
+    ctx.session.boundaryAnalysis = { inputs: boundary.inputs, outputs: boundary.outputs, boundary_portals: boundary.boundary_portals };
     await ctx.send({
       type: 'boundary_analysis',
       inputs: boundary.inputs,
