@@ -15,16 +15,25 @@
       flex-direction: column;
       height: 100vh;
     }
-    h1 {
-      font-size: 20px;
-      font-weight: 600;
-      margin-bottom: 8px;
-    }
-    p {
-      font-size: 13px;
-      color: #6b6550;
+    .welcome {
+      text-align: center;
       margin-bottom: 24px;
+    }
+    .welcome h1 {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .welcome p {
+      font-size: 14px;
+      color: #6b6550;
       line-height: 1.5;
+    }
+    .form-section {
+      background: #fff;
+      border: 1px solid #e8e3d8;
+      border-radius: 10px;
+      padding: 20px;
     }
     label {
       display: block;
@@ -32,6 +41,17 @@
       font-weight: 500;
       margin-bottom: 6px;
     }
+    .hint {
+      font-size: 12px;
+      color: #8a8270;
+      margin-bottom: 12px;
+      line-height: 1.4;
+    }
+    .hint a {
+      color: #b8845f;
+      text-decoration: none;
+    }
+    .hint a:hover { text-decoration: underline; }
     input[type="password"] {
       width: 100%;
       padding: 10px 12px;
@@ -84,22 +104,36 @@
   </style>
 </head>
 <body>
-  <h1>API Key</h1>
-  <p>Enter your Anthropic API key. It will be encrypted and stored securely in your system keychain.</p>
+  <div class="welcome">
+    <h1>Welcome to Elisa</h1>
+    <p>To get started, connect your Anthropic API key below.</p>
+  </div>
 
-  <label for="apiKey">Anthropic API Key</label>
-  <input type="password" id="apiKey" placeholder="sk-ant-..." autocomplete="off" spellcheck="false">
-  <div class="status" id="status"></div>
+  <div class="form-section">
+    <label for="apiKey">Anthropic API Key</label>
+    <p class="hint">
+      Your key is encrypted and stored in your system keychain.
+      <br>Don't have one? Get a key at <a href="#" id="consoleLink">console.anthropic.com</a>
+    </p>
+    <input type="password" id="apiKey" placeholder="sk-ant-..." autocomplete="off" spellcheck="false">
+    <div class="status" id="status"></div>
+  </div>
 
   <div class="actions">
     <button id="cancelBtn" onclick="window.close()">Cancel</button>
-    <button id="saveBtn" class="primary" disabled>Save</button>
+    <button id="saveBtn" class="primary" disabled>Save & Start</button>
   </div>
 
   <script>
     const input = document.getElementById('apiKey');
     const saveBtn = document.getElementById('saveBtn');
     const status = document.getElementById('status');
+
+    // Open console link in default browser
+    document.getElementById('consoleLink').addEventListener('click', (e) => {
+      e.preventDefault();
+      window.elisaAPI.openExternal('https://console.anthropic.com/settings/keys');
+    });
 
     input.addEventListener('input', () => {
       saveBtn.disabled = !input.value.trim();
@@ -117,7 +151,7 @@
 
       try {
         await window.elisaAPI.setApiKey(key);
-        status.textContent = 'Saved. You can close this window.';
+        status.textContent = 'Saved. Starting Elisa...';
         status.className = 'status ok';
         setTimeout(() => window.close(), 800);
       } catch (err) {

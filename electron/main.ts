@@ -21,6 +21,37 @@ let serverPort: number = 8000;
 let serverInstance: { close: () => void } | null = null;
 let authToken: string | null = null;
 
+// -- Auto-Updater (production only) --
+
+async function initAutoUpdater(): Promise<void> {
+  if (!app.isPackaged) return;
+
+  try {
+    const { autoUpdater } = await import('electron-updater');
+    autoUpdater.autoDownload = true;
+    autoUpdater.autoInstallOnAppQuit = true;
+
+    autoUpdater.on('update-available', (info) => {
+      console.log(`Update available: ${info.version}`);
+    });
+
+    autoUpdater.on('update-downloaded', (info) => {
+      console.log(`Update downloaded: ${info.version} -- will install on quit`);
+      if (mainWindow) {
+        mainWindow.webContents.send('update-downloaded', info.version);
+      }
+    });
+
+    autoUpdater.on('error', (err) => {
+      console.warn('Auto-updater error:', err.message);
+    });
+
+    autoUpdater.checkForUpdatesAndNotify();
+  } catch (err) {
+    console.warn('Auto-updater not available:', (err as Error).message);
+  }
+}
+
 // -- API Key Management --
 
 function getApiKey(): string | null {
@@ -149,9 +180,14 @@ async function startBackend(): Promise<void> {
     return;
   }
 
+  // Production: tell the backend where packaged resources live
+  process.env.ELISA_RESOURCES_PATH = process.resourcesPath;
+
+  const backendDist = path.join(process.resourcesPath, 'backend-dist');
+
   // Production: start the bundled backend in-process
   serverPort = await findFreePort(8000);
-  const prodPath = path.join(process.resourcesPath, 'backend-dist', 'server-entry.js');
+  const prodPath = path.join(backendDist, 'server-entry.js');
   const serverModule: { startServer: (port: number, staticDir?: string) => Promise<{ server: any; authToken: string }> } =
     await import(prodPath);
   const frontendDist = path.join(process.resourcesPath, 'frontend-dist');
@@ -268,6 +304,10 @@ ipcMain.handle('pick-directory', async () => {
   return result.filePaths[0];
 });
 
+ipcMain.handle('get-app-version', () => {
+  return app.getVersion();
+});
+
 // -- App Lifecycle --
 
 app.whenReady().then(async () => {
@@ -281,11 +321,13 @@ app.whenReady().then(async () => {
     openSettingsWindow(async () => {
       await startBackend();
       createMainWindow();
+      initAutoUpdater();
     });
   } else {
     await startBackend();
     if (!isDev) {
       createMainWindow();
+      initAutoUpdater();
     } else {
       // Dev mode: propagate stored API key to separately-running backend
       propagateApiKeyToBackend().catch(() => {});

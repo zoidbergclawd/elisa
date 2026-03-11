@@ -13,50 +13,16 @@
     "dev:electron": "concurrently -n be,fe,el -c blue,green,magenta \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\" \"wait-on http://localhost:5173 && electron .\"",
     "build:frontend": "cd frontend && npx vite build",
     "build:backend": "node scripts/build-backend.mjs",
+    "build:backend:deps": "node scripts/bundle-backend-deps.mjs",
     "test:electron": "vitest run --config electron/vitest.config.ts",
     "build:electron": "tsc -p electron/tsconfig.json",
-    "build": "npm run build:frontend && npm run build:backend && npm run build:electron",
+    "build": "npm run build:frontend && npm run build:backend && npm run build:backend:deps && npm run build:electron",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder",
     "dist:win": "npm run build && electron-builder --win",
     "dist:mac": "npm run build && electron-builder --mac",
     "preinstall": "node scripts/kill-port.mjs 8000 && node scripts/kill-port.mjs 5173",
     "postinstall": "node scripts/install-deps.mjs"
-  },
-  "build": {
-    "appId": "com.elisa.app",
-    "productName": "Elisa",
-    "directories": {
-      "output": "release"
-    },
-    "files": [
-      "electron/dist/**/*",
-      "frontend/dist/**/*",
-      "backend/dist/**/*"
-    ],
-    "extraResources": [
-      {
-        "from": "frontend/dist",
-        "to": "frontend-dist"
-      },
-      {
-        "from": "backend/dist",
-        "to": "backend-dist"
-      }
-    ],
-    "win": {
-      "target": "nsis",
-      "icon": "build/icon.ico"
-    },
-    "mac": {
-      "target": "dmg",
-      "icon": "build/icon.icns"
-    },
-    "nsis": {
-      "oneClick": false,
-      "perMachine": false,
-      "allowToChangeInstallationDirectory": true
-    }
   },
   "devDependencies": {
     "concurrently": "9.2.1",
@@ -68,7 +34,8 @@
     "wait-on": "^8.0.3"
   },
   "dependencies": {
-    "electron-store": "^10.0.1"
+    "electron-store": "^10.0.1",
+    "electron-updater": "^6.6.2"
   },
   "overrides": {
     "minimatch": ">=10.2.1",
