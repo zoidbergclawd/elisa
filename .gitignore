@@ -40,6 +40,9 @@ backend/dist/
 build/icon.ico
 build/icon.icns
 
+# Video scripts
+docs/video-scripts/
+
 # Worktrees
 .worktrees/
 
