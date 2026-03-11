@@ -183,13 +183,7 @@ async function startBackend(): Promise<void> {
   // Production: tell the backend where packaged resources live
   process.env.ELISA_RESOURCES_PATH = process.resourcesPath;
 
-  // Ensure Node.js can resolve external backend deps (stored as vendor/ to avoid
-  // electron-builder filtering out node_modules)
   const backendDist = path.join(process.resourcesPath, 'backend-dist');
-  const backendNodeModules = path.join(backendDist, 'vendor');
-  process.env.NODE_PATH = [backendNodeModules, process.env.NODE_PATH].filter(Boolean).join(path.delimiter);
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  require('module').Module._initPaths();
 
   // Production: start the bundled backend in-process
   serverPort = await findFreePort(8000);
