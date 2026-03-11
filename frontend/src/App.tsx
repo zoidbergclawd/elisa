@@ -15,6 +15,7 @@ import TestPanel from './components/TestPanel/TestPanel';
 import ReadinessBadge from './components/shared/ReadinessBadge';
 import LevelBadge from './components/shared/LevelBadge';
 import ModalHost from './components/shared/ModalHost';
+import UpdateBanner from './components/shared/UpdateBanner';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useHealthCheck } from './hooks/useHealthCheck';
 import { useBoardDetect } from './hooks/useBoardDetect';
@@ -287,6 +288,7 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
 
   return (
     <div className="flex flex-col h-screen atelier-bg noise-overlay text-atelier-text">
+      <UpdateBanner />
       {/* Header */}
       <header className="relative z-10 flex items-center justify-between px-5 py-2 glass-panel border-t-0 border-x-0">
         <div className="flex items-center gap-4">
