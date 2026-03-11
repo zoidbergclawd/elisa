@@ -24,57 +24,6 @@
     "preinstall": "node scripts/kill-port.mjs 8000 && node scripts/kill-port.mjs 5173",
     "postinstall": "node scripts/install-deps.mjs"
   },
-  "build": {
-    "appId": "com.elisa.app",
-    "productName": "Elisa",
-    "directories": {
-      "output": "release"
-    },
-    "files": [
-      "electron/dist/**/*",
-      "electron/settings.html"
-    ],
-    "extraResources": [
-      {
-        "from": "frontend/dist",
-        "to": "frontend-dist"
-      },
-      {
-        "from": "backend/dist",
-        "to": "backend-dist",
-        "filter": [
-          "**/*"
-        ]
-      },
-      {
-        "from": "devices/_shared",
-        "to": "devices/_shared"
-      }
-    ],
-    "win": {
-      "target": "nsis",
-      "icon": "build/icon.ico"
-    },
-    "mac": {
-      "target": [
-        "dmg",
-        "zip"
-      ],
-      "category": "public.app-category.developer-tools",
-      "hardenedRuntime": true,
-      "gatekeeperAssess": false
-    },
-    "nsis": {
-      "oneClick": false,
-      "perMachine": false,
-      "allowToChangeInstallationDirectory": true
-    },
-    "publish": {
-      "provider": "github",
-      "owner": "zoidbergclawd",
-      "repo": "elisa"
-    }
-  },
   "devDependencies": {
     "concurrently": "9.2.1",
     "electron": "^35.1.2",
