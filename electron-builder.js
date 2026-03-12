@@ -63,8 +63,18 @@ module.exports = {
     // Rename vendor/ back to node_modules/ so ESM import resolution works.
     // We use "vendor" during build to prevent electron-builder from filtering
     // out the directory (it strips node_modules from extraResources).
-    const vendor = path.join(context.appOutDir, 'resources', 'backend-dist', 'vendor');
-    const nodeModules = path.join(context.appOutDir, 'resources', 'backend-dist', 'node_modules');
+    //
+    // On macOS, appOutDir is e.g. release/mac-arm64 and resources live inside
+    // Elisa.app/Contents/Resources/. On Windows/Linux, they're at appOutDir/resources/.
+    const appName = context.packager.appInfo.productFilename;
+    const isMac = process.platform === 'darwin';
+    const resourcesDir = isMac
+      ? path.join(context.appOutDir, `${appName}.app`, 'Contents', 'Resources')
+      : path.join(context.appOutDir, 'resources');
+
+    const vendor = path.join(resourcesDir, 'backend-dist', 'vendor');
+    const nodeModules = path.join(resourcesDir, 'backend-dist', 'node_modules');
+    console.log(`afterPack: renaming ${vendor} -> ${nodeModules} (exists: ${fs.existsSync(vendor)})`);
     if (fs.existsSync(vendor)) {
       fs.renameSync(vendor, nodeModules);
     }

@@ -213,7 +213,41 @@ function createMainWindow(): void {
   const isDev = !app.isPackaged;
   const url = isDev
     ? 'http://localhost:5173'
-    : `http://localhost:${serverPort}`;
+    : `http://127.0.0.1:${serverPort}`;
+
+  // Retry on load failure — Chromium's network service can crash on startup,
+  // causing the initial page load to fail silently (blank window).
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
+    console.warn(`[main] Page load failed (${errorCode}: ${errorDescription}), retrying in 1s...`);
+    setTimeout(() => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.loadURL(url);
+      }
+    }, 1000);
+  });
+
+  // Chromium's network service can crash and restart during early startup,
+  // leaving the page blank even though did-fail-load doesn't fire.
+  // Check after load and reload once if the page has no content.
+  let hasRetried = false;
+  mainWindow.webContents.on('did-finish-load', () => {
+    if (hasRetried) return;
+    setTimeout(async () => {
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      try {
+        const title = await mainWindow.webContents.executeJavaScript('document.title');
+        const bodyLen = await mainWindow.webContents.executeJavaScript('document.body?.innerHTML?.length ?? 0');
+        console.log(`[main] Page loaded: title="${title}" bodyLen=${bodyLen}`);
+        if (bodyLen < 50) {
+          hasRetried = true;
+          console.warn('[main] Page appears blank, reloading...');
+          mainWindow.loadURL(url);
+        }
+      } catch {
+        // ignore
+      }
+    }, 1500);
+  });
 
   mainWindow.loadURL(url);
 

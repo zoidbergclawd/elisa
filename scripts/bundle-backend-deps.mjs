@@ -7,7 +7,7 @@
  * electron-builder filters it out of extraResources.
  */
 
-import { writeFileSync, mkdirSync, cpSync, rmSync } from 'fs';
+import { writeFileSync, mkdirSync, cpSync, rmSync, readdirSync } from 'fs';
 import { execSync } from 'child_process';
 import { join } from 'path';
 
@@ -45,5 +45,19 @@ execSync('npm install --omit=dev', { cwd: tempDir, stdio: 'inherit' });
 // Move node_modules -> vendor (avoids electron-builder filtering)
 cpSync(join(tempDir, 'node_modules'), vendorDir, { recursive: true });
 rmSync(tempDir, { recursive: true, force: true });
+
+// Remove all .bin directories (including nested ones) — they contain symlinks
+// pointing to the now-deleted temp dir and break electron-builder's code signing.
+function removeBinDirs(dir) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.name === '.bin') {
+      rmSync(full, { recursive: true, force: true });
+    } else if (entry.isDirectory()) {
+      removeBinDirs(full);
+    }
+  }
+}
+removeBinDirs(vendorDir);
 
 console.log('Backend external deps bundled -> backend/dist/vendor/');
