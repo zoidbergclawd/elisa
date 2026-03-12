@@ -41,7 +41,11 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build and package
+      - name: Build
+        run: npm run build
+
+      - name: Package installer
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Mac code signing + notarization (only on macOS runner)
@@ -53,7 +57,7 @@ jobs:
           # Windows code signing (only on Windows runner)
           WIN_CSC_LINK: ${{ runner.os == 'Windows' && secrets.WIN_CSC_LINK || '' }}
           WIN_CSC_KEY_PASSWORD: ${{ runner.os == 'Windows' && secrets.WIN_CSC_KEY_PASSWORD || '' }}
-        run: npm run ${{ matrix.cmd }}
+        run: npx electron-builder --${{ runner.os == 'macOS' && 'mac' || 'win' }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
