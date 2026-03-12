@@ -94,6 +94,38 @@ describe('WS cleanup timer during builds (regression)', () => {
     vi.useRealTimers();
   });
 
+  it('pruneStale skips sessions with active WS connections', () => {
+    const store = new SessionStore();
+    store.create('s1', makeSession('s1'));
+
+    // Simulate an active WS connection
+    store.isConnected = (id: string) => id === 's1';
+
+    // Force createdAt to be old enough for pruning
+    const entry = store.get('s1')!;
+    entry.createdAt = Date.now() - 7_200_000; // 2 hours ago
+
+    // pruneStale should skip s1 because it has active connections
+    const pruned = store.pruneStale(3_600_000);
+    expect(pruned).toHaveLength(0);
+    expect(store.has('s1')).toBe(true);
+  });
+
+  it('pruneStale removes old sessions without WS connections', () => {
+    const store = new SessionStore();
+    store.create('s1', makeSession('s1'));
+
+    // No active WS connections
+    store.isConnected = () => false;
+
+    const entry = store.get('s1')!;
+    entry.createdAt = Date.now() - 7_200_000; // 2 hours ago
+
+    const pruned = store.pruneStale(3_600_000);
+    expect(pruned).toEqual(['s1']);
+    expect(store.has('s1')).toBe(false);
+  });
+
   it('meeting accept resets the timer (explains intermittent survival)', () => {
     const store = new SessionStore();
     store.create('s1', makeSession('s1'));

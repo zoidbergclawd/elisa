@@ -195,6 +195,12 @@ class ConnectionManager {
     this.connections.get(sessionId)?.delete(ws);
   }
 
+  /** Returns true if the session has at least one active WebSocket connection. */
+  hasConnections(sessionId: string): boolean {
+    const conns = this.connections.get(sessionId);
+    return !!conns && conns.size > 0;
+  }
+
   async sendEvent(sessionId: string, event: WSEvent): Promise<void> {
     const conns = this.connections.get(sessionId);
     if (!conns || conns.size === 0) return;
@@ -291,6 +297,9 @@ class ConnectionManager {
 
 const manager = new ConnectionManager();
 const runtimeConnections = new Set<WebSocket>();
+
+// Allow session store to check for active WS connections (used by pruneStale)
+store.isConnected = (sessionId: string) => manager.hasConnections(sessionId);
 
 // Wire up WebSocket + meeting cleanup when sessions are removed
 store.onCleanup = (sessionId: string) => {
@@ -490,7 +499,7 @@ export function startServer(
         };
         wsMeta.set(ws, meta);
         manager.connect(sessionId, ws);
-        store.scheduleCleanup(sessionId); // Reset 5-min cleanup timer on connect/reconnect
+        store.cancelCleanup(sessionId); // Session stays alive while a WS is connected
         // Clear socket-level timeout so Node doesn't close the underlying TCP socket
         (ws as any)._socket?.setTimeout?.(0);
         ws.on('pong', () => {
@@ -511,6 +520,10 @@ export function startServer(
             ` age=${age}s pongs=${pongRatio} buffered=${buffered} lastEvent=${meta.lastEventType}`,
           );
           manager.disconnect(sessionId, ws);
+          // Schedule cleanup when the last WS connection for this session drops
+          if (!manager.hasConnections(sessionId) && store.has(sessionId)) {
+            store.scheduleCleanup(sessionId);
+          }
         });
         ws.on('error', (err) => {
           console.error(`[ws] error session=${sessionId}:`, err.message);

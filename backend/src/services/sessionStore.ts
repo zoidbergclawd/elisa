@@ -24,6 +24,8 @@ export class SessionStore {
   private persistence: SessionPersistence | null;
   /** Optional callback invoked when a session is removed (for external resource cleanup). */
   onCleanup: ((sessionId: string) => void) | null = null;
+  /** Optional callback to check if a session has active WS connections (set by server.ts). */
+  isConnected: ((sessionId: string) => boolean) | null = null;
 
   constructor(persistenceDir?: string | false) {
     this.persistence = persistenceDir === false
@@ -139,12 +141,15 @@ export class SessionStore {
     this.cleanupTimers.set(id, timer);
   }
 
-  /** Remove stale sessions older than maxAge (default 1 hour). */
+  /** Remove stale sessions older than maxAge (default 1 hour).
+   *  Skips sessions that still have active WebSocket connections. */
   pruneStale(maxAgeMs = SESSION_MAX_AGE_MS): string[] {
     const now = Date.now();
     const pruned: string[] = [];
     for (const [id, entry] of this.entries) {
       if (now - entry.createdAt > maxAgeMs) {
+        // Don't prune sessions with active WS connections
+        if (this.isConnected?.(id)) continue;
         if (entry.orchestrator) {
           entry.orchestrator.cleanup();
         }

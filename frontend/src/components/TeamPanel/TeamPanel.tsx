@@ -1,5 +1,6 @@
 /** Persistent Team tab: member list sidebar + inline meeting conversation. */
 
+import { useCallback } from 'react';
 import TeamMemberList from './TeamMemberList';
 import TeamConversation from './TeamConversation';
 import { useMeetingContext } from '../../contexts/MeetingContext';
@@ -13,7 +14,15 @@ export default function TeamPanel() {
     sendMessage, endMeeting, updateCanvas, materializeArtifacts,
   } = useMeetingContext();
 
-  const { sessionId } = useBuildSessionContext();
+  const { sessionId, handleEvent } = useBuildSessionContext();
+
+  const handleStartChat = useCallback(async (meetingTypeId: string) => {
+    try {
+      await startDirectMeeting(meetingTypeId);
+    } catch {
+      handleEvent({ type: 'error', message: 'Session expired. Please build again.', recoverable: false });
+    }
+  }, [startDirectMeeting, handleEvent]);
 
   return (
     <div className="flex w-full h-full">
@@ -24,7 +33,7 @@ export default function TeamPanel() {
           activeMeetingTypeId={activeMeeting?.meetingTypeId}
           onAcceptInvite={acceptInvite}
           onDeclineInvite={declineInvite}
-          onStartChat={startDirectMeeting}
+          onStartChat={handleStartChat}
           hasSession={!!sessionId}
         />
       </div>
