@@ -26,11 +26,28 @@
 
 Elisa is an educational tool that turns block-based visual programming into real working software. Users drag and drop blocks to describe what they want -- goals, features, constraints, visual style, hardware targets -- and a team of AI agents collaborates to build it. The entire process is visible: you watch agents plan, code, test, and deploy in real time.
 
-## Quick Start
+## Download
+
+Grab the latest installer for your platform from [**Releases**](https://github.com/zoidbergclawd/elisa/releases/latest):
+
+| Platform | File |
+|----------|------|
+| Windows | `Elisa Setup X.Y.Z.exe` |
+| macOS | `Elisa-X.Y.Z.dmg` |
+
+On first launch, Elisa asks for your [Anthropic API key](https://console.anthropic.com). It's stored securely in your OS keychain.
+
+> **Note:** The app is not code-signed yet. Windows will show a SmartScreen warning (click "More info" > "Run anyway"). macOS will show a Gatekeeper warning (right-click the app > "Open").
+
+## Development Quick Start
+
+For contributors or anyone who wants to run from source:
 
 **Prerequisites:** Node.js 20+, an Anthropic API key (`ANTHROPIC_API_KEY` env var). Optional: Python 3.10+ with `mpremote` for ESP32 flashing, `gcloud` CLI for Cloud Run deployment.
 
 ```bash
+git clone https://github.com/zoidbergclawd/elisa.git
+cd elisa
 npm install              # installs root + backend + frontend deps
 npm run dev:electron     # launches backend, frontend, and Electron window
 ```
