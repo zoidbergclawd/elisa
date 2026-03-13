@@ -475,14 +475,16 @@ export function startServer(
     if (sessionMatch) {
       const wsToken = url.searchParams.get('token');
       if (wsToken !== token) {
-        console.warn(`[ws] upgrade rejected: bad token for session=${sessionMatch[1]}`);
+        console.warn(`[ws] upgrade rejected: bad token for session=${sessionMatch[1]} (got=${wsToken?.slice(0, 8)}… want=${token.slice(0, 8)}…)`);
+        socket.write('HTTP/1.1 401 Unauthorized\r\nX-WS-Reject: bad-token\r\n\r\n');
         socket.destroy();
         return;
       }
 
       const sessionId = sessionMatch[1];
       if (!store.has(sessionId)) {
-        console.warn(`[ws] upgrade rejected: session not found id=${sessionId}`);
+        console.warn(`[ws] upgrade rejected: session not found id=${sessionId} (store.size=${store.size})`);
+        socket.write('HTTP/1.1 404 Not Found\r\nX-WS-Reject: session-not-found\r\n\r\n');
         socket.destroy();
         return;
       }

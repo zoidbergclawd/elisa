@@ -196,10 +196,13 @@ export function useWebSocket({ sessionId, onEvent }: UseWebSocketOptions) {
       // Error details are intentionally hidden by browsers; onclose handles reconnect
     };
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
       if (pingInterval) clearInterval(pingInterval);
       wsRef.current = null;
       setConnected(false);
+      if (!event.wasClean) {
+        console.warn(`[ws] closed uncleanly: code=${event.code} reason="${event.reason}" retry=${retriesRef.current}`);
+      }
       if (retriesRef.current >= MAX_RETRIES) {
         console.warn(`WebSocket: gave up after ${MAX_RETRIES} retries for session ${sessionId}`);
         onEventRef.current({

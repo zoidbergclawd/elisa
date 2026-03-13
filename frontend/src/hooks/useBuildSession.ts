@@ -866,11 +866,17 @@ function handleWSEvent(state: BuildSessionState, event: WSEvent, deploySteps: Ar
       }
       const isDeployError = event.message.includes('flash') || event.message.includes('mpremote') ||
         event.message.includes('Compilation failed') || event.message.includes('board detected');
+      const isWsError = event.message.includes('WebSocket');
       return {
         ...state,
         events,
+        // Non-recoverable WS errors: reset to done so user can build again
+        uiState: !event.recoverable && isWsError ? 'done' as const : state.uiState,
+        sessionId: !event.recoverable && isWsError ? null : state.sessionId,
         errorNotification: {
-          message: errorMsg,
+          message: !event.recoverable && isWsError
+            ? 'Connection lost. Click Build to start again!'
+            : errorMsg,
           recoverable: event.recoverable,
           timestamp: Date.now(),
         },
