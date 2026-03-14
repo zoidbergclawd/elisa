@@ -431,6 +431,19 @@ function createApp(staticDir?: string, authToken?: string) {
     res.json({ success: true, message: 'Connection test not yet implemented for this mechanism.' });
   });
 
+  // WS diagnostic endpoint: called by frontend when WS connection fails
+  app.get('/api/debug/ws-diag', (req, res) => {
+    const sessionId = req.query.session_id as string | undefined;
+    const tokenPrefix = req.query.token_prefix as string | undefined;
+    res.json({
+      sessionExists: sessionId ? store.has(sessionId) : null,
+      tokenMatch: tokenPrefix ? token.startsWith(tokenPrefix) : null,
+      serverTokenPrefix: token.slice(0, 8),
+      storeSize: store.size,
+      hasConnections: sessionId ? manager.hasConnections(sessionId) : null,
+    });
+  });
+
   // -- Static file serving (production: Electron serves frontend) --
 
   if (staticDir) {

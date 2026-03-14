@@ -44,6 +44,15 @@ export function useWebSocket({ sessionId, onEvent }: UseWebSocketOptions) {
     const token = getAuthToken();
     const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
     const url = `${protocol}//${window.location.host}/ws/session/${sessionId}${tokenParam}`;
+    if (retriesRef.current === 0) {
+      console.log(`[ws] connecting session=${sessionId} host=${window.location.host} hasToken=${!!token}`);
+    }
+    // Verify session still exists before attempting WS connect
+    fetch(`/api/sessions/${sessionId}`, {
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+    }).then(r => {
+      if (!r.ok) console.warn(`[ws] session pre-check failed: HTTP ${r.status} for ${sessionId}`);
+    }).catch(() => {});
     const ws = new WebSocket(url);
     let pingInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -202,6 +211,14 @@ export function useWebSocket({ sessionId, onEvent }: UseWebSocketOptions) {
       setConnected(false);
       if (!event.wasClean) {
         console.warn(`[ws] closed uncleanly: code=${event.code} reason="${event.reason}" retry=${retriesRef.current}`);
+        // Call diagnostic endpoint to identify root cause
+        const t = getAuthToken();
+        fetch(`/api/debug/ws-diag?session_id=${sessionId}&token_prefix=${t?.slice(0, 8) ?? ''}`, {
+          headers: t ? { 'Authorization': `Bearer ${t}` } : {},
+        })
+          .then(r => r.ok ? r.json() : r.text().then(txt => ({ httpError: r.status, body: txt })))
+          .then(diag => console.warn('[ws] diagnostic:', JSON.stringify(diag)))
+          .catch(() => {});
       }
       if (retriesRef.current >= MAX_RETRIES) {
         console.warn(`WebSocket: gave up after ${MAX_RETRIES} retries for session ${sessionId}`);
