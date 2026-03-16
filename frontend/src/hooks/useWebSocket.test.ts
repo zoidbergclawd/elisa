@@ -27,9 +27,9 @@ class MockWebSocket {
     this.onopen?.();
   }
 
-  simulateClose() {
+  simulateClose(wasClean = false) {
     this.readyState = 3; // CLOSED
-    this.onclose?.();
+    this.onclose?.({ wasClean, code: wasClean ? 1000 : 1006, reason: '' } as CloseEvent);
   }
 
   simulateMessage(data: string) {
@@ -46,6 +46,8 @@ describe('useWebSocket', () => {
     vi.useFakeTimers();
     MockWebSocket.instances = [];
     vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket);
+    // Default fetch mock for pre-check and diagnostic fetches in connect()/onclose
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
   });
 
   afterEach(() => {
@@ -261,9 +263,9 @@ describe('useWebSocket', () => {
     const onEvent = vi.fn();
     renderHook(() => useWebSocket({ sessionId: 'sess-1', onEvent }));
 
-    // First open - not a reconnect, no fetch
+    // First open - not a reconnect, no reconnect sync fetch
     act(() => MockWebSocket.instances[0].simulateOpen());
-    expect(fetchMock).not.toHaveBeenCalled();
+    fetchMock.mockClear(); // Clear pre-check fetch from connect()
 
     // Close and reconnect
     act(() => MockWebSocket.instances[0].simulateClose());
@@ -292,14 +294,15 @@ describe('useWebSocket', () => {
   });
 
   it('does not fetch session state on initial connect (P1 #4)', () => {
-    const fetchMock = vi.fn();
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
     vi.stubGlobal('fetch', fetchMock);
 
     const onEvent = vi.fn();
     renderHook(() => useWebSocket({ sessionId: 'sess-1', onEvent }));
 
     act(() => MockWebSocket.instances[0].simulateOpen());
-    expect(fetchMock).not.toHaveBeenCalled();
+    // Only the pre-check fetch fires; reconnect sync does NOT fire on initial connect
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('handles reconnect sync failure gracefully (P1 #4)', async () => {

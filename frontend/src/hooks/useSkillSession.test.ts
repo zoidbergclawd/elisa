@@ -363,6 +363,7 @@ describe('useSkillSession', () => {
         ok: true,
         json: () => Promise.resolve({ session_id: 'sess-1' }),
       })
+      .mockResolvedValueOnce({ ok: true }) // useWebSocket pre-check fetch
       .mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({}),
@@ -410,6 +411,7 @@ describe('useSkillSession', () => {
         ok: true,
         json: () => Promise.resolve({ session_id: 'sess-1' }),
       })
+      .mockResolvedValueOnce({ ok: true }) // useWebSocket pre-check fetch
       .mockResolvedValueOnce({
         ok: false,
         statusText: 'Bad Request',
