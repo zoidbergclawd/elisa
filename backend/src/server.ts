@@ -437,8 +437,8 @@ function createApp(staticDir?: string, authToken?: string) {
     const tokenPrefix = req.query.token_prefix as string | undefined;
     res.json({
       sessionExists: sessionId ? store.has(sessionId) : null,
-      tokenMatch: tokenPrefix ? token.startsWith(tokenPrefix) : null,
-      serverTokenPrefix: token.slice(0, 8),
+      tokenMatch: tokenPrefix && authToken ? authToken.startsWith(tokenPrefix) : null,
+      serverTokenPrefix: authToken?.slice(0, 8) ?? 'none',
       storeSize: store.size,
       hasConnections: sessionId ? manager.hasConnections(sessionId) : null,
     });

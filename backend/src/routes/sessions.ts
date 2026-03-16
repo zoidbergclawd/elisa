@@ -188,7 +188,12 @@ export function createSessionRouter({ store, sendEvent, hardwareService, deviceR
         if (!cancelled) console.error('Orchestrator run error:', err);
       })
       .finally(() => {
-        store.scheduleCleanup(sessionId); // Re-arm after build completes
+        // Only schedule cleanup if no WS connections are active.
+        // If the user is still connected, the WS disconnect handler will
+        // schedule cleanup when they eventually close the app/tab.
+        if (!store.isConnected?.(sessionId)) {
+          store.scheduleCleanup(sessionId);
+        }
       });
 
     entry.cancelFn = () => {
