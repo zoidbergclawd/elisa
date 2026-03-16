@@ -16,18 +16,22 @@
 ```bash
 git clone https://github.com/zoidbergclawd/elisa.git
 cd elisa
-npm install          # Installs root, backend, and frontend deps automatically
-npm run dev          # Starts backend (port 8000) + frontend (port 5173)
+npm install              # Installs root, backend, and frontend deps automatically
+npm run dev:electron     # Launches backend, frontend, and Electron window
 ```
 
-Open `http://localhost:5173` in your browser.
+For browser-only development (no Electron window):
 
-To run as a desktop app instead: `npm run dev:electron`
+```bash
+npm run dev              # Starts backend (port 8000) + frontend (port 5173)
+```
+
+Then open `http://localhost:5173` in your browser.
 
 ## First Build Session
 
 1. **Design** -- Drag blocks from the palette onto the canvas. At minimum, add a `project_goal` block with a description of what you want to build.
-2. **Press Go** -- The large floating button sends your block workspace to the backend as a ProjectSpec JSON.
+2. **Press Go** -- The large floating button sends your block workspace to the backend as a NuggetSpec JSON.
 3. **Watch** -- The right sidebar shows a task dependency graph. Agents appear, pick up tasks, and stream output. The bottom bar fills with git commits, test results, and teaching moments.
 4. **Interact** -- If you placed a "check with me" block, the build pauses with a modal asking for your approval. Agents may also ask questions mid-build.
 5. **Done** -- When the session completes, you have a working project with git history.

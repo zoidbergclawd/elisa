@@ -21,6 +21,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/tests/runtime/` | Agent Runtime unit/integration tests (agentStore, conversationManager, displayManager, etc.) |
 | `frontend/` | React 19 + Vite SPA |
 | `frontend/src/components/` | UI component tree |
+| `frontend/src/contexts/` | React context providers (BuildSession, Meeting, Workspace) |
 | `frontend/src/components/BlockCanvas/` | Blockly editor, block definitions, interpreter |
 | `frontend/src/components/AgentTeam/` | Agent cards + comms feed |
 | `frontend/src/components/TaskMap/` | DAG visualization (@xyflow/react) |
@@ -69,6 +70,9 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `docs/device-plugins.md` | User | Device plugins guide: using shipped hardware plugins |
 | `docs/creating-device-plugins.md` | Dev | Developer guide for creating new device plugins |
 | `docs/packaging.md` | Dev | Build pipeline, packaging, code signing, installer testing, troubleshooting |
+| `docs/box3-mac-setup.md` | Dev | BOX-3 macOS development setup |
+| `docs/guides/box3-firmware-build.md` | Dev | BOX-3 firmware build workflow and flashing |
+| `docs/guides/wake-word-training.md` | Dev | Custom wake word model training for ESP32 |
 | `docs/plans/` | Archive | Dated design docs and implementation plans (device plugins, IoT sensor network) |
 
 ## Key Source Files
@@ -106,6 +110,8 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/services/meetingRegistry.ts` | Meeting type registry + trigger engine for build events |
 | `backend/src/services/meetingService.ts` | In-memory meeting session lifecycle management |
 | `backend/src/services/meetingAgentService.ts` | Claude-powered agent responses for meeting conversations (Haiku model) |
+| `backend/src/services/meetingMaterializer.ts` | Canvas data materializer (writes meeting outcomes to workspace files) |
+| `backend/src/services/taskMeetingTypes.ts` | Task-level meeting type definitions (design review for visual tasks) |
 | `backend/src/services/systemLevelService.ts` | Progressive mastery level feature flags (Explorer/Builder/Architect) |
 | `backend/src/services/autoTestMatcher.ts` | Explorer-level auto-generation of behavioral tests for when_then requirements |
 | `backend/src/services/traceabilityTracker.ts` | Requirement-to-test traceability map with coverage tracking |
@@ -177,6 +183,9 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/utils/pathValidator.ts` | Workspace path validation (blocklist for system/sensitive dirs) |
 | `backend/src/utils/safeEnv.ts` | Sanitized process.env copy (strips ANTHROPIC_API_KEY) |
 | `backend/src/utils/findFreePort.ts` | Scans for available TCP port from a starting port |
+| `backend/src/utils/resourcePath.ts` | Packaged app resource path resolution |
+| `backend/src/utils/lanUrl.ts` | LAN URL generation for device access |
+| `backend/src/utils/sanitizePythonValue.ts` | Safe Python value escaping for MicroPython |
 | `backend/src/utils/anthropicClient.ts` | Singleton factory for the Anthropic SDK client |
 
 ### Prompts
@@ -255,6 +264,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | File | Role |
 |------|------|
 | `frontend/src/hooks/useBuildSession.ts` | All session state + WebSocket event dispatching |
+| `frontend/src/hooks/useWorkspaceIO.ts` | Workspace file I/O: open/save/load nugget, open folder, select example, syncDesignToStorage |
 | `frontend/src/hooks/useSkillSession.ts` | Standalone skill execution state + WebSocket events |
 | `frontend/src/hooks/useBoardDetect.ts` | ESP32 board detection polling |
 | `frontend/src/hooks/useHealthCheck.ts` | Backend readiness polling |

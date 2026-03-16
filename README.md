@@ -62,11 +62,11 @@ See [Getting Started](docs/getting-started.md) for full setup. Tested on Windows
 
 ## Features
 
-**Block-Based Design** -- Snap together blocks across 9 categories to describe your project: goals, requirements, style, agents, flow control, hardware, deployment, skills, and rules. No code required.
+**Block-Based Design** -- Snap together blocks across 14 categories to describe your project: Goals, Requirements, Tests, Style, Skills, Rules, Portals, Knowledge, Minions, Team, Flow, System, Composition, and Deploy. No code required.
 
 **AI Agent Team** -- A meta-planner decomposes your spec into a task DAG. Builder, tester, reviewer, and custom agents execute tasks with dependency ordering, retries, and inter-agent communication. Specialized agent teammates (Buddy, Scribe, Blueprint, Pixel, and more) pop up during builds to collaborate via chat and interactive canvases.
 
-**Live Build Visibility** -- Watch the build in a tabbed layout: block editor, mission control with task graph and agent comms, a system tab showing boundary I/O visualization, a tests tab with live pass/fail and pre-generated expectations, and a bottom bar with railroad-style git timeline, serial output, health dashboard, and teaching moments.
+**Live Build Visibility** -- Watch the build in a tabbed layout: block editor, mission control with task graph and agent comms, a system tab showing boundary I/O visualization, a tests tab with live pass/fail and pre-generated expectations, and a bottom bar with Trace, Board, Learn, Progress, Health, and Tokens tabs for contextual visibility.
 
 **Hardware Integration** -- Target ESP32 boards directly via the device plugin system. Built-in plugins for Heltec WiFi LoRa V3/V4 (sensor nodes, gateways with LoRa + OLED), LED blink, and cloud dashboards. Auto-detect, compile, and flash over USB. See [Creating Device Plugins](docs/creating-device-plugins.md).
 
@@ -178,9 +178,10 @@ elisa/
 |----------|----------|---------|-------------|
 | `ANTHROPIC_API_KEY` | Yes | -- | Claude API key for agent execution |
 | `CLAUDE_MODEL` | No | `claude-opus-4-6` | Model for builder/tester/reviewer agents |
-| `NARRATOR_MODEL` | No | `claude-haiku-4-5-20241022` | Model for narrator messages |
+| `NARRATOR_MODEL` | No | `claude-haiku-4-5-20251001` | Model for narrator messages |
 | `PORT` | No | `8000` | Backend server port |
 | `CORS_ORIGIN` | No | `http://localhost:5173` | CORS origin for dev mode |
+| `OPENAI_API_KEY` | No | -- | Optional, enables audio features (STT via Whisper, TTS via OpenAI TTS) |
 
 ## License
 

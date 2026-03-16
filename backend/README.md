@@ -27,28 +27,81 @@ npm run test:watch   # Vitest (watch mode)
 src/
   server.ts              Express app, route registration, WebSocket upgrade
   routes/
-    sessions.ts          /api/sessions/* endpoints (create, start, stop, gate, question, export)
+    sessions.ts          /api/sessions/* endpoints (create, start, stop, fix, launch, gate, question, export)
     hardware.ts          /api/hardware/* endpoints (detect, flash)
     skills.ts            /api/skills/* endpoints (run, answer, list)
     workspace.ts         /api/workspace/* endpoints (save, load design files)
     devices.ts           /api/devices endpoint (list device plugin manifests)
+    meetings.ts          /api/sessions/:id/meetings/* endpoints (accept, decline, message, end, start, outcome, materialize)
+    runtime.ts           /v1/agents/* endpoints (provision, update, delete, turn, history, heartbeat)
+    specGraph.ts         /api/spec-graph/* endpoints (CRUD, compose, impact, interfaces)
   models/
     session.ts           Type definitions: Session, Task, Agent, BuildPhase, WSEvent
   services/
-    orchestrator.ts      Thin coordinator: delegates to phase handlers in sequence
+    orchestrator.ts      Build pipeline coordinator: delegates to phase handlers in sequence
     sessionStore.ts      Consolidated session state with JSON persistence
+
+    Core Planning & Execution:
     metaPlanner.ts       NuggetSpec -> task DAG decomposition (Claude API)
     agentRunner.ts       Runs agents via SDK query() API per task
     gitService.ts        Per-session git repo init + commits
+    taskExecutor.ts      Single-task execution pipeline (retry, agent run, git, context chain)
+    promptBuilder.ts     Prompt construction for agent tasks (system prompt, predecessors, skills, digests)
+    contextManager.ts    Builds file manifests, nugget context, structural digests, state snapshots
+
+    Testing & Validation:
     testRunner.ts        pytest / Node test runner + coverage parsing
+    autoTestMatcher.ts   Explorer-level auto-generation of behavioral tests
+    specValidator.ts     Zod schema for NuggetSpec validation
+
+    Hardware & Deployment:
     hardwareService.ts   ESP32 detect/compile/flash/serial monitor
-    teachingEngine.ts    Contextual learning moments (curriculum + Claude)
-    skillRunner.ts       Step-by-step SkillPlan execution (ask_user, branch, run_agent)
-    narratorService.ts   Narrator messages for build events (Claude Haiku)
-    permissionPolicy.ts  Auto-resolves agent permission requests
-    deviceRegistry.ts    Loads device plugin manifests, provides block defs + agent context
+    flashStrategy.ts     FlashStrategy interface + implementation (Mpremote, Esptool)
     cloudDeployService.ts Google Cloud Run deployment (scaffold, gcloud CLI)
     portalService.ts     Portal adapters (MCP, CLI) with command allowlist
+    deployOrder.ts       Device deploy ordering (provides/requires DAG)
+
+    Learning & Feedback:
+    teachingEngine.ts    Contextual learning moments (curriculum + Claude)
+    narratorService.ts   Narrator messages for build events (Claude Haiku)
+    skillRunner.ts       Step-by-step SkillPlan execution (ask_user, branch, run_agent)
+    permissionPolicy.ts  Auto-resolves agent permission requests
+
+    Device Management:
+    deviceRegistry.ts    Loads device plugin manifests, provides block defs + agent context
+    runtimeProvisioner.ts Interface + implementations for agent provisioning
+
+    Meeting System:
+    meetingRegistry.ts   Meeting type registry + trigger engine for build events
+    meetingService.ts    In-memory meeting session lifecycle management
+    meetingAgentService.ts  Claude-powered agent responses for meeting chat (Haiku)
+    meetingMaterializer.ts  Materializes canvas data into real workspace files
+    meetingTriggerWiring.ts  Wires meeting triggers into orchestrator pipeline
+    taskMeetingTypes.ts  Task-level meeting types (design review before art/visual tasks)
+    buddyAgentMeeting.ts Buddy Agent meeting type (canvasType: explain-it)
+    artAgentMeeting.ts   Art Agent meeting type for BOX-3 display theme customization
+    architectureAgentMeeting.ts  Architecture Agent meeting type (canvasType: blueprint)
+    docAgentMeeting.ts   Documentation Agent meeting type
+    mediaAgentMeeting.ts Marketing Agent meeting type (canvasType: campaign)
+    webDesignAgentMeeting.ts  Web Designer Agent meeting type
+    socialMediaAgentMeeting.ts  Social Media Agent meeting type
+    integrationAgentMeeting.ts  Integration meeting type for nugget composition
+
+    System Health & Analytics:
+    healthTracker.ts     System health vital signs (score 0-100, grades)
+    healthHistoryService.ts  Health-over-time persistence
+    traceabilityTracker.ts  Requirement-to-test traceability map + coverage tracking
+    feedbackLoopTracker.ts Passive feedback loop observer with convergence tracking
+    impactEstimator.ts   Pre-execution complexity analysis
+    boundaryAnalyzer.ts  System boundary analysis (inputs, outputs, boundary portals)
+
+    Composition & Spec Graph:
+    specGraph.ts         Directed graph of NuggetSpecs with persistence
+    compositionService.ts  Nugget composition orchestrator with emergence detection
+
+    System Level & Mastery:
+    systemLevelService.ts  Progressive mastery level flags (Explorer/Builder/Architect)
+    redeployClassifier.ts  Redeploy decision matrix (classifyChanges -> action + reasons)
     phases/
       planPhase.ts       MetaPlanner invocation, DAG setup
       executePhase.ts    Task execution loop (parallel, git mutex, context chain)

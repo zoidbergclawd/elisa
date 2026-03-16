@@ -23,18 +23,16 @@ npm run test:watch   # Vitest (watch mode)
 
 ```
 src/
-  App.tsx                    Root component. Owns all session state. Tabbed main layout.
+  App.tsx                    Thin layout shell. Tabbed main layout (Workspace/Mission/System/Tests/Team), header (Logo + MainTabBar + GoButton), bottom bar, modals. State managed by BuildSessionContext + useBuildSession hook.
   components/
     BlockCanvas/             Blockly editor + block-to-NuggetSpec conversion + WorkspaceSidebar
-      blockDefinitions.ts      27 block type definitions (10 categories)
+      blockDefinitions.ts      27 block type definitions (14 categories)
       blockInterpreter.ts      Workspace -> NuggetSpec JSON conversion
       toolbox.ts               Palette categories and block ordering
     AgentTeam/               Full-width agent cards + comms feed (Agents tab)
     TaskMap/                 Full-width interactive task DAG (Tasks tab)
     MissionControl/          MissionControlPanel, MinionSquadPanel, NarratorFeed, TaskDAG, CommsFeed, MetricsPanel
-    BottomBar/               Bottom panel (6 tabs: Timeline, Tests, Board, Learn, Progress, Tokens)
-      GitTimeline.tsx          Commit list with file diffs
-      TestResults.tsx          Pass/fail list + coverage bar
+    BottomBar/               Bottom panel (6 tabs: Trace, Board, Learn, Progress, Health, Tokens)
       BoardOutput.tsx          ESP32 serial output stream
       TeachingSidebar.tsx      Teaching moments list
       ProgressPanel.tsx        Build progress + deploy status
@@ -45,7 +43,8 @@ src/
                              AgentAvatar, MinionAvatar, ReadinessBadge, FlashWizardModal,
                              BoardDetectedModal, DirectoryPickerModal, ExamplePickerModal, ErrorBoundary
   hooks/
-    useBuildSession.ts       All session state + WebSocket event dispatching
+    useBuildSession.ts       All session state + WebSocket event dispatching (useReducer with typed BuildSessionAction)
+    useWorkspaceIO.ts        Workspace file I/O: open/save/load nugget, open folder, select example
     useSkillSession.ts       Standalone skill execution state
     useBoardDetect.ts        ESP32 board detection polling
     useHealthCheck.ts        Backend readiness polling
@@ -64,11 +63,11 @@ src/
 
 ## State Management
 
-No state library. `useBuildSession` hook holds all session state as `useState` variables. WebSocket events dispatched through `handleEvent()` to update state slices. Auto-saves workspace, skills, rules, and portals to `localStorage`.
+No state library. `useBuildSession` hook holds all session state via `useReducer` with typed `BuildSessionAction` discriminated union. WebSocket events dispatched through `handleEvent()` to update state slices. Auto-saves workspace, skills, rules, and portals to `localStorage`.
 
 UI phases: `design` | `building` | `review` | `deploy` | `done`
 
-Main tabs: `workspace` | `agents` | `tasks` (auto-switches to `agents` when build starts)
+Main tabs: `workspace` | `mission` | `system` | `tests` | `team` (auto-switches to `mission` when build starts)
 
 ## Adding a New Block Type
 

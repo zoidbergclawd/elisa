@@ -2,7 +2,7 @@
 
 Complete guide to Elisa's block palette. Blocks snap together on the canvas to produce a [NuggetSpec](api-reference.md#nuggetspec-schema) that drives the build.
 
-Categories: [Goals](#goals) | [Requirements](#requirements) | [Tests](#tests) | [Style](#style) | [Skills](#skills) | [Rules](#rules) | [Skill Flow](#skill-flow) | [Portals](#portals) | [Knowledge](#knowledge) | [Minions](#minions) | [Flow](#flow) | [System](#system) | [Composition](#composition) | [Deploy](#deploy) | [Devices](#devices)
+Categories: [Goals](#goals) | [Requirements](#requirements) | [Tests](#tests) | [Style](#style) | [Skills](#skills) | [Rules](#rules) | [Skill Flow](#skill-flow) | [Portals](#portals) | [Knowledge](#knowledge) | [Minions](#minions) | [Team](#team) | [Flow](#flow) | [System](#system) | [Composition](#composition) | [Deploy](#deploy) | [Devices](#devices)
 
 ---
 
@@ -176,6 +176,21 @@ Configure the AI minions that will build your project. If no minion blocks are p
 | **Custom Minion** | `AGENT_NAME`, `AGENT_PERSONA` (text) | `custom` | `agents[]` |
 
 The persona field shapes the minion's behavior. Example: a Builder named "SpeedBot" with persona "writes minimal, fast code" will be prompted accordingly.
+
+---
+
+## Team
+
+Invite specialized AI agent teammates to participate in your builds. Team members pop up during builds to collaborate via chat and interactive canvases.
+
+| Block | Fields | NuggetSpec Output |
+|-------|--------|-------------------|
+| **Team Member** | `AGENT_TYPE` (dropdown) | `agents[]` with `type: "team_member"` |
+| **Custom Team Member** | `MEMBER_NAME`, `MEMBER_PERSONA`, `CANVAS_TYPE` (text) | `agents[]` with `type: "custom"` |
+
+**Team Member** selects a built-in agent type: Scribe, Marketing, Blueprint, Bug Detective, Social Media, Styler, Pixel, or Interface Designer. Opts the agent into the build meeting rotation.
+
+**Custom Team Member** creates a custom team member with a name, persona, and canvas type (e.g., "whiteboard", "code-explorer", "design-preview").
 
 ---
 

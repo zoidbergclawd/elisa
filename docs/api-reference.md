@@ -57,7 +57,10 @@ Base URL: `http://localhost:8000/api/sessions/:sessionId/meetings`
 | POST | `/sessions/:id/meetings/:mid/accept` | -- | `MeetingSession` | Accept a meeting invite (must be in `invited` state) |
 | POST | `/sessions/:id/meetings/:mid/decline` | -- | `MeetingSession` | Decline a meeting invite (must be in `invited` state) |
 | POST | `/sessions/:id/meetings/:mid/message` | `{ content: string }` | `MeetingMessage` | Send a message from the kid in an active meeting |
+| POST | `/sessions/:id/meetings/:mid/outcome` | `{ outcomeType: string, data: object }` | Outcome object | Save meeting outcome data |
+| POST | `/sessions/:id/meetings/:mid/materialize` | `{ canvasType: string, data: object }` | `{ files: string[], primaryFile?: string }` | Materialize canvas into workspace files |
 | POST | `/sessions/:id/meetings/:mid/end` | -- | `MeetingSession` | End an active meeting |
+| POST | `/sessions/:id/meetings/start` | `{ meetingTypeId: string }` | `{ meetingId: string }` | Start kid-initiated meeting |
 
 ### Agent Runtime
 
@@ -159,8 +162,13 @@ All events flow server to client as JSON with a `type` discriminator field.
 | Event | Payload | Description |
 |-------|---------|-------------|
 | `commit_created` | `{ sha, message, agent_name, task_id, timestamp, files_changed }` | Git commit created |
+| `test_expectations` | `{ task_id, tests: Array<{ name, description }> }` | Test expectations generated for a task |
 | `test_result` | `{ test_name, passed: boolean, details }` | Individual test outcome |
+| `test_phase_complete` | `{ passed, failed, total }` | All tests finished |
 | `coverage_update` | `{ percentage, details?: CoverageReport }` | Code coverage report |
+| `fix_started` | `{ bugReport }` | Bug fix initiated |
+| `fix_task_completed` | `{ taskId, success }` | Fix task done |
+| `fix_tests_completed` | `{ passed, failed, total }` | Fix re-test results |
 
 ### Skill Execution
 
@@ -240,6 +248,8 @@ All events flow server to client as JSON with a `type` discriminator field.
 | `meeting_canvas_update` | `{ meetingId, canvasType, data }` | Canvas state updated during meeting |
 | `meeting_outcome` | `{ meetingId, outcomeType, data }` | Single outcome produced during meeting |
 | `meeting_ended` | `{ meetingId, outcomes: Array<{ type, data }> }` | Meeting ended with collected outcomes |
+| `meeting_blocking_task` | `{ task_id, meeting_type_id }` | Task blocked waiting for meeting |
+| `meeting_unblocking_task` | `{ task_id }` | Task unblocked after meeting |
 
 ### Agent Runtime WebSocket Events
 
@@ -278,7 +288,7 @@ Narrator messages are triggered by these build events: `task_started`, `task_com
 
 ### Configuration
 
-- `NARRATOR_MODEL` env var overrides the model (default: `claude-haiku-4-5-20241022`)
+- `NARRATOR_MODEL` env var overrides the model (default: `claude-haiku-4-5-20251001`)
 
 ### Debounce
 
@@ -383,6 +393,28 @@ interface NuggetSpec {
     allow_network?: boolean;
     escalation_threshold?: number;  // 1-10
   };
+  runtime?: {
+    agent_name: string;         // Display name for the deployed agent
+    voice?: string;             // Agent voice preference (e.g., "coral", "sage")
+    greeting?: string;          // Initial greeting message
+    display_theme?: string;     // Display theme for BOX-3 (e.g., "dark", "light", "nature")
+    fallback_response?: string; // Response when agent cannot answer
+  };
+  knowledge?: {
+    backpack_sources?: Array<{ title: string; content: string; source_type?: string; uri?: string }>;
+    study_mode?: {
+      enabled?: boolean;
+      style?: string;           // Quiz style (e.g., "spaced-repetition")
+      difficulty?: string;      // Difficulty level (e.g., "easy", "medium", "hard")
+      quiz_frequency?: number;  // Frequency of quizzes
+    };
+  };
+  composition?: {
+    provides?: Array<{ name: string; type: string }>;  // Interfaces this nugget provides
+    requires?: Array<{ name: string; type: string }>;  // Interfaces this nugget requires
+    parent_graph_id?: string;   // Parent spec graph ID for composed builds
+  };
+  meeting_team?: Array<string>;  // Opt-in agent team member IDs (e.g., "media-agent", "web-design-agent")
 }
 ```
 
