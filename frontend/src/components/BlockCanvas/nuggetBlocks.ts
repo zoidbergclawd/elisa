@@ -51,16 +51,32 @@ export function registerNuggetBlocks(): void {
     };
     originalMenuGenerator.call(dropdown);
 
-    // Update tooltip to show the selected nugget's goal
+    // Update the goal label and tooltip when the selection changes
     const block = this;
-    dropdown.setValidator((newValue: string) => {
+    const updateGoalLabel = (nuggetId: string) => {
       const nuggets = getCurrentNuggets();
-      const nugget = nuggets.find((n) => n.id === newValue);
+      const nugget = nuggets.find((n) => n.id === nuggetId);
+      const goalField = block.getField('NUGGET_GOAL');
       if (nugget) {
         block.setTooltip(`Goal: ${nugget.goal}`);
+        if (goalField) goalField.setValue(nugget.goal);
+      } else {
+        block.setTooltip('Select a nugget');
+        if (goalField) goalField.setValue('');
       }
+    };
+
+    dropdown.setValidator((newValue: string) => {
+      // Defer so Blockly finishes updating the field value first
+      setTimeout(() => updateGoalLabel(newValue), 0);
       return undefined;
     });
+
+    // Set initial goal label from current dropdown value
+    const initialValue = dropdown.getValue();
+    if (initialValue) {
+      setTimeout(() => updateGoalLabel(initialValue), 0);
+    }
   });
 
   // Define the nugget_ref block
@@ -74,6 +90,14 @@ export function registerNuggetBlocks(): void {
             type: 'field_dropdown',
             name: 'NUGGET_ID',
             options: [['(no nuggets available)', '']],
+          },
+        ],
+        message1: '%1',
+        args1: [
+          {
+            type: 'field_label_serializable',
+            name: 'NUGGET_GOAL',
+            text: '',
           },
         ],
         previousStatement: null,
