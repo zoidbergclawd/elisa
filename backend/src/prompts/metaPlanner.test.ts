@@ -25,7 +25,7 @@ describe('buildMetaPlannerSystem', () => {
     expect(result).toContain('## Output JSON Schema');
     expect(result).toContain('## Deployment Rules');
     expect(result).toContain('## Workflow Hints');
-    expect(result).toContain('## Skills and Rules');
+    expect(result).toContain('## Skills');
     expect(result).toContain('## Examples');
     expect(result).toContain('## Important');
   });

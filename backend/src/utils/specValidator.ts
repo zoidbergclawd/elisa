@@ -38,6 +38,7 @@ const PortalSchema = z.object({
   name: z.string().max(200).optional(),
   description: z.string().max(2000).optional(),
   mechanism: z.string().max(50).optional(),
+  subtype: z.string().max(50).optional(), // PRD-003: 'api' | 'knowledge' | 'device'
   capabilities: z.array(CapabilitySchema).max(50).optional(),
   interactions: z.array(InteractionSchema).max(50).optional(),
   mcpConfig: McpConfigSchema.optional(),
@@ -50,6 +51,7 @@ const SkillSchema = z.object({
   category: z.string().max(50).optional(),
   prompt: z.string().max(5000).optional(),
   description: z.string().max(2000).optional(),
+  builtin: z.boolean().optional(), // PRD-003: shipped skills flag
 }).strict();
 
 const RuleSchema = z.object({

@@ -56,19 +56,12 @@ describe('bundled example nuggets', () => {
     expect(spec.portals).toBeUndefined();
   });
 
-  it('teamBuild example includes tester and reviewer agents', () => {
+  it('teamBuild example has features and skills', () => {
     const team = EXAMPLE_NUGGETS.find((e) => e.id === 'team-build')!;
     const spec = interpretWorkspace(team.workspace, team.skills, team.rules, team.portals);
-    const roles = spec.agents.map((a) => a.role);
-    expect(roles).toContain('tester');
-    expect(roles).toContain('reviewer');
-  });
-
-  it('teamBuild example enables testing and review workflow', () => {
-    const team = EXAMPLE_NUGGETS.find((e) => e.id === 'team-build')!;
-    const spec = interpretWorkspace(team.workspace, team.skills, team.rules, team.portals);
-    expect(spec.workflow.testing_enabled).toBe(true);
-    expect(spec.workflow.review_enabled).toBe(true);
+    expect(spec.requirements.length).toBeGreaterThanOrEqual(3);
+    expect(spec.skills!.length).toBeGreaterThanOrEqual(2);
+    expect(spec.deployment.target).toBe('web');
   });
 
   // skillShowcase-specific tests
@@ -91,13 +84,7 @@ describe('bundled example nuggets', () => {
     expect(ws.blocks.blocks[0].type).toBe('skill_flow_start');
   });
 
-  it('skillShowcase example includes an always-trigger rule', () => {
-    const showcase = EXAMPLE_NUGGETS.find((e) => e.id === 'skill-showcase')!;
-    const alwaysRule = showcase.rules.find(r => r.trigger === 'always');
-    expect(alwaysRule, 'Missing always-trigger rule').toBeDefined();
-  });
-
-  it('skillShowcase example uses use_skill and use_rule blocks on canvas', () => {
+  it('skillShowcase example uses use_skill blocks on canvas', () => {
     const showcase = EXAMPLE_NUGGETS.find((e) => e.id === 'skill-showcase')!;
     const ws = showcase.workspace as any;
     const allBlocks: any[] = [];
@@ -114,7 +101,6 @@ describe('bundled example nuggets', () => {
     for (const b of ws.blocks.blocks) collect(b);
     const types = allBlocks.map(b => b.type);
     expect(types).toContain('use_skill');
-    expect(types).toContain('use_rule');
   });
 
   // Ensure every skill/rule defined in an example has a corresponding workspace block
@@ -146,19 +132,7 @@ describe('bundled example nuggets', () => {
         });
       }
 
-      if (example.rules.length > 0) {
-        it(`${example.name}: every rule has a use_rule block`, () => {
-          const ws = example.workspace as any;
-          const blocks = (ws.blocks?.blocks ?? []).flatMap((b: any) => collectBlockTypes(b));
-          const ruleBlockIds = blocks
-            .filter((b) => b.type === 'use_rule')
-            .map((b) => b.fields.RULE_ID);
-
-          for (const rule of example.rules) {
-            expect(ruleBlockIds, `Missing use_rule block for "${rule.name}" (${rule.id})`).toContain(rule.id);
-          }
-        });
-      }
+      // PRD-003: Rule blocks retired -- no alignment check needed
     }
   });
 });

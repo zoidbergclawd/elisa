@@ -1,8 +1,40 @@
 import * as Blockly from 'blockly';
-import { getCurrentSkills, getCurrentRules } from '../Skills/skillsRegistry';
+import { getCurrentSkills } from '../Skills/skillsRegistry';
 import { getCurrentPortals } from '../Portals/portalRegistry';
 
+/**
+ * Block category metadata for the PRD-003 type system.
+ * Primitives are authoring atoms; special blocks (Phase 2) operate above primitives;
+ * ide blocks are workspace/IDE concerns.
+ */
+export type BlockCategory = 'primitive' | 'special' | 'ide';
+
+export const BLOCK_CATEGORIES: Record<string, BlockCategory> = {
+  // Goal
+  nugget_goal: 'primitive',
+  nugget_template: 'primitive',
+  write_guide: 'primitive',
+  // Promise (was Requirement)
+  feature: 'primitive',
+  constraint: 'primitive',
+  when_then: 'primitive',
+  has_data: 'primitive',
+  // Proof (was Behavioral Test)
+  proof: 'primitive',
+  // Skill
+  use_skill: 'primitive',
+  // Portal (absorbs Knowledge + Devices)
+  portal_tell: 'primitive',
+  portal_when: 'primitive',
+  portal_ask: 'primitive',
+  // Deploy
+  deploy_web: 'primitive',
+  deploy_esp32: 'primitive',
+  deploy_both: 'primitive',
+};
+
 const blockDefs = [
+  // --- Goal ---
   {
     type: 'nugget_goal',
     message0: 'I want to build... %1',
@@ -18,91 +50,6 @@ const blockDefs = [
     tooltip: 'Describe what you want to build',
     helpUrl: '',
   },
-  {
-    type: 'feature',
-    message0: 'It should %1',
-    args0: [
-      {
-        type: 'field_input',
-        name: 'FEATURE_TEXT',
-        text: 'do something cool',
-      },
-    ],
-    message1: '%1',
-    args1: [
-      {
-        type: 'input_statement',
-        name: 'TEST_SOCKET',
-        check: 'test_check',
-      },
-    ],
-    previousStatement: null,
-    nextStatement: null,
-    colour: 135,
-    tooltip: 'Add a feature requirement — attach a behavioral test to verify it',
-    helpUrl: '',
-  },
-  {
-    type: 'agent_builder',
-    message0: 'Add a Builder Minion named %1 who is %2',
-    args0: [
-      {
-        type: 'field_input',
-        name: 'AGENT_NAME',
-        text: 'Builder Bot',
-      },
-      {
-        type: 'field_input',
-        name: 'AGENT_PERSONA',
-        text: 'a careful coder',
-      },
-    ],
-    previousStatement: null,
-    nextStatement: null,
-    colour: 30,
-    tooltip: 'Add a Builder Minion to your squad',
-    helpUrl: '',
-  },
-  {
-    type: 'agent_tester',
-    message0: 'Add a Tester Minion named %1 who is %2',
-    args0: [
-      {
-        type: 'field_input',
-        name: 'AGENT_NAME',
-        text: 'Test Bot',
-      },
-      {
-        type: 'field_input',
-        name: 'AGENT_PERSONA',
-        text: 'a thorough checker',
-      },
-    ],
-    previousStatement: null,
-    nextStatement: null,
-    colour: 30,
-    tooltip: 'Add a Tester Minion to your squad',
-    helpUrl: '',
-  },
-  {
-    type: 'deploy_web',
-    message0: 'Put it on the web',
-    previousStatement: null,
-    nextStatement: null,
-    colour: 180,
-    tooltip: 'Deploy your nugget to the web',
-    helpUrl: '',
-  },
-  {
-    type: 'deploy_esp32',
-    message0: 'Flash it to my board',
-    previousStatement: null,
-    nextStatement: null,
-    colour: 180,
-    tooltip: 'Flash your nugget to an ESP32 board',
-    helpUrl: '',
-  },
-  // Goals category additions
   {
     type: 'nugget_template',
     message0: 'Start from a template: %1',
@@ -125,7 +72,51 @@ const blockDefs = [
     tooltip: 'Start from a template',
     helpUrl: '',
   },
-  // Requirements category additions
+  {
+    type: 'write_guide',
+    message0: 'Write me a guide about %1',
+    args0: [
+      {
+        type: 'field_dropdown',
+        name: 'GUIDE_FOCUS',
+        options: [
+          ['how everything works', 'how_it_works'],
+          ['how to set it up', 'setup'],
+          ['what each part does', 'parts'],
+          ['all of the above', 'all'],
+        ],
+      },
+    ],
+    previousStatement: null,
+    nextStatement: null,
+    colour: 210,
+    tooltip: 'Generate a kid-friendly guide about your project',
+  },
+  // --- Promise (was Requirement) ---
+  {
+    type: 'feature',
+    message0: 'It should %1',
+    args0: [
+      {
+        type: 'field_input',
+        name: 'FEATURE_TEXT',
+        text: 'do something cool',
+      },
+    ],
+    message1: '%1',
+    args1: [
+      {
+        type: 'input_statement',
+        name: 'TEST_SOCKET',
+        check: 'test_check',
+      },
+    ],
+    previousStatement: null,
+    nextStatement: null,
+    colour: 135,
+    tooltip: 'Add a promise — attach a proof to verify it',
+    helpUrl: '',
+  },
   {
     type: 'constraint',
     message0: "Make sure it doesn't... %1",
@@ -168,7 +159,7 @@ const blockDefs = [
     previousStatement: null,
     nextStatement: null,
     colour: 135,
-    tooltip: 'Add a when/then rule — attach a behavioral test to verify it',
+    tooltip: 'Add a when/then promise — attach a proof to verify it',
     helpUrl: '',
   },
   {
@@ -192,13 +183,13 @@ const blockDefs = [
     previousStatement: null,
     nextStatement: null,
     colour: 135,
-    tooltip: 'Add data the nugget needs — attach a behavioral test to verify it',
+    tooltip: 'Add data the nugget needs — attach a proof to verify it',
     helpUrl: '',
   },
-  // Tests category (colour 30, red family — same as Minions/testing)
+  // --- Proof (was Behavioral Test) ---
   {
-    type: 'behavioral_test',
-    message0: 'Test that when %1 then %2',
+    type: 'proof',
+    message0: 'Prove that when %1 then %2',
     args0: [
       { type: 'field_input', name: 'GIVEN_WHEN', text: 'the user clicks play' },
       { type: 'field_input', name: 'THEN', text: 'the game starts' },
@@ -206,286 +197,10 @@ const blockDefs = [
     previousStatement: 'test_check',
     nextStatement: 'test_check',
     colour: 30,
-    tooltip: 'Add a behavioral test — attach to a When/Then block to verify it',
+    tooltip: 'Add a proof — attach to a Promise block to verify it',
     helpUrl: '',
   },
-  // Style category (NEW - colour 270)
-  {
-    type: 'look_like',
-    message0: 'Make it look... %1',
-    args0: [
-      {
-        type: 'field_dropdown',
-        name: 'STYLE_PRESET',
-        options: [
-          ['Fun & Colorful', 'fun_colorful'],
-          ['Clean & Simple', 'clean_simple'],
-          ['Dark & Techy', 'dark_techy'],
-          ['Nature', 'nature'],
-          ['Space', 'space'],
-        ],
-      },
-    ],
-    previousStatement: null,
-    nextStatement: null,
-    colour: 270,
-    tooltip: 'Choose a visual style',
-    helpUrl: '',
-  },
-  {
-    type: 'personality',
-    message0: "Give it a personality that's... %1",
-    args0: [
-      {
-        type: 'field_input',
-        name: 'PERSONALITY_TEXT',
-        text: 'friendly and helpful',
-      },
-    ],
-    previousStatement: null,
-    nextStatement: null,
-    colour: 270,
-    tooltip: 'Set the personality',
-    helpUrl: '',
-  },
-  // Agents category additions
-  {
-    type: 'agent_reviewer',
-    message0: 'Add a Reviewer Minion named %1 who focuses on %2',
-    args0: [
-      {
-        type: 'field_input',
-        name: 'AGENT_NAME',
-        text: 'Review Bot',
-      },
-      {
-        type: 'field_input',
-        name: 'AGENT_PERSONA',
-        text: 'code quality',
-      },
-    ],
-    previousStatement: null,
-    nextStatement: null,
-    colour: 30,
-    tooltip: 'Add a Reviewer Minion to your squad',
-    helpUrl: '',
-  },
-  {
-    type: 'agent_custom',
-    message0: 'Add a Custom Minion named %1 who %2',
-    args0: [
-      {
-        type: 'field_input',
-        name: 'AGENT_NAME',
-        text: 'Helper Bot',
-      },
-      {
-        type: 'field_input',
-        name: 'AGENT_PERSONA',
-        text: 'does something special',
-      },
-    ],
-    previousStatement: null,
-    nextStatement: null,
-    colour: 30,
-    tooltip: 'Add a Custom Minion to your squad',
-    helpUrl: '',
-  },
-  // Flow category (NEW - colour 60) - container blocks
-  {
-    type: 'first_then',
-    message0: 'First do %1 Then do %2',
-    args0: [
-      {
-        type: 'input_statement',
-        name: 'FIRST_BLOCKS',
-      },
-      {
-        type: 'input_statement',
-        name: 'THEN_BLOCKS',
-      },
-    ],
-    previousStatement: null,
-    nextStatement: null,
-    colour: 60,
-    tooltip: 'Do things in order',
-    helpUrl: '',
-  },
-  {
-    type: 'at_same_time',
-    message0: 'Do these at the same time %1',
-    args0: [
-      {
-        type: 'input_statement',
-        name: 'PARALLEL_BLOCKS',
-      },
-    ],
-    previousStatement: null,
-    nextStatement: null,
-    colour: 60,
-    tooltip: 'Do things in parallel',
-    helpUrl: '',
-  },
-  {
-    type: 'keep_improving',
-    message0: 'Keep improving until... %1',
-    args0: [
-      {
-        type: 'field_input',
-        name: 'CONDITION_TEXT',
-        text: 'it works perfectly',
-      },
-    ],
-    previousStatement: null,
-    nextStatement: null,
-    colour: 60,
-    tooltip: 'Iterate until a condition is met',
-    helpUrl: '',
-  },
-  {
-    type: 'timer_every',
-    message0: 'Every %1 seconds %2',
-    args0: [
-      {
-        type: 'field_number',
-        name: 'INTERVAL',
-        value: 5,
-      },
-      {
-        type: 'input_statement',
-        name: 'ACTION_BLOCKS',
-      },
-    ],
-    previousStatement: null,
-    nextStatement: null,
-    colour: 60,
-    tooltip: 'Do something on a timer',
-    helpUrl: '',
-  },
-  {
-    type: 'check_with_me',
-    message0: 'Check with me before... %1',
-    args0: [
-      {
-        type: 'field_input',
-        name: 'GATE_DESCRIPTION',
-        text: 'finishing the nugget',
-      },
-    ],
-    previousStatement: null,
-    nextStatement: null,
-    colour: 60,
-    tooltip: 'Add a review checkpoint',
-    helpUrl: '',
-  },
-  // Flow category: feedback loop (Systems Thinking)
-  {
-    type: 'feedback_loop',
-    message0: 'Feedback loop %1 triggered by %2 exit when %3 max tries %4 from %5 to %6',
-    args0: [
-      {
-        type: 'field_input',
-        name: 'LOOP_ID',
-        text: 'loop-1',
-      },
-      {
-        type: 'field_dropdown',
-        name: 'TRIGGER',
-        options: [
-          ['Test Failure', 'test_failure'],
-          ['Review Rejection', 'review_rejection'],
-          ['Custom', 'custom'],
-        ],
-      },
-      {
-        type: 'field_input',
-        name: 'EXIT_CONDITION',
-        text: 'all tests pass',
-      },
-      {
-        type: 'field_number',
-        name: 'MAX_ITERATIONS',
-        value: 3,
-        min: 1,
-        max: 10,
-      },
-      {
-        type: 'field_input',
-        name: 'CONNECTS_FROM',
-        text: 'task-id',
-      },
-      {
-        type: 'field_input',
-        name: 'CONNECTS_TO',
-        text: 'task-id',
-      },
-    ],
-    previousStatement: null,
-    nextStatement: null,
-    colour: 135,
-    tooltip: 'Add a feedback loop that retries tasks when something goes wrong',
-    helpUrl: '',
-  },
-  // Knowledge category (NEW - colour 160, green)
-  {
-    type: 'agent_backpack',
-    message0: 'Agent Backpack',
-    previousStatement: null,
-    nextStatement: null,
-    colour: 160,
-    tooltip: 'Give your agent a backpack of knowledge to reference',
-    helpUrl: '',
-  },
-  {
-    type: 'study_mode',
-    message0: 'Study Mode  Style: %1  Difficulty: %2  Quiz every: %3 turns',
-    args0: [
-      {
-        type: 'field_dropdown',
-        name: 'STYLE',
-        options: [
-          ['Quiz Me', 'quiz_me'],
-          ['Explain', 'explain'],
-          ['Flashcards', 'flashcards'],
-          ['Socratic', 'socratic'],
-        ],
-      },
-      {
-        type: 'field_dropdown',
-        name: 'DIFFICULTY',
-        options: [
-          ['Easy', 'easy'],
-          ['Medium', 'medium'],
-          ['Hard', 'hard'],
-        ],
-      },
-      {
-        type: 'field_dropdown',
-        name: 'QUIZ_FREQUENCY',
-        options: [
-          ['3', '3'],
-          ['5', '5'],
-          ['10', '10'],
-        ],
-      },
-    ],
-    previousStatement: null,
-    nextStatement: null,
-    colour: 160,
-    tooltip: 'Turn your agent into a tutor that quizzes you on its backpack knowledge',
-    helpUrl: '',
-  },
-  // Deploy category additions
-  {
-    type: 'deploy_both',
-    message0: 'Web dashboard + hardware',
-    previousStatement: null,
-    nextStatement: null,
-    colour: 180,
-    tooltip: 'Deploy to both web and hardware',
-    helpUrl: '',
-  },
-  // Skills category (NEW - colour 315)
+  // --- Skill (absorbs Style as shipped skills) ---
   {
     type: 'use_skill',
     message0: 'Use skill: %1',
@@ -503,24 +218,7 @@ const blockDefs = [
     helpUrl: '',
     extensions: ['skill_dropdown_extension'],
   },
-  {
-    type: 'use_rule',
-    message0: 'Apply rule: %1',
-    args0: [
-      {
-        type: 'field_dropdown',
-        name: 'RULE_ID',
-        options: [['(no rules yet)', '']],
-      },
-    ],
-    previousStatement: null,
-    nextStatement: null,
-    colour: 345,
-    tooltip: 'Apply a rule from your prompt library',
-    helpUrl: '',
-    extensions: ['rule_dropdown_extension'],
-  },
-  // Portals category (NEW - colour 160, teal)
+  // --- Portal (absorbs Knowledge + Devices) ---
   {
     type: 'portal_tell',
     message0: 'Tell %1 to %2',
@@ -591,157 +289,32 @@ const blockDefs = [
     helpUrl: '',
     extensions: ['portal_ask_extension'],
   },
-  // Goals category addition
+  // --- Deploy ---
   {
-    type: 'write_guide',
-    message0: 'Write me a guide about %1',
-    args0: [
-      {
-        type: 'field_dropdown',
-        name: 'GUIDE_FOCUS',
-        options: [
-          ['how everything works', 'how_it_works'],
-          ['how to set it up', 'setup'],
-          ['what each part does', 'parts'],
-          ['all of the above', 'all'],
-        ],
-      },
-    ],
-    previousStatement: null,
-    nextStatement: null,
-    colour: 210,
-    tooltip: 'Generate a kid-friendly guide about your project',
-  },
-  // Composition category (colour 180, teal — systems thinking interfaces)
-  {
-    type: 'nugget_provides',
-    message0: 'This nugget provides %1 of type %2',
-    args0: [
-      {
-        type: 'field_input',
-        name: 'INTERFACE_NAME',
-        text: 'user_data',
-      },
-      {
-        type: 'field_dropdown',
-        name: 'INTERFACE_TYPE',
-        options: [
-          ['Data', 'data'],
-          ['Event', 'event'],
-          ['Function', 'function'],
-          ['Stream', 'stream'],
-        ],
-      },
-    ],
+    type: 'deploy_web',
+    message0: 'Put it on the web',
     previousStatement: null,
     nextStatement: null,
     colour: 180,
-    tooltip: 'Declare an interface this nugget provides to others',
+    tooltip: 'Deploy your nugget to the web',
     helpUrl: '',
   },
   {
-    type: 'nugget_requires',
-    message0: 'This nugget requires %1 of type %2',
-    args0: [
-      {
-        type: 'field_input',
-        name: 'INTERFACE_NAME',
-        text: 'user_data',
-      },
-      {
-        type: 'field_dropdown',
-        name: 'INTERFACE_TYPE',
-        options: [
-          ['Data', 'data'],
-          ['Event', 'event'],
-          ['Function', 'function'],
-          ['Stream', 'stream'],
-        ],
-      },
-    ],
+    type: 'deploy_esp32',
+    message0: 'Flash it to my board',
     previousStatement: null,
     nextStatement: null,
     colour: 180,
-    tooltip: 'Declare an interface this nugget needs from another',
-    helpUrl: '',
-  },
-  // Team category (colour 45, warm orange)
-  {
-    type: 'team_member',
-    message0: 'Add %1 to my team',
-    args0: [
-      {
-        type: 'field_dropdown',
-        name: 'MEETING_TYPE',
-        options: [
-          ['Scribe', 'doc-agent'],
-          ['Marketing', 'media-agent'],
-          ['Blueprint', 'architecture-agent'],
-          ['Bug Detective', 'debug-convergence'],
-          ['Social Media', 'social-media-agent'],
-          ['Styler', 'web-design-agent'],
-          ['Pixel', 'art-agent'],
-          ['Interface Designer', 'integration-agent'],
-        ],
-      },
-    ],
-    previousStatement: null,
-    nextStatement: null,
-    colour: 45,
-    tooltip: 'Add a built-in meeting agent to your team. They will pop up at the right time during your build.',
+    tooltip: 'Flash your nugget to an ESP32 board',
     helpUrl: '',
   },
   {
-    type: 'team_member_custom',
-    message0: 'Add a team expert named %1 who %2 using %3',
-    args0: [
-      {
-        type: 'field_input',
-        name: 'AGENT_NAME',
-        text: 'Coach',
-      },
-      {
-        type: 'field_input',
-        name: 'AGENT_PERSONA',
-        text: 'gives tips and encouragement',
-      },
-      {
-        type: 'field_dropdown',
-        name: 'CANVAS_TYPE',
-        options: [
-          ['Document', 'explain-it'],
-          ['Campaign', 'campaign'],
-          ['Blueprint', 'blueprint'],
-          ['Design Preview', 'design-preview'],
-          ['Launch Page', 'launch-pad'],
-        ],
-      },
-    ],
+    type: 'deploy_both',
+    message0: 'Web dashboard + hardware',
     previousStatement: null,
     nextStatement: null,
-    colour: 45,
-    tooltip: 'Add a custom meeting agent with your own name, personality, and canvas type.',
-    helpUrl: '',
-  },
-  // System category (NEW - colour 290, purple)
-  {
-    type: 'system_level',
-    message0: 'My level: %1',
-    args0: [
-      {
-        type: 'field_dropdown',
-        name: 'LEVEL',
-        options: [
-          ['Explorer - See how systems work', 'explorer'],
-          ['Builder - Understand and control systems', 'builder'],
-          ['Architect - Design your own systems', 'architect'],
-        ],
-      },
-    ],
-    previousStatement: null,
-    nextStatement: null,
-    colour: 290,
-    tooltip: 'Choose your mastery level. Explorer: everything is automatic and explained. Builder: you control more. Architect: you design everything yourself.',
+    colour: 180,
+    tooltip: 'Deploy to both web and hardware',
     helpUrl: '',
   },
 ];
@@ -764,20 +337,6 @@ export function registerBlocks(): void {
       return skills.map((s) => [s.name, s.id] as [string, string]);
     };
     // Trigger initial options refresh
-    originalMenuGenerator.call(dropdown);
-  });
-
-  Blockly.Extensions.register('rule_dropdown_extension', function (this: Blockly.Block) {
-    const dropdown = this.getField('RULE_ID') as Blockly.FieldDropdown;
-    if (!dropdown) return;
-    const originalMenuGenerator = dropdown.getOptions;
-    dropdown.getOptions = function () {
-      const rules = getCurrentRules();
-      if (rules.length === 0) {
-        return [['(no rules yet)', '']];
-      }
-      return rules.map((r) => [r.name, r.id] as [string, string]);
-    };
     originalMenuGenerator.call(dropdown);
   });
 
@@ -849,7 +408,6 @@ export function registerBlocks(): void {
       };
 
       // When portal changes, clear param inputs (capability will change too)
-      // Arrow functions capture `this` (the block) from the extension scope
       portalDropdown.setValidator(() => {
         removeParamInputs(this);
         return undefined;
