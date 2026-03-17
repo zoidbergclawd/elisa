@@ -21,6 +21,10 @@ import { useHealthCheck } from './hooks/useHealthCheck';
 import { useBoardDetect } from './hooks/useBoardDetect';
 import { setAuthToken, authFetch } from './lib/apiClient';
 import { registerDeviceBlocks, type DeviceManifest } from './lib/deviceBlocks';
+import { updateNuggetOptions, type NuggetEntry } from './components/BlockCanvas/nuggetBlocks';
+import { interpretCompositionWorkspace } from './components/BlockCanvas/nuggetInterpreter';
+import { composeNuggets, type ResolvedNugget } from './lib/composeNuggets';
+import { SHIPPED_NUGGETS } from './lib/shippedNuggets';
 import { playChime } from './lib/playChime';
 import { BuildSessionProvider } from './contexts/BuildSessionContext';
 import { useBuildSessionContext } from './contexts/BuildSessionContext';
@@ -245,7 +249,60 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
     }
   }, [activeMainTab, blockCanvasRef]);
 
+  // PRD-003 Phase 2: Wire shipped nuggets into nugget block dropdown
+  const [compositionReview, setCompositionReview] = useState<{
+    summary: string;
+    nuggetNames: string[];
+    onConfirm: () => void;
+  } | null>(null);
+
+  useEffect(() => {
+    const entries: NuggetEntry[] = SHIPPED_NUGGETS.map(n => ({
+      id: n.id,
+      name: n.name,
+      goal: n.spec.nugget.goal,
+      builtin: true,
+    }));
+    updateNuggetOptions(entries);
+  }, []);
+
   const handleGo = async () => {
+    if (workspaceMode === 'compose') {
+      // Composition mode: interpret canvas, resolve nuggets, show review, then build
+      if (!workspaceJson) return;
+      const composeRequest = interpretCompositionWorkspace(workspaceJson);
+      if (composeRequest.nuggetIds.length === 0) return;
+
+      // Resolve nugget IDs to specs (shipped nuggets for now)
+      const resolved: ResolvedNugget[] = composeRequest.nuggetIds
+        .map(id => {
+          const shipped = SHIPPED_NUGGETS.find(n => n.id === id);
+          if (shipped) return { id: shipped.id, name: shipped.name, spec: shipped.spec };
+          return null;
+        })
+        .filter((n): n is ResolvedNugget => n !== null);
+
+      if (resolved.length === 0) return;
+
+      const plan = composeNuggets(composeRequest, resolved);
+
+      // Show review dialog before proceeding (PRD 7.8.7)
+      setCompositionReview({
+        summary: plan.summary,
+        nuggetNames: resolved.map(n => n.name),
+        onConfirm: async () => {
+          setCompositionReview(null);
+          const wp = await ensureWorkspacePath();
+          if (!wp) return;
+          lastToastIndexRef.current = -1;
+          setCurrentToast(null);
+          await startBuild(plan.composedSpec, waitForOpen, wp, workspaceJson ?? undefined);
+        },
+      });
+      return;
+    }
+
+    // Standard specify mode
     if (!spec) return;
     const wp = await ensureWorkspacePath();
     if (!wp) return;
@@ -416,6 +473,38 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
 
       {/* Bottom bar */}
       <BottomBar boardInfo={boardInfo} />
+
+      {/* PRD-003: Composition review modal */}
+      {compositionReview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">Review Composition</h3>
+            <p className="text-sm text-gray-600 mb-4 whitespace-pre-line">{compositionReview.summary}</p>
+            <div className="mb-4">
+              <p className="text-xs font-medium text-gray-500 uppercase mb-2">Nuggets</p>
+              <ul className="space-y-1">
+                {compositionReview.nuggetNames.map((name) => (
+                  <li key={name} className="text-sm text-gray-800 bg-amber-50 border border-amber-200 rounded px-3 py-1.5">{name}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
+                onClick={() => setCompositionReview(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg"
+                onClick={compositionReview.onConfirm}
+              >
+                Build Composition
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* All modals */}
       <ModalHost

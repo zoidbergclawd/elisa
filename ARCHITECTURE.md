@@ -98,6 +98,21 @@ Root `package.json` manages Electron and build tooling. Frontend and backend rem
 
 Human gates can pause execution at any point, requiring user approval via REST endpoint.
 
+### Composition Flow (PRD-003 Phase 2)
+
+```
+Workspace mode toggle: 'specify' (default) | 'compose'
+  -> Compose mode loads composition toolbox (nugget_ref blocks only)
+  -> User arranges nugget blocks spatially (vertical = sequential, side-by-side = parallel)
+  -> nuggetInterpreter converts layout to ComposeRequest
+  -> Composition review modal shows arrangement before build
+  -> interfaceInference auto-infers provides/requires from NuggetSpec
+  -> CompositionService.compose() merges nuggets + resolves interfaces
+  -> Composition workspace persisted as composition.json in .elisa file
+```
+
+Shipped nuggets (Dashboard, API, Sensor, Gateway) available out of the box via `shippedNuggets.ts`.
+
 ### Device Plugin System
 
 Device plugins live in `devices/<plugin-id>/` and follow a manifest-driven convention:

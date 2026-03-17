@@ -103,4 +103,32 @@ export const SHIPPED_NUGGETS: ShippedNugget[] = [
       ],
     },
   },
+  {
+    id: 'shipped-gateway-node',
+    name: 'Gateway Node',
+    description: 'An ESP32 gateway that receives LoRa data from sensor nodes and relays it to a cloud endpoint via WiFi.',
+    spec: {
+      nugget: {
+        goal: 'A gateway node that receives LoRa packets from sensors and POSTs data to a cloud endpoint via WiFi',
+        description: 'A gateway node that receives LoRa packets from sensors and POSTs data to a cloud endpoint via WiFi',
+        type: 'hardware',
+      },
+      requirements: [
+        { type: 'feature', description: 'receives LoRa packets and decodes JSON sensor data' },
+        { type: 'feature', description: 'connects to WiFi and POSTs decoded data to a configurable HTTP endpoint' },
+        { type: 'feature', description: 'displays relay status on the OLED screen' },
+        { type: 'constraint', description: 'queues data locally if WiFi or cloud endpoint is unreachable and retries on next cycle' },
+      ],
+      agents: [],
+      deployment: { target: 'esp32', auto_flash: true },
+      workflow: {
+        review_enabled: false,
+        testing_enabled: true,
+        human_gates: [],
+      },
+      skills: [
+        { id: 'shipped-skill-robust-iot', name: 'Robust IoT code', prompt: 'All MicroPython code must handle sensor read failures gracefully: catch exceptions per-sensor, log the error, and continue the loop with partial data.', category: 'agent' },
+      ],
+    },
+  },
 ];

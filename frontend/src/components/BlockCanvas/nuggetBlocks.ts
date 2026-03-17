@@ -37,7 +37,7 @@ export function getCurrentNuggets(): NuggetEntry[] {
 export function registerNuggetBlocks(): void {
   if (registered) return;
 
-  // Register the dropdown extension
+  // Register the dropdown extension with goal tooltip
   Blockly.Extensions.register('nugget_dropdown_extension', function (this: Blockly.Block) {
     const dropdown = this.getField('NUGGET_ID') as Blockly.FieldDropdown;
     if (!dropdown) return;
@@ -50,6 +50,17 @@ export function registerNuggetBlocks(): void {
       return nuggets.map((n) => [n.name, n.id] as [string, string]);
     };
     originalMenuGenerator.call(dropdown);
+
+    // Update tooltip to show the selected nugget's goal
+    const block = this;
+    dropdown.setValidator((newValue: string) => {
+      const nuggets = getCurrentNuggets();
+      const nugget = nuggets.find((n) => n.id === newValue);
+      if (nugget) {
+        block.setTooltip(`Goal: ${nugget.goal}`);
+      }
+      return undefined;
+    });
   });
 
   // Define the nugget_ref block

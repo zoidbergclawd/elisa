@@ -121,7 +121,22 @@ All generated content (code, comments, text, file names) must be appropriate for
 The spec may include a \`skills\` array containing the kid's custom instructions.
 - Skills provide detailed instructions for agent behavior, features, and style
 - Skills may be user-created or shipped (built-in) -- both are treated identically
-These are injected into agent prompts automatically. Factor them into task planning when relevant.`;
+These are injected into agent prompts automatically. Factor them into task planning when relevant.
+
+## Composed Nuggets
+
+If the spec description starts with "[Composed from N nuggets]", this is a composition of
+multiple independently-specified nuggets merged into a single build. The description contains:
+- The spatial arrangement (sequential tracks and parallel tracks)
+- The original goals of each component nugget
+
+When planning a composed spec:
+- Create **parallel tracks** for nuggets in different groups (they can build simultaneously)
+- Create **sequential dependencies** for nuggets in the same group (later nuggets depend on earlier ones)
+- After all component tracks complete, add an **Integration Review** task that verifies cross-component compatibility
+- Each component's requirements should map to tasks in that component's track
+- If deployment targets differ between components (e.g., one is ESP32, another is web), plan both deployment paths`;
+
 
 const HARDWARE_SECTION = `\
 

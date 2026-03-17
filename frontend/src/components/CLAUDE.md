@@ -87,6 +87,9 @@ App.tsx
 - `blockInterpreter.ts`: Walks Blockly workspace JSON, extracts fields, builds NuggetSpec. Device plugin blocks handled generically.
 - `toolbox.ts`: Defines Blockly sidebar categories. Device plugin blocks dynamically added via `buildDeviceCategories()`.
 - `skillFlowToolbox.ts`: Blockly toolbox definition for the skill flow editor.
+- `nuggetBlocks.ts`: Dynamic nugget_ref block registration with dropdown extension. Colour 15 (gold), category 'special'.
+- `compositionToolbox.ts`: Minimal toolbox for composition mode (nuggets only).
+- `nuggetInterpreter.ts`: Composition workspace JSON -> ComposeRequest (spatial inference: vertical = sequential groups, side-by-side = parallel groups).
 - Device blocks: Loaded from `GET /api/devices` at startup and registered via `deviceBlocks.ts`.
 
 ## Key Patterns

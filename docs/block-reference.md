@@ -4,7 +4,7 @@ Complete guide to Elisa's block palette. Blocks snap together on the canvas to p
 
 **6 Primitives**: [Goal](#goal) | [Promise](#promise) | [Proof](#proof) | [Skill](#skill) | [Portal](#portal) | [Deploy](#deploy)
 
-**Other**: [Skill Flow](#skill-flow) | [Devices](#devices)
+**Other**: [Nuggets](#nuggets) | [Skill Flow](#skill-flow) | [Devices](#devices)
 
 ---
 
@@ -90,6 +90,22 @@ Where and how the agent ships.
 | **Deploy Both** | `deployment.target: "both"` |
 
 If no deploy block is placed, defaults to `"preview"`.
+
+---
+
+## Nuggets
+
+Nugget blocks reference saved specifications for composition. They appear only in Compose mode (toggle in workspace header). Nuggets are NOT a 7th primitive -- they operate at the composition layer above specification.
+
+| Block | Fields | Output |
+|-------|--------|--------|
+| **Nugget** | `NUGGET_ID` (dropdown, dynamically populated from shipped + saved nuggets) | ComposeRequest with spatial arrangement |
+
+Arrange nuggets **vertically** for sequence (A completes before B) and **side-by-side** for parallel (A and B run concurrently). The meta planner infers the dependency graph from spatial layout.
+
+Hover over a nugget block to see its Goal in the tooltip.
+
+**Shipped nuggets**: Web Dashboard, REST API Server, Sensor Node, Gateway Node
 
 ---
 
