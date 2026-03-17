@@ -2,13 +2,15 @@
 
 Complete guide to Elisa's block palette. Blocks snap together on the canvas to produce a [NuggetSpec](api-reference.md#nuggetspec-schema) that drives the build.
 
-Categories: [Goals](#goals) | [Requirements](#requirements) | [Tests](#tests) | [Style](#style) | [Skills](#skills) | [Rules](#rules) | [Skill Flow](#skill-flow) | [Portals](#portals) | [Knowledge](#knowledge) | [Minions](#minions) | [Team](#team) | [Flow](#flow) | [System](#system) | [Composition](#composition) | [Deploy](#deploy) | [Devices](#devices)
+**6 Primitives**: [Goal](#goal) | [Promise](#promise) | [Proof](#proof) | [Skill](#skill) | [Portal](#portal) | [Deploy](#deploy)
+
+**Other**: [Skill Flow](#skill-flow) | [Devices](#devices)
 
 ---
 
-## Goals
+## Goal
 
-Define what you're building. Every project needs at least one goal block.
+Define what you're building. Every project needs at least one Goal block.
 
 | Block | Fields | NuggetSpec Output |
 |-------|--------|--------------------|
@@ -22,69 +24,72 @@ Define what you're building. Every project needs at least one goal block.
 
 ---
 
-## Requirements
+## Promise
 
-Describe what the project should do.
+The commitments and constraints the agent must honor. Promises are "always-true" rules.
 
 | Block | Fields | NuggetSpec Output |
 |-------|--------|--------------------|
-| **Feature** | `FEATURE_TEXT` (text) | `requirements[]` with `type: "feature"` |
+| **Feature** | `FEATURE_TEXT` (text), `TEST_SOCKET` (proof receptacle) | `requirements[]` with `type: "feature"` |
 | **Constraint** | `CONSTRAINT_TEXT` (text) | `requirements[]` with `type: "constraint"` |
-| **When/Then** | `TRIGGER_TEXT`, `ACTION_TEXT` (text) | `requirements[]` with `type: "when_then"` |
-| **Has Data** | `DATA_TEXT` (text) | `requirements[]` with `type: "data"` |
+| **When/Then** | `TRIGGER_TEXT`, `ACTION_TEXT` (text), `TEST_SOCKET` (proof receptacle) | `requirements[]` with `type: "when_then"` |
+| **Has Data** | `DATA_TEXT` (text), `TEST_SOCKET` (proof receptacle) | `requirements[]` with `type: "data"` |
 
-**Example**: A "Feature" block with "multiplayer support" produces `{ type: "feature", description: "multiplayer support" }`.
+Feature, When/Then, and Has Data blocks contain receptacles where Proof blocks nest inside them to verify the promise.
 
 ---
 
-## Tests
+## Proof
 
-Behavioral tests that verify requirements. Test blocks attach inside Feature, When/Then, and Has Data blocks via their test socket.
+Verifiable assertions that a Promise was kept. Proof blocks nest inside Promise blocks via the `TEST_SOCKET` receptacle.
 
 | Block | Fields | NuggetSpec Output |
 |-------|--------|--------------------|
-| **Behavioral Test** | `GIVEN_WHEN` (text), `THEN` (text) | `workflow.behavioral_tests[]` with `when`, `then`, `requirement_id` |
+| **Proof** | `GIVEN_WHEN` (text), `THEN` (text) | `workflow.behavioral_tests[]` with `when`, `then`, `requirement_id` |
 
-Test blocks connect to the `TEST_SOCKET` inside requirement blocks. When a test is attached to a Feature block, its `requirement_id` links it to that feature's requirement entry in the spec.
+When a Proof is attached to a Promise block, its `requirement_id` links it to that promise's entry in the spec.
 
-**Example**: Attaching a Behavioral Test with "the user clicks play" / "the game starts" to a Feature block produces `{ id: "test_0", when: "the user clicks play", then: "the game starts", requirement_id: "req_0" }`.
-
----
-
-## Style
-
-Control the look and personality of the output.
-
-| Block | Fields | NuggetSpec Output |
-|-------|--------|--------------------|
-| **Look Like** | `STYLE_PRESET` (dropdown) | `style.visual` |
-| **Personality** | `PERSONALITY_TEXT` (text) | `style.personality` |
-
-**Style presets**: `fun_colorful`, `clean_simple`, `dark_techy`, `nature`, `space`
+**Example**: Attaching a Proof with "the user clicks play" / "the game starts" to a Feature block produces `{ id: "test_0", when: "the user clicks play", then: "the game starts", requirement_id: "req_0" }`.
 
 ---
 
-## Skills
+## Skill
 
-Reusable prompt snippets that extend agent capabilities. Created in the Skills modal (wrench icon in sidebar).
+Reusable multi-step behaviors. Created in the Skills modal (wrench icon in sidebar). Includes shipped style skills (Fun & Colorful, Clean & Simple, Dark & Techy, Nature, Space).
 
 | Block | Fields | NuggetSpec Output |
 |-------|--------|--------------------|
 | **Use Skill** | `SKILL_ID` (dropdown, dynamically populated) | `skills[]` |
 
-Each skill has a name, prompt, and category (`agent`, `feature`, or `style`). Simple skills contain a prompt template. Composite skills use the flow editor (see [Skill Flow](#skill-flow)).
+Each skill has a name, prompt, and category (`agent`, `feature`, `style`, or `composite`). Simple skills contain a prompt template. Composite skills use the flow editor (see [Skill Flow](#skill-flow)).
 
 ---
 
-## Rules
+## Portal
 
-Guardrails that trigger automatically during builds. Created in the Rules modal (shield icon in sidebar).
+The agent's interface to the outside world -- tools, APIs, hardware, knowledge bases, and devices. Portal dropdowns are dynamically populated from configured portals.
 
 | Block | Fields | NuggetSpec Output |
 |-------|--------|--------------------|
-| **Apply Rule** | `RULE_ID` (dropdown, dynamically populated) | `rules[]` |
+| **Tell** | `PORTAL_ID` (dropdown), `CAPABILITY_ID` (dropdown, filtered to actions), plus dynamic `PARAM_*` fields | `portals[]` with interaction `type: "tell"` |
+| **When** | `PORTAL_ID` (dropdown), `CAPABILITY_ID` (dropdown, filtered to events), `ACTION_BLOCKS` (statement slot), plus dynamic `PARAM_*` fields | `portals[]` with interaction `type: "when"` |
+| **Ask** | `PORTAL_ID` (dropdown), `CAPABILITY_ID` (dropdown, filtered to queries), plus dynamic `PARAM_*` fields | `portals[]` with interaction `type: "ask"` |
 
-Each rule has a name, prompt, and trigger: `always`, `on_task_complete`, `on_test_fail`, or `before_deploy`.
+**Tell** sends a one-shot command to a portal. **When** reacts to portal events. **Ask** queries a portal for data. Parameter fields are added dynamically based on the selected capability.
+
+---
+
+## Deploy
+
+Where and how the agent ships.
+
+| Block | NuggetSpec Output |
+|-------|--------------------|
+| **Deploy Web** | `deployment.target: "web"` |
+| **Deploy ESP32** | `deployment.target: "esp32"` |
+| **Deploy Both** | `deployment.target: "both"` |
+
+If no deploy block is placed, defaults to `"preview"`.
 
 ---
 
@@ -114,156 +119,15 @@ Run Agent -> prompt "Build a {{topic}} app" -> store as "result"
 Output -> template "Done: {{result}}"
 ```
 
-Context resolution walks the current context first, then parent contexts (for nested skill invocations).
-
 ### Branch Behavior
 
-`If` blocks have no else branch. To handle multiple cases, chain multiple `If` blocks:
-
-```
-If answer equals "Game"    -> [Run Agent: build a game]
-If answer equals "Website" -> [Run Agent: build a website]
-```
-
-First match wins per block. All `If` blocks are evaluated independently (not mutually exclusive).
-
----
-
-## Portals
-
-Connect to external hardware and services. Portal dropdowns are dynamically populated from configured portals.
-
-| Block | Fields | NuggetSpec Output |
-|-------|--------|--------------------|
-| **Tell** | `PORTAL_ID` (dropdown), `CAPABILITY_ID` (dropdown, filtered to actions), plus dynamic `PARAM_*` fields | `portals[]` with `command: "tell"` |
-| **When** | `PORTAL_ID` (dropdown), `CAPABILITY_ID` (dropdown, filtered to events), `ACTION_BLOCKS` (statement slot), plus dynamic `PARAM_*` fields | `portals[]` with `command: "when"` |
-| **Ask** | `PORTAL_ID` (dropdown), `CAPABILITY_ID` (dropdown, filtered to queries), plus dynamic `PARAM_*` fields | `portals[]` with `command: "ask"` |
-
-**Tell** sends a one-shot command to a portal (e.g., "Tell LED Strip to set_color"). **When** reacts to portal events (e.g., "When Button pressed, do..."). **Ask** queries a portal for data (e.g., "Ask Sensor for temperature"). Parameter fields are added dynamically based on the selected capability.
-
----
-
-## Knowledge
-
-Give your agent knowledge to reference and configure study/tutoring modes.
-
-| Block | Fields | NuggetSpec Output |
-|-------|--------|--------------------|
-| **Agent Backpack** | *(none)* | `knowledge.backpack_sources` (initialized as empty array) |
-| **Study Mode** | `STYLE` (dropdown), `DIFFICULTY` (dropdown), `QUIZ_FREQUENCY` (dropdown) | `knowledge.study_mode` |
-
-**Agent Backpack** declares that your agent uses a knowledge backpack. Backpack sources (PDFs, URLs, topic packs, etc.) are added separately.
-
-**Study Mode** turns your agent into a tutor that quizzes you on its backpack knowledge.
-
-**Study styles**: `quiz_me`, `explain`, `flashcards`, `socratic`
-
-**Difficulty levels**: `easy`, `medium`, `hard`
-
-**Quiz frequency** (turns between quizzes): `3`, `5`, `10`
-
----
-
-## Minions
-
-Configure the AI minions that will build your project. If no minion blocks are placed, defaults are used.
-
-| Block | Fields | Role | NuggetSpec Output |
-|-------|--------|------|--------------------|
-| **Builder Minion** | `AGENT_NAME`, `AGENT_PERSONA` (text) | `builder` | `agents[]` |
-| **Tester Minion** | `AGENT_NAME`, `AGENT_PERSONA` (text) | `tester` | `agents[]` |
-| **Reviewer Minion** | `AGENT_NAME`, `AGENT_PERSONA` (text) | `reviewer` | `agents[]` |
-| **Custom Minion** | `AGENT_NAME`, `AGENT_PERSONA` (text) | `custom` | `agents[]` |
-
-The persona field shapes the minion's behavior. Example: a Builder named "SpeedBot" with persona "writes minimal, fast code" will be prompted accordingly.
-
----
-
-## Team
-
-Invite specialized AI agent teammates to participate in your builds. Team members pop up during builds to collaborate via chat and interactive canvases.
-
-| Block | Fields | NuggetSpec Output |
-|-------|--------|-------------------|
-| **Team Member** | `AGENT_TYPE` (dropdown) | `agents[]` with `type: "team_member"` |
-| **Custom Team Member** | `MEMBER_NAME`, `MEMBER_PERSONA`, `CANVAS_TYPE` (text) | `agents[]` with `type: "custom"` |
-
-**Team Member** selects a built-in agent type: Scribe, Marketing, Blueprint, Bug Detective, Social Media, Styler, Pixel, or Interface Designer. Opts the agent into the build meeting rotation.
-
-**Custom Team Member** creates a custom team member with a name, persona, and canvas type (e.g., "whiteboard", "code-explorer", "design-preview").
-
----
-
-## Flow
-
-Control execution order. These are container blocks that hold other blocks inside them.
-
-| Block | Inputs | NuggetSpec Output |
-|-------|--------|--------------------|
-| **First/Then** | `FIRST_BLOCKS`, `THEN_BLOCKS` (statement slots) | `workflow.flow_hints[]` with `type: "sequential"` |
-| **At Same Time** | `PARALLEL_BLOCKS` (statement slot) | `workflow.flow_hints[]` with `type: "parallel"` |
-| **Keep Improving** | `CONDITION_TEXT` (text) | `workflow.iteration_conditions[]` |
-| **Feedback Loop** | `LOOP_ID` (text), `TRIGGER` (dropdown), `EXIT_CONDITION` (text), `MAX_ITERATIONS` (number, 1-10, default 3), `CONNECTS_FROM` (text), `CONNECTS_TO` (text) | `workflow.feedback_loops[]` |
-| **Check With Me** | `GATE_DESCRIPTION` (text) | `workflow.human_gates[]` |
-| **Timer Every** | `INTERVAL` (number, default 5), `ACTION_BLOCKS` (statement slot) | `workflow.timers[]` |
-
-**First/Then** runs blocks in the first slot before blocks in the second. **At Same Time** runs contained blocks concurrently. **Keep Improving** loops until a condition is met. **Feedback Loop** retries tasks when something goes wrong, connecting two tasks via `CONNECTS_FROM` and `CONNECTS_TO` and looping until the exit condition is met or max iterations are reached. **Check With Me** pauses the build and asks the user for approval. **Timer Every** runs contained blocks on a recurring interval.
-
-**Feedback Loop triggers**: `test_failure`, `review_rejection`, `custom`
-
----
-
-## System
-
-Configure system-level settings that affect the overall build experience.
-
-| Block | Fields | NuggetSpec Output |
-|-------|--------|--------------------|
-| **System Level** | `LEVEL` (dropdown) | `workflow.system_level` |
-
-Sets the mastery level, which controls how much automation and explanation the system provides.
-
-**Levels**:
-- `explorer` — "Explorer - See how systems work" — everything is automatic and explained
-- `builder` — "Builder - Understand and control systems" — you control more
-- `architect` — "Architect - Design your own systems" — you design everything yourself
-
----
-
-## Composition
-
-Declare interfaces for connecting nuggets together in multi-nugget systems.
-
-| Block | Fields | NuggetSpec Output |
-|-------|--------|--------------------|
-| **Nugget Provides** | `INTERFACE_NAME` (text), `INTERFACE_TYPE` (dropdown) | `composition.provides[]` with `name`, `type` |
-| **Nugget Requires** | `INTERFACE_NAME` (text), `INTERFACE_TYPE` (dropdown) | `composition.requires[]` with `name`, `type` |
-
-**Nugget Provides** declares an interface this nugget exposes for other nuggets to consume. **Nugget Requires** declares an interface this nugget needs from another nugget.
-
-**Interface types**: `data`, `event`, `function`, `stream`
-
-**Example**: A nugget that provides user data and requires a notification stream would use a Provides block with name "user_data" / type "Data" and a Requires block with name "alerts" / type "Stream".
-
----
-
-## Deploy
-
-Choose where the built project gets deployed.
-
-| Block | NuggetSpec Output |
-|-------|--------------------|
-| **Deploy Web** | `deployment.target: "web"` |
-| **Deploy ESP32** | `deployment.target: "esp32"` |
-| **Deploy Both** | `deployment.target: "both"` |
-
-If no deploy block is placed, defaults to `"preview"`.
+`If` blocks have no else branch. To handle multiple cases, chain multiple `If` blocks. All `If` blocks are evaluated independently (not mutually exclusive).
 
 ---
 
 ## Devices
 
-Device blocks are loaded dynamically from plugins in the `devices/` folder. The blocks shown here are the ones shipped with Elisa. Additional plugins add more blocks automatically.
+Device blocks are loaded dynamically from plugins in the `devices/` folder. They are a Portal sub-type (hardware interfaces).
 
 | Block | Plugin | Fields |
 |-------|--------|--------|
@@ -284,15 +148,12 @@ For details on each plugin, see the [Device Plugins guide](device-plugins.md). T
 
 A simple game project might use:
 
-1. **Project Goal**: "A space invaders game"
-2. **Project Template**: `game`
+1. **Nugget Goal**: "A space invaders game"
+2. **Nugget Template**: `game`
 3. **Feature**: "Three lives and a score counter"
 4. **Feature**: "Increasing difficulty each wave"
-5. **Look Like**: `space`
-6. **Builder Minion**: name "GameDev", persona "writes clean HTML5 canvas games"
-7. **Tester Minion**: name "QA", persona "tests edge cases thoroughly"
-8. **First/Then**: Builder in first slot, Tester in then slot
-9. **Check With Me**: "Review the game before deploying"
-10. **Deploy Web**
+5. **Use Skill**: retro arcade style (shipped skill)
+6. **Proof** (nested in Feature): "when all lives are lost" / "game over screen shows"
+7. **Deploy Web**
 
-This produces a NuggetSpec with sequential flow, a human gate before deploy, two minions, and a web deployment target.
+This produces a NuggetSpec with two promises (features), a proof, a skill, and a web deployment target.

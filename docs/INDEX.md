@@ -205,7 +205,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 |------|------|
 | `frontend/src/App.tsx` | Root component, layout, modal routing |
 | `frontend/src/components/BlockCanvas/BlockCanvas.tsx` | Blockly editor wrapper |
-| `frontend/src/components/BlockCanvas/blockDefinitions.ts` | Custom block types (13 categories incl. Knowledge) |
+| `frontend/src/components/BlockCanvas/blockDefinitions.ts` | 6-primitive block types (Goal, Promise, Proof, Skill, Portal, Deploy) + block category metadata |
 | `frontend/src/components/BlockCanvas/blockInterpreter.ts` | Workspace -> NuggetSpec JSON conversion |
 | `frontend/src/components/BlockCanvas/toolbox.ts` | Blockly sidebar categories |
 | `frontend/src/components/BlockCanvas/skillFlowBlocks.ts` | Skill flow block definitions |

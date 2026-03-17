@@ -358,7 +358,7 @@ interface NuggetSpec {
     human_gates: string[];
     flow_hints?: Array<{ type: "sequential" | "parallel"; descriptions: string[] }>;
     iteration_conditions?: string[];
-    behavioral_tests?: Array<{ when: string; then: string }>;
+    behavioral_tests?: Array<{ when: string; then: string }>; // Proof blocks (PRD-003)
   };
   skills?: Array<{
     id: string;

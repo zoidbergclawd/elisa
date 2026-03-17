@@ -69,20 +69,8 @@ export const iotSensorNetwork: ExampleNugget = {
                                               fields: { SKILL_ID: 'skill-dashboard-ux' },
                                               next: {
                                                 block: {
-                                                  type: 'use_rule',
-                                                  fields: { RULE_ID: 'rule-sensor-validate' },
-                                                  next: {
-                                                    block: {
-                                                      type: 'use_rule',
-                                                      fields: { RULE_ID: 'rule-offline-safe' },
-                                                      next: {
-                                                        block: {
-                                                          type: 'deploy_both',
-                                                          fields: {},
-                                                        },
-                                                      },
-                                                    },
-                                                  },
+                                                  type: 'deploy_both',
+                                                  fields: {},
                                                 },
                                               },
                                             },
@@ -121,19 +109,6 @@ export const iotSensorNetwork: ExampleNugget = {
       category: 'feature',
     },
   ],
-  rules: [
-    {
-      id: 'rule-sensor-validate',
-      name: 'Validate sensor ranges',
-      prompt: 'Reject obviously invalid readings before transmitting: temperature must be -40 to 80 C, humidity 0 to 100%. Log rejected values.',
-      trigger: 'always',
-    },
-    {
-      id: 'rule-offline-safe',
-      name: 'Offline-safe operation',
-      prompt: 'The sensor node must continue reading and displaying locally even if LoRa transmission fails. The gateway must queue data if the cloud endpoint is unreachable and retry on next cycle.',
-      trigger: 'always',
-    },
-  ],
+  rules: [],
   portals: [],
 };
