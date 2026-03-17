@@ -131,7 +131,7 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
     skills, rules, portals, spec, workspacePath, workspaceJson, initialWorkspace,
     setExamplePickerOpen, handleWorkspaceChange, handleSaveNugget, handleOpenNugget,
     handleOpenFolder, ensureWorkspacePath, reinterpretWorkspace, systemLevel,
-    deviceManifests,
+    deviceManifests, workspaceMode, setWorkspaceMode,
   } = useWorkspaceContext();
 
   // Post-bug-report fix state
@@ -351,17 +351,37 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
             saveDisabled={!workspaceJson}
             workspacePath={workspacePath}
           />
-          <div className="flex-1 relative">
-            <BlockCanvas
-              ref={blockCanvasRef}
-              onWorkspaceChange={handleWorkspaceChange}
-              readOnly={uiState !== 'design'}
-              skills={skills}
-              rules={rules}
-              portals={portals}
-              initialWorkspace={initialWorkspace}
-              deviceManifests={deviceManifests}
-            />
+          <div className="flex-1 relative flex flex-col">
+            {/* PRD-003 Phase 2: Specify / Compose mode toggle */}
+            {uiState === 'design' && (
+              <div className="flex items-center gap-1 px-3 py-1.5 bg-gray-50 border-b border-gray-200 text-xs">
+                <button
+                  className={`px-3 py-1 rounded-full font-medium transition-colors ${workspaceMode === 'specify' ? 'bg-white shadow-sm text-gray-900 border border-gray-300' : 'text-gray-500 hover:text-gray-700'}`}
+                  onClick={() => setWorkspaceMode('specify')}
+                >
+                  Specify
+                </button>
+                <button
+                  className={`px-3 py-1 rounded-full font-medium transition-colors ${workspaceMode === 'compose' ? 'bg-white shadow-sm text-gray-900 border border-gray-300' : 'text-gray-500 hover:text-gray-700'}`}
+                  onClick={() => setWorkspaceMode('compose')}
+                >
+                  Compose
+                </button>
+              </div>
+            )}
+            <div className="flex-1 relative">
+              <BlockCanvas
+                ref={blockCanvasRef}
+                onWorkspaceChange={handleWorkspaceChange}
+                readOnly={uiState !== 'design'}
+                skills={skills}
+                rules={rules}
+                portals={portals}
+                initialWorkspace={initialWorkspace}
+                deviceManifests={deviceManifests}
+                mode={workspaceMode}
+              />
+            </div>
           </div>
         </div>
 
