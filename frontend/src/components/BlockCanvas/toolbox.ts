@@ -11,7 +11,7 @@ export function buildDeviceCategories(manifests: DeviceManifest[]): ToolboxItem[
   return [{
     kind: 'category',
     name: 'Devices',
-    colour: '160',
+    colour: '260',
     contents: manifests.flatMap(m =>
       m.blocks.map(b => ({ kind: 'block', type: b.type }))
     ),
@@ -68,7 +68,7 @@ export const toolbox = {
     {
       kind: 'category',
       name: 'Portal',
-      colour: '160',
+      colour: '260',
       contents: [
         { kind: 'block', type: 'portal_tell' },
         { kind: 'block', type: 'portal_when' },
@@ -78,7 +78,7 @@ export const toolbox = {
     {
       kind: 'category',
       name: 'Deploy',
-      colour: '180',
+      colour: '50',
       contents: [
         { kind: 'block', type: 'deploy_web' },
         { kind: 'block', type: 'deploy_esp32' },
