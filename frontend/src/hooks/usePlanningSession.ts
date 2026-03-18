@@ -263,7 +263,7 @@ export function usePlanningSession(sessionId: string | null) {
     dispatch({ type: 'SUBMIT_ANSWER', value });
     await authFetch(`/api/sessions/${sessionId}/planning/answer`, {
       method: 'POST',
-      body: JSON.stringify({ answer: value }),
+      body: JSON.stringify({ optionValue: value }),
     });
   }, [sessionId]);
 
@@ -273,7 +273,7 @@ export function usePlanningSession(sessionId: string | null) {
     dispatch({ type: 'SUBMIT_MESSAGE', content });
     await authFetch(`/api/sessions/${sessionId}/planning/message`, {
       method: 'POST',
-      body: JSON.stringify({ message: content }),
+      body: JSON.stringify({ text: content }),
     });
   }, [sessionId]);
 

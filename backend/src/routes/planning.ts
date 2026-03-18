@@ -140,24 +140,75 @@ export function createPlanningRouter({
     }
 
     try {
-      const result = planningService.handleStructuredAnswer(sessionId, optionValue);
+      const mutationResult = planningService.handleStructuredAnswer(sessionId, optionValue);
 
-      // Emit plan update
+      // Emit plan update from the mutation
       await sendEvent(sessionId, {
         type: 'planning_plan_updated',
-        plan: result.plan,
+        plan: mutationResult.plan,
       });
 
-      if (result.status === 'ready') {
+      if (mutationResult.status === 'ready') {
         await sendEvent(sessionId, {
           type: 'planning_ready',
-          plan: result.plan,
+          plan: mutationResult.plan,
           summary: 'Plan is ready to build!',
         });
+        autoSave(sessionId);
+        res.json(mutationResult);
+        return;
       }
 
+      // After applying the mutation, make a follow-up Claude call to get the next question
+      // (PRD-004 Section 3.4: structured answers are instant, next question requires a Claude call)
+      res.json(mutationResult);
       autoSave(sessionId);
-      res.json(result);
+
+      try {
+        const followUp = await planningService.handleFreeTextAnswer(
+          sessionId,
+          `[User selected: ${optionValue}]`,
+        );
+
+        await sendEvent(sessionId, {
+          type: 'planning_turn',
+          message: followUp.message,
+          streaming: false,
+        });
+        await sendEvent(sessionId, {
+          type: 'planning_plan_updated',
+          plan: followUp.plan,
+        });
+        if (followUp.question) {
+          const state = planningService.getState(sessionId);
+          await sendEvent(sessionId, {
+            type: 'planning_question',
+            question: followUp.question,
+            plan_mutation_map: (state?.currentMutationMap ?? {}) as Record<string, Record<string, unknown> | null>,
+          });
+        }
+        if (followUp.teaching) {
+          await sendEvent(sessionId, {
+            type: 'planning_teaching',
+            teaching: followUp.teaching,
+          });
+        }
+        if (followUp.status === 'ready') {
+          await sendEvent(sessionId, {
+            type: 'planning_ready',
+            plan: followUp.plan,
+            summary: 'Plan is ready to build!',
+          });
+        }
+        autoSave(sessionId);
+      } catch (followUpErr) {
+        const msg = followUpErr instanceof Error ? followUpErr.message : String(followUpErr);
+        console.error('[planning] follow-up question failed:', msg);
+        await sendEvent(sessionId, {
+          type: 'planning_error',
+          error: msg,
+        });
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       console.error('[planning] answer failed:', message);

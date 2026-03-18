@@ -297,7 +297,7 @@ describe('usePlanningSession', () => {
         '/api/sessions/session-1/planning/answer',
         expect.objectContaining({
           method: 'POST',
-          body: JSON.stringify({ answer: 'website' }),
+          body: JSON.stringify({ optionValue: 'website' }),
         }),
       );
       expect(result.current.currentQuestion).toBeNull();
