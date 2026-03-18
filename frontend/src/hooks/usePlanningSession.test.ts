@@ -412,5 +412,148 @@ describe('usePlanningSession', () => {
       expect(result.current.status).toBe('generated');
       expect(result.current.canvasBlockSpec).toEqual(testBlockSpec);
     });
+
+    it('handles structured answer (instant) vs free-text (loading)', async () => {
+      const { result } = renderHook(() => usePlanningSession('session-1'));
+
+      // Start
+      await act(async () => { await result.current.startPlanning('test'); });
+
+      // Structured answer: immediately sets thinking (no intermediate loading state visible)
+      act(() => {
+        result.current.handlePlanningEvent({
+          type: 'planning_question',
+          question: testQuestion,
+          plan_mutation_map: { website: { 'deploy.target': 'web' } },
+        });
+      });
+      expect(result.current.isAgentThinking).toBe(false);
+
+      await act(async () => {
+        await result.current.submitAnswer('website');
+      });
+      // After structured answer, question is cleared and thinking starts
+      expect(result.current.currentQuestion).toBeNull();
+      expect(result.current.isAgentThinking).toBe(true);
+      expect(result.current.conversationHistory).toHaveLength(1);
+      expect(result.current.conversationHistory[0].content).toBe('website');
+
+      // Free-text message: also sets thinking
+      await act(async () => {
+        await result.current.submitMessage('I also want dark mode');
+      });
+      expect(result.current.isAgentThinking).toBe(true);
+      expect(result.current.conversationHistory).toHaveLength(2);
+      expect(result.current.conversationHistory[1].content).toBe('I also want dark mode');
+    });
+
+    it('handles multi-turn conversation with alternating roles', async () => {
+      const { result } = renderHook(() => usePlanningSession('session-1'));
+
+      await act(async () => { await result.current.startPlanning('game'); });
+
+      // Turn 1: agent
+      act(() => {
+        result.current.handlePlanningEvent({
+          type: 'planning_turn', message: 'What kind of game?', streaming: false,
+        });
+      });
+
+      // Turn 2: kid free-text
+      await act(async () => {
+        await result.current.submitMessage('A puzzle game');
+      });
+
+      // Turn 3: agent with question
+      act(() => {
+        result.current.handlePlanningEvent({
+          type: 'planning_turn', message: 'Great! How many levels?', streaming: false,
+        });
+      });
+      act(() => {
+        result.current.handlePlanningEvent({
+          type: 'planning_question',
+          question: {
+            text: 'How many levels?',
+            type: 'single_select',
+            options: [{ label: '5', value: '5' }, { label: '10', value: '10' }],
+          },
+          plan_mutation_map: {},
+        });
+      });
+
+      // Turn 4: kid structured answer
+      await act(async () => {
+        await result.current.submitAnswer('10');
+      });
+
+      // Turn 5: plan update
+      act(() => {
+        result.current.handlePlanningEvent({
+          type: 'planning_plan_updated',
+          plan: { ...testPlan, conversation_turn: 5 },
+        });
+      });
+
+      // Verify full conversation history
+      expect(result.current.conversationHistory).toHaveLength(4);
+      expect(result.current.conversationHistory[0]).toEqual(
+        expect.objectContaining({ role: 'agent', content: 'What kind of game?' }),
+      );
+      expect(result.current.conversationHistory[1]).toEqual(
+        expect.objectContaining({ role: 'kid', content: 'A puzzle game' }),
+      );
+      expect(result.current.conversationHistory[2]).toEqual(
+        expect.objectContaining({ role: 'agent', content: 'Great! How many levels?' }),
+      );
+      expect(result.current.conversationHistory[3]).toEqual(
+        expect.objectContaining({ role: 'kid', content: '10' }),
+      );
+    });
+
+    it('recovers from error and continues', async () => {
+      const { result } = renderHook(() => usePlanningSession('session-1'));
+
+      await act(async () => { await result.current.startPlanning('test'); });
+
+      // Error arrives
+      act(() => {
+        result.current.handlePlanningEvent({ type: 'planning_error', error: 'Timeout' });
+      });
+      expect(result.current.error).toBe('Timeout');
+      expect(result.current.isAgentThinking).toBe(false);
+
+      // Agent recovers with a new turn
+      act(() => {
+        result.current.handlePlanningEvent({
+          type: 'planning_turn', message: 'Sorry about that. Lets try again.', streaming: false,
+        });
+      });
+      expect(result.current.conversationHistory).toHaveLength(1);
+      // Error persists until cleared, but conversation continues
+      expect(result.current.error).toBe('Timeout');
+    });
+
+    it('learning summary received after generation', async () => {
+      const { result } = renderHook(() => usePlanningSession('session-1'));
+
+      // Go through to canvas generation
+      await act(async () => { await result.current.startPlanning('test'); });
+      act(() => {
+        result.current.handlePlanningEvent({
+          type: 'planning_canvas_generated', blocks: testBlockSpec,
+        });
+      });
+      expect(result.current.status).toBe('generated');
+
+      // Teaching annotation can still arrive
+      act(() => {
+        result.current.handlePlanningEvent({
+          type: 'planning_teaching',
+          teaching: { ...testTeaching, why_asking: 'Summarizing' },
+        });
+      });
+      expect(result.current.currentTeaching?.why_asking).toBe('Summarizing');
+    });
   });
 });
