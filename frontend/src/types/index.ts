@@ -260,7 +260,140 @@ export type WSEvent =
   | { type: 'fix_task_completed'; taskId: string; success: boolean }
   | { type: 'fix_tests_completed'; passed: number; failed: number; total: number }
   | { type: 'meeting_blocking_task'; task_id: string; meeting_type_id: string }
-  | { type: 'meeting_unblocking_task'; task_id: string };
+  | { type: 'meeting_unblocking_task'; task_id: string }
+  // Planning Mode events (PRD-004)
+  | { type: 'planning_mode_started'; sessionId: string }
+  | { type: 'planning_turn'; message: string; streaming: boolean }
+  | { type: 'planning_question'; question: QuestionWidget; plan_mutation_map: Record<string, Record<string, unknown> | null> }
+  | { type: 'planning_plan_updated'; plan: PlanState }
+  | { type: 'planning_ready'; plan: PlanState; summary: string }
+  | { type: 'planning_canvas_generated'; blocks: CanvasBlockSpec }
+  | { type: 'planning_error'; error: string }
+  | { type: 'planning_teaching'; teaching: TeachingAnnotation }
+  | { type: 'planning_learning_summary'; summary: LearningSummary };
+
+// --- Planning Mode types (PRD-004) ---
+
+export type GoalConfidence = 'vague' | 'rough' | 'solid';
+
+export interface PlanGoal {
+  description: string | null;
+  confidence: GoalConfidence;
+}
+
+export interface PlanProof {
+  description: string;
+}
+
+export interface PlanPromise {
+  description: string;
+  category: 'behavior' | 'constraint' | 'security' | 'performance';
+  proofs: PlanProof[];
+}
+
+export interface PlanSkill {
+  name: string;
+  description: string;
+}
+
+export type PortalSubtype = 'api' | 'device' | 'knowledge' | 'service';
+
+export interface PlanPortal {
+  name: string;
+  subtype: PortalSubtype;
+  description: string;
+}
+
+export type DeployTarget = 'cli' | 'web' | 'device' | 'cloud' | null;
+
+export interface PlanDeploy {
+  target: DeployTarget;
+  constraints: string[];
+}
+
+export interface PlanState {
+  idea: string;
+  goal: PlanGoal;
+  promises: PlanPromise[];
+  skills: PlanSkill[];
+  portals: PlanPortal[];
+  deploy: PlanDeploy;
+  open_questions: string[];
+  ready: boolean;
+  conversation_turn: number;
+}
+
+export type QuestionType = 'single_select' | 'multi_select' | 'rank_priorities';
+
+export interface QuestionOption {
+  label: string;
+  value: string;
+}
+
+export interface QuestionWidget {
+  text: string;
+  type: QuestionType;
+  options: QuestionOption[];
+}
+
+export interface TeachingAnnotation {
+  why_asking: string;
+  primitive_connection: string[];
+  pattern_spotted: string | null;
+  what_if: string | null;
+}
+
+export interface PlanningMessage {
+  role: 'agent' | 'kid';
+  content: string;
+  timestamp: number;
+  question?: QuestionWidget;
+  teaching?: TeachingAnnotation | null;
+}
+
+export type PlanningStatus = 'idle' | 'active' | 'ready' | 'generating' | 'generated';
+
+export interface CanvasBlockChild {
+  id: string;
+  type: 'Goal' | 'Promise' | 'Proof' | 'Skill' | 'Portal' | 'Deploy';
+  category: 'primitive';
+  content: string;
+}
+
+export interface CanvasBlock {
+  id: string;
+  type: 'Goal' | 'Promise' | 'Proof' | 'Skill' | 'Portal' | 'Deploy';
+  category: 'primitive';
+  content: string;
+  position: { x: number; y: number };
+  subtype?: string;
+  children?: CanvasBlockChild[];
+}
+
+export interface CanvasBlockSpec {
+  blocks: CanvasBlock[];
+}
+
+export interface LearningSummary {
+  decisions: string[];
+  patterns_discovered: string[];
+  tradeoffs: string[];
+  next_time_suggestion: string | null;
+}
+
+export interface CanvasContext {
+  blocks: Array<{
+    type: string;
+    content: string;
+    subtype?: string;
+    children?: Array<{ type: string; content: string }>;
+  }>;
+  hasGoal: boolean;
+  promiseCount: number;
+  skillCount: number;
+  portalCount: number;
+  hasDeployTarget: boolean;
+}
 
 export interface HealthHistoryEntry {
   timestamp: string;

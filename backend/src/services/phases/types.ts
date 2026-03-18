@@ -80,7 +80,17 @@ export type WSEvent =
   | { type: 'fix_task_completed'; taskId: string; success: boolean }
   | { type: 'fix_tests_completed'; passed: number; failed: number; total: number }
   | { type: 'meeting_blocking_task'; task_id: string; meeting_type_id: string }
-  | { type: 'meeting_unblocking_task'; task_id: string };
+  | { type: 'meeting_unblocking_task'; task_id: string }
+  // Planning Mode events (PRD-004)
+  | { type: 'planning_mode_started'; sessionId: string }
+  | { type: 'planning_turn'; message: string; streaming: boolean }
+  | { type: 'planning_question'; question: import('../../utils/planSchema.js').QuestionWidget; plan_mutation_map: Record<string, Record<string, unknown> | null> }
+  | { type: 'planning_plan_updated'; plan: import('../../utils/planSchema.js').PlanState }
+  | { type: 'planning_ready'; plan: import('../../utils/planSchema.js').PlanState; summary: string }
+  | { type: 'planning_canvas_generated'; blocks: import('../../utils/planSchema.js').CanvasBlockSpec }
+  | { type: 'planning_error'; error: string }
+  | { type: 'planning_teaching'; teaching: import('../../utils/planSchema.js').TeachingAnnotation }
+  | { type: 'planning_learning_summary'; summary: import('../../utils/planSchema.js').LearningSummary };
 
 export type SendEvent = (event: WSEvent) => Promise<void>;
 
