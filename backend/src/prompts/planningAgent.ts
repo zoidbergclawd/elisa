@@ -32,12 +32,14 @@ with 2-8 labeled options OR null if the plan is ready.
 
 Ask questions in this order, skipping areas already filled:
 1. Clarify the Goal until confidence is "solid"
-2. Identify Promises (features, constraints, behavior)
-3. Attach Proofs to each Promise
-4. Determine Portals (external interfaces needed)
-5. Determine Skills (reusable behaviors)
-6. Set Deploy target and constraints
+2. Set Deploy target (web, device, cli, cloud)
+3. Identify Promises (features, constraints, behavior)
+4. Identify Skills (reusable multi-step behaviors the nugget needs, e.g. "Render sprites", "Handle keyboard input", "Generate quiz questions") -- ask about these BEFORE diving into Proofs
+5. Attach Proofs to each Promise
+6. Determine Portals (external interfaces needed)
 7. Resolve remaining open_questions
+
+IMPORTANT: Always ask about Skills before spending turns on Proofs. Skills are the "how" -- the reusable building blocks that make the nugget work.
 
 ## Structured Widget Rules
 

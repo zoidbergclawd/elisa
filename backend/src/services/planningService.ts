@@ -94,10 +94,14 @@ export class PlanningService {
       throw new Error('No active question with mutation map');
     }
 
-    const mutation = session.currentMutationMap[optionValue];
-
-    if (mutation) {
-      this.applyMutations(session.plan, mutation);
+    // For multi_select, optionValue is comma-joined (e.g. "a, b, c").
+    // Apply mutations for each individual option value.
+    const values = optionValue.includes(', ') ? optionValue.split(', ') : [optionValue];
+    for (const val of values) {
+      const mutation = session.currentMutationMap[val];
+      if (mutation) {
+        this.applyMutations(session.plan, mutation);
+      }
     }
 
     session.plan.conversation_turn++;
@@ -261,21 +265,46 @@ export class PlanningService {
     return session;
   }
 
+  /** Force the plan to ready state when the turn limit is reached.
+   *  Auto-fills missing skills and portals so the plan is buildable. */
+  private forceReadiness(session: PlanningSession): PlanningTurnResult {
+    console.log(`[planning] turn ${session.plan.conversation_turn} >= max ${PLANNING_MAX_TURNS}, forcing readiness`);
+
+    // Auto-fill missing skills from the plan goal
+    if (session.plan.skills.length === 0 && session.plan.goal.description) {
+      session.plan.skills.push({
+        name: session.plan.goal.description,
+        description: `Build the core functionality for: ${session.plan.goal.description}`,
+      });
+    }
+
+    // Auto-fill missing portals
+    if (session.plan.portals.length === 0) {
+      session.plan.portals.push({
+        name: 'Web Browser',
+        subtype: 'service',
+        description: 'The web browser running the application',
+      });
+    }
+
+    session.plan.ready = true;
+    session.plan.open_questions = [];
+    session.status = 'ready';
+    return {
+      message: 'We have been planning for a while! I think we have enough to start building. Let me put this together for you.',
+      question: null,
+      plan: { ...session.plan },
+      teaching: null,
+      status: 'ready',
+    };
+  }
+
   private async callClaude(
     session: PlanningSession,
     userMessage: string,
   ): Promise<PlanningTurnResult> {
     if (session.plan.conversation_turn >= PLANNING_MAX_TURNS) {
-      console.log(`[planning] turn ${session.plan.conversation_turn} >= max ${PLANNING_MAX_TURNS}, forcing readiness`);
-      session.plan.ready = true;
-      session.status = 'ready';
-      return {
-        message: 'We have been planning for a while! I think we have enough to start building. Let me put this together for you.',
-        question: null,
-        plan: { ...session.plan },
-        teaching: null,
-        status: 'ready',
-      };
+      return this.forceReadiness(session);
     }
 
     if (!this.client) {
@@ -300,16 +329,7 @@ export class PlanningService {
     const session = this.getSessionOrThrow(sessionId);
 
     if (session.plan.conversation_turn >= PLANNING_MAX_TURNS) {
-      console.log(`[planning] turn ${session.plan.conversation_turn} >= max ${PLANNING_MAX_TURNS}, forcing readiness`);
-      session.plan.ready = true;
-      session.status = 'ready';
-      return {
-        message: 'We have been planning for a while! I think we have enough to start building.',
-        question: null,
-        plan: { ...session.plan },
-        teaching: null,
-        status: 'ready',
-      };
+      return this.forceReadiness(session);
     }
 
     if (!this.client) {

@@ -55,6 +55,29 @@ function fieldName(blockType: string): string {
   }
 }
 
+/** Best-effort split of a proof description into when/then fields.
+ *  Tries common patterns; falls back to using the whole string as "when". */
+function splitProofContent(content: string): [string, string] {
+  // "When X, then Y" or "When X then Y"
+  const whenThen = content.match(/^[Ww]hen\s+(.+?),?\s+then\s+(.+)$/);
+  if (whenThen) return [whenThen[1], whenThen[2]];
+
+  // "If X, then Y" or "If X then Y"
+  const ifThen = content.match(/^[Ii]f\s+(.+?),?\s+then\s+(.+)$/);
+  if (ifThen) return [ifThen[1], ifThen[2]];
+
+  // "X, then Y" (no leading keyword)
+  const commaThen = content.match(/^(.+?),\s+then\s+(.+)$/);
+  if (commaThen) return [commaThen[1], commaThen[2]];
+
+  // "X should Y"
+  const should = content.match(/^(.+?)\s+should\s+(.+)$/);
+  if (should) return [should[1], should[2]];
+
+  // No pattern found -- put full content as "when", with a generic "then"
+  return [content, 'it works correctly'];
+}
+
 function canvasBlockToBlockly(block: CanvasBlock): BlocklyBlock {
   const blockType = mapBlockType(block);
   const result: BlocklyBlock = {
@@ -69,11 +92,14 @@ function canvasBlockToBlockly(block: CanvasBlock): BlocklyBlock {
   if (block.type === 'Promise' && block.children && block.children.length > 0) {
     const proofBlocks = block.children
       .filter((c) => c.type === 'Proof')
-      .map((c) => ({
-        type: 'proof' as const,
-        id: makeBlockId(),
-        fields: { GIVEN_WHEN: c.content, THEN: '' },
-      }));
+      .map((c) => {
+        const [when, then] = splitProofContent(c.content);
+        return {
+          type: 'proof' as const,
+          id: makeBlockId(),
+          fields: { GIVEN_WHEN: when, THEN: then },
+        };
+      });
 
     if (proofBlocks.length > 0) {
       // Chain proofs via next statements
