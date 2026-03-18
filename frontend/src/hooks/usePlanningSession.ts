@@ -188,14 +188,17 @@ export function usePlanningSession(sessionId: string | null) {
   const handlePlanningEvent = useCallback((event: WSEvent): boolean => {
     switch (event.type) {
       case 'planning_mode_started':
+        console.log('[planning-ui] mode started');
         dispatch({ type: 'START_PLANNING' });
         return true;
 
       case 'planning_turn':
+        console.log('[planning-ui] turn message:', event.message.slice(0, 80));
         dispatch({ type: 'PLANNING_TURN', message: event.message, streaming: event.streaming });
         return true;
 
       case 'planning_question':
+        console.log('[planning-ui] question received:', event.question.type, event.question.text.slice(0, 60));
         dispatch({
           type: 'PLANNING_QUESTION',
           question: event.question,
@@ -204,22 +207,27 @@ export function usePlanningSession(sessionId: string | null) {
         return true;
 
       case 'planning_plan_updated':
+        console.log('[planning-ui] plan updated: ready=', event.plan.ready, 'turn=', event.plan.conversation_turn);
         dispatch({ type: 'PLANNING_PLAN_UPDATED', plan: event.plan });
         return true;
 
       case 'planning_ready':
+        console.log('[planning-ui] plan READY');
         dispatch({ type: 'PLANNING_READY', plan: event.plan, summary: event.summary });
         return true;
 
       case 'planning_canvas_generated':
+        console.log('[planning-ui] canvas generated:', event.blocks.blocks.length, 'blocks');
         dispatch({ type: 'PLANNING_CANVAS_GENERATED', blocks: event.blocks });
         return true;
 
       case 'planning_error':
+        console.error('[planning-ui] error:', event.error);
         dispatch({ type: 'PLANNING_ERROR', error: event.error });
         return true;
 
       case 'planning_teaching':
+        console.log('[planning-ui] teaching annotation received');
         dispatch({ type: 'PLANNING_TEACHING', teaching: event.teaching });
         return true;
 

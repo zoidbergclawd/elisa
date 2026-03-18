@@ -68,7 +68,7 @@ export default function PlanningPanel({
             />
           </div>
           {currentQuestion && (
-            <div className="p-3 border-t border-border-subtle" data-testid="question-widget-area">
+            <div className="shrink-0 max-h-[50%] overflow-y-auto p-3 border-t border-border-subtle bg-atelier-surface/50" data-testid="question-widget-area">
               <QuestionWidgetRenderer
                 question={currentQuestion}
                 onAnswer={onSubmitAnswer}

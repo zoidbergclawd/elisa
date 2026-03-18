@@ -136,13 +136,15 @@ export function createPlanningRouter({
     }
 
     const { optionValue } = req.body;
-    if (!optionValue || typeof optionValue !== 'string') {
-      res.status(400).json({ detail: 'optionValue is required and must be a string' });
+    // Accept string (single_select) or array of strings (multi_select, rank_priorities)
+    const normalizedValue = Array.isArray(optionValue) ? optionValue.join(', ') : optionValue;
+    if (!normalizedValue || typeof normalizedValue !== 'string') {
+      res.status(400).json({ detail: 'optionValue is required and must be a string or string[]' });
       return;
     }
 
     try {
-      const mutationResult = planningService.handleStructuredAnswer(sessionId, optionValue);
+      const mutationResult = planningService.handleStructuredAnswer(sessionId, normalizedValue);
 
       // Emit plan update from the mutation
       await sendEvent(sessionId, {
@@ -167,7 +169,7 @@ export function createPlanningRouter({
       autoSave(sessionId);
 
       // Fire-and-forget: generate next question asynchronously
-      console.log(`[planning] structured answer applied: "${optionValue}", generating next question...`);
+      console.log(`[planning] structured answer applied: "${normalizedValue}", generating next question...`);
       (async () => {
         try {
           const followUp = await planningService.generateNextQuestion(sessionId);
