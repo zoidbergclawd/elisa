@@ -121,7 +121,7 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
   const {
     uiState, tasks, agents, events, sessionId,
     teachingMoments, deployUrls, errorNotification, testResults,
-    nuggetDir, startBuild, stopBuild, clearErrorNotification, resetToDesign,
+    nuggetDir, createSession, startBuild, stopBuild, clearErrorNotification, resetToDesign,
     launchWorkspace, isFixing,
   } = useBuildSessionContext();
 
@@ -750,7 +750,7 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
                 if (!idea.trim()) return;
                 setPlanningIdeaPrompt(false);
                 setPlanningModalOpen(true);
-                await planning.startPlanning(idea.trim());
+                await planning.startPlanning(idea.trim(), { createSession, waitForOpen });
               }}
             >
               <textarea

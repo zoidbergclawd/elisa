@@ -224,14 +224,37 @@ export function usePlanningSession(sessionId: string | null) {
     }
   }, []);
 
-  /** Start a new planning session. */
-  const startPlanning = useCallback(async (idea: string) => {
-    if (!sessionId) return;
+  /** Start a new planning session. Creates a backend session if needed. */
+  const startPlanning = useCallback(async (
+    idea: string,
+    opts?: { createSession?: () => Promise<string | null>; waitForOpen?: () => Promise<void> },
+  ) => {
     dispatch({ type: 'START_PLANNING' });
-    await authFetch(`/api/sessions/${sessionId}/planning/start`, {
+
+    let sid = sessionId;
+    if (!sid && opts?.createSession) {
+      sid = await opts.createSession();
+      if (!sid) {
+        dispatch({ type: 'PLANNING_ERROR', error: 'Failed to create session' });
+        return;
+      }
+      if (opts.waitForOpen) {
+        await opts.waitForOpen();
+      }
+    }
+    if (!sid) {
+      dispatch({ type: 'PLANNING_ERROR', error: 'No session available' });
+      return;
+    }
+
+    const res = await authFetch(`/api/sessions/${sid}/planning/start`, {
       method: 'POST',
       body: JSON.stringify({ idea }),
     });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ detail: 'Planning request failed' }));
+      dispatch({ type: 'PLANNING_ERROR', error: body.detail || 'Planning request failed' });
+    }
   }, [sessionId]);
 
   /** Submit a structured answer (instant -- applies mutation client-side). */
