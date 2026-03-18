@@ -216,9 +216,8 @@ describe('App', () => {
     expect(screen.getByText('Error')).toBeInTheDocument();
   });
 
-  it('renders header', () => {
+  it('renders GO button and readiness badge', () => {
     render(<App />);
-    // Header right-side controls (GO, Ready, Launch) are hidden while not fully surfaced
-    expect(screen.getByText('Elisa')).toBeInTheDocument();
+    expect(screen.getByTestId('readiness-badge')).toBeInTheDocument();
   });
 });

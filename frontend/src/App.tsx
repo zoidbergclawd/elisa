@@ -387,8 +387,24 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
             failingTestCount={testResults.filter(t => t.passed === false).length}
           />
         </div>
-        {/* Header right-side controls hidden -- not fully surfaced yet */}
-        <div className="flex items-center gap-3" />
+        <div className="flex items-center gap-3">
+          {uiState === 'design' && workspacePath && (
+            <button
+              onClick={handleLaunch}
+              disabled={launching}
+              className="px-4 py-1.5 rounded-lg text-xs font-medium cursor-pointer border border-accent-sky/30 bg-accent-sky/10 text-accent-sky hover:bg-accent-sky/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {launching ? 'Launching...' : 'Launch'}
+            </button>
+          )}
+          <GoButton
+            disabled={uiState !== 'design' || !spec?.nugget.goal || health.status !== 'ready'}
+            onClick={handleGo}
+            onStop={stopBuild}
+            uiState={uiState}
+          />
+          <ReadinessBadge health={health} loading={healthLoading} />
+        </div>
       </header>
 
       {/* Hidden file input for Open */}
