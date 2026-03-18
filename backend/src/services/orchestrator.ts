@@ -341,6 +341,7 @@ export class Orchestrator {
         message,
         recoverable: false,
       });
+      await this.send({ type: 'session_complete' });
     } finally {
       await this.deployPhase.teardown();
       this.logger?.close();

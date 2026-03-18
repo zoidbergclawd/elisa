@@ -406,6 +406,7 @@ function handleWSEvent(state: BuildSessionState, event: WSEvent, deploySteps: Ar
         ...state,
         events,
         uiState: 'done',
+        isPlanning: false,
         agents: state.agents.map(a => ({ ...a, status: 'done' as const })),
         testResults: resolvePendingTests(state.testResults, 'No matching test was generated'),
       };
