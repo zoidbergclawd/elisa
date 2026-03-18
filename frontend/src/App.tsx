@@ -387,25 +387,8 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
             failingTestCount={testResults.filter(t => t.passed === false).length}
           />
         </div>
-        <div className="flex items-center gap-3">
-          {spec && <LevelBadge level={systemLevel} />}
-          {uiState === 'design' && workspacePath && (
-            <button
-              onClick={handleLaunch}
-              disabled={launching}
-              className="px-4 py-1.5 rounded-lg text-xs font-medium cursor-pointer border border-accent-sky/30 bg-accent-sky/10 text-accent-sky hover:bg-accent-sky/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {launching ? 'Launching...' : 'Launch'}
-            </button>
-          )}
-          <GoButton
-            disabled={uiState !== 'design' || !spec?.nugget.goal || health.status !== 'ready'}
-            onClick={handleGo}
-            onStop={stopBuild}
-            uiState={uiState}
-          />
-          <ReadinessBadge health={health} loading={healthLoading} />
-        </div>
+        {/* Header right-side controls hidden -- not fully surfaced yet */}
+        <div className="flex items-center gap-3" />
       </header>
 
       {/* Hidden file input for Open */}
@@ -425,18 +408,18 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
             onOpen={() => fileInputRef.current?.click()}
             onSave={handleSaveNugget}
             onSkills={() => setSkillsModalOpen(true)}
-            onRules={() => setRulesModalOpen(true)}
             onPortals={() => setPortalsModalOpen(true)}
             onExamples={() => setExamplePickerOpen(true)}
             onHelp={() => setHelpOpen(true)}
+            onPlanWithAI={() => setPlanningIdeaPrompt(true)}
             onFolder={handleOpenFolder}
             saveDisabled={!workspaceJson}
             workspacePath={workspacePath}
           />
           <div className="flex-1 relative flex flex-col">
-            {/* PRD-003 Phase 2: Specify / Compose mode toggle + PRD-004 Planning Mode button */}
+            {/* PRD-003 Phase 2: Specify / Compose mode toggle */}
             {uiState === 'design' && (
-              <div className="flex items-center justify-between px-3 py-1.5 bg-gray-50 border-b border-gray-200 text-xs">
+              <div className="flex items-center px-3 py-1.5 bg-gray-50 border-b border-gray-200 text-xs">
                 <div className="flex items-center gap-1">
                   <button
                     className={`px-3 py-1 rounded-full font-medium transition-colors ${workspaceMode === 'specify' ? 'bg-white shadow-sm text-gray-900 border border-gray-300' : 'text-gray-500 hover:text-gray-700'}`}
@@ -451,12 +434,6 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
                     Compose
                   </button>
                 </div>
-                <button
-                  onClick={() => setPlanningIdeaPrompt(true)}
-                  className="px-3 py-1 rounded-full font-medium transition-colors border border-accent-lavender/30 bg-accent-lavender/10 text-accent-lavender hover:bg-accent-lavender/20 cursor-pointer"
-                >
-                  Plan with AI
-                </button>
               </div>
             )}
             <div className="flex-1 relative">

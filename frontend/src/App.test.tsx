@@ -216,9 +216,9 @@ describe('App', () => {
     expect(screen.getByText('Error')).toBeInTheDocument();
   });
 
-  it('renders GO button', () => {
+  it('renders header', () => {
     render(<App />);
-    // GoButton is mocked but should be in the header
-    expect(screen.getByTestId('readiness-badge')).toBeInTheDocument();
+    // Header right-side controls (GO, Ready, Launch) are hidden while not fully surfaced
+    expect(screen.getByText('Elisa')).toBeInTheDocument();
   });
 });
