@@ -268,6 +268,7 @@ describe('TeachingEngine', () => {
       'coverage_update', 'tester_task_completed', 'reviewer_task_completed',
       'hardware_compile', 'hardware_flash', 'hardware_led', 'hardware_lora',
       'skill_used', 'rule_used', 'composite_skill_created', 'context_variable_used',
+      'planning_turn', 'planning_ready', 'planning_canvas_generated',
     ];
 
     for (const event of triggerEvents) {
@@ -277,5 +278,48 @@ describe('TeachingEngine', () => {
       expect(moment!.concept).toBeTruthy();
       expect(moment!.headline).toBeTruthy();
     }
+  });
+
+  // -- Planning Mode triggers (PRD-004) --
+
+  it('planning_turn returns a planning teaching moment', async () => {
+    const moment = await engine.getMoment('planning_turn');
+    expect(moment).not.toBeNull();
+    expect(moment!.concept).toBe('planning');
+    expect(moment!.headline).toContain('Planning');
+  });
+
+  it('planning_ready returns a planning readiness moment', async () => {
+    const moment = await engine.getMoment('planning_ready');
+    expect(moment).not.toBeNull();
+    expect(moment!.concept).toBe('planning');
+    expect(moment!.headline).toContain('plan');
+  });
+
+  it('planning_canvas_generated returns a canvas teaching moment', async () => {
+    const moment = await engine.getMoment('planning_canvas_generated');
+    expect(moment).not.toBeNull();
+    expect(moment!.concept).toBe('planning');
+    expect(moment!.headline).toContain('block');
+  });
+
+  it('planning events are deduped by sub-concept', async () => {
+    const first = await engine.getMoment('planning_turn');
+    expect(first).not.toBeNull();
+
+    const second = await engine.getMoment('planning_turn');
+    expect(second).toBeNull();
+  });
+
+  it('different planning events return different moments', async () => {
+    const turn = await engine.getMoment('planning_turn');
+    const ready = await engine.getMoment('planning_ready');
+    const canvas = await engine.getMoment('planning_canvas_generated');
+
+    expect(turn).not.toBeNull();
+    expect(ready).not.toBeNull();
+    expect(canvas).not.toBeNull();
+    expect(turn!.headline).not.toBe(ready!.headline);
+    expect(ready!.headline).not.toBe(canvas!.headline);
   });
 });

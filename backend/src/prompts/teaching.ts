@@ -212,6 +212,43 @@ export const CONCEPT_CURRICULUM: Record<string, Record<string, TeachingMomentDat
         'how variables work in programming -- inner scopes can see outer scopes.',
     },
   },
+  planning: {
+    structured_thinking: {
+      concept: 'planning',
+      headline: 'Planning before building -- like an architect!',
+      explanation:
+        'Before building something big, architects draw blueprints first. ' +
+        "That's what you're doing right now! By answering these questions, you're " +
+        'figuring out exactly what your nugget needs before any code is written.',
+      tell_me_more:
+        'In the software world, this is called "requirements gathering" or "design thinking". ' +
+        'The more thought you put in now, the fewer surprises later. ' +
+        'Professional teams spend about 30% of their time planning!',
+    },
+    readiness: {
+      concept: 'planning',
+      headline: 'Your plan is complete -- ready to build!',
+      explanation:
+        'You have filled in all the pieces: a clear Goal, Promises about what it will do, ' +
+        'Proofs to check those promises, Skills for how it works, Portals for connections, ' +
+        'and a Deploy target. That is a complete specification!',
+      tell_me_more:
+        'What you just created is like a professional "spec" (short for specification). ' +
+        'Real software teams write specs before coding so everyone agrees on what to build. ' +
+        'Your spec uses the 6 primitives: Goal, Promise, Proof, Skill, Portal, Deploy.',
+    },
+    canvas_generation: {
+      concept: 'planning',
+      headline: 'Your plan became building blocks!',
+      explanation:
+        'Your answers have been turned into blocks on the canvas. Each block represents ' +
+        'one of the 6 primitives. You can rearrange them, add more, or start building!',
+      tell_me_more:
+        'This is called "visual programming" -- representing code ideas as blocks you can ' +
+        'see and move around. It makes complex systems easier to understand at a glance. ' +
+        'The Blockly blocks map directly to your plan structure.',
+    },
+  },
   code_review: {
     first_review: {
       concept: 'code_review',
