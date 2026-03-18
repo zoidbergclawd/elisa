@@ -46,12 +46,12 @@ function mapBlockType(block: CanvasBlock): string {
 
 function fieldName(blockType: string): string {
   switch (blockType) {
-    case 'nugget_goal': return 'GOAL';
-    case 'feature': return 'DESCRIPTION';
-    case 'proof': return 'PROOF';
+    case 'nugget_goal': return 'GOAL_TEXT';
+    case 'feature': return 'FEATURE_TEXT';
+    case 'proof': return 'GIVEN_WHEN';
     case 'use_skill': return 'SKILL_ID';
     case 'portal_tell': return 'COMMAND';
-    default: return 'DESCRIPTION';
+    default: return 'FEATURE_TEXT';
   }
 }
 
@@ -65,14 +65,14 @@ function canvasBlockToBlockly(block: CanvasBlock): BlocklyBlock {
     fields: { [fieldName(blockType)]: block.content },
   };
 
-  // Attach child proofs to promise blocks via test_checks statement input
+  // Attach child proofs to promise blocks via TEST_SOCKET statement input
   if (block.type === 'Promise' && block.children && block.children.length > 0) {
     const proofBlocks = block.children
       .filter((c) => c.type === 'Proof')
       .map((c) => ({
         type: 'proof' as const,
         id: makeBlockId(),
-        fields: { PROOF: c.content },
+        fields: { GIVEN_WHEN: c.content, THEN: '' },
       }));
 
     if (proofBlocks.length > 0) {
@@ -80,20 +80,37 @@ function canvasBlockToBlockly(block: CanvasBlock): BlocklyBlock {
       for (let i = 0; i < proofBlocks.length - 1; i++) {
         (proofBlocks[i] as BlocklyBlock).next = { block: proofBlocks[i + 1] };
       }
-      result.inputs = { test_checks: { block: proofBlocks[0] } };
+      result.inputs = { TEST_SOCKET: { block: proofBlocks[0] } };
     }
   }
 
   return result;
 }
 
-/** Convert a CanvasBlockSpec to Blockly workspace JSON. */
+/** Convert a CanvasBlockSpec to Blockly workspace JSON.
+ *  Blocks are chained via next-statement connectors into a single stack. */
 export function planToWorkspaceJson(spec: CanvasBlockSpec): BlocklyWorkspaceJson {
   const blocks = spec.blocks.map(canvasBlockToBlockly);
+  if (blocks.length === 0) {
+    return { blocks: { languageVersion: 0, blocks: [] } };
+  }
+
+  // Chain all blocks into a single connected stack via next
+  for (let i = 0; i < blocks.length - 1; i++) {
+    blocks[i].next = { block: blocks[i + 1] };
+  }
+
+  // Only the top block keeps position; connected blocks are positioned by Blockly
+  for (let i = 1; i < blocks.length; i++) {
+    delete blocks[i].x;
+    delete blocks[i].y;
+  }
+
+  // Return only the first block as the top-level workspace block
   return {
     blocks: {
       languageVersion: 0,
-      blocks,
+      blocks: [blocks[0]],
     },
   };
 }

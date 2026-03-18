@@ -191,11 +191,26 @@ describe('Planning Mode Integration', () => {
   });
 
   describe('canvas population: full spec -> all blocks', () => {
-    it('converts a full CanvasBlockSpec to Blockly workspace with all block types', () => {
-      const ws = planToWorkspaceJson(fullBlockSpec);
-      expect(ws.blocks.blocks).toHaveLength(6);
+    /** Walk the next-chain starting from a block. */
+    function walkChain(block: Record<string, unknown>): Array<Record<string, unknown>> {
+      const chain: Array<Record<string, unknown>> = [block];
+      let current = block;
+      while ((current as { next?: { block: Record<string, unknown> } }).next?.block) {
+        current = (current as { next: { block: Record<string, unknown> } }).next.block;
+        chain.push(current);
+      }
+      return chain;
+    }
 
-      const types = ws.blocks.blocks.map(b => b.type);
+    it('converts a full CanvasBlockSpec to a chained Blockly workspace', () => {
+      const ws = planToWorkspaceJson(fullBlockSpec);
+      // Single top-level block, rest chained via next
+      expect(ws.blocks.blocks).toHaveLength(1);
+
+      const chain = walkChain(ws.blocks.blocks[0] as unknown as Record<string, unknown>);
+      expect(chain).toHaveLength(6);
+
+      const types = chain.map(b => (b as { type: string }).type);
       expect(types).toEqual([
         'nugget_goal',
         'feature',
@@ -205,26 +220,26 @@ describe('Planning Mode Integration', () => {
         'deploy_web',
       ]);
 
-      // Goal has content
-      expect(ws.blocks.blocks[0].fields?.GOAL).toBe('Weather dashboard');
+      // Goal has content with correct field name
+      expect(ws.blocks.blocks[0].fields?.GOAL_TEXT).toBe('Weather dashboard');
 
       // Promise has nested proof
-      const promise = ws.blocks.blocks[1];
-      expect(promise.inputs?.test_checks?.block.type).toBe('proof');
-      expect(promise.inputs?.test_checks?.block.fields?.PROOF).toBe('Displays Celsius');
+      const promise = chain[1] as { inputs?: Record<string, { block: { type: string; fields?: Record<string, string> } }> };
+      expect(promise.inputs?.TEST_SOCKET?.block.type).toBe('proof');
+      expect(promise.inputs?.TEST_SOCKET?.block.fields?.GIVEN_WHEN).toBe('Displays Celsius');
 
-      // Positions preserved
+      // Only first block has position
       expect(ws.blocks.blocks[0].x).toBe(50);
       expect(ws.blocks.blocks[0].y).toBe(50);
     });
 
-    it('merge mode appends blocks with offset', () => {
+    it('merge mode appends new chain to existing workspace', () => {
       const loadWorkspace = vi.fn();
       const existing = {
         blocks: {
           languageVersion: 0,
           blocks: [
-            { type: 'nugget_goal', id: 'existing', x: 50, y: 50, fields: { GOAL: 'Existing app' } },
+            { type: 'nugget_goal', id: 'existing', x: 50, y: 50, fields: { GOAL_TEXT: 'Existing app' } },
           ],
         },
       };
@@ -235,13 +250,10 @@ describe('Planning Mode Integration', () => {
         blocks: { blocks: Array<{ type: string; y?: number }> };
       };
 
-      // Existing + 6 new = 7
-      expect(result.blocks.blocks).toHaveLength(7);
-      // New blocks offset below existing
-      const newBlocks = result.blocks.blocks.slice(1);
-      newBlocks.forEach(b => {
-        expect((b.y ?? 0)).toBeGreaterThan(50);
-      });
+      // Existing + 1 new chain root = 2 top-level blocks
+      expect(result.blocks.blocks).toHaveLength(2);
+      // New chain root should be offset below existing
+      expect((result.blocks.blocks[1].y ?? 0)).toBeGreaterThan(50);
     });
 
     it('blank mode replaces entire workspace', () => {
@@ -251,7 +263,8 @@ describe('Planning Mode Integration', () => {
       const result = loadWorkspace.mock.calls[0][0] as {
         blocks: { blocks: unknown[] };
       };
-      expect(result.blocks.blocks).toHaveLength(6);
+      // Single chain root
+      expect(result.blocks.blocks).toHaveLength(1);
     });
   });
 });

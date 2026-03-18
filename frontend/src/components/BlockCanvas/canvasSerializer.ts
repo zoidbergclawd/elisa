@@ -62,8 +62,8 @@ function walkNextChain(block: BlockJson): BlockJson[] {
 
 function extractChildren(block: BlockJson): Array<{ type: string; content: string }> {
   const children: Array<{ type: string; content: string }> = [];
-  if (block.inputs?.test_checks?.block) {
-    const proofs = walkNextChain(block.inputs.test_checks.block);
+  if (block.inputs?.TEST_SOCKET?.block) {
+    const proofs = walkNextChain(block.inputs.TEST_SOCKET.block);
     for (const proof of proofs) {
       children.push({
         type: BLOCK_TO_PRIMITIVE[proof.type] ?? proof.type,

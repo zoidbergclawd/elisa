@@ -28,22 +28,37 @@ const fullSpec: CanvasBlockSpec = {
   ],
 };
 
+/** Walk the next-chain starting from a block, collecting all blocks. */
+function walkChain(block: { type: string; next?: { block: unknown } }): Array<{ type: string }> {
+  const chain: Array<{ type: string }> = [block];
+  let current: unknown = block;
+  while ((current as { next?: { block: unknown } }).next?.block) {
+    current = (current as { next: { block: unknown } }).next.block;
+    chain.push(current as { type: string });
+  }
+  return chain;
+}
+
 describe('planToWorkspaceJson', () => {
   it('converts a single Goal block', () => {
     const result = planToWorkspaceJson(goalOnly);
     expect(result.blocks.languageVersion).toBe(0);
     expect(result.blocks.blocks).toHaveLength(1);
     expect(result.blocks.blocks[0].type).toBe('nugget_goal');
-    expect(result.blocks.blocks[0].fields?.GOAL).toBe('Build a weather app');
+    expect(result.blocks.blocks[0].fields?.GOAL_TEXT).toBe('Build a weather app');
     expect(result.blocks.blocks[0].x).toBe(50);
     expect(result.blocks.blocks[0].y).toBe(50);
   });
 
-  it('converts all block types correctly', () => {
+  it('chains all block types into a single stack', () => {
     const result = planToWorkspaceJson(fullSpec);
-    expect(result.blocks.blocks).toHaveLength(5);
+    // Only 1 top-level block (the rest are chained via next)
+    expect(result.blocks.blocks).toHaveLength(1);
 
-    const types = result.blocks.blocks.map((b) => b.type);
+    const chain = walkChain(result.blocks.blocks[0]);
+    expect(chain).toHaveLength(5);
+
+    const types = chain.map((b) => b.type);
     expect(types).toContain('nugget_goal');
     expect(types).toContain('feature');
     expect(types).toContain('use_skill');
@@ -51,15 +66,31 @@ describe('planToWorkspaceJson', () => {
     expect(types).toContain('deploy_web');
   });
 
+  it('only first block has position coordinates', () => {
+    const result = planToWorkspaceJson(fullSpec);
+    expect(result.blocks.blocks[0].x).toBe(50);
+    expect(result.blocks.blocks[0].y).toBe(50);
+
+    // Walk chain and check subsequent blocks have no position
+    let current: Record<string, unknown> = result.blocks.blocks[0];
+    while ((current as { next?: { block: unknown } }).next) {
+      current = (current as { next: { block: Record<string, unknown> } }).next.block;
+      expect(current.x).toBeUndefined();
+      expect(current.y).toBeUndefined();
+    }
+  });
+
   it('attaches proofs as children of promise blocks', () => {
     const result = planToWorkspaceJson(fullSpec);
-    const promiseBlock = result.blocks.blocks.find((b) => b.type === 'feature');
-    expect(promiseBlock?.inputs?.test_checks).toBeDefined();
-    expect(promiseBlock?.inputs?.test_checks.block.type).toBe('proof');
-    expect(promiseBlock?.inputs?.test_checks.block.fields?.PROOF).toBe('Displays Celsius');
+    // Promise block is chained after goal; walk to find it
+    const chain = walkChain(result.blocks.blocks[0]);
+    const promiseBlock = chain.find((b) => b.type === 'feature') as { inputs?: Record<string, { block: { type: string; fields?: Record<string, string>; next?: { block: { type: string; fields?: Record<string, string> } } } }> };
+    expect(promiseBlock?.inputs?.TEST_SOCKET).toBeDefined();
+    expect(promiseBlock?.inputs?.TEST_SOCKET.block.type).toBe('proof');
+    expect(promiseBlock?.inputs?.TEST_SOCKET.block.fields?.GIVEN_WHEN).toBe('Displays Celsius');
     // Second proof is chained via next
-    expect(promiseBlock?.inputs?.test_checks.block.next?.block.type).toBe('proof');
-    expect(promiseBlock?.inputs?.test_checks.block.next?.block.fields?.PROOF).toBe('Handles missing data');
+    expect(promiseBlock?.inputs?.TEST_SOCKET.block.next?.block.type).toBe('proof');
+    expect(promiseBlock?.inputs?.TEST_SOCKET.block.next?.block.fields?.GIVEN_WHEN).toBe('Handles missing data');
   });
 
   it('maps Deploy subtypes correctly', () => {
@@ -75,6 +106,15 @@ describe('planToWorkspaceJson', () => {
   it('handles empty spec', () => {
     const result = planToWorkspaceJson({ blocks: [] });
     expect(result.blocks.blocks).toHaveLength(0);
+  });
+
+  it('sets correct field names for Goal and Promise blocks', () => {
+    const result = planToWorkspaceJson(fullSpec);
+    const chain = walkChain(result.blocks.blocks[0]) as Array<{ type: string; fields?: Record<string, string> }>;
+    const goal = chain.find((b) => b.type === 'nugget_goal');
+    expect(goal?.fields?.GOAL_TEXT).toBe('Weather app');
+    const promise = chain.find((b) => b.type === 'feature');
+    expect(promise?.fields?.FEATURE_TEXT).toBe('Shows temperature');
   });
 });
 

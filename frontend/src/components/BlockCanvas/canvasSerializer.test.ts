@@ -72,14 +72,14 @@ describe('serializeCanvasForPlanning', () => {
         type: 'feature',
         fields: { DESCRIPTION: 'Shows temperature' },
         inputs: {
-          test_checks: {
+          TEST_SOCKET: {
             block: {
               type: 'proof',
-              fields: { PROOF: 'Displays Celsius' },
+              fields: { GIVEN_WHEN: 'Displays Celsius' },
               next: {
                 block: {
                   type: 'proof',
-                  fields: { PROOF: 'Handles null' },
+                  fields: { GIVEN_WHEN: 'Handles null' },
                 },
               },
             },
