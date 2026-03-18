@@ -49,12 +49,17 @@ export default function PlanSummaryCard({
         ))}
       </ul>
 
+      {!allMet && (
+        <p className="text-xs text-atelier-text-muted italic">
+          Some criteria are unmet, but you can still generate -- the planner will fill in reasonable defaults.
+        </p>
+      )}
+
       <div className="flex gap-2 pt-1">
         <button
           type="button"
           onClick={onGenerateCanvas}
-          disabled={!allMet}
-          className="go-btn px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+          className="go-btn px-4 py-2 rounded-xl text-sm font-medium cursor-pointer"
         >
           Generate Canvas
         </button>

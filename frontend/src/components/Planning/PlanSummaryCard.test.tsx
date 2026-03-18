@@ -118,7 +118,7 @@ describe('PlanSummaryCard', () => {
     expect(screen.getByText('Generate Canvas')).not.toBeDisabled();
   });
 
-  it('disables Generate Canvas button when checks fail', () => {
+  it('shows hint but keeps Generate Canvas enabled when checks are incomplete', () => {
     render(
       <PlanSummaryCard
         plan={incomplePlan}
@@ -127,7 +127,8 @@ describe('PlanSummaryCard', () => {
         onAskMore={vi.fn()}
       />,
     );
-    expect(screen.getByText('Generate Canvas')).toBeDisabled();
+    expect(screen.getByText('Generate Canvas')).toBeEnabled();
+    expect(screen.getByText(/some criteria are unmet/i)).toBeInTheDocument();
   });
 
   it('calls onGenerateCanvas when Generate Canvas is clicked', () => {
