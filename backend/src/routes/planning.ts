@@ -9,14 +9,26 @@ interface PlanningRouterDeps {
   store: SessionStore;
   planningService: PlanningService;
   sendEvent: (sessionId: string, event: WSEvent) => Promise<void>;
+  /** Resolve workspace path for a session (for auto-save). */
+  getWorkspacePath?: (sessionId: string) => string | null;
 }
 
 export function createPlanningRouter({
   store,
   planningService,
   sendEvent,
+  getWorkspacePath,
 }: PlanningRouterDeps): Router {
   const router = Router({ mergeParams: true });
+
+  /** Auto-save plan after state changes. Best-effort, never throws. */
+  function autoSave(sessionId: string): void {
+    if (!getWorkspacePath) return;
+    const wp = getWorkspacePath(sessionId);
+    if (wp) {
+      planningService.savePlan(sessionId, wp);
+    }
+  }
 
   // GET /api/sessions/:id/planning -- get current planning state
   router.get('/', (req, res) => {
@@ -99,6 +111,7 @@ export function createPlanningRouter({
         entry.session.planningSession = planState;
       }
 
+      autoSave(sessionId);
       res.json(result);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -143,6 +156,7 @@ export function createPlanningRouter({
         });
       }
 
+      autoSave(sessionId);
       res.json(result);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -205,6 +219,7 @@ export function createPlanningRouter({
         });
       }
 
+      autoSave(sessionId);
       res.json(result);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -234,6 +249,7 @@ export function createPlanningRouter({
         blocks,
       });
 
+      autoSave(sessionId);
       res.json({ blocks });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);

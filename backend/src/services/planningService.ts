@@ -1,5 +1,7 @@
 /** Planning Mode service: conversational planning via Claude SDK (PRD-004). */
 
+import fs from 'node:fs';
+import path from 'node:path';
 import Anthropic from '@anthropic-ai/sdk';
 import { getAnthropicClient } from '../utils/anthropicClient.js';
 import { withTimeout } from '../utils/withTimeout.js';
@@ -225,6 +227,63 @@ Rules:
   /** Remove a planning session from memory. */
   deleteSession(sessionId: string): void {
     this.sessions.delete(sessionId);
+  }
+
+  /** Save plan + conversation to the workspace .elisa/ directory. */
+  savePlan(sessionId: string, workspacePath: string): void {
+    const session = this.sessions.get(sessionId);
+    if (!session) return;
+
+    try {
+      const elisaDir = path.join(workspacePath, '.elisa');
+      if (!fs.existsSync(elisaDir)) {
+        fs.mkdirSync(elisaDir, { recursive: true });
+      }
+
+      const data = {
+        plan: session.plan,
+        conversation: session.conversationHistory,
+        status: session.status,
+        canvasContext: session.canvasContext,
+        generatedBlocks: session.generatedBlocks,
+        savedAt: new Date().toISOString(),
+      };
+
+      const filePath = path.join(elisaDir, 'plan.json');
+      const tmp = filePath + '.tmp';
+      fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
+      fs.copyFileSync(tmp, filePath);
+      fs.unlinkSync(tmp);
+    } catch (err) {
+      console.warn('[planning] save failed:', (err as Error).message);
+    }
+  }
+
+  /** Load plan + conversation from workspace .elisa/ directory. Returns null if not found. */
+  loadPlan(sessionId: string, workspacePath: string): PlanningSession | null {
+    try {
+      const filePath = path.join(workspacePath, '.elisa', 'plan.json');
+      if (!fs.existsSync(filePath)) return null;
+
+      const raw = fs.readFileSync(filePath, 'utf-8');
+      const data = JSON.parse(raw) as {
+        plan: PlanState;
+        conversation: PlanningMessage[];
+        status: PlanningStatus;
+        canvasContext?: CanvasContext | null;
+        generatedBlocks?: CanvasBlockSpec | null;
+      };
+
+      const session = this.resumePlanning(sessionId, data.plan, data.conversation);
+      if (data.canvasContext) session.canvasContext = data.canvasContext;
+      if (data.generatedBlocks) session.generatedBlocks = data.generatedBlocks;
+      if (data.status) session.status = data.status;
+
+      return session;
+    } catch (err) {
+      console.warn('[planning] load failed:', (err as Error).message);
+      return null;
+    }
   }
 
   // --- Private helpers ---

@@ -405,7 +405,15 @@ function createApp(staticDir?: string, authToken?: string) {
   app.use('/api/workspace', createWorkspaceRouter());
   app.use('/api/devices', createDeviceRouter({ registry: deviceRegistry }));
   app.use('/api/sessions/:sessionId/meetings', createMeetingRouter({ store, meetingService, meetingAgentService, sendEvent }));
-  app.use('/api/sessions/:id/planning', createPlanningRouter({ store, planningService, sendEvent }));
+  app.use('/api/sessions/:id/planning', createPlanningRouter({
+    store,
+    planningService,
+    sendEvent,
+    getWorkspacePath: (sessionId: string) => {
+      const entry = store.get(sessionId);
+      return entry?.orchestrator?.nuggetDir ?? null;
+    },
+  }));
   app.use('/api/spec-graph', createSpecGraphRouter({ specGraphService, compositionService, sendEvent }));
 
   // Agent Runtime (PRD-001) — mounted at /v1/* with its own api-key auth
