@@ -317,8 +317,7 @@ describe('PlanningService', () => {
   // --- generateCanvas ---
 
   describe('generateCanvas', () => {
-    it('generates canvas blocks from a ready plan', async () => {
-      // Start with a session that has a ready plan
+    it('deterministically generates canvas blocks from a ready plan', async () => {
       const readyOutput = validTurnOutput({
         plan: readyPlan(),
         question: null,
@@ -326,21 +325,26 @@ describe('PlanningService', () => {
       mockClaudeResponse(readyOutput);
       await service.startPlanning('session-1', 'A quiz app');
 
-      const canvasOutput = {
-        blocks: [
-          { id: 'goal-1', type: 'Goal', category: 'primitive', content: 'Quiz app', position: { x: 0, y: 0 } },
-          {
-            id: 'promise-1', type: 'Promise', category: 'primitive', content: 'Shows answers', position: { x: 0, y: 120 },
-            children: [{ id: 'proof-1', type: 'Proof', category: 'primitive', content: 'Answers shown' }],
-          },
-        ],
-      };
-      mockClaudeResponse(canvasOutput);
-
+      // No mockClaudeResponse needed -- canvas generation is deterministic
       const result = await service.generateCanvas('session-1');
 
-      expect(result.blocks).toHaveLength(2);
+      // Goal + 2 Promises + 1 Skill + 1 Portal + 1 Deploy = 6 blocks
+      expect(result.blocks).toHaveLength(6);
       expect(result.blocks[0].type).toBe('Goal');
+      expect(result.blocks[0].content).toBe('A quiz app for science');
+
+      // Promises have child proofs
+      const promises = result.blocks.filter(b => b.type === 'Promise');
+      expect(promises).toHaveLength(2);
+      expect(promises[0].children).toHaveLength(1);
+      expect(promises[0].children![0].content).toBe('Answers are shown');
+      expect(promises[1].children).toHaveLength(1);
+      expect(promises[1].children![0].content).toBe('Score increments');
+
+      // Skill, Portal, Deploy present
+      expect(result.blocks.find(b => b.type === 'Skill')?.content).toBe('Generate questions');
+      expect(result.blocks.find(b => b.type === 'Portal')?.content).toBe('Claude API');
+      expect(result.blocks.find(b => b.type === 'Deploy')).toBeDefined();
 
       const state = service.getState('session-1')!;
       expect(state.status).toBe('generated');
@@ -352,20 +356,6 @@ describe('PlanningService', () => {
       await service.startPlanning('session-1', 'A quiz app');
 
       await expect(service.generateCanvas('session-1')).rejects.toThrow('Plan is not ready');
-    });
-
-    it('throws if canvas output fails validation', async () => {
-      const readyOutput = validTurnOutput({
-        plan: readyPlan(),
-        question: null,
-      });
-      mockClaudeResponse(readyOutput);
-      await service.startPlanning('session-1', 'A quiz app');
-
-      // Return invalid canvas data
-      mockClaudeResponse({ blocks: [{ id: 'x', type: 'InvalidType', category: 'primitive', content: 'test', position: { x: 0, y: 0 } }] });
-
-      await expect(service.generateCanvas('session-1')).rejects.toThrow('Canvas generation produced invalid output');
     });
   });
 

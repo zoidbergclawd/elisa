@@ -146,29 +146,18 @@ describe('Planning Mode behavioral tests', () => {
       expect(ready.plan.ready).toBe(true);
       expect(ready.question).toBeNull();
 
-      // Step 5: Generate canvas blocks
-      const canvasOutput = {
-        blocks: [
-          { id: 'goal-1', type: 'Goal', category: 'primitive', content: 'AI science quiz', position: { x: 200, y: 0 } },
-          {
-            id: 'promise-1', type: 'Promise', category: 'primitive', content: 'Shows correct answers', position: { x: 0, y: 150 },
-            children: [{ id: 'proof-1', type: 'Proof', category: 'primitive', content: 'Answers displayed' }],
-          },
-          {
-            id: 'promise-2', type: 'Promise', category: 'primitive', content: 'Tracks score', position: { x: 400, y: 150 },
-            children: [{ id: 'proof-2', type: 'Proof', category: 'primitive', content: 'Score persists' }],
-          },
-          { id: 'skill-1', type: 'Skill', category: 'primitive', content: 'Generate quiz questions', position: { x: 0, y: 300 } },
-          { id: 'portal-1', type: 'Portal', category: 'primitive', content: 'Claude API', position: { x: 400, y: 300 }, subtype: 'api' },
-          { id: 'deploy-1', type: 'Deploy', category: 'primitive', content: 'Web deployment', position: { x: 200, y: 450 } },
-        ],
-      };
-      mockClaudeResponse(canvasOutput);
+      // Step 5: Generate canvas blocks (deterministic -- no Claude call needed)
       const blocks = await service.generateCanvas('s1');
       expect(blocks.blocks).toHaveLength(6);
       expect(blocks.blocks.map(b => b.type)).toEqual(
         expect.arrayContaining(['Goal', 'Promise', 'Skill', 'Portal', 'Deploy']),
       );
+      // All proofs from the plan are included as children
+      const promises = blocks.blocks.filter(b => b.type === 'Promise');
+      expect(promises).toHaveLength(2);
+      for (const p of promises) {
+        expect(p.children?.length).toBeGreaterThanOrEqual(1);
+      }
 
       // Verify final state
       const state = service.getState('s1')!;
@@ -511,7 +500,7 @@ describe('Planning Mode behavioral tests', () => {
       );
     });
 
-    it('throws when canvas output fails validation', async () => {
+    it('deterministically generates all plan data including proofs', async () => {
       const readyTurn = makeTurnOutput({
         question: null,
         plan: readyPlanState(),
@@ -519,14 +508,13 @@ describe('Planning Mode behavioral tests', () => {
       mockClaudeResponse(readyTurn);
       await service.startPlanning('s1', 'App');
 
-      // Invalid block type
-      mockClaudeResponse({
-        blocks: [{ id: 'x', type: 'InvalidType', category: 'primitive', content: 'test', position: { x: 0, y: 0 } }],
-      });
-
-      await expect(service.generateCanvas('s1')).rejects.toThrow(
-        /invalid output/,
-      );
+      // No Claude call needed -- deterministic conversion
+      const result = await service.generateCanvas('s1');
+      expect(result.blocks[0].type).toBe('Goal');
+      const promises = result.blocks.filter(b => b.type === 'Promise');
+      for (const p of promises) {
+        expect(p.children?.length).toBeGreaterThanOrEqual(1);
+      }
     });
 
     it('throws when starting planning twice for same session', async () => {

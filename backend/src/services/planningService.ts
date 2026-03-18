@@ -8,14 +8,11 @@ import { withTimeout } from '../utils/withTimeout.js';
 import {
   DEFAULT_MODEL,
   PLANNING_TURN_TIMEOUT_MS,
-  PLANNING_CANVAS_TIMEOUT_MS,
   PLANNING_MAX_TURNS,
   PLANNING_MAX_TOKENS,
-  PLANNING_CANVAS_MAX_TOKENS,
 } from '../utils/constants.js';
 import {
   PlanningTurnOutputLenientSchema,
-  CanvasBlockSpecSchema,
 } from '../utils/planSchema.js';
 import type {
   PlanState,
@@ -142,7 +139,7 @@ export class PlanningService {
     return this.callClaude(session, text);
   }
 
-  /** Generate canvas blocks from the finalized plan. */
+  /** Generate canvas blocks deterministically from the finalized plan state. */
   async generateCanvas(sessionId: string): Promise<CanvasBlockSpec> {
     const session = this.getSessionOrThrow(sessionId);
 
@@ -153,45 +150,13 @@ export class PlanningService {
     session.status = 'generating';
     session.updatedAt = Date.now();
 
-    if (!this.client) {
-      this.client = getAnthropicClient();
-    }
+    const blocks = planToCanvasBlocks(session.plan);
 
-    const systemPrompt = `You are a canvas block generator for Elisa, a kids' coding IDE.
-Given a finalized plan, generate Blockly canvas blocks using the 6 primitives: Goal, Promise, Proof, Skill, Portal, Deploy.
-
-Rules:
-- Each block has: id (unique string), type (one of the 6 primitives), category ("primitive"), content (description), position ({x, y})
-- Promise blocks can have children (Proof blocks)
-- Portal blocks should have a subtype (api, device, knowledge, service)
-- Arrange blocks in a logical layout: Goal at top, Promises below, Skills and Portals to the sides, Deploy at bottom
-- Output ONLY valid JSON matching the schema. No markdown, no explanation.`;
-
-    const userMsg = `Generate canvas blocks for this plan:\n\n${JSON.stringify(session.plan, null, 2)}`;
-
-    const response = await withTimeout(
-      this.client.messages.create({
-        model: this.model,
-        max_tokens: PLANNING_CANVAS_MAX_TOKENS,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: userMsg }],
-      }),
-      PLANNING_CANVAS_TIMEOUT_MS,
-    );
-
-    const raw = response.content[0]?.type === 'text' ? response.content[0].text : '';
-    const parsed = this.parseJsonResponse(raw);
-
-    const validated = CanvasBlockSpecSchema.safeParse(parsed);
-    if (!validated.success) {
-      throw new Error(`Canvas generation produced invalid output: ${validated.error.message}`);
-    }
-
-    session.generatedBlocks = validated.data;
+    session.generatedBlocks = blocks;
     session.status = 'generated';
     session.updatedAt = Date.now();
 
-    return validated.data;
+    return blocks;
   }
 
   /** Get current planning state. */
@@ -695,4 +660,89 @@ Rules:
     }
     return result;
   }
+}
+
+/** Deterministically convert a finalized PlanState into CanvasBlockSpec.
+ *  No AI call needed -- the plan already contains all structured data. */
+function planToCanvasBlocks(plan: PlanState): CanvasBlockSpec {
+  let blockIndex = 0;
+  const makeId = () => `plan_${(++blockIndex).toString(36).padStart(4, '0')}`;
+
+  const Y_START = 50;
+  const Y_STEP = 80;
+  const X = 50;
+  let y = Y_START;
+
+  const blocks: CanvasBlockSpec['blocks'] = [];
+
+  // Goal
+  if (plan.goal.description) {
+    blocks.push({
+      id: makeId(),
+      type: 'Goal',
+      category: 'primitive',
+      content: plan.goal.description,
+      position: { x: X, y },
+    });
+    y += Y_STEP;
+  }
+
+  // Promises with child Proofs
+  for (const promise of plan.promises) {
+    const children = promise.proofs.map((proof) => ({
+      id: makeId(),
+      type: 'Proof' as const,
+      category: 'primitive' as const,
+      content: proof.description,
+    }));
+
+    blocks.push({
+      id: makeId(),
+      type: 'Promise',
+      category: 'primitive',
+      content: promise.description,
+      position: { x: X, y },
+      ...(children.length > 0 ? { children } : {}),
+    });
+    y += Y_STEP;
+  }
+
+  // Skills
+  for (const skill of plan.skills) {
+    blocks.push({
+      id: makeId(),
+      type: 'Skill',
+      category: 'primitive',
+      content: skill.name,
+      position: { x: X, y },
+    });
+    y += Y_STEP;
+  }
+
+  // Portals
+  for (const portal of plan.portals) {
+    blocks.push({
+      id: makeId(),
+      type: 'Portal',
+      category: 'primitive',
+      content: portal.name,
+      position: { x: X, y },
+      subtype: portal.subtype,
+    });
+    y += Y_STEP;
+  }
+
+  // Deploy
+  if (plan.deploy.target) {
+    blocks.push({
+      id: makeId(),
+      type: 'Deploy',
+      category: 'primitive',
+      content: `Deploy to ${plan.deploy.target}`,
+      position: { x: X, y },
+      subtype: plan.deploy.target,
+    });
+  }
+
+  return { blocks };
 }
