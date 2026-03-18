@@ -328,8 +328,8 @@ describe('PlanningService', () => {
       // No mockClaudeResponse needed -- canvas generation is deterministic
       const result = await service.generateCanvas('session-1');
 
-      // Goal + 2 Promises + 1 Skill + 1 Portal + 1 Deploy = 6 blocks
-      expect(result.blocks).toHaveLength(6);
+      // Goal + 2 Promises + 1 Deploy = 4 blocks (skills/portals are plan metadata, not canvas blocks)
+      expect(result.blocks).toHaveLength(4);
       expect(result.blocks[0].type).toBe('Goal');
       expect(result.blocks[0].content).toBe('A quiz app for science');
 
@@ -341,9 +341,9 @@ describe('PlanningService', () => {
       expect(promises[1].children).toHaveLength(1);
       expect(promises[1].children![0].content).toBe('Score increments');
 
-      // Skill, Portal, Deploy present
-      expect(result.blocks.find(b => b.type === 'Skill')?.content).toBe('Generate questions');
-      expect(result.blocks.find(b => b.type === 'Portal')?.content).toBe('Claude API');
+      // Skills and Portals are NOT emitted as blocks (they're plan metadata)
+      expect(result.blocks.find(b => b.type === 'Skill')).toBeUndefined();
+      expect(result.blocks.find(b => b.type === 'Portal')).toBeUndefined();
       expect(result.blocks.find(b => b.type === 'Deploy')).toBeDefined();
 
       const state = service.getState('session-1')!;
@@ -384,10 +384,10 @@ describe('PlanningService', () => {
       expect(service.checkReadiness(plan)).toBe(false);
     });
 
-    it('returns false with no portals', () => {
+    it('returns true with no portals (portals are optional)', () => {
       const plan = readyPlan();
       plan.portals = [];
-      expect(service.checkReadiness(plan)).toBe(false);
+      expect(service.checkReadiness(plan)).toBe(true);
     });
 
     it('returns false with no skills', () => {

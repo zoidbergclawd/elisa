@@ -266,7 +266,7 @@ export class PlanningService {
   }
 
   /** Force the plan to ready state when the turn limit is reached.
-   *  Auto-fills missing skills and portals so the plan is buildable. */
+   *  Auto-fills missing skills and proofs so the plan is buildable. */
   private forceReadiness(session: PlanningSession): PlanningTurnResult {
     console.log(`[planning] turn ${session.plan.conversation_turn} >= max ${PLANNING_MAX_TURNS}, forcing readiness`);
 
@@ -278,13 +278,13 @@ export class PlanningService {
       });
     }
 
-    // Auto-fill missing portals
-    if (session.plan.portals.length === 0) {
-      session.plan.portals.push({
-        name: 'Web Browser',
-        subtype: 'service',
-        description: 'The web browser running the application',
-      });
+    // Auto-generate a proof for any promise that's missing one
+    for (const promise of session.plan.promises) {
+      if (promise.proofs.length === 0) {
+        promise.proofs.push({
+          description: `${promise.description} works as expected`,
+        });
+      }
     }
 
     session.plan.ready = true;
@@ -471,10 +471,10 @@ export class PlanningService {
     if (plan.goal.confidence !== 'solid') return false;
     if (plan.promises.length < 2) return false;
     if (!plan.promises.every(p => p.proofs.length >= 1)) return false;
-    if (plan.portals.length < 1) return false;
     if (plan.skills.length < 1) return false;
     if (plan.deploy.target === null) return false;
     if (plan.open_questions.length > 0) return false;
+    // Portals are optional -- many projects (web games, CLI tools) don't need external integrations
     return true;
   }
 
@@ -727,30 +727,10 @@ function planToCanvasBlocks(plan: PlanState): CanvasBlockSpec {
     y += Y_STEP;
   }
 
-  // Skills
-  for (const skill of plan.skills) {
-    blocks.push({
-      id: makeId(),
-      type: 'Skill',
-      category: 'primitive',
-      content: skill.name,
-      position: { x: X, y },
-    });
-    y += Y_STEP;
-  }
-
-  // Portals
-  for (const portal of plan.portals) {
-    blocks.push({
-      id: makeId(),
-      type: 'Portal',
-      category: 'primitive',
-      content: portal.name,
-      position: { x: X, y },
-      subtype: portal.subtype,
-    });
-    y += Y_STEP;
-  }
+  // Note: Plan skills and portals are conceptual metadata that inform the
+  // MetaPlanner. They are NOT emitted as Blockly blocks because use_skill and
+  // portal_tell blocks require IDE-level registration (via Skills/Portals modals)
+  // which plan-level data cannot provide.
 
   // Deploy
   if (plan.deploy.target) {

@@ -148,9 +148,10 @@ describe('Planning Mode behavioral tests', () => {
 
       // Step 5: Generate canvas blocks (deterministic -- no Claude call needed)
       const blocks = await service.generateCanvas('s1');
-      expect(blocks.blocks).toHaveLength(6);
+      // Goal + 2 Promises + 1 Deploy = 4 (skills/portals are plan metadata, not canvas blocks)
+      expect(blocks.blocks).toHaveLength(4);
       expect(blocks.blocks.map(b => b.type)).toEqual(
-        expect.arrayContaining(['Goal', 'Promise', 'Skill', 'Portal', 'Deploy']),
+        expect.arrayContaining(['Goal', 'Promise', 'Deploy']),
       );
       // All proofs from the plan are included as children
       const promises = blocks.blocks.filter(b => b.type === 'Promise');
@@ -345,7 +346,6 @@ describe('Planning Mode behavioral tests', () => {
       ['goal confidence not solid', (p) => { p.goal.confidence = 'rough'; }],
       ['fewer than 2 promises', (p) => { p.promises = [p.promises[0]]; }],
       ['promise missing proof', (p) => { p.promises[1].proofs = []; }],
-      ['no portals', (p) => { p.portals = []; }],
       ['no skills', (p) => { p.skills = []; }],
       ['no deploy target', (p) => { p.deploy.target = null; }],
       ['open questions remain', (p) => { p.open_questions = ['What about mobile?']; }],
