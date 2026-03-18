@@ -301,6 +301,7 @@ Rules:
     userMessage: string,
   ): Promise<PlanningTurnResult> {
     if (session.plan.conversation_turn >= PLANNING_MAX_TURNS) {
+      console.log(`[planning] turn ${session.plan.conversation_turn} >= max ${PLANNING_MAX_TURNS}, forcing readiness`);
       session.plan.ready = true;
       session.status = 'ready';
       return {
@@ -323,6 +324,38 @@ Rules:
       timestamp: Date.now(),
     });
 
+    return this.callClaudeWithHistory(session);
+  }
+
+  /**
+   * Generate the next question from Claude after a structured answer.
+   * Does NOT add any user message -- just calls Claude with the current history.
+   */
+  async generateNextQuestion(sessionId: string): Promise<PlanningTurnResult> {
+    const session = this.getSessionOrThrow(sessionId);
+
+    if (session.plan.conversation_turn >= PLANNING_MAX_TURNS) {
+      console.log(`[planning] turn ${session.plan.conversation_turn} >= max ${PLANNING_MAX_TURNS}, forcing readiness`);
+      session.plan.ready = true;
+      session.status = 'ready';
+      return {
+        message: 'We have been planning for a while! I think we have enough to start building.',
+        question: null,
+        plan: { ...session.plan },
+        teaching: null,
+        status: 'ready',
+      };
+    }
+
+    if (!this.client) {
+      this.client = getAnthropicClient();
+    }
+
+    return this.callClaudeWithHistory(session);
+  }
+
+  /** Core Claude call: sends current conversation history and parses the response. */
+  private async callClaudeWithHistory(session: PlanningSession): Promise<PlanningTurnResult> {
     const systemPrompt = buildPlanningSystemPrompt(
       session.plan,
       session.canvasContext,
@@ -330,8 +363,10 @@ Rules:
 
     const claudeMessages = this.toClaudeMessages(session.conversationHistory);
 
+    console.log(`[planning] calling Claude (turn ${session.plan.conversation_turn}, ${claudeMessages.length} messages, plan ready=${session.plan.ready})`);
+
     const response = await withTimeout(
-      this.client.messages.create({
+      this.client!.messages.create({
         model: this.model,
         max_tokens: PLANNING_MAX_TOKENS,
         system: systemPrompt,
@@ -341,14 +376,20 @@ Rules:
     );
 
     const raw = response.content[0]?.type === 'text' ? response.content[0].text : '';
+    console.log(`[planning] Claude response (${raw.length} chars): ${raw.slice(0, 200)}${raw.length > 200 ? '...' : ''}`);
+
     const parsed = this.tryParseJsonResponse(raw);
 
     if (parsed) {
       const normalized = this.normalizeResponse(parsed);
       const validated = PlanningTurnOutputLenientSchema.safeParse(normalized);
       if (validated.success) {
+        console.log(`[planning] validated OK: question=${validated.data.question ? validated.data.question.type : 'null'}, ready=${validated.data.plan.ready}`);
         return this.processValidatedOutput(session, validated.data);
       }
+      console.warn(`[planning] validation failed (will retry):`, JSON.stringify(validated.error.issues));
+    } else {
+      console.warn(`[planning] JSON parse failed (will retry), raw starts with: ${raw.slice(0, 100)}`);
     }
 
     // Retry once with correction prompt
@@ -387,14 +428,17 @@ Rules:
     const parsed = this.tryParseJsonResponse(raw);
 
     if (!parsed) {
+      console.error('[planning] retry also failed to produce JSON');
       throw new Error('Planning agent failed to produce valid JSON after retry');
     }
 
     const normalized = this.normalizeResponse(parsed);
     const validated = PlanningTurnOutputLenientSchema.safeParse(normalized);
     if (!validated.success) {
+      console.error('[planning] retry validation failed:', JSON.stringify(validated.error.issues));
       throw new Error(`Planning agent failed to produce valid output after retry: ${JSON.stringify(validated.error.issues)}`);
     }
+    console.log(`[planning] retry succeeded: question=${validated.data.question ? validated.data.question.type : 'null'}`)
 
     return this.processValidatedOutput(session, validated.data);
   }

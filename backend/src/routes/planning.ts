@@ -70,11 +70,13 @@ export function createPlanningRouter({
     }
 
     try {
+      console.log(`[planning] starting session ${sessionId} with idea: "${idea.slice(0, 80)}"`);
       const result = await planningService.startPlanning(
         sessionId,
         idea,
         canvasContext ?? null,
       );
+      console.log(`[planning] start result: question=${result.question ? result.question.type : 'null'}, status=${result.status}`);
 
       // Emit WS events
       await sendEvent(sessionId, {
@@ -165,12 +167,10 @@ export function createPlanningRouter({
       autoSave(sessionId);
 
       // Fire-and-forget: generate next question asynchronously
+      console.log(`[planning] structured answer applied: "${optionValue}", generating next question...`);
       (async () => {
         try {
-          const followUp = await planningService.handleFreeTextAnswer(
-            sessionId,
-            `[User selected: ${optionValue}]`,
-          );
+          const followUp = await planningService.generateNextQuestion(sessionId);
 
           await sendEvent(sessionId, {
             type: 'planning_turn',
@@ -239,7 +239,9 @@ export function createPlanningRouter({
     }
 
     try {
+      console.log(`[planning] free-text message: "${text.slice(0, 80)}"`);
       const result = await planningService.handleFreeTextAnswer(sessionId, text);
+      console.log(`[planning] message result: question=${result.question ? result.question.type : 'null'}, status=${result.status}`);
 
       // Emit WS events
       await sendEvent(sessionId, {
