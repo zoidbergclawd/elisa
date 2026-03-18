@@ -1502,3 +1502,84 @@ describe('combined new fields validation', () => {
     expect(result.success).toBe(true);
   });
 });
+
+describe('PRD-003 schema additions', () => {
+  it('accepts portal with subtype field', () => {
+    const result = NuggetSpecSchema.safeParse({
+      portals: [{
+        name: 'Weather API',
+        mechanism: 'cli',
+        subtype: 'api',
+      }],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts portal with device subtype', () => {
+    const result = NuggetSpecSchema.safeParse({
+      portals: [{
+        name: 'ESP32 Sensor',
+        mechanism: 'serial',
+        subtype: 'device',
+      }],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts portal with knowledge subtype', () => {
+    const result = NuggetSpecSchema.safeParse({
+      portals: [{
+        name: 'Science Curriculum',
+        mechanism: 'auto',
+        subtype: 'knowledge',
+      }],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects portal with subtype exceeding max length', () => {
+    const result = NuggetSpecSchema.safeParse({
+      portals: [{
+        name: 'Test',
+        mechanism: 'cli',
+        subtype: 'x'.repeat(51),
+      }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts skill with builtin flag', () => {
+    const result = NuggetSpecSchema.safeParse({
+      skills: [{
+        id: 'shipped-style-fun',
+        name: 'Fun & Colorful',
+        prompt: 'Apply a fun style',
+        builtin: true,
+      }],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts skill without builtin flag (user-created)', () => {
+    const result = NuggetSpecSchema.safeParse({
+      skills: [{
+        id: 'custom-skill',
+        name: 'My Skill',
+        prompt: 'Do something',
+      }],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts skill with builtin: false', () => {
+    const result = NuggetSpecSchema.safeParse({
+      skills: [{
+        id: 'custom-skill',
+        name: 'My Skill',
+        prompt: 'Do something',
+        builtin: false,
+      }],
+    });
+    expect(result.success).toBe(true);
+  });
+});

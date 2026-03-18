@@ -135,6 +135,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/services/runtimeProvisioner.ts` | Provisioner interface + Stub/Local implementations |
 | `backend/src/services/flashStrategy.ts` | FlashStrategy interface, MpremoteFlashStrategy, EsptoolFlashStrategy |
 | `backend/src/services/redeployClassifier.ts` | Redeploy decision matrix (config_only vs firmware_required) |
+| `backend/src/services/interfaceInference.ts` | Auto-infer provides/requires from NuggetSpec portals, skills, deployment targets, devices |
 | `backend/src/services/specGraph.ts` | Spec Graph service: directed graph of NuggetSpecs with persistence |
 | `backend/src/services/compositionService.ts` | Nugget composition orchestrator with emergence detection |
 | `backend/src/services/integrationAgentMeeting.ts` | Integration meeting type for nugget composition |
@@ -205,11 +206,13 @@ Block-based visual programming IDE where kids build software by snapping togethe
 |------|------|
 | `frontend/src/App.tsx` | Root component, layout, modal routing |
 | `frontend/src/components/BlockCanvas/BlockCanvas.tsx` | Blockly editor wrapper |
-| `frontend/src/components/BlockCanvas/blockDefinitions.ts` | Custom block types (13 categories incl. Knowledge) |
+| `frontend/src/components/BlockCanvas/blockDefinitions.ts` | 6-primitive block types (Goal, Promise, Proof, Skill, Portal, Deploy) + block category metadata |
 | `frontend/src/components/BlockCanvas/blockInterpreter.ts` | Workspace -> NuggetSpec JSON conversion |
 | `frontend/src/components/BlockCanvas/toolbox.ts` | Blockly sidebar categories |
 | `frontend/src/components/BlockCanvas/skillFlowBlocks.ts` | Skill flow block definitions |
 | `frontend/src/components/BlockCanvas/skillInterpreter.ts` | Skill flow workspace -> SkillPlan conversion |
+| `frontend/src/components/BlockCanvas/nuggetBlocks.ts` | Dynamic nugget_ref block registration for composition mode |
+| `frontend/src/components/BlockCanvas/nuggetInterpreter.ts` | Composition workspace -> ComposeRequest conversion |
 | `frontend/src/components/AgentTeam/AgentTeamPanel.tsx` | Full-width agent cards + comms feed |
 | `frontend/src/components/TaskMap/TaskMapPanel.tsx` | Full-width interactive task DAG |
 | `frontend/src/components/shared/MinionAvatar.tsx` | Animated avatar for narrator/minion characters |
@@ -281,6 +284,8 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/lib/terminology.ts` | Kid-friendly term mappings (technical -> friendly labels) |
 | `frontend/src/lib/deviceBlocks.ts` | Dynamic Blockly block registration from device plugin manifests |
 | `frontend/src/lib/examples/index.ts` | ExampleNugget interface + EXAMPLE_NUGGETS array (requiredDevices filtering) |
+| `frontend/src/lib/shippedNuggets.ts` | Shipped nugget specs (Dashboard, API, Sensor, Gateway) |
+| `frontend/src/lib/composeNuggets.ts` | Client-side nugget composition merge |
 | `frontend/src/lib/apiClient.ts` | Auth token management and authenticated fetch wrapper |
 | `frontend/src/lib/playChime.ts` | Web Audio API two-tone chime for board detection events |
 

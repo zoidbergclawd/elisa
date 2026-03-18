@@ -42,26 +42,8 @@ export const spaceDodge: ExampleNugget = {
                                   fields: { SKILL_ID: 'skill-retro-style' },
                                   next: {
                                     block: {
-                                      type: 'use_rule',
-                                      fields: { RULE_ID: 'rule-game-playable' },
-                                      next: {
-                                        block: {
-                                          type: 'use_rule',
-                                          fields: { RULE_ID: 'rule-no-lag' },
-                                          next: {
-                                            block: {
-                                              type: 'look_like',
-                                              fields: { STYLE_TEXT: 'dark space background with glowing neon colors' },
-                                              next: {
-                                                block: {
-                                                  type: 'deploy_web',
-                                                  fields: {},
-                                                },
-                                              },
-                                            },
-                                          },
-                                        },
-                                      },
+                                      type: 'deploy_web',
+                                      fields: {},
                                     },
                                   },
                                 },
@@ -84,13 +66,10 @@ export const spaceDodge: ExampleNugget = {
     {
       id: 'skill-retro-style',
       name: 'Retro arcade style',
-      prompt: 'Make the game look like a retro arcade game. Use pixel-style fonts, screen shake on collision, and a starfield background that scrolls.',
+      prompt: 'Make the game look like a retro arcade game. Use pixel-style fonts, screen shake on collision, a dark space background with glowing neon colors, and a starfield background that scrolls.',
       category: 'style',
     },
   ],
-  rules: [
-    { id: 'rule-game-playable', name: 'Game must be playable', prompt: 'The game must load without errors, respond to arrow keys, and show a score. Test by opening index.html in a browser.', trigger: 'on_task_complete' },
-    { id: 'rule-no-lag', name: 'No lag allowed', prompt: 'The game must run smoothly at 60fps. Do not use heavy DOM manipulation inside the game loop. Use requestAnimationFrame.', trigger: 'always' },
-  ],
+  rules: [],
   portals: [],
 };

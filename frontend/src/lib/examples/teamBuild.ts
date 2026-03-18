@@ -3,7 +3,7 @@ import type { ExampleNugget } from './index';
 export const teamBuild: ExampleNugget = {
   id: 'team-build',
   name: 'Team Build',
-  description: 'A todo app built by a full team: builder writes code, tester checks it, reviewer approves.',
+  description: 'A todo app with skills for clean UI and pastel styling, deployed to the web.',
   category: 'multi-agent',
   color: 'bg-purple-100',
   accentColor: 'text-purple-700',
@@ -34,46 +34,16 @@ export const teamBuild: ExampleNugget = {
                           fields: { FEATURE_TEXT: 'delete items with a remove button' },
                           next: {
                             block: {
-                              type: 'agent_tester',
-                              fields: { AGENT_NAME: 'Test Bot' },
+                              type: 'use_skill',
+                              fields: { SKILL_ID: 'skill-clean-ui' },
                               next: {
                                 block: {
-                                  type: 'agent_reviewer',
-                                  fields: { AGENT_NAME: 'Review Bot' },
+                                  type: 'use_skill',
+                                  fields: { SKILL_ID: 'skill-pastel-style' },
                                   next: {
                                     block: {
-                                      type: 'use_skill',
-                                      fields: { SKILL_ID: 'skill-clean-ui' },
-                                      next: {
-                                        block: {
-                                          type: 'use_skill',
-                                          fields: { SKILL_ID: 'skill-pastel-style' },
-                                          next: {
-                                            block: {
-                                              type: 'use_rule',
-                                              fields: { RULE_ID: 'rule-test-all' },
-                                              next: {
-                                                block: {
-                                                  type: 'use_rule',
-                                                  fields: { RULE_ID: 'rule-fix-carefully' },
-                                                  next: {
-                                                    block: {
-                                                      type: 'look_like',
-                                                      fields: { STYLE_PRESET: 'clean_simple' },
-                                                      next: {
-                                                        block: {
-                                                          type: 'deploy_web',
-                                                          fields: {},
-                                                        },
-                                                      },
-                                                    },
-                                                  },
-                                                },
-                                              },
-                                            },
-                                          },
-                                        },
-                                      },
+                                      type: 'deploy_web',
+                                      fields: {},
                                     },
                                   },
                                 },
@@ -96,14 +66,6 @@ export const teamBuild: ExampleNugget = {
     { id: 'skill-clean-ui', name: 'Clean UI details', prompt: 'Use a card-based layout for each todo item. Each card should have a checkbox on the left, the task text in the middle, and a red X delete button on the right.', category: 'feature' },
     { id: 'skill-pastel-style', name: 'Pastel color scheme', prompt: 'Use soft pastel colors: light blue header, white cards with subtle shadows, and gentle rounded corners on everything.', category: 'style' },
   ],
-  rules: [
-    {
-      id: 'rule-test-all',
-      name: 'Test everything',
-      prompt: 'Write tests for every feature. Every add, check, and delete action must have at least one test.',
-      trigger: 'always',
-    },
-    { id: 'rule-fix-carefully', name: 'Fix carefully on fail', prompt: 'Read the exact error message. Only change the specific line that caused the error. Do not rewrite working code.', trigger: 'on_test_fail' },
-  ],
+  rules: [],
   portals: [],
 };

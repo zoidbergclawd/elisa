@@ -3,7 +3,7 @@ import type { ExampleNugget } from './index';
 export const skillShowcase: ExampleNugget = {
   id: 'skill-showcase',
   name: 'Skill Showcase',
-  description: 'Demonstrates skills, rules, and composite skill flows. Builds a themed landing page with code quality rules.',
+  description: 'Demonstrates skills and composite skill flows. Builds a themed landing page with polished hero section.',
   category: 'web',
   color: 'bg-purple-100',
   accentColor: 'text-purple-700',
@@ -15,7 +15,7 @@ export const skillShowcase: ExampleNugget = {
           type: 'nugget_goal',
           x: 30,
           y: 30,
-          fields: { GOAL_TEXT: 'A themed landing page that showcases skill and rule features' },
+          fields: { GOAL_TEXT: 'A themed landing page that showcases skill features' },
           next: {
             block: {
               type: 'nugget_template',
@@ -30,28 +30,16 @@ export const skillShowcase: ExampleNugget = {
                       fields: { FEATURE_TEXT: 'a features grid showing three cards with icons' },
                       next: {
                         block: {
-                          type: 'look_like',
-                          fields: { STYLE_TEXT: 'modern and clean with a gradient background' },
+                          type: 'use_skill',
+                          fields: { SKILL_ID: 'skill-hero-polish' },
                           next: {
                             block: {
                               type: 'use_skill',
-                              fields: { SKILL_ID: 'skill-hero-polish' },
+                              fields: { SKILL_ID: 'skill-theme-picker' },
                               next: {
                                 block: {
-                                  type: 'use_skill',
-                                  fields: { SKILL_ID: 'skill-theme-picker' },
-                                  next: {
-                                    block: {
-                                      type: 'use_rule',
-                                      fields: { RULE_ID: 'rule-semantic-html' },
-                                      next: {
-                                        block: {
-                                          type: 'deploy_web',
-                                          fields: {},
-                                        },
-                                      },
-                                    },
-                                  },
+                                  type: 'deploy_web',
+                                  fields: {},
                                 },
                               },
                             },
@@ -168,13 +156,6 @@ export const skillShowcase: ExampleNugget = {
       },
     },
   ],
-  rules: [
-    {
-      id: 'rule-semantic-html',
-      name: 'Use semantic HTML',
-      prompt: 'Use semantic HTML elements throughout: header, nav, main, section, article, footer. Do not use div for structural layout. Every image must have an alt attribute.',
-      trigger: 'always',
-    },
-  ],
+  rules: [],
   portals: [],
 };

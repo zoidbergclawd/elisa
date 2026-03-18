@@ -72,6 +72,7 @@ src/
     healthHistoryService.ts  Health-over-time persistence (20-entry cap, .elisa/health-history.json)
     flashStrategy.ts     FlashStrategy interface + MpremoteFlashStrategy + EsptoolFlashStrategy
     redeployClassifier.ts  Redeploy decision matrix: classifyChanges(oldSpec, newSpec) -> action + reasons
+    interfaceInference.ts  Auto-infer provides/requires from NuggetSpec portals, skills, deployment targets, devices
     specGraph.ts         Spec Graph service: directed graph of NuggetSpecs with persistence
     compositionService.ts  Nugget composition orchestrator with emergence detection
     meetingTriggerWiring.ts  Wires MeetingTriggerEngine into orchestrator pipeline per build event (team filtering via meeting_team spec)

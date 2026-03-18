@@ -22,6 +22,14 @@ vi.mock('./blockDefinitions', () => ({
   registerBlocks: vi.fn(),
 }));
 
+vi.mock('./nuggetBlocks', () => ({
+  registerNuggetBlocks: vi.fn(),
+}));
+
+vi.mock('./compositionToolbox', () => ({
+  compositionToolbox: { kind: 'categoryToolbox', contents: [] },
+}));
+
 vi.mock('./toolbox', () => ({
   toolbox: { kind: 'categoryToolbox', contents: [] },
   buildDeviceCategories: vi.fn(() => []),

@@ -1,4 +1,4 @@
-import type { Skill, Rule } from '../Skills/types';
+import type { Skill } from '../Skills/types';
 import type { Portal } from '../Portals/types';
 import type { BehavioralTest, FeedbackLoop, SystemLevel, RuntimeConfig, KnowledgeConfig } from '../../types';
 import type { DeviceManifest } from '../../lib/deviceBlocks';
@@ -79,6 +79,7 @@ export interface NuggetSpec {
 
 interface BlockJson {
   type: string;
+  id?: string;
   fields?: Record<string, unknown>;
   inputs?: Record<string, { block: BlockJson }>;
   next?: { block: BlockJson };
@@ -106,39 +107,154 @@ function walkInputChain(block: BlockJson, inputName: string): BlockJson[] {
   return walkNextChain(inputBlock);
 }
 
+/**
+ * PRD-003: Block type migration map.
+ * Maps old block type names to their new equivalents.
+ * Removed blocks map to empty string (stripped during migration).
+ */
 const BLOCK_TYPE_MIGRATIONS: Record<string, string> = {
+  // Legacy renames (pre-PRD-003)
   project_goal: 'nugget_goal',
   project_template: 'nugget_template',
+  // PRD-003: Behavioral Test -> Proof
+  behavioral_test: 'proof',
+  // PRD-003: Style -> stripped (migrated to shipped skills at interpreter level)
+  look_like: '',
+  personality: '',
+  // PRD-003: Rule -> stripped (retired)
+  use_rule: '',
+  // PRD-003: Minion -> stripped (execution context, not a primitive)
+  agent_builder: '',
+  agent_tester: '',
+  agent_reviewer: '',
+  agent_custom: '',
+  // PRD-003: Flow -> stripped (canvas layout = flow)
+  first_then: '',
+  at_same_time: '',
+  keep_improving: '',
+  timer_every: '',
+  check_with_me: '',
+  feedback_loop: '',
+  // PRD-003: Team -> stripped (removed entirely)
+  team_member: '',
+  team_member_custom: '',
+  // PRD-003: System -> stripped (removed from primitives)
+  system_level: '',
+  // PRD-003: Composition -> stripped (Phase 2 via Nugget block)
+  nugget_provides: '',
+  nugget_requires: '',
+  // PRD-003: Knowledge -> stripped (absorbed into Portal)
+  agent_backpack: '',
+  backpack_source: '',
+  study_mode: '',
 };
 
+/** Migration warnings collected during workspace migration. */
+export interface MigrationWarning {
+  blockType: string;
+  message: string;
+}
+
 /** Migrate old workspace JSON block types to their new names. Mutates in place. */
-export function migrateWorkspace(json: Record<string, unknown>): Record<string, unknown> {
+export function migrateWorkspace(json: Record<string, unknown>): { json: Record<string, unknown>; warnings: MigrationWarning[] } {
   const ws = json as unknown as WorkspaceJson;
   const blocks = ws.blocks?.blocks;
-  if (!blocks) return json;
+  const warnings: MigrationWarning[] = [];
+  if (!blocks) return { json, warnings };
 
-  function migrateBlock(block: BlockJson): void {
-    if (BLOCK_TYPE_MIGRATIONS[block.type]) {
-      block.type = BLOCK_TYPE_MIGRATIONS[block.type];
+  function migrateBlock(block: BlockJson): boolean {
+    const migration = BLOCK_TYPE_MIGRATIONS[block.type];
+    if (migration !== undefined) {
+      if (migration === '') {
+        // Block is being removed -- log warning for lossy conversions
+        if (block.type === 'use_rule') {
+          warnings.push({ blockType: block.type, message: 'Rule blocks have been retired. Consider expressing this constraint as a Promise.' });
+        } else if (block.type.startsWith('agent_')) {
+          warnings.push({ blockType: block.type, message: 'Minion blocks removed from primitives. Agents are now auto-configured.' });
+        } else if (['first_then', 'at_same_time', 'keep_improving', 'timer_every', 'check_with_me', 'feedback_loop'].includes(block.type)) {
+          warnings.push({ blockType: block.type, message: 'Flow blocks removed. Use canvas layout (vertical = sequence, side-by-side = parallel).' });
+        } else if (['team_member', 'team_member_custom'].includes(block.type)) {
+          warnings.push({ blockType: block.type, message: 'Team blocks removed.' });
+        } else if (block.type === 'system_level') {
+          warnings.push({ blockType: block.type, message: 'System level block removed from primitives.' });
+        } else if (['nugget_provides', 'nugget_requires'].includes(block.type)) {
+          warnings.push({ blockType: block.type, message: 'Composition blocks moved to Phase 2 Nugget system.' });
+        } else if (['look_like', 'personality'].includes(block.type)) {
+          warnings.push({ blockType: block.type, message: 'Style blocks migrated to shipped Skills.' });
+        } else if (['agent_backpack', 'backpack_source', 'study_mode'].includes(block.type)) {
+          warnings.push({ blockType: block.type, message: 'Knowledge blocks absorbed into Portal.' });
+        }
+        return false; // signal: remove this block from the chain
+      }
+      block.type = migration;
     }
-    if (block.next?.block) migrateBlock(block.next.block);
+    // Recurse into nested inputs
     if (block.inputs) {
       for (const input of Object.values(block.inputs)) {
-        if (input.block) migrateBlock(input.block);
+        if (input.block) {
+          const keep = migrateBlock(input.block);
+          if (!keep) {
+            // Remove the nested block
+            input.block = undefined as unknown as BlockJson;
+          }
+        }
       }
     }
+    // Recurse into next chain
+    if (block.next?.block) {
+      const keep = migrateBlock(block.next.block);
+      if (!keep) {
+        // Skip removed block, connect to the next one after it
+        const removedBlock = block.next.block;
+        block.next = removedBlock.next ?? undefined;
+        // Continue migrating the new next block if it exists
+        if (block.next?.block) {
+          const keepNext = migrateBlock(block.next.block);
+          if (!keepNext) {
+            block.next = block.next.block.next ?? undefined;
+          }
+        }
+      }
+    }
+    return true; // keep this block
   }
 
+  // Filter out top-level blocks that are removed
+  const filteredBlocks: BlockJson[] = [];
   for (const block of blocks) {
-    migrateBlock(block);
+    const keep = migrateBlock(block);
+    if (keep) {
+      filteredBlocks.push(block);
+    }
   }
-  return json;
+  if (ws.blocks) {
+    ws.blocks.blocks = filteredBlocks;
+  }
+  return { json, warnings };
+}
+
+/** Helper to extract proof (test) blocks from a promise block's TEST_SOCKET input. */
+function extractProofs(block: BlockJson, spec: NuggetSpec, reqId: string): string | undefined {
+  const testBlocks = walkInputChain(block, 'TEST_SOCKET');
+  let linkedTestId: string | undefined;
+  for (const tb of testBlocks) {
+    if (tb.type === 'proof' || tb.type === 'behavioral_test') {
+      const givenWhen = (tb.fields?.GIVEN_WHEN as string) ?? '';
+      const then = (tb.fields?.THEN as string) ?? '';
+      if (!spec.workflow.behavioral_tests) spec.workflow.behavioral_tests = [];
+      const testId = `test_${spec.workflow.behavioral_tests.length}`;
+      spec.workflow.behavioral_tests.push({ id: testId, when: givenWhen, then, requirement_id: reqId });
+      spec.workflow.testing_enabled = true;
+      if (!linkedTestId) linkedTestId = testId;
+    }
+  }
+  return linkedTestId;
 }
 
 export function interpretWorkspace(
   json: Record<string, unknown>,
   skills?: Skill[],
-  rules?: Rule[],
+  _rules?: unknown,
   portals?: Portal[],
   deviceManifests?: DeviceManifest[],
 ): NuggetSpec {
@@ -182,24 +298,9 @@ export function interpretWorkspace(
       }
       case 'feature': {
         const text = (block.fields?.FEATURE_TEXT as string) ?? '';
-        const featureReqIndex = spec.requirements.length;
-        const featureReqId = `req_${featureReqIndex}`;
-        const featureTestBlocks = walkInputChain(block, 'TEST_SOCKET');
-        let featureLinkedTestId: string | undefined;
-        if (featureTestBlocks.length > 0) {
-          for (const tb of featureTestBlocks) {
-            if (tb.type === 'behavioral_test') {
-              const givenWhen = (tb.fields?.GIVEN_WHEN as string) ?? '';
-              const then = (tb.fields?.THEN as string) ?? '';
-              if (!spec.workflow.behavioral_tests) spec.workflow.behavioral_tests = [];
-              const testId = `test_${spec.workflow.behavioral_tests.length}`;
-              spec.workflow.behavioral_tests.push({ id: testId, when: givenWhen, then, requirement_id: featureReqId });
-              spec.workflow.testing_enabled = true;
-              if (!featureLinkedTestId) featureLinkedTestId = testId;
-            }
-          }
-        }
-        spec.requirements.push({ type: 'feature', description: text, test_id: featureLinkedTestId });
+        const reqId = `req_${spec.requirements.length}`;
+        const linkedTestId = extractProofs(block, spec, reqId);
+        spec.requirements.push({ type: 'feature', description: text, test_id: linkedTestId });
         break;
       }
       case 'constraint': {
@@ -210,116 +311,16 @@ export function interpretWorkspace(
       case 'when_then': {
         const trigger = (block.fields?.TRIGGER_TEXT as string) ?? '';
         const action = (block.fields?.ACTION_TEXT as string) ?? '';
-        const reqIndex = spec.requirements.length;
-        const reqId = `req_${reqIndex}`;
-        const testBlocks = walkInputChain(block, 'TEST_SOCKET');
-        let linkedTestId: string | undefined;
-        if (testBlocks.length > 0) {
-          for (const tb of testBlocks) {
-            if (tb.type === 'behavioral_test') {
-              const givenWhen = (tb.fields?.GIVEN_WHEN as string) ?? '';
-              const then = (tb.fields?.THEN as string) ?? '';
-              if (!spec.workflow.behavioral_tests) spec.workflow.behavioral_tests = [];
-              const testId = `test_${spec.workflow.behavioral_tests.length}`;
-              spec.workflow.behavioral_tests.push({ id: testId, when: givenWhen, then, requirement_id: reqId });
-              spec.workflow.testing_enabled = true;
-              if (!linkedTestId) linkedTestId = testId;
-            }
-          }
-        }
+        const reqId = `req_${spec.requirements.length}`;
+        const linkedTestId = extractProofs(block, spec, reqId);
         spec.requirements.push({ type: 'when_then', description: `When ${trigger} happens, ${action} should happen`, test_id: linkedTestId });
         break;
       }
       case 'has_data': {
         const text = (block.fields?.DATA_TEXT as string) ?? '';
-        const dataReqIndex = spec.requirements.length;
-        const dataReqId = `req_${dataReqIndex}`;
-        const dataTestBlocks = walkInputChain(block, 'TEST_SOCKET');
-        let dataLinkedTestId: string | undefined;
-        if (dataTestBlocks.length > 0) {
-          for (const tb of dataTestBlocks) {
-            if (tb.type === 'behavioral_test') {
-              const givenWhen = (tb.fields?.GIVEN_WHEN as string) ?? '';
-              const then = (tb.fields?.THEN as string) ?? '';
-              if (!spec.workflow.behavioral_tests) spec.workflow.behavioral_tests = [];
-              const testId = `test_${spec.workflow.behavioral_tests.length}`;
-              spec.workflow.behavioral_tests.push({ id: testId, when: givenWhen, then, requirement_id: dataReqId });
-              spec.workflow.testing_enabled = true;
-              if (!dataLinkedTestId) dataLinkedTestId = testId;
-            }
-          }
-        }
-        spec.requirements.push({ type: 'data', description: text, test_id: dataLinkedTestId });
-        break;
-      }
-      // behavioral_test blocks are now handled inside when_then via TEST_SOCKET input.
-      // They cannot appear in the main chain (typed connection: test_check).
-      case 'look_like': {
-        const preset = (block.fields?.STYLE_PRESET as string) ?? '';
-        if (!spec.style) spec.style = { visual: null, personality: null };
-        spec.style.visual = preset;
-        break;
-      }
-      case 'personality': {
-        const text = (block.fields?.PERSONALITY_TEXT as string) ?? '';
-        if (!spec.style) spec.style = { visual: null, personality: null };
-        spec.style.personality = text;
-        break;
-      }
-      case 'agent_builder': {
-        const name = (block.fields?.AGENT_NAME as string) ?? 'Builder';
-        const persona = (block.fields?.AGENT_PERSONA as string) ?? '';
-        spec.agents.push({ name, role: 'builder', persona });
-        break;
-      }
-      case 'agent_tester': {
-        const name = (block.fields?.AGENT_NAME as string) ?? 'Tester';
-        const persona = (block.fields?.AGENT_PERSONA as string) ?? '';
-        spec.agents.push({ name, role: 'tester', persona });
-        spec.workflow.testing_enabled = true;
-        break;
-      }
-      case 'agent_reviewer': {
-        const name = (block.fields?.AGENT_NAME as string) ?? 'Reviewer';
-        const persona = (block.fields?.AGENT_PERSONA as string) ?? '';
-        spec.agents.push({ name, role: 'reviewer', persona });
-        spec.workflow.review_enabled = true;
-        break;
-      }
-      case 'agent_custom': {
-        const name = (block.fields?.AGENT_NAME as string) ?? 'Helper';
-        const persona = (block.fields?.AGENT_PERSONA as string) ?? '';
-        spec.agents.push({ name, role: 'custom', persona });
-        break;
-      }
-      case 'first_then': {
-        const firstBlocks = walkInputChain(block, 'FIRST_BLOCKS');
-        const thenBlocks = walkInputChain(block, 'THEN_BLOCKS');
-        const firstDescs = firstBlocks.map(b => (b.fields?.FEATURE_TEXT as string) ?? (b.fields?.GOAL_TEXT as string) ?? b.type);
-        const thenDescs = thenBlocks.map(b => (b.fields?.FEATURE_TEXT as string) ?? (b.fields?.GOAL_TEXT as string) ?? b.type);
-        spec.workflow.flow_hints!.push({ type: 'sequential', descriptions: [...firstDescs, ...thenDescs] });
-        break;
-      }
-      case 'at_same_time': {
-        const parallelBlocks = walkInputChain(block, 'PARALLEL_BLOCKS');
-        const descs = parallelBlocks.map(b => (b.fields?.FEATURE_TEXT as string) ?? (b.fields?.GOAL_TEXT as string) ?? b.type);
-        spec.workflow.flow_hints!.push({ type: 'parallel', descriptions: descs });
-        break;
-      }
-      case 'keep_improving': {
-        const text = (block.fields?.CONDITION_TEXT as string) ?? '';
-        spec.workflow.iteration_conditions!.push(text);
-        break;
-      }
-      case 'check_with_me': {
-        const text = (block.fields?.GATE_DESCRIPTION as string) ?? '';
-        spec.workflow.human_gates.push(text);
-        spec.workflow.review_enabled = true;
-        break;
-      }
-      case 'timer_every': {
-        const interval = (block.fields?.INTERVAL as number) ?? 5;
-        spec.requirements.push({ type: 'timer', description: `Repeat every ${interval} seconds` });
+        const reqId = `req_${spec.requirements.length}`;
+        const linkedTestId = extractProofs(block, spec, reqId);
+        spec.requirements.push({ type: 'data', description: text, test_id: linkedTestId });
         break;
       }
       case 'use_skill': {
@@ -335,17 +336,6 @@ export function interpretWorkspace(
               entry.workspace = skill.workspace;
             }
             spec.skills.push(entry);
-          }
-        }
-        break;
-      }
-      case 'use_rule': {
-        const ruleId = (block.fields?.RULE_ID as string) ?? '';
-        if (ruleId && rules) {
-          const rule = rules.find(r => r.id === ruleId);
-          if (rule) {
-            if (!spec.rules) spec.rules = [];
-            spec.rules.push({ id: rule.id, name: rule.name, prompt: rule.prompt, trigger: rule.trigger });
           }
         }
         break;
@@ -415,49 +405,7 @@ export function interpretWorkspace(
         };
         break;
       }
-      // --- Systems Thinking: feedback loop block ---
-      case 'feedback_loop': {
-        const id = (block.fields?.LOOP_ID as string) ?? '';
-        const trigger = (block.fields?.TRIGGER as string) ?? 'test_failure';
-        const exitCondition = (block.fields?.EXIT_CONDITION as string) ?? '';
-        const maxIterations = (block.fields?.MAX_ITERATIONS as number) ?? 3;
-        const connectsFrom = (block.fields?.CONNECTS_FROM as string) ?? '';
-        const connectsTo = (block.fields?.CONNECTS_TO as string) ?? '';
-        if (!spec.workflow.feedback_loops) spec.workflow.feedback_loops = [];
-        spec.workflow.feedback_loops.push({
-          id,
-          trigger: trigger as 'test_failure' | 'review_rejection' | 'custom',
-          exit_condition: exitCondition,
-          max_iterations: maxIterations,
-          connects_from: connectsFrom,
-          connects_to: connectsTo,
-        });
-        break;
-      }
-      // --- Systems Thinking: composition interface blocks ---
-      case 'nugget_provides': {
-        const name = (block.fields?.INTERFACE_NAME as string) ?? 'user_data';
-        const type = (block.fields?.INTERFACE_TYPE as string) ?? 'data';
-        if (!spec.composition) spec.composition = { provides: [], requires: [] };
-        if (!spec.composition.provides) spec.composition.provides = [];
-        spec.composition.provides.push({ name, type });
-        break;
-      }
-      case 'nugget_requires': {
-        const name = (block.fields?.INTERFACE_NAME as string) ?? 'user_data';
-        const type = (block.fields?.INTERFACE_TYPE as string) ?? 'data';
-        if (!spec.composition) spec.composition = { provides: [], requires: [] };
-        if (!spec.composition.requires) spec.composition.requires = [];
-        spec.composition.requires.push({ name, type });
-        break;
-      }
-      // --- Systems Thinking: system level block ---
-      case 'system_level': {
-        const level = (block.fields?.LEVEL as string) ?? 'explorer';
-        spec.workflow.system_level = level as 'explorer' | 'builder' | 'architect';
-        break;
-      }
-      // --- PRD-001: runtime config block ---
+      // --- PRD-001: runtime config block (not in palette, but interpreted if present) ---
       case 'runtime_config': {
         spec.runtime = {
           agent_name: (block.fields?.AGENT_NAME as string) || undefined,
@@ -468,64 +416,7 @@ export function interpretWorkspace(
         };
         break;
       }
-      // --- PRD-001: agent backpack declaration block ---
-      case 'agent_backpack': {
-        if (!spec.knowledge) spec.knowledge = {};
-        if (!spec.knowledge.backpack_sources) spec.knowledge.backpack_sources = [];
-        break;
-      }
-      // --- PRD-001: backpack source block ---
-      case 'backpack_source': {
-        const sourceId = (block.fields?.SOURCE_ID as string) ?? '';
-        const sourceType = (block.fields?.SOURCE_TYPE as string) ?? 'url';
-        const title = (block.fields?.TITLE as string) ?? '';
-        const uri = (block.fields?.URI as string) || undefined;
-        if (!spec.knowledge) spec.knowledge = {};
-        if (!spec.knowledge.backpack_sources) spec.knowledge.backpack_sources = [];
-        spec.knowledge.backpack_sources.push({
-          id: sourceId,
-          type: sourceType as 'pdf' | 'url' | 'youtube' | 'drive' | 'topic_pack' | 'sports_feed' | 'news_feed' | 'custom_feed',
-          title,
-          uri,
-        });
-        break;
-      }
-      // --- PRD-001: study mode block ---
-      case 'study_mode': {
-        const enabled = (block.fields?.ENABLED as boolean) ?? true;
-        const style = (block.fields?.STYLE as string) ?? 'explain';
-        const difficulty = (block.fields?.DIFFICULTY as string) ?? 'medium';
-        const rawFreq = block.fields?.QUIZ_FREQUENCY;
-        const quizFrequency = typeof rawFreq === 'number' ? rawFreq : Number(rawFreq) || 5;
-        if (!spec.knowledge) spec.knowledge = {};
-        spec.knowledge.study_mode = {
-          enabled,
-          style: style as 'explain' | 'quiz_me' | 'flashcards' | 'socratic',
-          difficulty: difficulty as 'easy' | 'medium' | 'hard',
-          quiz_frequency: quizFrequency,
-        };
-        break;
-      }
-      // --- Agent Team: team member blocks ---
-      case 'team_member': {
-        const meetingTypeId = (block.fields?.MEETING_TYPE as string) ?? '';
-        if (meetingTypeId) {
-          if (!spec.meeting_team) spec.meeting_team = [];
-          spec.meeting_team.push({ type: 'builtin', meetingTypeId });
-        }
-        break;
-      }
-      case 'team_member_custom': {
-        const name = (block.fields?.AGENT_NAME as string) ?? '';
-        const persona = (block.fields?.AGENT_PERSONA as string) ?? '';
-        const canvasType = (block.fields?.CANVAS_TYPE as string) ?? 'explain-it';
-        if (name) {
-          if (!spec.meeting_team) spec.meeting_team = [];
-          spec.meeting_team.push({ type: 'custom', name, persona, canvasType });
-        }
-        break;
-      }
-      // --- PRD-002: deploy runtime block ---
+      // --- PRD-001: deploy runtime block ---
       case 'deploy_runtime': {
         const runtimeUrl = (block.fields?.RUNTIME_URL as string) || undefined;
         spec.deployment.provision_runtime = true;

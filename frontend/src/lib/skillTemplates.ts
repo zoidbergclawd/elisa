@@ -11,6 +11,53 @@ export interface RuleTemplate extends Rule {
   tags: string[];
 }
 
+/**
+ * PRD-003: Shipped style skills (migrated from Style blocks).
+ * These are built-in skills that replace the former Style primitive category.
+ */
+export const SHIPPED_STYLE_SKILLS: SkillTemplate[] = [
+  {
+    id: 'shipped-style-fun-colorful',
+    name: 'Fun & Colorful style',
+    prompt: 'Apply a fun, colorful visual style. Use bright, vibrant colors (pinks, oranges, yellows, teals). Round corners, playful fonts, generous spacing. Make it feel energetic and joyful.',
+    category: 'style',
+    description: 'Bright, vibrant, energetic visual style.',
+    tags: ['style', 'shipped'],
+  },
+  {
+    id: 'shipped-style-clean-simple',
+    name: 'Clean & Simple style',
+    prompt: 'Apply a clean, minimal visual style. Use a neutral color palette (whites, grays, one accent color). Sans-serif fonts, plenty of whitespace, subtle shadows. Make it feel professional and calm.',
+    category: 'style',
+    description: 'Minimal, professional visual style.',
+    tags: ['style', 'shipped'],
+  },
+  {
+    id: 'shipped-style-dark-techy',
+    name: 'Dark & Techy style',
+    prompt: 'Apply a dark, tech-inspired visual style. Use a dark background (#1a1a2e or similar), neon accent colors (cyan, lime green, electric purple). Monospace fonts for headings, subtle glow effects. Make it feel like a hacker terminal.',
+    category: 'style',
+    description: 'Dark backgrounds with neon accents.',
+    tags: ['style', 'shipped'],
+  },
+  {
+    id: 'shipped-style-nature',
+    name: 'Nature style',
+    prompt: 'Apply a nature-inspired visual style. Use earthy colors (greens, browns, soft blues). Organic shapes, leaf or wood textures, warm tones. Make it feel natural and grounded.',
+    category: 'style',
+    description: 'Earthy tones, organic shapes.',
+    tags: ['style', 'shipped'],
+  },
+  {
+    id: 'shipped-style-space',
+    name: 'Space style',
+    prompt: 'Apply a space-themed visual style. Use deep navy/black backgrounds with star-field effects. Accent with cosmic purples, bright whites, and nebula gradients. Futuristic fonts. Make it feel like exploring the cosmos.',
+    category: 'style',
+    description: 'Deep space with cosmic colors.',
+    tags: ['style', 'shipped'],
+  },
+];
+
 export const SKILL_TEMPLATES: SkillTemplate[] = [
   {
     id: 'tmpl-explain-everything',

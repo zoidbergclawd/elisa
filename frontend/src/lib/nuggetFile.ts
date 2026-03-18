@@ -21,6 +21,8 @@ export interface NuggetFileData {
   rules: Rule[];
   portals: Portal[];
   outputArchive?: Blob;
+  /** PRD-003 Phase 2: Composition workspace (nugget_ref blocks). */
+  compositionWorkspace?: Record<string, unknown>;
 }
 
 /**
@@ -33,12 +35,16 @@ export async function saveNuggetFile(
   rules: Rule[],
   portals: Portal[],
   outputArchive?: Blob,
+  compositionWorkspace?: Record<string, unknown>,
 ): Promise<Blob> {
   const zip = new JSZip();
   zip.file('workspace.json', JSON.stringify(workspace, null, 2));
   zip.file('skills.json', JSON.stringify(skills, null, 2));
   zip.file('rules.json', JSON.stringify(rules, null, 2));
   zip.file('portals.json', JSON.stringify(portals, null, 2));
+  if (compositionWorkspace) {
+    zip.file('composition.json', JSON.stringify(compositionWorkspace, null, 2));
+  }
 
   if (outputArchive) {
     const archiveData = await readBlobAsArrayBuffer(outputArchive);
@@ -68,6 +74,7 @@ export async function loadNuggetFile(file: File): Promise<NuggetFileData> {
   const skillsJson = await zip.file('skills.json')?.async('string');
   const rulesJson = await zip.file('rules.json')?.async('string');
   const portalsJson = await zip.file('portals.json')?.async('string');
+  const compositionJson = await zip.file('composition.json')?.async('string');
 
   const workspace = JSON.parse(workspaceJson) as Record<string, unknown>;
   if (typeof workspace !== 'object' || workspace === null || Array.isArray(workspace)) {
@@ -119,7 +126,19 @@ export async function loadNuggetFile(file: File): Promise<NuggetFileData> {
     outputArchive = await innerZip.generateAsync({ type: 'blob' });
   }
 
-  return { workspace, skills, rules, portals, outputArchive };
+  let compositionWorkspace: Record<string, unknown> | undefined;
+  if (compositionJson) {
+    try {
+      const parsed = JSON.parse(compositionJson);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        compositionWorkspace = parsed as Record<string, unknown>;
+      }
+    } catch {
+      // Invalid composition.json -- ignore
+    }
+  }
+
+  return { workspace, skills, rules, portals, outputArchive, compositionWorkspace };
 }
 
 /**

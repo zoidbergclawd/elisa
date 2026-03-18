@@ -1,6 +1,6 @@
-import { createContext, useContext } from 'react';
+import { createContext, useContext, useState, useCallback } from 'react';
 import type { ReactNode, RefObject } from 'react';
-import type { BlockCanvasHandle } from '../components/BlockCanvas/BlockCanvas';
+import type { BlockCanvasHandle, WorkspaceMode } from '../components/BlockCanvas/BlockCanvas';
 import { useWorkspaceIO } from '../hooks/useWorkspaceIO';
 import { useSystemLevel } from '../hooks/useSystemLevel';
 import type { NuggetSpec } from '../components/BlockCanvas/blockInterpreter';
@@ -23,6 +23,7 @@ export interface WorkspaceContextValue {
   examplePickerOpen: boolean;
   deviceManifests: DeviceManifest[];
   systemLevel: SystemLevel;
+  workspaceMode: WorkspaceMode;
 
   // Actions
   setSkills: React.Dispatch<React.SetStateAction<Skill[]>>;
@@ -38,6 +39,7 @@ export interface WorkspaceContextValue {
   handleDirPickerCancel: () => void;
   ensureWorkspacePath: () => Promise<string | null>;
   reinterpretWorkspace: () => void;
+  setWorkspaceMode: (mode: WorkspaceMode) => void;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
@@ -57,11 +59,17 @@ export function WorkspaceProvider({
 }: WorkspaceProviderProps) {
   const workspace = useWorkspaceIO({ blockCanvasRef, sessionId, deviceManifests });
   const systemLevel = useSystemLevel(workspace.spec);
+  const [workspaceMode, setWorkspaceModeState] = useState<WorkspaceMode>('specify');
+  const setWorkspaceMode = useCallback((mode: WorkspaceMode) => {
+    setWorkspaceModeState(mode);
+  }, []);
 
   const value: WorkspaceContextValue = {
     ...workspace,
     deviceManifests,
     systemLevel,
+    workspaceMode,
+    setWorkspaceMode,
   };
 
   return (

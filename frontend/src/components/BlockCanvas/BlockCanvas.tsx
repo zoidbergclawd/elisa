@@ -1,14 +1,19 @@
 import { useRef, useEffect, useCallback, useImperativeHandle, forwardRef } from 'react';
 import * as Blockly from 'blockly';
 import { registerBlocks } from './blockDefinitions';
+import { registerNuggetBlocks } from './nuggetBlocks';
 import { toolbox, buildDeviceCategories } from './toolbox';
+import { compositionToolbox } from './compositionToolbox';
 import { updateSkillOptions, updateRuleOptions } from '../Skills/skillsRegistry';
 import { updatePortalOptions } from '../Portals/portalRegistry';
 import type { Skill, Rule } from '../Skills/types';
 import type { Portal } from '../Portals/types';
 import type { DeviceManifest } from '../../lib/deviceBlocks';
 
+export type WorkspaceMode = 'specify' | 'compose';
+
 registerBlocks();
+registerNuggetBlocks();
 
 export interface BlockCanvasHandle {
   loadWorkspace: (json: Record<string, unknown>) => void;
@@ -23,10 +28,11 @@ interface BlockCanvasProps {
   portals?: Portal[];
   initialWorkspace?: Record<string, unknown> | null;
   deviceManifests?: DeviceManifest[];
+  mode?: WorkspaceMode;
 }
 
 const BlockCanvas = forwardRef<BlockCanvasHandle, BlockCanvasProps>(
-  function BlockCanvas({ onWorkspaceChange, readOnly = false, skills = [], rules = [], portals = [], initialWorkspace, deviceManifests = [] }, ref) {
+  function BlockCanvas({ onWorkspaceChange, readOnly = false, skills = [], rules = [], portals = [], initialWorkspace, deviceManifests = [], mode = 'specify' }, ref) {
     const containerRef = useRef<HTMLDivElement>(null);
     const workspaceRef = useRef<Blockly.WorkspaceSvg | null>(null);
     const initialWorkspaceRef = useRef(initialWorkspace);
@@ -58,10 +64,12 @@ const BlockCanvas = forwardRef<BlockCanvasHandle, BlockCanvasProps>(
     useEffect(() => {
       if (!containerRef.current || workspaceRef.current) return;
 
-      const dynamicToolbox = {
-        ...toolbox,
-        contents: [...toolbox.contents, ...buildDeviceCategories(deviceManifests)],
-      };
+      const dynamicToolbox = mode === 'compose'
+        ? compositionToolbox
+        : {
+            ...toolbox,
+            contents: [...toolbox.contents, ...buildDeviceCategories(deviceManifests)],
+          };
 
       const workspace = Blockly.inject(containerRef.current, {
         toolbox: dynamicToolbox,
@@ -110,15 +118,19 @@ const BlockCanvas = forwardRef<BlockCanvasHandle, BlockCanvasProps>(
       updatePortalOptions(portals);
     }, [skills, rules, portals]);
 
-    // Update toolbox when device manifests load after initial render
+    // Update toolbox when device manifests load or mode changes
     useEffect(() => {
-      if (!workspaceRef.current || !deviceManifests.length) return;
-      const updated = {
-        ...toolbox,
-        contents: [...toolbox.contents, ...buildDeviceCategories(deviceManifests)],
-      };
-      workspaceRef.current.updateToolbox(updated);
-    }, [deviceManifests]);
+      if (!workspaceRef.current) return;
+      if (mode === 'compose') {
+        workspaceRef.current.updateToolbox(compositionToolbox);
+      } else if (deviceManifests.length) {
+        const updated = {
+          ...toolbox,
+          contents: [...toolbox.contents, ...buildDeviceCategories(deviceManifests)],
+        };
+        workspaceRef.current.updateToolbox(updated);
+      }
+    }, [deviceManifests, mode]);
 
     useEffect(() => {
       if (!workspaceRef.current) return;

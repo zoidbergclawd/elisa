@@ -44,6 +44,8 @@ src/
     skillTemplates.ts        Pre-built skill and rule templates for template library
     terminology.ts           Kid-friendly term mappings (technical -> friendly labels)
     deviceBlocks.ts          Dynamic Blockly block registration from device plugin manifests
+    shippedNuggets.ts        Shipped nugget specs for composition (Dashboard, API, Sensor, Gateway)
+    composeNuggets.ts        Client-side nugget composition merge + deployment resolution
     examples/                Bundled example nuggets (ES modules, offline-ready, device-gated via requiredDevices)
   types/
     index.ts                 All TypeScript interfaces (NuggetSpec, Task, Agent, WSEvent, FaceDescriptor, etc.)
@@ -54,6 +56,8 @@ src/
 No state library. `useBuildSession` hook holds all session state via `useReducer` with typed `BuildSessionAction` discriminated union. WebSocket events arrive and are dispatched through `handleEvent()` -> reducer. Workspace I/O (skills, rules, portals, file open/save) lives in `useWorkspaceIO` hook. All modals are rendered by `shared/ModalHost`.
 
 Workspace JSON, skills, and rules auto-save to `localStorage` on every change and restore on page load. Keys: `elisa:workspace`, `elisa:skills`, `elisa:rules`, `elisa:portals`, `elisa:workspace-path` (user-chosen directory).
+
+Workspace mode (`'specify' | 'compose'`) in WorkspaceContext controls which toolbox the BlockCanvas uses. Composition workspace JSON persisted in .elisa files as `composition.json`.
 
 UI phases: `design` | `building` | `review` | `deploy` | `done`
 
