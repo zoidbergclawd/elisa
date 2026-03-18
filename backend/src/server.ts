@@ -113,6 +113,11 @@ const specGraphService = new SpecGraphService();
 import { CompositionService } from './services/compositionService.js';
 const compositionService = new CompositionService(specGraphService);
 
+// Planning Mode (PRD-004)
+import { PlanningService } from './services/planningService.js';
+import { createPlanningRouter, buildPlanningReplayEvents } from './routes/planning.js';
+const planningService = new PlanningService();
+
 // Agent Runtime (PRD-001)
 // Use LAN IP for runtime URL so ESP32 devices can reach us over WiFi.
 // Falls back to localhost for browser-only usage.
@@ -400,6 +405,7 @@ function createApp(staticDir?: string, authToken?: string) {
   app.use('/api/workspace', createWorkspaceRouter());
   app.use('/api/devices', createDeviceRouter({ registry: deviceRegistry }));
   app.use('/api/sessions/:sessionId/meetings', createMeetingRouter({ store, meetingService, meetingAgentService, sendEvent }));
+  app.use('/api/sessions/:id/planning', createPlanningRouter({ store, planningService, sendEvent }));
   app.use('/api/spec-graph', createSpecGraphRouter({ specGraphService, compositionService, sendEvent }));
 
   // Agent Runtime (PRD-001) — mounted at /v1/* with its own api-key auth
@@ -515,6 +521,13 @@ export function startServer(
         wsMeta.set(ws, meta);
         manager.connect(sessionId, ws);
         store.cancelCleanup(sessionId); // Session stays alive while a WS is connected
+
+        // Replay planning state on reconnect
+        const planningReplay = buildPlanningReplayEvents(planningService, sessionId);
+        for (const evt of planningReplay) {
+          try { ws.send(JSON.stringify(evt)); } catch { /* best-effort */ }
+        }
+
         // Clear socket-level timeout so Node doesn't close the underlying TCP socket
         (ws as any)._socket?.setTimeout?.(0);
         ws.on('pong', () => {
