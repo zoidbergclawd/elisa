@@ -387,15 +387,27 @@ export class PlanningService {
     originalMessages: Array<{ role: 'user' | 'assistant'; content: string }>,
     badResponse: string,
   ): Promise<PlanningTurnResult> {
+    // Build a specific error hint from the validation failure
+    let errorHint = '';
+    const parsed0 = this.tryParseJsonResponse(badResponse);
+    if (parsed0) {
+      const normalized0 = this.normalizeResponse(parsed0);
+      const check = PlanningTurnOutputLenientSchema.safeParse(normalized0);
+      if (!check.success) {
+        const paths = check.error.issues.slice(0, 3).map(i => `${i.path.join('.')}: ${i.message}`).join('; ');
+        errorHint = ` Specific errors: ${paths}.`;
+      }
+    }
+
     const retryMessages = [
       ...originalMessages,
       { role: 'assistant' as const, content: badResponse },
       {
         role: 'user' as const,
         content:
-          'Your response was not valid JSON matching the required schema. ' +
+          `Your response was not valid JSON matching the required schema.${errorHint} ` +
           'Please output ONLY a JSON object with fields: message (string), question (object or null), ' +
-          'plan_mutation_map (object), plan (PlanState object). No markdown, no code fences.',
+          'plan_mutation_map (object), plan (PlanState object with skills as [{name: string, description: string}]). No markdown, no code fences.',
       },
     ];
 
@@ -606,6 +618,25 @@ export class PlanningService {
           }
         }
       }
+      // Normalize skills: Claude often omits `name`, using `title`, `id`, or description-only
+      if (Array.isArray(plan.skills)) {
+        for (const skill of plan.skills as Record<string, unknown>[]) {
+          if (!skill.name || typeof skill.name !== 'string') {
+            // Derive name from other fields Claude might have used
+            skill.name = (skill.title as string)
+              ?? (skill.id as string)
+              ?? (typeof skill.description === 'string' ? skill.description.slice(0, 60) : 'Unnamed skill');
+          }
+          if (!skill.description || typeof skill.description !== 'string') {
+            skill.description = skill.name as string;
+          }
+          // Strip extra keys that fail strict validation
+          for (const key of Object.keys(skill)) {
+            if (key !== 'name' && key !== 'description') delete skill[key];
+          }
+        }
+      }
+
       // Normalize promises: strip extra keys
       if (Array.isArray(plan.promises)) {
         for (const promise of plan.promises as Record<string, unknown>[]) {
