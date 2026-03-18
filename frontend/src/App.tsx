@@ -29,6 +29,7 @@ import { playChime } from './lib/playChime';
 import PlanningModal from './components/Planning/PlanningModal';
 import { usePlanningSession } from './hooks/usePlanningSession';
 import { populateCanvasFromPlan } from './components/BlockCanvas/planToBlocks';
+import { updateSkillOptions } from './components/Skills/skillsRegistry';
 import { BuildSessionProvider } from './contexts/BuildSessionContext';
 import { useBuildSessionContext } from './contexts/BuildSessionContext';
 import { MeetingProvider } from './contexts/MeetingContext';
@@ -259,8 +260,12 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
         prompt: s.description,
         category: 'agent' as const,
       }));
+      const allSkills = newSkills.length > 0 ? [...skills, ...newSkills] : skills;
       if (newSkills.length > 0) {
-        setSkills((prev) => [...prev, ...newSkills]);
+        // Update registry synchronously BEFORE loading workspace so Blockly
+        // can resolve skill IDs in the use_skill dropdown immediately
+        updateSkillOptions(allSkills);
+        setSkills(allSkills);
       }
 
       // Replace Skill block content (names) with registered skill IDs

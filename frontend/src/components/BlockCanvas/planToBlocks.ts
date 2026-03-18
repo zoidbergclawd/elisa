@@ -44,14 +44,15 @@ function mapBlockType(block: CanvasBlock): string {
   return BLOCK_TYPE_MAP[block.type] ?? 'nugget_goal';
 }
 
-function fieldName(blockType: string): string {
+function fieldName(blockType: string): string | null {
   switch (blockType) {
     case 'nugget_goal': return 'GOAL_TEXT';
     case 'feature': return 'FEATURE_TEXT';
     case 'proof': return 'GIVEN_WHEN';
     case 'use_skill': return 'SKILL_ID';
     case 'portal_tell': return 'COMMAND';
-    default: return 'FEATURE_TEXT';
+    // deploy_web, deploy_esp32, deploy_both have no text input fields
+    default: return null;
   }
 }
 
@@ -80,12 +81,13 @@ function splitProofContent(content: string): [string, string] {
 
 function canvasBlockToBlockly(block: CanvasBlock): BlocklyBlock {
   const blockType = mapBlockType(block);
+  const field = fieldName(blockType);
   const result: BlocklyBlock = {
     type: blockType,
     id: makeBlockId(),
     x: block.position.x,
     y: block.position.y,
-    fields: { [fieldName(blockType)]: block.content },
+    ...(field ? { fields: { [field]: block.content } } : {}),
   };
 
   // Attach child proofs to promise blocks via TEST_SOCKET statement input
