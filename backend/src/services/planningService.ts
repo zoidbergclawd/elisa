@@ -14,7 +14,7 @@ import {
   PLANNING_CANVAS_MAX_TOKENS,
 } from '../utils/constants.js';
 import {
-  PlanningTurnOutputSchema,
+  PlanningTurnOutputLenientSchema,
   CanvasBlockSpecSchema,
 } from '../utils/planSchema.js';
 import type {
@@ -344,7 +344,8 @@ Rules:
     const parsed = this.tryParseJsonResponse(raw);
 
     if (parsed) {
-      const validated = PlanningTurnOutputSchema.safeParse(parsed);
+      const normalized = this.normalizeResponse(parsed);
+      const validated = PlanningTurnOutputLenientSchema.safeParse(normalized);
       if (validated.success) {
         return this.processValidatedOutput(session, validated.data);
       }
@@ -389,9 +390,10 @@ Rules:
       throw new Error('Planning agent failed to produce valid JSON after retry');
     }
 
-    const validated = PlanningTurnOutputSchema.safeParse(parsed);
+    const normalized = this.normalizeResponse(parsed);
+    const validated = PlanningTurnOutputLenientSchema.safeParse(normalized);
     if (!validated.success) {
-      throw new Error(`Planning agent failed to produce valid output after retry: ${validated.error.message}`);
+      throw new Error(`Planning agent failed to produce valid output after retry: ${JSON.stringify(validated.error.issues)}`);
     }
 
     return this.processValidatedOutput(session, validated.data);
@@ -521,6 +523,51 @@ Rules:
     }
 
     return result;
+  }
+
+  /**
+   * Normalize Claude's response to match our expected schema.
+   * Handles common quirks like wrong field names or misplaced fields.
+   */
+  private normalizeResponse(parsed: Record<string, unknown>): Record<string, unknown> {
+    // Fix question object: Claude sometimes uses "prompt" instead of "text"
+    if (parsed.question && typeof parsed.question === 'object' && parsed.question !== null) {
+      const q = parsed.question as Record<string, unknown>;
+      if (!q.text && q.prompt && typeof q.prompt === 'string') {
+        q.text = q.prompt;
+      }
+      // Remove fields that don't belong inside question (Claude sometimes nests teaching here)
+      delete q.prompt;
+      delete q.teaching;
+      delete q.plan_mutation_map;
+    }
+
+    // If teaching was placed inside question, move it to top level
+    if (
+      !parsed.teaching &&
+      parsed.question &&
+      typeof parsed.question === 'object' &&
+      (parsed.question as Record<string, unknown>).teaching
+    ) {
+      parsed.teaching = (parsed.question as Record<string, unknown>).teaching;
+      delete (parsed.question as Record<string, unknown>).teaching;
+    }
+
+    // If plan is missing but there are plan-like fields at root, wrap them
+    if (!parsed.plan && parsed.idea && parsed.goal) {
+      const planKeys = ['idea', 'goal', 'promises', 'skills', 'portals', 'deploy', 'open_questions', 'ready', 'conversation_turn'];
+      const plan: Record<string, unknown> = {};
+      for (const key of planKeys) {
+        if (key in parsed) {
+          plan[key] = parsed[key];
+        }
+      }
+      if (Object.keys(plan).length >= 3) {
+        parsed.plan = plan;
+      }
+    }
+
+    return parsed;
   }
 
   private tryParseJsonResponse(raw: string): Record<string, unknown> | null {

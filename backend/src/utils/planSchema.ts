@@ -92,6 +92,37 @@ export const PlanningTurnOutputSchema = z.object({
   teaching: TeachingAnnotationSchema.nullable().optional(),
 }).strict();
 
+// --- Lenient versions for parsing Claude's output (strips extra keys instead of rejecting) ---
+
+const QuestionOptionLenientSchema = z.object({
+  label: z.string().max(500),
+  value: z.string().max(200),
+});
+
+const QuestionWidgetLenientSchema = z.object({
+  text: z.string().max(2000),
+  type: QuestionTypeSchema,
+  options: z.array(QuestionOptionLenientSchema).min(2).max(8),
+});
+
+const TeachingAnnotationLenientSchema = z.object({
+  why_asking: z.string().max(2000),
+  primitive_connection: z.array(z.string().max(50)).max(6),
+  pattern_spotted: z.string().max(200).nullable(),
+  what_if: z.string().max(2000).nullable(),
+});
+
+const PlanStateLenientSchema = PlanStateSchema.strip();
+
+/** Lenient schema for parsing Claude's planning output. Strips extra keys instead of rejecting. */
+export const PlanningTurnOutputLenientSchema = z.object({
+  message: z.string().max(5000),
+  question: QuestionWidgetLenientSchema.nullable(),
+  plan_mutation_map: PlanMutationMapSchema,
+  plan: PlanStateLenientSchema,
+  teaching: TeachingAnnotationLenientSchema.nullable().optional(),
+});
+
 // --- Canvas Block Spec Schema (Section 5.2) ---
 
 export const BlockPrimitiveTypeSchema = z.enum([
