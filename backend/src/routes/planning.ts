@@ -164,51 +164,54 @@ export function createPlanningRouter({
       res.json(mutationResult);
       autoSave(sessionId);
 
-      try {
-        const followUp = await planningService.handleFreeTextAnswer(
-          sessionId,
-          `[User selected: ${optionValue}]`,
-        );
+      // Fire-and-forget: generate next question asynchronously
+      (async () => {
+        try {
+          const followUp = await planningService.handleFreeTextAnswer(
+            sessionId,
+            `[User selected: ${optionValue}]`,
+          );
 
-        await sendEvent(sessionId, {
-          type: 'planning_turn',
-          message: followUp.message,
-          streaming: false,
-        });
-        await sendEvent(sessionId, {
-          type: 'planning_plan_updated',
-          plan: followUp.plan,
-        });
-        if (followUp.question) {
-          const state = planningService.getState(sessionId);
           await sendEvent(sessionId, {
-            type: 'planning_question',
-            question: followUp.question,
-            plan_mutation_map: (state?.currentMutationMap ?? {}) as Record<string, Record<string, unknown> | null>,
+            type: 'planning_turn',
+            message: followUp.message,
+            streaming: false,
           });
-        }
-        if (followUp.teaching) {
           await sendEvent(sessionId, {
-            type: 'planning_teaching',
-            teaching: followUp.teaching,
-          });
-        }
-        if (followUp.status === 'ready') {
-          await sendEvent(sessionId, {
-            type: 'planning_ready',
+            type: 'planning_plan_updated',
             plan: followUp.plan,
-            summary: 'Plan is ready to build!',
+          });
+          if (followUp.question) {
+            const state = planningService.getState(sessionId);
+            await sendEvent(sessionId, {
+              type: 'planning_question',
+              question: followUp.question,
+              plan_mutation_map: (state?.currentMutationMap ?? {}) as Record<string, Record<string, unknown> | null>,
+            });
+          }
+          if (followUp.teaching) {
+            await sendEvent(sessionId, {
+              type: 'planning_teaching',
+              teaching: followUp.teaching,
+            });
+          }
+          if (followUp.status === 'ready') {
+            await sendEvent(sessionId, {
+              type: 'planning_ready',
+              plan: followUp.plan,
+              summary: 'Your plan looks complete! Review it and click Generate Canvas when ready.',
+            });
+          }
+          autoSave(sessionId);
+        } catch (followUpErr) {
+          const msg = followUpErr instanceof Error ? followUpErr.message : String(followUpErr);
+          console.error('[planning] follow-up question failed:', msg);
+          await sendEvent(sessionId, {
+            type: 'planning_error',
+            error: `Follow-up failed: ${msg}. You can type a message to continue.`,
           });
         }
-        autoSave(sessionId);
-      } catch (followUpErr) {
-        const msg = followUpErr instanceof Error ? followUpErr.message : String(followUpErr);
-        console.error('[planning] follow-up question failed:', msg);
-        await sendEvent(sessionId, {
-          type: 'planning_error',
-          error: msg,
-        });
-      }
+      })();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       console.error('[planning] answer failed:', message);

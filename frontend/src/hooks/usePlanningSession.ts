@@ -93,6 +93,7 @@ export function planningReducer(state: PlanningSessionState, action: PlanningAct
         currentQuestion: action.question,
         currentMutationMap: action.mutationMap,
         isAgentThinking: false,
+        error: null,
       };
 
     case 'PLANNING_PLAN_UPDATED':
@@ -126,6 +127,8 @@ export function planningReducer(state: PlanningSessionState, action: PlanningAct
         ...state,
         error: action.error,
         isAgentThinking: false,
+        // Keep the conversation going -- user can type to continue
+        currentQuestion: null,
       };
 
     case 'PLANNING_TEACHING':
@@ -142,7 +145,8 @@ export function planningReducer(state: PlanningSessionState, action: PlanningAct
         ...state,
         currentQuestion: null,
         currentMutationMap: {},
-        isAgentThinking: true,
+        isAgentThinking: true, // follow-up Claude call is in progress
+        error: null,
         conversationHistory: [
           ...state.conversationHistory,
           { role: 'kid', content: answerText, timestamp: Date.now() },
