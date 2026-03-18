@@ -135,7 +135,7 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
   } = useMeetingContext();
 
   const {
-    skills, rules, portals, spec, workspacePath, workspaceJson, initialWorkspace,
+    skills, setSkills, rules, portals, spec, workspacePath, workspaceJson, initialWorkspace,
     setExamplePickerOpen, handleWorkspaceChange, handleSaveNugget, handleOpenNugget,
     handleOpenFolder, ensureWorkspacePath, reinterpretWorkspace, systemLevel,
     deviceManifests, workspaceMode, setWorkspaceMode,
@@ -248,14 +248,37 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
     acknowledgeConnection();
   }, [justConnected, boardInfo, acknowledgeConnection]);
 
-  // Planning Mode: when canvas is generated, populate blocks and close modal
+  // Planning Mode: when canvas is generated, register skills and populate blocks
   useEffect(() => {
     if (planning.status === 'generated' && planning.canvasBlockSpec) {
+      // Register plan skills as IDE skills so use_skill blocks can reference them
+      const planSkills = planning.plan?.skills ?? [];
+      const newSkills = planSkills.map((s) => ({
+        id: crypto.randomUUID(),
+        name: s.name,
+        prompt: s.description,
+        category: 'agent' as const,
+      }));
+      if (newSkills.length > 0) {
+        setSkills((prev) => [...prev, ...newSkills]);
+      }
+
+      // Replace Skill block content (names) with registered skill IDs
+      const skillNameToId = new Map(newSkills.map((s) => [s.name, s.id]));
+      const adjustedSpec = {
+        ...planning.canvasBlockSpec,
+        blocks: planning.canvasBlockSpec.blocks.map((b) =>
+          b.type === 'Skill' && skillNameToId.has(b.content)
+            ? { ...b, content: skillNameToId.get(b.content)! }
+            : b,
+        ),
+      };
+
       const merge = !!(workspaceJson && (workspaceJson as { blocks?: { blocks?: unknown[] } }).blocks?.blocks?.length);
       populateCanvasFromPlan(
         (json: Record<string, unknown>) => blockCanvasRef.current?.loadWorkspace(json),
         workspaceJson as Record<string, unknown> | null,
-        planning.canvasBlockSpec,
+        adjustedSpec,
         merge,
       );
       setPlanningModalOpen(false);

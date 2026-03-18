@@ -148,10 +148,10 @@ describe('Planning Mode behavioral tests', () => {
 
       // Step 5: Generate canvas blocks (deterministic -- no Claude call needed)
       const blocks = await service.generateCanvas('s1');
-      // Goal + 2 Promises + 1 Deploy = 4 (skills/portals are plan metadata, not canvas blocks)
-      expect(blocks.blocks).toHaveLength(4);
+      // Goal + 2 Promises + 1 Skill + 1 Deploy = 5
+      expect(blocks.blocks).toHaveLength(5);
       expect(blocks.blocks.map(b => b.type)).toEqual(
-        expect.arrayContaining(['Goal', 'Promise', 'Deploy']),
+        expect.arrayContaining(['Goal', 'Promise', 'Skill', 'Deploy']),
       );
       // All proofs from the plan are included as children
       const promises = blocks.blocks.filter(b => b.type === 'Promise');

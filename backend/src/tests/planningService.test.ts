@@ -328,8 +328,8 @@ describe('PlanningService', () => {
       // No mockClaudeResponse needed -- canvas generation is deterministic
       const result = await service.generateCanvas('session-1');
 
-      // Goal + 2 Promises + 1 Deploy = 4 blocks (skills/portals are plan metadata, not canvas blocks)
-      expect(result.blocks).toHaveLength(4);
+      // Goal + 2 Promises + 1 Skill + 1 Deploy = 5 blocks (portals are plan metadata)
+      expect(result.blocks).toHaveLength(5);
       expect(result.blocks[0].type).toBe('Goal');
       expect(result.blocks[0].content).toBe('A quiz app for science');
 
@@ -341,8 +341,9 @@ describe('PlanningService', () => {
       expect(promises[1].children).toHaveLength(1);
       expect(promises[1].children![0].content).toBe('Score increments');
 
-      // Skills and Portals are NOT emitted as blocks (they're plan metadata)
-      expect(result.blocks.find(b => b.type === 'Skill')).toBeUndefined();
+      // Skills are emitted (frontend registers them as IDE skills before loading)
+      expect(result.blocks.find(b => b.type === 'Skill')?.content).toBe('Generate questions');
+      // Portals are NOT emitted (they need IDE-level registration)
       expect(result.blocks.find(b => b.type === 'Portal')).toBeUndefined();
       expect(result.blocks.find(b => b.type === 'Deploy')).toBeDefined();
 

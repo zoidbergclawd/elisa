@@ -31,8 +31,9 @@ const readyPlan: PlanState = {
   ready: true,
 };
 
-// Matches what the backend now produces: Goal, Promises (with Proofs), Deploy.
-// Skills and Portals are plan metadata -- they inform the MetaPlanner, not the canvas.
+// Matches backend output: Goal, Promises (with Proofs), Skills, Deploy.
+// Portals are plan metadata only. Skill content is a registered skill ID
+// (frontend registers plan skills as IDE skills before loading the canvas).
 const fullBlockSpec: CanvasBlockSpec = {
   blocks: [
     { id: 'g1', type: 'Goal', category: 'primitive', content: 'Weather dashboard', position: { x: 50, y: 50 } },
@@ -47,6 +48,7 @@ const fullBlockSpec: CanvasBlockSpec = {
       ],
     },
     { id: 'p2', type: 'Promise', category: 'primitive', content: 'Fast loading', position: { x: 50, y: 250 } },
+    { id: 's1', type: 'Skill', category: 'primitive', content: 'skill-id-1', position: { x: 50, y: 350 } },
     { id: 'd1', type: 'Deploy', category: 'primitive', content: 'Web', position: { x: 50, y: 550 }, subtype: 'web' },
   ],
 };
@@ -208,13 +210,14 @@ describe('Planning Mode Integration', () => {
       expect(ws.blocks.blocks).toHaveLength(1);
 
       const chain = walkChain(ws.blocks.blocks[0] as unknown as Record<string, unknown>);
-      expect(chain).toHaveLength(4);
+      expect(chain).toHaveLength(5);
 
       const types = chain.map(b => (b as { type: string }).type);
       expect(types).toEqual([
         'nugget_goal',
         'feature',
         'feature',
+        'use_skill',
         'deploy_web',
       ]);
 

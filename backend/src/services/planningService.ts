@@ -727,10 +727,22 @@ function planToCanvasBlocks(plan: PlanState): CanvasBlockSpec {
     y += Y_STEP;
   }
 
-  // Note: Plan skills and portals are conceptual metadata that inform the
-  // MetaPlanner. They are NOT emitted as Blockly blocks because use_skill and
-  // portal_tell blocks require IDE-level registration (via Skills/Portals modals)
-  // which plan-level data cannot provide.
+  // Skills -- emitted as blocks; frontend registers them as IDE skills before
+  // loading the workspace so the use_skill dropdown can resolve them.
+  for (const skill of plan.skills) {
+    blocks.push({
+      id: makeId(),
+      type: 'Skill',
+      category: 'primitive',
+      content: skill.name,
+      position: { x: X, y },
+    });
+    y += Y_STEP;
+  }
+
+  // Note: Plan portals are conceptual metadata that inform the MetaPlanner.
+  // They are NOT emitted as Blockly blocks because portal_tell blocks require
+  // IDE-level registration (via Portals modal) which plan-level data cannot provide.
 
   // Deploy
   if (plan.deploy.target) {
