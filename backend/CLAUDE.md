@@ -17,6 +17,7 @@ src/
   server.ts              Thin composition root. Mounts route modules, WS server, exports startServer().
   routes/
     sessions.ts          /api/sessions/* endpoints (create, start, stop, fix, launch, gate, question, export)
+    planning.ts          /api/sessions/:id/planning/* endpoints (start, answer, message, generate, state)
     hardware.ts          /api/hardware/* endpoints (detect, flash)
     skills.ts            /api/skills/* endpoints (run, answer, list)
     workspace.ts         /api/workspace/* endpoints (save, load design files)
@@ -33,6 +34,7 @@ src/
     composition.ts       Composition types: ComposeResult, EmergentBehavior, InterfaceContract, ImpactResult
     parentDashboard.ts   Parent Dashboard types: ParentDashboardData, UsageSummary, SafetyReport (Phase 2)
   services/
+    planningService.ts   Planning Mode: conversational plan refinement via Claude SDK structured outputs
     orchestrator.ts      Thin coordinator: delegates to phase handlers in sequence. Also runFix() for post-build targeted fixes
     sessionStore.ts      Consolidated session state (replaces 4 parallel Maps)
     phases/
@@ -99,6 +101,7 @@ src/
       usageLimiter.ts    Token/turn rate limiting with tiered usage
       consentManager.ts  Parental consent tracking (COPPA compliance)
   prompts/
+    planningAgent.ts     System prompt for Planning Mode conversational agent
     metaPlanner.ts       System prompt for task decomposition
     builderAgent.ts      Builder role prompt template
     testerAgent.ts       Tester role prompt template
@@ -130,6 +133,11 @@ src/
 | POST | /api/sessions | Create session |
 | POST | /api/sessions/:id/start | Start build with NuggetSpec |
 | POST | /api/sessions/:id/stop | Cancel build |
+| POST | /api/sessions/:id/planning/start | Start Planning Mode conversation |
+| POST | /api/sessions/:id/planning/answer | Submit structured widget answer (instant) |
+| POST | /api/sessions/:id/planning/message | Submit free-text answer (streamed via WS) |
+| POST | /api/sessions/:id/planning/generate | Generate canvas blocks from plan |
+| GET | /api/sessions/:id/planning | Get current planning state |
 | POST | /api/sessions/:id/fix | Targeted bug fix (requires session in 'done' state, body: bugReport + failingTests) |
 | POST | /api/sessions/:id/launch | Serve built nugget without rebuild (finds index.html, spawns local server, returns URL) |
 | POST | /api/sessions/:id/gate | Human gate response |
@@ -187,7 +195,7 @@ src/
 | GET | /api/spec-graph/:id/interfaces | Resolve interface contracts among nodes |
 
 ### WebSocket Events (server -> client)
-`planning_started`, `plan_ready`, `task_started`, `task_completed`, `task_failed`, `agent_output`, `commit_created`, `token_usage`, `budget_warning`, `test_expectations` (task_id, tests[] with name/description -- pre-generated pending tests), `test_result`, `test_phase_complete` (passed, failed, total -- emitted after all `test_result` events), `coverage_update`, `deploy_started`, `deploy_progress`, `deploy_checklist`, `deploy_complete` (includes `url?` for web deploys), `serial_data`, `human_gate`, `user_question`, `skill_*`, `teaching_moment`, `narrator_message`, `permission_auto_resolved`, `minion_state_change`, `workspace_created`, `flash_prompt`, `flash_progress`, `flash_complete`, `context_flow` (from_task_id, to_task_ids, summary_preview), `documentation_ready`, `meeting_invite`, `meeting_started`, `meeting_message`, `meeting_canvas_update`, `meeting_outcome`, `meeting_ended`, `traceability_update`, `traceability_summary`, `correction_cycle_started`, `correction_cycle_progress`, `convergence_update`, `composition_started` (graph_id, node_ids), `composition_impact` (graph_id, changed_node_id, affected_nodes, severity), `decomposition_narrated`, `impact_estimate`, `boundary_analysis`, `system_health_update`, `system_health_summary`, `health_history` (entries array for Architect trend tracking), `fix_started` (bugReport), `fix_task_completed` (taskId, success), `fix_tests_completed` (passed, failed, total), `meeting_blocking_task` (task_id, meeting_type_id), `meeting_unblocking_task` (task_id), `error`, `session_complete`
+`planning_started`, `plan_ready`, `planning_mode_started`, `planning_turn`, `planning_question`, `planning_plan_updated`, `planning_ready`, `planning_canvas_generated`, `planning_teaching`, `planning_learning_summary`, `planning_error`, `task_started`, `task_completed`, `task_failed`, `agent_output`, `commit_created`, `token_usage`, `budget_warning`, `test_expectations` (task_id, tests[] with name/description -- pre-generated pending tests), `test_result`, `test_phase_complete` (passed, failed, total -- emitted after all `test_result` events), `coverage_update`, `deploy_started`, `deploy_progress`, `deploy_checklist`, `deploy_complete` (includes `url?` for web deploys), `serial_data`, `human_gate`, `user_question`, `skill_*`, `teaching_moment`, `narrator_message`, `permission_auto_resolved`, `minion_state_change`, `workspace_created`, `flash_prompt`, `flash_progress`, `flash_complete`, `context_flow` (from_task_id, to_task_ids, summary_preview), `documentation_ready`, `meeting_invite`, `meeting_started`, `meeting_message`, `meeting_canvas_update`, `meeting_outcome`, `meeting_ended`, `traceability_update`, `traceability_summary`, `correction_cycle_started`, `correction_cycle_progress`, `convergence_update`, `composition_started` (graph_id, node_ids), `composition_impact` (graph_id, changed_node_id, affected_nodes, severity), `decomposition_narrated`, `impact_estimate`, `boundary_analysis`, `system_health_update`, `system_health_summary`, `health_history` (entries array for Architect trend tracking), `fix_started` (bugReport), `fix_task_completed` (taskId, success), `fix_tests_completed` (passed, failed, total), `meeting_blocking_task` (task_id, meeting_type_id), `meeting_unblocking_task` (task_id), `error`, `session_complete`
 
 ### Agent Runtime WebSocket Events (/v1/agents/:id/stream)
 Client sends `turn` (text) or `audio_turn` (audio) messages. Server responds with:

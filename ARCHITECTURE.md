@@ -56,6 +56,24 @@ elisa/
 
 Root `package.json` manages Electron and build tooling. Frontend and backend remain independent Node.js projects with their own `package.json`.
 
+## Planning Mode Flow (PRD-004)
+
+```
+Planning Mode (conversational specification assistant):
+  Idea (free text) + optional canvas context (mid-project)
+    -> POST /api/sessions/:id/planning/start
+    -> PlanningService -> Claude SDK (structured outputs, effort: medium)
+    -> WS: planning_mode_started, planning_turn (streamed message)
+    -> WS: planning_question (widget spec + mutation map)
+    -> Structured answer: client-side mutation (no API round-trip)
+    -> Free-text answer: Claude SDK call -> next question
+    -> Readiness detected: planning_ready (goal solid, 2+ promises, portals, skills, deploy)
+    -> POST /api/sessions/:id/planning/generate
+    -> Final Claude SDK call -> CanvasBlockSpec (validated against PRD-003 primitives)
+    -> planToBlocks: Blockly workspace population (merge for mid-project)
+    -> Plan + conversation persisted to .elisa/plan.json
+```
+
 ## Data Flow: Build Session Lifecycle
 
 ```

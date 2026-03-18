@@ -62,6 +62,18 @@ Base URL: `http://localhost:8000/api/sessions/:sessionId/meetings`
 | POST | `/sessions/:id/meetings/:mid/end` | -- | `MeetingSession` | End an active meeting |
 | POST | `/sessions/:id/meetings/start` | `{ meetingTypeId: string }` | `{ meetingId: string }` | Start kid-initiated meeting |
 
+### Planning Mode (PRD-004)
+
+Base URL: `http://localhost:8000/api/sessions/:sessionId/planning`
+
+| Method | Path | Request Body | Response | Description |
+|--------|------|--------------|----------|-------------|
+| POST | `/sessions/:id/planning/start` | `{ idea: string, canvasContext?: CanvasContext }` | `{ planId: string }` | Start a planning session (events via WS) |
+| POST | `/sessions/:id/planning/answer` | `{ optionValue: string }` | `{ plan: PlanState }` | Submit structured widget answer (instant, no API call) |
+| POST | `/sessions/:id/planning/message` | `{ text: string }` | `202 Accepted` | Submit free-text answer (response streamed via WS) |
+| POST | `/sessions/:id/planning/generate` | -- | `202 Accepted` | Generate canvas blocks from finalized plan |
+| GET | `/sessions/:id/planning` | -- | `{ plan, status, conversationHistory }` | Get current planning state (used for reconnection) |
+
 ### Agent Runtime
 
 Base URL: `http://localhost:8000/v1`
@@ -250,6 +262,20 @@ All events flow server to client as JSON with a `type` discriminator field.
 | `meeting_ended` | `{ meetingId, outcomes: Array<{ type, data }> }` | Meeting ended with collected outcomes |
 | `meeting_blocking_task` | `{ task_id, meeting_type_id }` | Task blocked waiting for meeting |
 | `meeting_unblocking_task` | `{ task_id }` | Task unblocked after meeting |
+
+### Planning Mode
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `planning_mode_started` | `{ sessionId }` | Planning session initialized |
+| `planning_turn` | `{ message, streaming: boolean }` | Claude's conversational message (streamed) |
+| `planning_question` | `{ question: QuestionWidget, plan_mutation_map }` | Question widget + deterministic mutation map |
+| `planning_plan_updated` | `{ plan: PlanState }` | Plan state changed after any answer |
+| `planning_ready` | `{ plan: PlanState, summary }` | Plan meets readiness criteria |
+| `planning_canvas_generated` | `{ blocks: CanvasBlockSpec }` | Canvas generation complete |
+| `planning_teaching` | `{ teaching: TeachingAnnotation }` | Teaching annotation for current turn |
+| `planning_learning_summary` | `{ summary: LearningSummary }` | End-of-conversation learning summary |
+| `planning_error` | `{ error }` | Planning error |
 
 ### Agent Runtime WebSocket Events
 

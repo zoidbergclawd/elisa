@@ -4,6 +4,9 @@ Each service owns one concern. Orchestrator coordinates phase handlers.
 
 ## Service Map
 
+### planningService.ts (Planning Mode)
+Conversational planning assistant powered by Claude SDK with structured outputs. Manages planning sessions: `startPlanning()` initiates conversation with first question, `handleStructuredAnswer()` applies deterministic mutations from widget clicks (no API call), `handleFreeTextAnswer()` sends free-text to Claude, `generateCanvas()` produces CanvasBlockSpec from finalized plan. Readiness detection: goal solid, 2+ promises with proofs, 1+ portal, 1+ skill, deploy set. Hard cap at 20 turns. Plan persistence via `savePlan()`/`loadPlan()` to `.elisa/plan.json`. In-memory `Map<string, PlanningSession>` for state. Uses `getAnthropicClient()` singleton. Teaching annotations generated per turn via prompt engineering.
+
 ### orchestrator.ts (thin coordinator)
 Delegates to phase handlers in sequence: plan -> meeting triggers (plan_ready) -> execute -> test -> deploy. Owns cancellation (AbortController), gate/question resolvers, and public accessors. Phases live in `phases/` subdirectory. Also exposes `runFix(bugReport, failingTests, send)` for post-build targeted bug fixes: creates a fix task, executes it via TaskExecutor, re-runs tests, and emits `fix_started`/`fix_task_completed`/`fix_tests_completed` events.
 
