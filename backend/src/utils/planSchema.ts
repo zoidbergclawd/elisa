@@ -179,15 +179,15 @@ export const CanvasBlockChildSchema = z.object({
   type: BlockPrimitiveTypeSchema,
   category: z.literal('primitive'),
   content: z.string().max(2000),
-}).strict();
+}); // no .strict() -- Claude adds extra keys like position
 
 export const CanvasBlockSchema = CanvasBlockBaseSchema.extend({
   children: z.array(CanvasBlockChildSchema).max(10).optional(),
-}).strict();
+}); // no .strict() -- Claude adds extra keys
 
 export const CanvasBlockSpecSchema = z.object({
   blocks: z.array(CanvasBlockSchema).max(50),
-}).strict();
+}); // no .strict() -- Claude adds extra keys
 
 // --- Learning Summary Schema (Section 7.2) ---
 
