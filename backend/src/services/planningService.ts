@@ -553,6 +553,46 @@ Rules:
       delete (parsed.question as Record<string, unknown>).teaching;
     }
 
+    // Normalize portals: Claude adds extra keys and uses non-enum subtypes
+    if (parsed.plan && typeof parsed.plan === 'object') {
+      const plan = parsed.plan as Record<string, unknown>;
+      if (Array.isArray(plan.portals)) {
+        const validSubtypes = new Set(['api', 'device', 'knowledge', 'service']);
+        const subtypeMap: Record<string, string> = {
+          input: 'device', hardware: 'device', sensor: 'device',
+          output: 'device', database: 'service', storage: 'service',
+          web: 'api', http: 'api', rest: 'api', external: 'api',
+          file: 'knowledge', data: 'knowledge', content: 'knowledge',
+        };
+        for (const portal of plan.portals as Record<string, unknown>[]) {
+          // Remove extra keys Claude adds
+          delete portal.type;
+          delete portal.mechanism;
+          // Fix invalid subtypes
+          if (typeof portal.subtype === 'string' && !validSubtypes.has(portal.subtype)) {
+            portal.subtype = subtypeMap[portal.subtype.toLowerCase()] ?? 'service';
+          }
+          if (!portal.subtype) {
+            portal.subtype = 'service';
+          }
+        }
+      }
+      // Normalize promises: strip extra keys
+      if (Array.isArray(plan.promises)) {
+        for (const promise of plan.promises as Record<string, unknown>[]) {
+          // Proofs might have extra keys
+          if (Array.isArray(promise.proofs)) {
+            for (const proof of promise.proofs as Record<string, unknown>[]) {
+              // Keep only description
+              for (const key of Object.keys(proof)) {
+                if (key !== 'description') delete proof[key];
+              }
+            }
+          }
+        }
+      }
+    }
+
     // If plan is missing but there are plan-like fields at root, wrap them
     if (!parsed.plan && parsed.idea && parsed.goal) {
       const planKeys = ['idea', 'goal', 'promises', 'skills', 'portals', 'deploy', 'open_questions', 'ready', 'conversation_turn'];

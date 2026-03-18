@@ -112,7 +112,38 @@ const TeachingAnnotationLenientSchema = z.object({
   what_if: z.string().max(2000).nullable(),
 });
 
-const PlanStateLenientSchema = PlanStateSchema.strip();
+const PlanProofLenientSchema = z.object({
+  description: z.string().max(2000),
+});
+const PlanPromiseLenientSchema = z.object({
+  description: z.string().max(2000),
+  category: z.enum(['behavior', 'constraint', 'security', 'performance']),
+  proofs: z.array(PlanProofLenientSchema).max(20),
+});
+const PlanSkillLenientSchema = z.object({
+  name: z.string().max(200),
+  description: z.string().max(2000),
+});
+const PlanPortalLenientSchema = z.object({
+  name: z.string().max(200),
+  subtype: PortalSubtypeSchema,
+  description: z.string().max(2000),
+});
+const PlanDeployLenientSchema = z.object({
+  target: DeployTargetSchema,
+  constraints: z.array(z.string().max(500)).max(20),
+});
+const PlanStateLenientSchema = z.object({
+  idea: z.string().max(2000),
+  goal: PlanGoalSchema.strip(),
+  promises: z.array(PlanPromiseLenientSchema).max(20),
+  skills: z.array(PlanSkillLenientSchema).max(20),
+  portals: z.array(PlanPortalLenientSchema).max(20),
+  deploy: PlanDeployLenientSchema,
+  open_questions: z.array(z.string().max(500)).max(20),
+  ready: z.boolean(),
+  conversation_turn: z.number().int().min(0).max(100),
+});
 
 /** Lenient schema for parsing Claude's planning output. Strips extra keys instead of rejecting. */
 export const PlanningTurnOutputLenientSchema = z.object({
