@@ -414,6 +414,77 @@ describe('Planning routes', () => {
       expect(res.status).toBe(404);
     });
   });
+
+  // --- State guards ---
+
+  describe('state guards', () => {
+    it('answer returns 500 before planning is started (no planning session)', async () => {
+      const res = await fetch(url(`/api/sessions/${sessionId}/planning/answer`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ optionValue: 'web' }),
+      });
+
+      expect(res.status).toBe(500);
+      const body = await res.json();
+      expect(body.detail).toContain('No planning session');
+    });
+
+    it('message returns 500 before planning is started', async () => {
+      const res = await fetch(url(`/api/sessions/${sessionId}/planning/message`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: 'hello' }),
+      });
+
+      expect(res.status).toBe(500);
+      const body = await res.json();
+      expect(body.detail).toContain('No planning session');
+    });
+
+    it('generate returns 500 before planning is started', async () => {
+      const res = await fetch(url(`/api/sessions/${sessionId}/planning/generate`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      });
+
+      expect(res.status).toBe(500);
+      const body = await res.json();
+      expect(body.detail).toContain('No planning session');
+    });
+
+    it('answer returns 500 when no active question (mutation map cleared)', async () => {
+      mockClaudeResponse(validTurnOutput());
+      await planningService.startPlanning(sessionId, 'A quiz app');
+
+      // Answer once to clear mutation map
+      planningService.handleStructuredAnswer(sessionId, 'web');
+
+      const res = await fetch(url(`/api/sessions/${sessionId}/planning/answer`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ optionValue: 'cli' }),
+      });
+
+      expect(res.status).toBe(500);
+      const body = await res.json();
+      expect(body.detail).toContain('No active question');
+    });
+
+    it('emits planning_error event on failure', async () => {
+      const res = await fetch(url(`/api/sessions/${sessionId}/planning/answer`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ optionValue: 'web' }),
+      });
+
+      expect(res.status).toBe(500);
+      const errorEvents = sendEvent.mock.calls
+        .filter((c: any[]) => c[1].type === 'planning_error');
+      expect(errorEvents.length).toBeGreaterThan(0);
+    });
+  });
 });
 
 // --- Reconnection replay ---
