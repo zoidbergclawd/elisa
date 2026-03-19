@@ -193,6 +193,8 @@ export function useWebSocket({ sessionId, onEvent }: UseWebSocketOptions) {
     };
 
     ws.onmessage = (event) => {
+      // Ignore messages from a stale connection that hasn't closed yet
+      if (wsRef.current !== null && wsRef.current !== ws) return;
       try {
         const data = JSON.parse(event.data) as WSEvent;
         onEventRef.current(data);

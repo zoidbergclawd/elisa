@@ -562,6 +562,25 @@ describe('useWebSocket', () => {
     expect(onEvent).toHaveBeenCalledWith({ type: 'planning_started' });
   });
 
+  it('stale onmessage from replaced connection is ignored', () => {
+    const onEvent = vi.fn();
+    const { rerender } = renderHook(
+      ({ sid }) => useWebSocket({ sessionId: sid, onEvent }),
+      { initialProps: { sid: 'sess-1' } },
+    );
+    const ws1 = MockWebSocket.instances[0];
+    act(() => ws1.simulateOpen());
+
+    // Replace connection by changing sessionId
+    rerender({ sid: 'sess-2' });
+    onEvent.mockClear();
+
+    // WS #1 receives a message before its close event fires.
+    // Should be silently dropped since wsRef now points to WS #2.
+    act(() => ws1.simulateMessage(JSON.stringify({ type: 'task_started', task_id: 'ghost' })));
+    expect(onEvent).not.toHaveBeenCalled();
+  });
+
   it('reconnect emits session_complete when session state is done', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
