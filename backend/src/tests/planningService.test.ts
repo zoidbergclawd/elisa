@@ -311,6 +311,40 @@ describe('PlanningService', () => {
     });
   });
 
+  // --- History cap ---
+
+  describe('conversation history cap', () => {
+    it('trims conversation history to PLANNING_MAX_HISTORY', async () => {
+      mockClaudeResponse(validTurnOutput());
+      await service.startPlanning('session-1', 'A quiz app');
+
+      const state = service.getState('session-1')!;
+
+      // Stuff the history well beyond the limit (50)
+      state.conversationHistory = [];
+      for (let i = 0; i < 60; i++) {
+        state.conversationHistory.push({
+          role: i % 2 === 0 ? 'kid' : 'agent',
+          content: `message-${i}`,
+          timestamp: Date.now(),
+        });
+      }
+
+      // Set up a mutation map so handleStructuredAnswer works
+      state.currentMutationMap = { yes: { 'goal.confidence': 'solid' } };
+
+      // handleStructuredAnswer pushes one more entry, triggering the trim
+      service.handleStructuredAnswer('session-1', 'yes');
+
+      // 60 + 1 = 61, trimmed to 50
+      expect(state.conversationHistory.length).toBeLessThanOrEqual(50);
+      // The newest entry should be the one just pushed
+      expect(state.conversationHistory[state.conversationHistory.length - 1].content).toBe('yes');
+      // The oldest surviving entry should be message-11 (indices 11..59 = 49 entries + the new push)
+      expect(state.conversationHistory[0].content).toBe('message-11');
+    });
+  });
+
   // --- Validation retry ---
 
   describe('validation failure retry', () => {

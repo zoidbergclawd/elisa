@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import type { QuestionOption } from '../../../types';
 
 export interface RankPrioritiesWidgetProps {
@@ -15,6 +15,14 @@ export default function RankPrioritiesWidget({
   const [items, setItems] = useState<QuestionOption[]>(options);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
+  const itemRefs = useRef<Map<number, HTMLElement>>(new Map());
+
+  useEffect(() => {
+    if (focusedIndex !== null) {
+      itemRefs.current.get(focusedIndex)?.focus();
+      setFocusedIndex(null);
+    }
+  }, [focusedIndex]);
 
   const swap = useCallback((fromIdx: number, toIdx: number) => {
     setItems((prev) => {
@@ -82,10 +90,8 @@ export default function RankPrioritiesWidget({
             onKeyDown={(e) => handleKeyDown(e, index)}
             tabIndex={0}
             ref={(el) => {
-              if (focusedIndex === index && el) {
-                el.focus();
-                setFocusedIndex(null);
-              }
+              if (el) itemRefs.current.set(index, el);
+              else itemRefs.current.delete(index);
             }}
             role="listitem"
             aria-label={`Priority ${index + 1}: ${item.label}`}

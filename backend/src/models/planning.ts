@@ -28,6 +28,8 @@ export interface PlanningSession {
   canvasContext?: CanvasContext | null;
   learningSummary?: LearningSummary | null;
   generatedBlocks?: CanvasBlockSpec | null;
+  /** True while a follow-up question is being generated after a structured answer. */
+  generatingFollowUp?: boolean;
   createdAt: number;
   updatedAt: number;
 }

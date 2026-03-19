@@ -291,6 +291,35 @@ describe('Planning routes', () => {
 
       expect(res.status).toBe(404);
     });
+
+    it('returns 409 when a follow-up question is still being generated', async () => {
+      // Start planning and get a question with mutation map
+      mockClaudeResponse(validTurnOutput());
+      await planningService.startPlanning(sessionId, 'A quiz app');
+
+      // Mock the follow-up Claude call to hang (never resolve) so the flag stays true
+      mockCreate.mockReturnValueOnce(new Promise(() => {}));
+
+      // First answer succeeds and triggers the fire-and-forget follow-up
+      const res1 = await fetch(url(`/api/sessions/${sessionId}/planning/answer`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ optionValue: 'web' }),
+      });
+      expect(res1.status).toBe(200);
+
+      // Second answer should be rejected with 409 because follow-up is in progress
+      // We need to re-populate the mutation map so the error isn't "No active question"
+      // But the 409 guard fires before handleStructuredAnswer is called, so it doesn't matter
+      const res2 = await fetch(url(`/api/sessions/${sessionId}/planning/answer`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ optionValue: 'cli' }),
+      });
+      expect(res2.status).toBe(409);
+      const body = await res2.json();
+      expect(body.detail).toContain('follow-up question is still being generated');
+    });
   });
 
   // --- POST /api/sessions/:id/planning/message ---

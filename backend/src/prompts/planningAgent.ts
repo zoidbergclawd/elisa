@@ -2,6 +2,7 @@
 
 import type { PlanState, QuestionWidget, TeachingAnnotation } from '../utils/planSchema.js';
 import type { CanvasContext } from '../models/planning.js';
+import { sanitizePlaceholder } from '../services/phases/promptBuilder.js';
 
 const PLANNING_AGENT_BASE = `\
 You are the Planning Agent for Elisa, a kids' coding IDE. A child has an idea for a \
@@ -168,7 +169,7 @@ export function buildPlanningSystemPrompt(
 
   if (canvasContext) {
     const blockList = canvasContext.blocks
-      .map(b => `- ${b.type}: ${b.content}${b.subtype ? ` (${b.subtype})` : ''}`)
+      .map(b => `- ${sanitizePlaceholder(b.type)}: ${sanitizePlaceholder(b.content)}${b.subtype ? ` (${sanitizePlaceholder(b.subtype)})` : ''}`)
       .join('\n');
 
     const midProject = MID_PROJECT_TEMPLATE

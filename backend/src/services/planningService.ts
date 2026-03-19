@@ -10,6 +10,7 @@ import {
   PLANNING_TURN_TIMEOUT_MS,
   PLANNING_MAX_TURNS,
   PLANNING_MAX_TOKENS,
+  PLANNING_MAX_HISTORY,
 } from '../utils/constants.js';
 import {
   PlanningTurnOutputLenientSchema,
@@ -113,6 +114,7 @@ export class PlanningService {
       content: optionValue,
       timestamp: Date.now(),
     });
+    this.trimHistory(session);
 
     // Check readiness after mutation
     const ready = this.checkReadiness(session.plan);
@@ -193,6 +195,20 @@ export class PlanningService {
     return session;
   }
 
+  /** Check if a follow-up question is currently being generated for this session. */
+  isGeneratingFollowUp(sessionId: string): boolean {
+    const session = this.sessions.get(sessionId);
+    return session?.generatingFollowUp === true;
+  }
+
+  /** Set the generatingFollowUp flag on a planning session. */
+  setGeneratingFollowUp(sessionId: string, value: boolean): void {
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      session.generatingFollowUp = value;
+    }
+  }
+
   /** Remove a planning session from memory. */
   deleteSession(sessionId: string): void {
     this.sessions.delete(sessionId);
@@ -265,6 +281,13 @@ export class PlanningService {
     return session;
   }
 
+  /** Trim conversation history to PLANNING_MAX_HISTORY, dropping oldest entries. */
+  private trimHistory(session: PlanningSession): void {
+    if (session.conversationHistory.length > PLANNING_MAX_HISTORY) {
+      session.conversationHistory = session.conversationHistory.slice(-PLANNING_MAX_HISTORY);
+    }
+  }
+
   /** Force the plan to ready state when the turn limit is reached.
    *  Auto-fills missing skills and proofs so the plan is buildable. */
   private forceReadiness(session: PlanningSession): PlanningTurnResult {
@@ -322,6 +345,7 @@ export class PlanningService {
       content: userMessage,
       timestamp: Date.now(),
     });
+    this.trimHistory(session);
 
     return this.callClaudeWithHistory(session);
   }
@@ -466,6 +490,7 @@ export class PlanningService {
       question: output.question ?? undefined,
       teaching: output.teaching,
     });
+    this.trimHistory(session);
 
     // Check readiness
     const ready = this.checkReadiness(session.plan);

@@ -290,7 +290,10 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
       setActiveMainTab('workspace');
       planning.resetPlanning();
     }
-  }, [planning.status, planning.canvasBlockSpec]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Intentional: one-shot trigger on generation complete -- captures current
+    // skills/workspace/blockCanvasRef at that moment, must not re-fire when they change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planning.status, planning.canvasBlockSpec]);
 
   // Resize Blockly when returning to workspace tab
   useEffect(() => {

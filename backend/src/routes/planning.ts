@@ -135,6 +135,11 @@ export function createPlanningRouter({
       return;
     }
 
+    if (planningService.isGeneratingFollowUp(sessionId)) {
+      res.status(409).json({ detail: 'A follow-up question is still being generated. Please wait.' });
+      return;
+    }
+
     const { optionValue } = req.body;
     // Accept string (single_select) or array of strings (multi_select, rank_priorities)
     const normalizedValue = Array.isArray(optionValue) ? optionValue.join(', ') : optionValue;
@@ -170,6 +175,7 @@ export function createPlanningRouter({
 
       // Fire-and-forget: generate next question asynchronously
       console.log(`[planning] structured answer applied: "${normalizedValue}", generating next question...`);
+      planningService.setGeneratingFollowUp(sessionId, true);
       (async () => {
         try {
           const followUp = await planningService.generateNextQuestion(sessionId);
@@ -212,6 +218,8 @@ export function createPlanningRouter({
             type: 'planning_error',
             error: `Follow-up failed: ${msg}. You can type a message to continue.`,
           });
+        } finally {
+          planningService.setGeneratingFollowUp(sessionId, false);
         }
       })();
     } catch (err: unknown) {

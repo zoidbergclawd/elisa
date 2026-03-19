@@ -77,3 +77,6 @@ export const PLANNING_MAX_TOKENS = 4096;
 
 /** Max tokens for planning canvas generation. */
 export const PLANNING_CANVAS_MAX_TOKENS = 8192;
+
+/** Max conversation history entries before trimming oldest. */
+export const PLANNING_MAX_HISTORY = 50;
