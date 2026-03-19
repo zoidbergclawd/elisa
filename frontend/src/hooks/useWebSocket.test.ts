@@ -529,6 +529,39 @@ describe('useWebSocket', () => {
     );
   });
 
+  // === StrictMode zombie connection regression ===
+
+  it('stale onclose from replaced connection does not create zombie connection', () => {
+    const onEvent = vi.fn();
+    // Render with sessionId 'sess-1' -> creates WS #1
+    const { rerender } = renderHook(
+      ({ sid }) => useWebSocket({ sessionId: sid, onEvent }),
+      { initialProps: { sid: 'sess-1' } },
+    );
+    const ws1 = MockWebSocket.instances[0];
+    act(() => ws1.simulateOpen());
+    expect(MockWebSocket.instances).toHaveLength(1);
+
+    // Change sessionId -> cleanup closes WS #1, creates WS #2 (shared refs)
+    rerender({ sid: 'sess-2' });
+    const ws2 = MockWebSocket.instances[1];
+    expect(MockWebSocket.instances).toHaveLength(2);
+
+    // WS #1's onclose fires asynchronously (browser delivers close event late).
+    // Before fix: this would null out wsRef and schedule a reconnect -> zombie WS #3.
+    // After fix: detects wsRef points to WS #2 (not WS #1) and returns early.
+    act(() => ws1.simulateClose());
+    act(() => { vi.advanceTimersByTime(5000); });
+
+    // No zombie WS #3 should have been created
+    expect(MockWebSocket.instances).toHaveLength(2);
+
+    // WS #2 should still be functional
+    act(() => ws2.simulateOpen());
+    act(() => ws2.simulateMessage(JSON.stringify({ type: 'planning_started' })));
+    expect(onEvent).toHaveBeenCalledWith({ type: 'planning_started' });
+  });
+
   it('reconnect emits session_complete when session state is done', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
