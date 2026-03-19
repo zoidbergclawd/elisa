@@ -276,6 +276,8 @@ export function usePlanningSession(sessionId: string | null) {
     await authFetch(`/api/sessions/${sessionId}/planning/answer`, {
       method: 'POST',
       body: JSON.stringify({ optionValue: value }),
+    }).catch(() => {
+      dispatch({ type: 'PLANNING_ERROR', error: 'Something went wrong, try again' });
     });
   }, [sessionId]);
 
@@ -286,6 +288,8 @@ export function usePlanningSession(sessionId: string | null) {
     await authFetch(`/api/sessions/${sessionId}/planning/message`, {
       method: 'POST',
       body: JSON.stringify({ text: content }),
+    }).catch(() => {
+      dispatch({ type: 'PLANNING_ERROR', error: 'Something went wrong, try again' });
     });
   }, [sessionId]);
 
@@ -295,6 +299,8 @@ export function usePlanningSession(sessionId: string | null) {
     dispatch({ type: 'REQUEST_GENERATE' });
     await authFetch(`/api/sessions/${sessionId}/planning/generate`, {
       method: 'POST',
+    }).catch(() => {
+      dispatch({ type: 'PLANNING_ERROR', error: 'Something went wrong, try again' });
     });
   }, [sessionId]);
 

@@ -269,6 +269,46 @@ describe('PlanningService', () => {
       // Should not have called Claude again (turn cap hit)
       expect(mockCreate).toHaveBeenCalledTimes(1); // only the startPlanning call
     });
+
+    it('sets deploy target to web when forced ready without one', async () => {
+      const output = validTurnOutput({
+        plan: {
+          ...validTurnOutput().plan,
+          deploy: { target: null, constraints: [] },
+          conversation_turn: 19,
+        },
+      });
+      mockClaudeResponse(output);
+      await service.startPlanning('session-1', 'A quiz app');
+
+      const state = service.getState('session-1')!;
+      state.plan.conversation_turn = 20;
+
+      const result = await service.handleFreeTextAnswer('session-1', 'More details');
+
+      expect(result.status).toBe('ready');
+      expect(result.plan.deploy.target).toBe('web');
+    });
+
+    it('preserves existing deploy target when forced ready', async () => {
+      const output = validTurnOutput({
+        plan: {
+          ...validTurnOutput().plan,
+          deploy: { target: 'cli', constraints: [] },
+          conversation_turn: 19,
+        },
+      });
+      mockClaudeResponse(output);
+      await service.startPlanning('session-1', 'A quiz app');
+
+      const state = service.getState('session-1')!;
+      state.plan.conversation_turn = 20;
+
+      const result = await service.handleFreeTextAnswer('session-1', 'More details');
+
+      expect(result.status).toBe('ready');
+      expect(result.plan.deploy.target).toBe('cli');
+    });
   });
 
   // --- Validation retry ---

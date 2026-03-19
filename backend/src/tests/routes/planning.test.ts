@@ -368,13 +368,8 @@ describe('Planning routes', () => {
       await planningService.startPlanning(sessionId, 'Quiz app');
       sendEvent.mockClear();
 
-      const canvasOutput = {
-        blocks: [
-          { id: 'goal-1', type: 'Goal', category: 'primitive', content: 'Quiz app', position: { x: 0, y: 0 } },
-        ],
-      };
-      mockClaudeResponse(canvasOutput);
-
+      // generateCanvas is deterministic (no Claude call) -- plan has:
+      // 1 Goal + 2 Promises + 1 Skill + 1 Deploy = 5 blocks
       const res = await fetch(url(`/api/sessions/${sessionId}/planning/generate`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -383,7 +378,7 @@ describe('Planning routes', () => {
 
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body.blocks.blocks).toHaveLength(1);
+      expect(body.blocks.blocks).toHaveLength(5);
 
       const eventTypes = sendEvent.mock.calls.map((c: any[]) => c[1].type);
       expect(eventTypes).toContain('planning_canvas_generated');

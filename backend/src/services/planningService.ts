@@ -287,6 +287,11 @@ export class PlanningService {
       }
     }
 
+    // Default deploy target so canvases always get a Deploy block
+    if (session.plan.deploy.target === null) {
+      session.plan.deploy.target = 'web';
+    }
+
     session.plan.ready = true;
     session.plan.open_questions = [];
     session.status = 'ready';

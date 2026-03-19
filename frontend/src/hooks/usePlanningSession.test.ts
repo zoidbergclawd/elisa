@@ -346,6 +346,36 @@ describe('usePlanningSession', () => {
       });
       expect(mockAuthFetch).not.toHaveBeenCalled();
     });
+
+    it('submitAnswer sets error and clears thinking on API failure', async () => {
+      mockAuthFetch.mockRejectedValueOnce(new Error('network error'));
+      const { result } = renderHook(() => usePlanningSession('session-1'));
+      await act(async () => {
+        await result.current.submitAnswer('website');
+      });
+      expect(result.current.isAgentThinking).toBe(false);
+      expect(result.current.error).toBe('Something went wrong, try again');
+    });
+
+    it('submitMessage sets error and clears thinking on API failure', async () => {
+      mockAuthFetch.mockRejectedValueOnce(new Error('network error'));
+      const { result } = renderHook(() => usePlanningSession('session-1'));
+      await act(async () => {
+        await result.current.submitMessage('hello');
+      });
+      expect(result.current.isAgentThinking).toBe(false);
+      expect(result.current.error).toBe('Something went wrong, try again');
+    });
+
+    it('generateCanvas sets error and clears thinking on API failure', async () => {
+      mockAuthFetch.mockRejectedValueOnce(new Error('network error'));
+      const { result } = renderHook(() => usePlanningSession('session-1'));
+      await act(async () => {
+        await result.current.generateCanvas();
+      });
+      expect(result.current.isAgentThinking).toBe(false);
+      expect(result.current.error).toBe('Something went wrong, try again');
+    });
   });
 
   describe('full lifecycle', () => {

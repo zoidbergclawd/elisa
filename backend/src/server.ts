@@ -306,8 +306,10 @@ const runtimeConnections = new Set<WebSocket>();
 // Allow session store to check for active WS connections (used by pruneStale)
 store.isConnected = (sessionId: string) => manager.hasConnections(sessionId);
 
-// Wire up WebSocket + meeting cleanup when sessions are removed
+// Wire up WebSocket + meeting + planning cleanup when sessions are removed
 store.onCleanup = (sessionId: string) => {
+  // Clean up planning session (synchronous, in-memory Map removal)
+  planningService.deleteSession(sessionId);
   // Send meeting_ended for any pending invites/active meetings before closing connections
   const sendForSession = (event: WSEvent) => manager.sendEvent(sessionId, event);
   meetingService.cleanupSession(sessionId, sendForSession)
