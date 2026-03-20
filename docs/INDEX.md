@@ -98,7 +98,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/services/planningService.ts` | Planning Mode: conversational plan refinement via Claude SDK, structured question generation, deterministic mutations, canvas generation |
 | `backend/src/services/orchestrator.ts` | Thin coordinator: plan -> meeting triggers -> execute -> test -> deploy. Also runFix() for post-build targeted fixes |
 | `backend/src/services/metaPlanner.ts` | Decomposes NuggetSpec into task DAG via Claude API |
-| `backend/src/services/agentRunner.ts` | Executes agents via Claude Agent SDK `query()` with streaming |
+| `backend/src/services/agentRunner.ts` | Executes agents via Claude Agent SDK `query()` with streaming. Explicitly resolves `pathToClaudeCodeExecutable` for Electron packaging. Exports `getClaudeCodePath()` for health checks |
 | `backend/src/services/sessionStore.ts` | Session state management with JSON persistence |
 | `backend/src/services/gitService.ts` | Per-session git init and task-based commits |
 | `backend/src/services/hardwareService.ts` | ESP32 detection, MicroPython compile, flash, serial |
@@ -189,7 +189,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/utils/resourcePath.ts` | Packaged app resource path resolution |
 | `backend/src/utils/lanUrl.ts` | LAN URL generation for device access |
 | `backend/src/utils/sanitizePythonValue.ts` | Safe Python value escaping for MicroPython |
-| `backend/src/utils/anthropicClient.ts` | Singleton factory for the Anthropic SDK client |
+| `backend/src/utils/anthropicClient.ts` | Singleton factory for the Anthropic SDK client. `resetAnthropicClient()` called on API key change via config endpoint |
 
 ### Prompts
 
@@ -209,7 +209,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 |------|------|
 | `frontend/src/App.tsx` | Root component, layout, modal routing |
 | `frontend/src/components/BlockCanvas/BlockCanvas.tsx` | Blockly editor wrapper |
-| `frontend/src/components/BlockCanvas/blockDefinitions.ts` | 6-primitive block types (Goal, Promise, Proof, Skill, Portal, Deploy) + block category metadata |
+| `frontend/src/components/BlockCanvas/blockDefinitions.ts` | 6-primitive block types (Goal, Promise, Proof, Skill, Portal, Deploy) + block category metadata. `text_field_limits` extension sets `maxDisplayLength` (50) and validator (150 char cap) on all text input fields |
 | `frontend/src/components/BlockCanvas/blockInterpreter.ts` | Workspace -> NuggetSpec JSON conversion |
 | `frontend/src/components/BlockCanvas/toolbox.ts` | Blockly sidebar categories |
 | `frontend/src/components/BlockCanvas/skillFlowBlocks.ts` | Skill flow block definitions |

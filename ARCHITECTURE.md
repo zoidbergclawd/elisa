@@ -200,7 +200,7 @@ Note: `reviewing` is a transient state during human gate pauses within execution
 - **WebSocket heartbeat + send queue**: Server sends protocol-level ping frames every 30s via `ws.ping()`. Connections missing a pong cycle are terminated. `sendEvent()` serializes all sends through a per-session FIFO queue with `setImmediate` yields between frames, preventing burst-flooding the Vite dev proxy even from concurrent fire-and-forget callers.
 - **Content safety**: All agent prompts include a Content Safety section enforcing age-appropriate output (ages 8-14). User-controlled placeholder values are sanitized before prompt interpolation. Runtime responses are post-processed through a mandatory content filter (PII redaction, inappropriate topic blocking) before delivery.
 - **Abort propagation**: Orchestrator's AbortController signal is forwarded to each agent's SDK `query()` call. On cancel or error, agents are aborted immediately.
-- **API key management**: In dev, read from `ANTHROPIC_API_KEY` env var. In Electron, encrypted via OS keychain (`safeStorage`) and stored locally. Child processes (test runners, flash scripts, builds) receive sanitized env without the API key.
+- **API key management**: In dev, read from `ANTHROPIC_API_KEY` env var. In Electron, encrypted via OS keychain (`safeStorage`) and stored locally. When the key is changed at runtime via `/api/internal/config`, the Anthropic client singleton is reset so all services pick up the new key immediately. Child processes (test runners, flash scripts, builds) receive sanitized env without the API key.
 
 ## Storage
 
@@ -306,6 +306,6 @@ Elisa is distributed as an Electron desktop app. The build pipeline:
 1. `npm run build:frontend` -- Vite builds React SPA into `frontend/dist/`
 2. `npm run build:backend` -- esbuild bundles Express server into `backend/dist/server-entry.js`
 3. `npm run build:electron` -- tsc compiles `electron/main.ts` and `preload.ts`
-4. `npm run dist` -- electron-builder packages into installer (NSIS on Windows, DMG on macOS)
+4. `npm run dist` -- electron-builder packages into installer (NSIS on Windows, DMG on macOS). `afterPack` hook renames `vendor/` -> `node_modules/` and verifies `cli.js` exists for the Claude Agent SDK
 
 Dev mode (`npm run dev` at root): runs backend + frontend only (no Electron). `npm run dev:electron` runs backend, frontend, and Electron concurrently. Electron loads `http://localhost:5173` (Vite HMR). Production: Electron loads `http://localhost:{free port}` where Express serves everything.

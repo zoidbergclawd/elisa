@@ -80,3 +80,4 @@ Main tabs: `workspace` | `mission` | `system` | `tests` (badge shows failing tes
 - WSEvent is a discriminated union - exhaustive switch in event handlers
 - Serial lines capped at MAX_SERIAL_LINES=1000 (oldest trimmed when exceeded)
 - Backend Zod validation errors surfaced via `body.detail` + `body.errors` array
+- Block text fields: `text_field_limits` extension sets `maxDisplayLength=50` (display truncation with ellipsis) and validator caps input at 150 chars. Applied to all block types with text inputs (blockDefinitions + skillFlowBlocks). Constants: `TEXT_FIELD_MAX_DISPLAY_LENGTH`, `TEXT_FIELD_MAX_INPUT_LENGTH`
