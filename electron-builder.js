@@ -78,5 +78,14 @@ module.exports = {
     if (fs.existsSync(vendor)) {
       fs.renameSync(vendor, nodeModules);
     }
+
+    // Verify critical files exist after rename
+    const cliJs = path.join(nodeModules, '@anthropic-ai', 'claude-agent-sdk', 'cli.js');
+    const sdkMjs = path.join(nodeModules, '@anthropic-ai', 'claude-agent-sdk', 'sdk.mjs');
+    console.log(`afterPack: cli.js exists: ${fs.existsSync(cliJs)}`);
+    console.log(`afterPack: sdk.mjs exists: ${fs.existsSync(sdkMjs)}`);
+    if (!fs.existsSync(cliJs)) {
+      console.error(`afterPack: CRITICAL -- cli.js missing at ${cliJs}. Agent builds will fail in production.`);
+    }
   },
 };

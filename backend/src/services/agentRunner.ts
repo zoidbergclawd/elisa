@@ -5,10 +5,56 @@
  * provides native streaming, tool control, and permission management.
  */
 
+import path from 'node:path';
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentResult } from '../models/session.js';
 import { withTimeout, TimeoutError } from '../utils/withTimeout.js';
 import { MAX_TURNS_DEFAULT } from '../utils/constants.js';
+
+/**
+ * Resolve the path to cli.js bundled with `@anthropic-ai/claude-agent-sdk`.
+ *
+ * Production (Electron): ELISA_RESOURCES_PATH is set by Electron main process;
+ *   cli.js lives at <resources>/backend-dist/node_modules/@anthropic-ai/claude-agent-sdk/cli.js
+ *   (afterPack renames vendor/ -> node_modules/).
+ *
+ * Dev: resolve relative to the SDK package via import.meta.resolve.
+ *
+ * This ensures the app works whether or not Claude Code is installed on the system.
+ */
+function resolveClaudeCodePath(): string | undefined {
+  const sdkSubpath = path.join('@anthropic-ai', 'claude-agent-sdk', 'cli.js');
+
+  // Production: use ELISA_RESOURCES_PATH set by Electron
+  if (process.env.ELISA_RESOURCES_PATH) {
+    const prodPath = path.join(process.env.ELISA_RESOURCES_PATH, 'backend-dist', 'node_modules', sdkSubpath);
+    if (fs.existsSync(prodPath)) return prodPath;
+    console.warn(`[agentRunner] cli.js not found at production path: ${prodPath}`);
+  }
+
+  // Dev: resolve from the SDK package location
+  try {
+    const sdkEntry = import.meta.resolve('@anthropic-ai/claude-agent-sdk');
+    const sdkDir = path.dirname(fileURLToPath(sdkEntry));
+    const devPath = path.join(sdkDir, 'cli.js');
+    if (fs.existsSync(devPath)) return devPath;
+  } catch {
+    // import.meta.resolve unavailable or package not found
+  }
+
+  // Fallback: let the SDK auto-detect (works if Claude Code is in PATH)
+  return undefined;
+}
+
+/** Cached resolved path (computed once at module load). */
+const claudeCodePath = resolveClaudeCodePath();
+
+/** Expose the resolved path for startup health checks. */
+export function getClaudeCodePath(): string | undefined {
+  return claudeCodePath;
+}
 
 /** SDK assistant message shape (subset we consume). */
 interface SDKAssistantMessage {
@@ -126,6 +172,7 @@ export class AgentRunner {
         maxTurns,
         permissionMode: 'bypassPermissions',
         systemPrompt,
+        ...(claudeCodePath ? { pathToClaudeCodeExecutable: claudeCodePath } : {}),
         ...(allowedTools ? { allowedTools } : {}),
         ...(mcpConfig ? { mcpServers: mcpConfig } : {}),
         ...(abortController ? { abortController } : {}),

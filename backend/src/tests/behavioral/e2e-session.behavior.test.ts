@@ -28,7 +28,7 @@ vi.mock('../../services/metaPlanner.js', () => {
 vi.mock('../../services/agentRunner.js', () => {
   const AgentRunner = vi.fn();
   AgentRunner.prototype.execute = vi.fn();
-  return { AgentRunner };
+  return { AgentRunner, getClaudeCodePath: () => '/mock/cli.js' };
 });
 
 vi.mock('../../services/gitService.js', () => {

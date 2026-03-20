@@ -37,6 +37,7 @@ import { getLanUrl } from './utils/lanUrl.js';
 import { getDevicesDir } from './utils/resourcePath.js';
 import { WS_PING_INTERVAL_MS } from './utils/constants.js';
 import type { WSEvent } from './services/phases/types.js';
+import { getClaudeCodePath } from './services/agentRunner.js';
 
 const wsAlive = new WeakMap<WebSocket, boolean>();
 
@@ -146,11 +147,14 @@ interface HealthStatus {
   apiKey: 'valid' | 'invalid' | 'missing' | 'unchecked';
   apiKeyError?: string;
   agentSdk: 'available' | 'not_found';
+  claudeCodeCli: 'found' | 'not_found';
+  claudeCodeCliPath?: string;
 }
 
 const healthStatus: HealthStatus = {
   apiKey: 'unchecked',
   agentSdk: 'not_found',
+  claudeCodeCli: 'not_found',
 };
 
 async function validateStartupHealth(): Promise<void> {
@@ -160,6 +164,17 @@ async function validateStartupHealth(): Promise<void> {
     healthStatus.agentSdk = 'available';
   } catch {
     healthStatus.agentSdk = 'not_found';
+  }
+
+  // Check Claude Code CLI (cli.js) -- required by the SDK at runtime
+  const cliPath = getClaudeCodePath();
+  if (cliPath) {
+    healthStatus.claudeCodeCli = 'found';
+    healthStatus.claudeCodeCliPath = cliPath;
+    console.log(`[health] Claude Code CLI resolved: ${cliPath}`);
+  } else {
+    healthStatus.claudeCodeCli = 'not_found';
+    console.error('[health] Claude Code CLI (cli.js) not found. Agent builds will fail. Ensure @anthropic-ai/claude-agent-sdk is installed or Claude Code is in PATH.');
   }
 
   // Check API key
@@ -353,12 +368,13 @@ function createApp(staticDir?: string, authToken?: string) {
       }
     }
 
-    const ready = healthStatus.apiKey === 'valid' && healthStatus.agentSdk === 'available';
+    const ready = healthStatus.apiKey === 'valid' && healthStatus.agentSdk === 'available' && healthStatus.claudeCodeCli === 'found';
     res.json({
       status: ready ? 'ready' : 'degraded',
       apiKey: healthStatus.apiKey,
       apiKeyError: healthStatus.apiKeyError ? 'API key validation failed' : undefined,
       agentSdk: healthStatus.agentSdk,
+      claudeCodeCli: healthStatus.claudeCodeCli,
     });
   });
 
@@ -776,7 +792,7 @@ export function startServer(
         console.log(`Auth token: ${token}`);
       }
       validateStartupHealth().then(() => {
-        console.log(`Health: API key=${healthStatus.apiKey}, SDK=${healthStatus.agentSdk}`);
+        console.log(`Health: API key=${healthStatus.apiKey}, SDK=${healthStatus.agentSdk}, CLI=${healthStatus.claudeCodeCli}`);
       });
       resolve({ server, authToken: token });
     });

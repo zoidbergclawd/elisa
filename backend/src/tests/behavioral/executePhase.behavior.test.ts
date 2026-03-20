@@ -14,6 +14,7 @@ import path from 'node:path';
 
 vi.mock('../../services/agentRunner.js', () => ({
   AgentRunner: vi.fn(),
+  getClaudeCodePath: () => '/mock/cli.js',
 }));
 
 vi.mock('../../services/gitService.js', () => ({

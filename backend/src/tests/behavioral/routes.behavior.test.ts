@@ -29,7 +29,7 @@ vi.mock('../../services/agentRunner.js', () => {
       success: true, summary: 'done', costUsd: 0, inputTokens: 0, outputTokens: 0,
     });
   });
-  return { AgentRunner: MockAgentRunner };
+  return { AgentRunner: MockAgentRunner, getClaudeCodePath: () => '/mock/cli.js' };
 });
 
 // Mock SkillRunner to avoid real execution
