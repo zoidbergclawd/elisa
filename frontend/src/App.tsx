@@ -13,7 +13,6 @@ import TeamPanel from './components/TeamPanel/TeamPanel';
 import SystemPanel from './components/SystemPanel/SystemPanel';
 import TestPanel from './components/TestPanel/TestPanel';
 import ReadinessBadge from './components/shared/ReadinessBadge';
-import LevelBadge from './components/shared/LevelBadge';
 import ModalHost from './components/shared/ModalHost';
 import UpdateBanner from './components/shared/UpdateBanner';
 import { useWebSocket } from './hooks/useWebSocket';
@@ -138,7 +137,7 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
   const {
     skills, setSkills, rules, portals, spec, workspacePath, workspaceJson, initialWorkspace,
     setExamplePickerOpen, handleWorkspaceChange, handleSaveNugget, handleOpenNugget,
-    handleOpenFolder, ensureWorkspacePath, reinterpretWorkspace, systemLevel,
+    handleOpenFolder, ensureWorkspacePath, reinterpretWorkspace,
     deviceManifests, workspaceMode, setWorkspaceMode,
   } = useWorkspaceContext();
 

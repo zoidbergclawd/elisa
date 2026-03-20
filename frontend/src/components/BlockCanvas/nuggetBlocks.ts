@@ -52,7 +52,7 @@ export function registerNuggetBlocks(): void {
     originalMenuGenerator.call(dropdown);
 
     // Update the goal label and tooltip when the selection changes
-    const block = this;
+    const block = this; // eslint-disable-line @typescript-eslint/no-this-alias -- Blockly block init requires capturing `this`
     const updateGoalLabel = (nuggetId: string) => {
       const nuggets = getCurrentNuggets();
       const nugget = nuggets.find((n) => n.id === nuggetId);

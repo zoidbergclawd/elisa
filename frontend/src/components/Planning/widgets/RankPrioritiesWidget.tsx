@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import type { QuestionOption } from '../../../types';
 
 export interface RankPrioritiesWidgetProps {
@@ -14,15 +14,7 @@ export default function RankPrioritiesWidget({
 }: RankPrioritiesWidgetProps) {
   const [items, setItems] = useState<QuestionOption[]>(options);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
-  const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const itemRefs = useRef<Map<number, HTMLElement>>(new Map());
-
-  useEffect(() => {
-    if (focusedIndex !== null) {
-      itemRefs.current.get(focusedIndex)?.focus();
-      setFocusedIndex(null);
-    }
-  }, [focusedIndex]);
 
   const swap = useCallback((fromIdx: number, toIdx: number) => {
     setItems((prev) => {
@@ -60,11 +52,13 @@ export default function RankPrioritiesWidget({
     if (e.key === 'ArrowUp' && index > 0) {
       e.preventDefault();
       swap(index, index - 1);
-      setFocusedIndex(index - 1);
+      const target = index - 1;
+      requestAnimationFrame(() => itemRefs.current.get(target)?.focus());
     } else if (e.key === 'ArrowDown' && index < items.length - 1) {
       e.preventDefault();
       swap(index, index + 1);
-      setFocusedIndex(index + 1);
+      const target = index + 1;
+      requestAnimationFrame(() => itemRefs.current.get(target)?.focus());
     }
   };
 
