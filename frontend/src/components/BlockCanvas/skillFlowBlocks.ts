@@ -1,5 +1,6 @@
 import * as Blockly from 'blockly';
 import { getCurrentSkills } from '../Skills/skillsRegistry';
+import { TEXT_FIELD_MAX_DISPLAY_LENGTH, TEXT_FIELD_MAX_INPUT_LENGTH } from './blockDefinitions';
 
 const skillFlowBlockDefs = [
   {
@@ -24,6 +25,7 @@ const skillFlowBlockDefs = [
     colour: 315,
     tooltip: 'Ask the user a question with options. Comma-separated options.',
     helpUrl: '',
+    extensions: ['skill_flow_text_field_limits'],
   },
   {
     type: 'skill_branch_if',
@@ -38,6 +40,7 @@ const skillFlowBlockDefs = [
     colour: 315,
     tooltip: 'If the context value matches, run the nested blocks. Blocks after this one always run regardless.',
     helpUrl: '',
+    extensions: ['skill_flow_text_field_limits'],
   },
   {
     type: 'skill_invoke',
@@ -55,7 +58,7 @@ const skillFlowBlockDefs = [
     colour: 315,
     tooltip: 'Invoke another skill by ID and store its output',
     helpUrl: '',
-    extensions: ['skill_flow_dropdown_extension'],
+    extensions: ['skill_flow_dropdown_extension', 'skill_flow_text_field_limits'],
   },
   {
     type: 'skill_run_agent',
@@ -69,6 +72,7 @@ const skillFlowBlockDefs = [
     colour: 315,
     tooltip: 'Spawn a Claude agent with a prompt template. Use {{key}} syntax to insert context values (e.g. {{answer}}, {{topic}}).',
     helpUrl: '',
+    extensions: ['skill_flow_text_field_limits'],
   },
   {
     type: 'skill_set_context',
@@ -82,6 +86,7 @@ const skillFlowBlockDefs = [
     colour: 315,
     tooltip: 'Set a context value. Use {{key}} to reference other values.',
     helpUrl: '',
+    extensions: ['skill_flow_text_field_limits'],
   },
   {
     type: 'skill_output',
@@ -93,6 +98,7 @@ const skillFlowBlockDefs = [
     colour: 315,
     tooltip: 'Produce the final output of this skill flow. Terminal block.',
     helpUrl: '',
+    extensions: ['skill_flow_text_field_limits'],
   },
 ];
 
@@ -100,6 +106,23 @@ let registered = false;
 
 export function registerSkillFlowBlocks(): void {
   if (registered) return;
+
+  // Register text field limits extension for skill flow blocks
+  Blockly.Extensions.register('skill_flow_text_field_limits', function (this: Blockly.Block) {
+    for (const input of this.inputList) {
+      for (const field of input.fieldRow) {
+        if (field instanceof Blockly.FieldTextInput) {
+          field.maxDisplayLength = TEXT_FIELD_MAX_DISPLAY_LENGTH;
+          field.setValidator((newValue: string) => {
+            if (newValue && newValue.length > TEXT_FIELD_MAX_INPUT_LENGTH) {
+              return newValue.substring(0, TEXT_FIELD_MAX_INPUT_LENGTH);
+            }
+            return newValue;
+          });
+        }
+      }
+    }
+  });
 
   Blockly.Extensions.register('skill_flow_dropdown_extension', function (this: Blockly.Block) {
     const dropdown = this.getField('SKILL_ID') as Blockly.FieldDropdown;

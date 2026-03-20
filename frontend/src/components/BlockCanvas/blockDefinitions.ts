@@ -49,6 +49,7 @@ const blockDefs = [
     colour: 210,
     tooltip: 'Describe what you want to build',
     helpUrl: '',
+    extensions: ['text_field_limits'],
   },
   {
     type: 'nugget_template',
@@ -116,6 +117,7 @@ const blockDefs = [
     colour: 135,
     tooltip: 'Add a promise — attach a proof to verify it',
     helpUrl: '',
+    extensions: ['text_field_limits'],
   },
   {
     type: 'constraint',
@@ -132,6 +134,7 @@ const blockDefs = [
     colour: 135,
     tooltip: 'Add a constraint',
     helpUrl: '',
+    extensions: ['text_field_limits'],
   },
   {
     type: 'when_then',
@@ -161,6 +164,7 @@ const blockDefs = [
     colour: 135,
     tooltip: 'Add a when/then promise — attach a proof to verify it',
     helpUrl: '',
+    extensions: ['text_field_limits'],
   },
   {
     type: 'has_data',
@@ -185,6 +189,7 @@ const blockDefs = [
     colour: 135,
     tooltip: 'Add data the nugget needs — attach a proof to verify it',
     helpUrl: '',
+    extensions: ['text_field_limits'],
   },
   // --- Proof (was Behavioral Test) ---
   {
@@ -199,6 +204,7 @@ const blockDefs = [
     colour: 30,
     tooltip: 'Add a proof — attach to a Promise block to verify it',
     helpUrl: '',
+    extensions: ['text_field_limits'],
   },
   // --- Skill (absorbs Style as shipped skills) ---
   {
@@ -319,10 +325,32 @@ const blockDefs = [
   },
 ];
 
+/** Max characters displayed before truncation with ellipsis. */
+export const TEXT_FIELD_MAX_DISPLAY_LENGTH = 50;
+/** Max characters allowed in text input fields. */
+export const TEXT_FIELD_MAX_INPUT_LENGTH = 150;
+
 let registered = false;
 
 export function registerBlocks(): void {
   if (registered) return;
+
+  // Register text field limits extension (display truncation + input validation)
+  Blockly.Extensions.register('text_field_limits', function (this: Blockly.Block) {
+    for (const input of this.inputList) {
+      for (const field of input.fieldRow) {
+        if (field instanceof Blockly.FieldTextInput) {
+          field.maxDisplayLength = TEXT_FIELD_MAX_DISPLAY_LENGTH;
+          field.setValidator((newValue: string) => {
+            if (newValue && newValue.length > TEXT_FIELD_MAX_INPUT_LENGTH) {
+              return newValue.substring(0, TEXT_FIELD_MAX_INPUT_LENGTH);
+            }
+            return newValue;
+          });
+        }
+      }
+    }
+  });
 
   // Register dynamic dropdown extensions before defining blocks
   Blockly.Extensions.register('skill_dropdown_extension', function (this: Blockly.Block) {
