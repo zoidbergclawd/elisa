@@ -62,3 +62,21 @@ export const MEETING_BLOCK_TIMEOUT_MS = 300_000;
 
 /** WebSocket server-side ping interval in milliseconds. */
 export const WS_PING_INTERVAL_MS = 30_000;
+
+/** Planning mode conversational turn timeout in milliseconds. */
+export const PLANNING_TURN_TIMEOUT_MS = 60_000;
+
+/** Planning mode canvas generation timeout in milliseconds. */
+export const PLANNING_CANVAS_TIMEOUT_MS = 120_000;
+
+/** Maximum conversation turns in planning mode. */
+export const PLANNING_MAX_TURNS = 20;
+
+/** Max tokens for planning conversational turns. */
+export const PLANNING_MAX_TOKENS = 4096;
+
+/** Max tokens for planning canvas generation. */
+export const PLANNING_CANVAS_MAX_TOKENS = 8192;
+
+/** Max conversation history entries before trimming oldest. */
+export const PLANNING_MAX_HISTORY = 50;

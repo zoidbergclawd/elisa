@@ -26,6 +26,10 @@ const TRIGGER_MAP: Record<string, [string, string]> = {
   rule_used: ['prompt_engineering', 'first_rule'],
   composite_skill_created: ['prompt_engineering', 'composite_skill'],
   context_variable_used: ['prompt_engineering', 'context_variables'],
+  // Planning Mode triggers (PRD-004)
+  planning_turn: ['planning', 'structured_thinking'],
+  planning_ready: ['planning', 'readiness'],
+  planning_canvas_generated: ['planning', 'canvas_generation'],
 };
 
 export class TeachingEngine {

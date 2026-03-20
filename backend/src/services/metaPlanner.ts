@@ -52,10 +52,14 @@ export class MetaPlanner {
       messages: [
         { role: 'user', content: userMsg },
       ],
-      max_tokens: 4096,
+      max_tokens: 16384,
     });
 
     const text = this.extractText(response);
+    const stopReason = response.stop_reason;
+    if (stopReason === 'max_tokens') {
+      console.warn('[meta-planner] response truncated (hit max_tokens), retrying...');
+    }
     let plan = this.parseJson(text);
 
     if (!plan) {
@@ -86,7 +90,7 @@ export class MetaPlanner {
             'or commentary. Just the raw JSON.',
         },
       ],
-      max_tokens: 4096,
+      max_tokens: 16384,
     });
 
     const text = this.extractText(response);
@@ -106,15 +110,32 @@ export class MetaPlanner {
 
   private parseJson(text: string): Record<string, unknown> | null {
     let cleaned = text.trim();
+
+    // Strip markdown code fences
     const fenceMatch = cleaned.match(/```(?:json)?\s*\n?(.*?)```/s);
     if (fenceMatch) {
       cleaned = fenceMatch[1].trim();
     }
+
+    // Try direct parse first
     try {
       return JSON.parse(cleaned);
     } catch {
-      return null;
+      // Fall through to recovery strategies
     }
+
+    // Find the first '{' and last '}' -- handles preamble text before JSON
+    const firstBrace = cleaned.indexOf('{');
+    const lastBrace = cleaned.lastIndexOf('}');
+    if (firstBrace >= 0 && lastBrace > firstBrace) {
+      try {
+        return JSON.parse(cleaned.slice(firstBrace, lastBrace + 1));
+      } catch {
+        // Fall through
+      }
+    }
+
+    return null;
   }
 
   /** Validates the raw parsed JSON conforms to MetaPlannerPlan structure. Mutates in place. */

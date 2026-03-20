@@ -216,9 +216,8 @@ describe('App', () => {
     expect(screen.getByText('Error')).toBeInTheDocument();
   });
 
-  it('renders GO button', () => {
+  it('renders GO button and readiness badge', () => {
     render(<App />);
-    // GoButton is mocked but should be in the header
     expect(screen.getByTestId('readiness-badge')).toBeInTheDocument();
   });
 });

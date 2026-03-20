@@ -26,6 +26,10 @@ import { interpretCompositionWorkspace } from './components/BlockCanvas/nuggetIn
 import { composeNuggets, type ResolvedNugget } from './lib/composeNuggets';
 import { SHIPPED_NUGGETS } from './lib/shippedNuggets';
 import { playChime } from './lib/playChime';
+import PlanningModal from './components/Planning/PlanningModal';
+import { usePlanningSession } from './hooks/usePlanningSession';
+import { populateCanvasFromPlan } from './components/BlockCanvas/planToBlocks';
+import { updateSkillOptions } from './components/Skills/skillsRegistry';
 import { BuildSessionProvider } from './contexts/BuildSessionContext';
 import { useBuildSessionContext } from './contexts/BuildSessionContext';
 import { MeetingProvider } from './contexts/MeetingContext';
@@ -118,7 +122,7 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
   const {
     uiState, tasks, agents, events, sessionId,
     teachingMoments, deployUrls, errorNotification, testResults,
-    nuggetDir, startBuild, stopBuild, clearErrorNotification, resetToDesign,
+    nuggetDir, createSession, startBuild, stopBuild, clearErrorNotification, resetToDesign,
     launchWorkspace, isFixing,
   } = useBuildSessionContext();
 
@@ -132,11 +136,16 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
   } = useMeetingContext();
 
   const {
-    skills, rules, portals, spec, workspacePath, workspaceJson, initialWorkspace,
+    skills, setSkills, rules, portals, spec, workspacePath, workspaceJson, initialWorkspace,
     setExamplePickerOpen, handleWorkspaceChange, handleSaveNugget, handleOpenNugget,
     handleOpenFolder, ensureWorkspacePath, reinterpretWorkspace, systemLevel,
     deviceManifests, workspaceMode, setWorkspaceMode,
   } = useWorkspaceContext();
+
+  // Planning Mode state
+  const [planningModalOpen, setPlanningModalOpen] = useState(false);
+  const [planningIdeaPrompt, setPlanningIdeaPrompt] = useState(false);
+  const planning = usePlanningSession(sessionId);
 
   // Post-bug-report fix state
   const [lastBugReport, setLastBugReport] = useState<string | null>(null);
@@ -157,11 +166,12 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
     }
   }, [activeMeeting]);
 
-  // Route WS events to both build session and meeting session handlers
+  // Route WS events to build session, meeting session, and planning session handlers
   const handleAllEvents = useCallback((event: WSEvent) => {
+    planning.handlePlanningEvent(event);
     handleMeetingEvent(event);
     handleBuildEvent(event);
-  }, [handleMeetingEvent, handleBuildEvent]);
+  }, [planning.handlePlanningEvent, handleMeetingEvent, handleBuildEvent]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { waitForOpen } = useWebSocket({ sessionId, onEvent: handleAllEvents });
   const { health, loading: healthLoading } = useHealthCheck(uiState === 'design');
@@ -238,6 +248,52 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
     setBoardDetectedModalOpen(true); // eslint-disable-line react-hooks/set-state-in-effect -- responding to hardware event
     acknowledgeConnection();
   }, [justConnected, boardInfo, acknowledgeConnection]);
+
+  // Planning Mode: when canvas is generated, register skills and populate blocks
+  useEffect(() => {
+    if (planning.status === 'generated' && planning.canvasBlockSpec) {
+      // Register plan skills as IDE skills so use_skill blocks can reference them
+      const planSkills = planning.plan?.skills ?? [];
+      const newSkills = planSkills.map((s) => ({
+        id: crypto.randomUUID(),
+        name: s.name,
+        prompt: s.description,
+        category: 'agent' as const,
+      }));
+      const allSkills = newSkills.length > 0 ? [...skills, ...newSkills] : skills;
+      if (newSkills.length > 0) {
+        // Update registry synchronously BEFORE loading workspace so Blockly
+        // can resolve skill IDs in the use_skill dropdown immediately
+        updateSkillOptions(allSkills);
+        setSkills(allSkills);
+      }
+
+      // Replace Skill block content (names) with registered skill IDs
+      const skillNameToId = new Map(newSkills.map((s) => [s.name, s.id]));
+      const adjustedSpec = {
+        ...planning.canvasBlockSpec,
+        blocks: planning.canvasBlockSpec.blocks.map((b) =>
+          b.type === 'Skill' && skillNameToId.has(b.content)
+            ? { ...b, content: skillNameToId.get(b.content)! }
+            : b,
+        ),
+      };
+
+      const merge = !!(workspaceJson && (workspaceJson as { blocks?: { blocks?: unknown[] } }).blocks?.blocks?.length);
+      populateCanvasFromPlan(
+        (json: Record<string, unknown>) => blockCanvasRef.current?.loadWorkspace(json),
+        workspaceJson as Record<string, unknown> | null,
+        adjustedSpec,
+        merge,
+      );
+      setPlanningModalOpen(false);
+      setActiveMainTab('workspace');
+      planning.resetPlanning();
+    }
+    // Intentional: one-shot trigger on generation complete -- captures current
+    // skills/workspace/blockCanvasRef at that moment, must not re-fire when they change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planning.status, planning.canvasBlockSpec]);
 
   // Resize Blockly when returning to workspace tab
   useEffect(() => {
@@ -363,7 +419,6 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
           />
         </div>
         <div className="flex items-center gap-3">
-          {spec && <LevelBadge level={systemLevel} />}
           {uiState === 'design' && workspacePath && (
             <button
               onClick={handleLaunch}
@@ -400,10 +455,10 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
             onOpen={() => fileInputRef.current?.click()}
             onSave={handleSaveNugget}
             onSkills={() => setSkillsModalOpen(true)}
-            onRules={() => setRulesModalOpen(true)}
             onPortals={() => setPortalsModalOpen(true)}
             onExamples={() => setExamplePickerOpen(true)}
             onHelp={() => setHelpOpen(true)}
+            onPlanWithAI={() => setPlanningIdeaPrompt(true)}
             onFolder={handleOpenFolder}
             saveDisabled={!workspaceJson}
             workspacePath={workspacePath}
@@ -411,19 +466,21 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
           <div className="flex-1 relative flex flex-col">
             {/* PRD-003 Phase 2: Specify / Compose mode toggle */}
             {uiState === 'design' && (
-              <div className="flex items-center gap-1 px-3 py-1.5 bg-gray-50 border-b border-gray-200 text-xs">
-                <button
-                  className={`px-3 py-1 rounded-full font-medium transition-colors ${workspaceMode === 'specify' ? 'bg-white shadow-sm text-gray-900 border border-gray-300' : 'text-gray-500 hover:text-gray-700'}`}
-                  onClick={() => setWorkspaceMode('specify')}
-                >
-                  Specify
-                </button>
-                <button
-                  className={`px-3 py-1 rounded-full font-medium transition-colors ${workspaceMode === 'compose' ? 'bg-white shadow-sm text-gray-900 border border-gray-300' : 'text-gray-500 hover:text-gray-700'}`}
-                  onClick={() => setWorkspaceMode('compose')}
-                >
-                  Compose
-                </button>
+              <div className="flex items-center px-3 py-1.5 bg-gray-50 border-b border-gray-200 text-xs">
+                <div className="flex items-center gap-1">
+                  <button
+                    className={`px-3 py-1 rounded-full font-medium transition-colors ${workspaceMode === 'specify' ? 'bg-white shadow-sm text-gray-900 border border-gray-300' : 'text-gray-500 hover:text-gray-700'}`}
+                    onClick={() => setWorkspaceMode('specify')}
+                  >
+                    Specify
+                  </button>
+                  <button
+                    className={`px-3 py-1 rounded-full font-medium transition-colors ${workspaceMode === 'compose' ? 'bg-white shadow-sm text-gray-900 border border-gray-300' : 'text-gray-500 hover:text-gray-700'}`}
+                    onClick={() => setWorkspaceMode('compose')}
+                  >
+                    Compose
+                  </button>
+                </div>
               </div>
             )}
             <div className="flex-1 relative">
@@ -696,6 +753,73 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
           onDecline={declineInvite}
           onDismissToast={dismissToast}
           pauseAutoDismiss={!!activeMeeting}
+        />
+      )}
+
+      {/* Planning Mode idea prompt */}
+      {planningIdeaPrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="planning-idea-title">
+          <div className="glass-elevated rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4 animate-float-in">
+            <h3 id="planning-idea-title" className="text-lg font-display font-bold text-atelier-text mb-3">
+              What do you want to build?
+            </h3>
+            <p className="text-sm text-atelier-text-secondary mb-4">
+              Describe your idea and the planning assistant will help you design it step by step.
+            </p>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const form = e.currentTarget;
+                const idea = new FormData(form).get('idea') as string;
+                if (!idea.trim()) return;
+                setPlanningIdeaPrompt(false);
+                setPlanningModalOpen(true);
+                await planning.startPlanning(idea.trim(), { createSession, waitForOpen });
+              }}
+            >
+              <textarea
+                name="idea"
+                rows={3}
+                className="w-full px-4 py-3 rounded-xl border border-border-subtle bg-atelier-surface text-atelier-text text-sm resize-none focus:outline-none focus:ring-2 focus:ring-accent-lavender/40"
+                placeholder="e.g., A study buddy that quizzes kids on science"
+                autoFocus
+              />
+              <div className="flex justify-end gap-2 mt-4">
+                <button
+                  type="button"
+                  onClick={() => setPlanningIdeaPrompt(false)}
+                  className="px-4 py-2 rounded-xl text-sm cursor-pointer border border-border-subtle text-atelier-text-secondary hover:border-border-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl text-sm cursor-pointer font-medium border border-accent-lavender/30 bg-accent-lavender/20 text-accent-lavender hover:bg-accent-lavender/30 transition-colors"
+                >
+                  Start Planning
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Planning Mode modal */}
+      {planningModalOpen && (
+        <PlanningModal
+          status={planning.status}
+          plan={planning.plan}
+          conversationHistory={planning.conversationHistory}
+          currentQuestion={planning.currentQuestion}
+          isAgentThinking={planning.isAgentThinking}
+          error={planning.error}
+          onSubmitAnswer={planning.submitAnswer}
+          onSubmitMessage={planning.submitMessage}
+          onGenerateCanvas={planning.generateCanvas}
+          onClose={() => {
+            setPlanningModalOpen(false);
+            planning.resetPlanning();
+          }}
         />
       )}
 

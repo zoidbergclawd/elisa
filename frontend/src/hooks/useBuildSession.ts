@@ -406,6 +406,7 @@ function handleWSEvent(state: BuildSessionState, event: WSEvent, deploySteps: Ar
         ...state,
         events,
         uiState: 'done',
+        isPlanning: false,
         agents: state.agents.map(a => ({ ...a, status: 'done' as const })),
         testResults: resolvePendingTests(state.testResults, 'No matching test was generated'),
       };
@@ -955,6 +956,15 @@ export function useBuildSession() {
     dispatch({ type: 'WS_EVENT', event, deploySteps: deployStepsRef.current });
   }, []);
 
+  /** Create a session without starting a build. Returns the session ID, or null on failure. */
+  const createSession = useCallback(async (): Promise<string | null> => {
+    const res = await authFetch('/api/sessions', { method: 'POST' });
+    if (!res.ok) return null;
+    const { session_id } = await res.json();
+    dispatch({ type: 'SET_SESSION_ID', sessionId: session_id });
+    return session_id;
+  }, []);
+
   const startBuild = useCallback(async (
     spec: NuggetSpec,
     waitForWs?: () => Promise<void>,
@@ -1090,6 +1100,7 @@ export function useBuildSession() {
     fixPhase: state.fixPhase,
     meetingBlockedTasks: state.meetingBlockedTasks,
     handleEvent,
+    createSession,
     startBuild,
     stopBuild,
     clearGateRequest,

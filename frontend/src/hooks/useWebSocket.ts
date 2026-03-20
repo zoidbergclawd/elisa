@@ -193,6 +193,8 @@ export function useWebSocket({ sessionId, onEvent }: UseWebSocketOptions) {
     };
 
     ws.onmessage = (event) => {
+      // Ignore messages from a stale connection that hasn't closed yet
+      if (wsRef.current !== null && wsRef.current !== ws) return;
       try {
         const data = JSON.parse(event.data) as WSEvent;
         onEventRef.current(data);
@@ -207,6 +209,9 @@ export function useWebSocket({ sessionId, onEvent }: UseWebSocketOptions) {
 
     ws.onclose = (event) => {
       if (pingInterval) clearInterval(pingInterval);
+      // If a newer WebSocket has already replaced this one (e.g. React StrictMode
+      // double-mount), skip reconnect logic to avoid creating a zombie connection.
+      if (wsRef.current !== null && wsRef.current !== ws) return;
       wsRef.current = null;
       setConnected(false);
       if (!event.wasClean) {

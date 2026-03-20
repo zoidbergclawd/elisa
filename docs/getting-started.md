@@ -30,7 +30,7 @@ Then open `http://localhost:5173` in your browser.
 
 ## First Build Session
 
-1. **Design** -- Drag blocks from the palette onto the canvas. At minimum, add a `project_goal` block with a description of what you want to build.
+1. **Design** -- Drag blocks from the palette onto the canvas. At minimum, add a `project_goal` block with a description of what you want to build. Alternatively, use **Planning Mode** to have Claude help you design your project through a guided conversation before placing blocks.
 2. **Press Go** -- The large floating button sends your block workspace to the backend as a NuggetSpec JSON.
 3. **Watch** -- The right sidebar shows a task dependency graph. Agents appear, pick up tasks, and stream output. The bottom bar fills with git commits, test results, and teaching moments.
 4. **Interact** -- If you placed a "check with me" block, the build pauses with a modal asking for your approval. Agents may also ask questions mid-build.

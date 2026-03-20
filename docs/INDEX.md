@@ -88,12 +88,14 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/routes/meetings.ts` | /api/sessions/:id/meetings/* endpoints (accept, decline, message, end) |
 | `backend/src/routes/runtime.ts` | /v1/agents/* endpoints (provision, update, delete, turn, history, heartbeat) |
 | `backend/src/routes/specGraph.ts` | /api/spec-graph/* endpoints (CRUD, compose, impact, interfaces) |
+| `backend/src/routes/planning.ts` | /api/sessions/:id/planning/* endpoints (start, answer, message, generate, state) |
 | `backend/src/routes/devices.ts` | /api/devices endpoint (list device plugin manifests) |
 
 ### Services
 
 | File | Role |
 |------|------|
+| `backend/src/services/planningService.ts` | Planning Mode: conversational plan refinement via Claude SDK, structured question generation, deterministic mutations, canvas generation |
 | `backend/src/services/orchestrator.ts` | Thin coordinator: plan -> meeting triggers -> execute -> test -> deploy. Also runFix() for post-build targeted fixes |
 | `backend/src/services/metaPlanner.ts` | Decomposes NuggetSpec into task DAG via Claude API |
 | `backend/src/services/agentRunner.ts` | Executes agents via Claude Agent SDK `query()` with streaming |
@@ -193,6 +195,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 
 | File | Role |
 |------|------|
+| `backend/src/prompts/planningAgent.ts` | System prompt for Planning Mode conversational agent |
 | `backend/src/prompts/metaPlanner.ts` | System prompt for task decomposition |
 | `backend/src/prompts/builderAgent.ts` | Builder role prompt template |
 | `backend/src/prompts/testerAgent.ts` | Tester role prompt template |
@@ -213,6 +216,16 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/components/BlockCanvas/skillInterpreter.ts` | Skill flow workspace -> SkillPlan conversion |
 | `frontend/src/components/BlockCanvas/nuggetBlocks.ts` | Dynamic nugget_ref block registration for composition mode |
 | `frontend/src/components/BlockCanvas/nuggetInterpreter.ts` | Composition workspace -> ComposeRequest conversion |
+| `frontend/src/components/BlockCanvas/planToBlocks.ts` | Converts Planning Mode CanvasBlockSpec to Blockly blocks (blank + merge modes) |
+| `frontend/src/components/Planning/PlanningModal.tsx` | Full-screen Planning Mode modal (two-panel: conversation + plan state) |
+| `frontend/src/components/Planning/PlanningPanel.tsx` | Two-panel layout: ChatPanel left, PlanStatePanel right |
+| `frontend/src/components/Planning/PlanStatePanel.tsx` | Live-updating plan summary with primitive status indicators |
+| `frontend/src/components/Planning/PlanSummaryCard.tsx` | Readiness review card with "Generate Canvas" / "Ask me more" buttons |
+| `frontend/src/components/Planning/TeachingAnnotation.tsx` | Collapsible teaching annotations (why_asking, patterns, what_if) |
+| `frontend/src/components/Planning/widgets/SingleSelectWidget.tsx` | Clickable buttons for mutually exclusive planning options |
+| `frontend/src/components/Planning/widgets/MultiSelectWidget.tsx` | Checkboxes for multi-select planning options |
+| `frontend/src/components/Planning/widgets/RankPrioritiesWidget.tsx` | Drag-to-reorder priority ranking widget |
+| `frontend/src/components/Planning/widgets/QuestionWidgetRenderer.tsx` | Dispatcher: renders correct widget by question type |
 | `frontend/src/components/AgentTeam/AgentTeamPanel.tsx` | Full-width agent cards + comms feed |
 | `frontend/src/components/TaskMap/TaskMapPanel.tsx` | Full-width interactive task DAG |
 | `frontend/src/components/shared/MinionAvatar.tsx` | Animated avatar for narrator/minion characters |
@@ -266,6 +279,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 
 | File | Role |
 |------|------|
+| `frontend/src/hooks/usePlanningSession.ts` | Planning Mode state via useReducer + WS events (plan, questions, mutations) |
 | `frontend/src/hooks/useBuildSession.ts` | All session state + WebSocket event dispatching |
 | `frontend/src/hooks/useWorkspaceIO.ts` | Workspace file I/O: open/save/load nugget, open folder, select example, syncDesignToStorage |
 | `frontend/src/hooks/useSkillSession.ts` | Standalone skill execution state + WebSocket events |
@@ -309,6 +323,22 @@ Blockly workspace
   -> (optional) "Keep working" -> design phase -> re-build with existing workspace + git history
   -> (optional) POST /fix -> targeted bug fix task -> re-test -> fix_* events
   -> (optional) POST /launch -> serve built nugget without rebuild -> deploy_complete
+```
+
+### Planning Mode Pipeline (PRD-004)
+
+```
+Planning Mode (optional, pre-build):
+  User idea (free text) + optional canvas context
+    -> POST /api/sessions/:id/planning/start
+    -> PlanningService -> Claude SDK (structured outputs)
+    -> WS: planning_turn (message) + planning_question (widget + mutation map)
+    -> Structured answer click: client-side mutation (instant, no API call)
+    -> Free-text answer: Claude call -> next question
+    -> Readiness: goal solid, 2+ promises with proofs, portals, skills, deploy
+    -> POST /planning/generate -> CanvasBlockSpec (validated)
+    -> planToBlocks.ts -> Blockly workspace population
+    -> Plan persisted to .elisa/plan.json
 ```
 
 ### Device Plugin Pipeline

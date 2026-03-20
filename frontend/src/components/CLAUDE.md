@@ -12,6 +12,15 @@ App.tsx
   shared/ReadinessBadge.tsx          Backend readiness indicator
   BlockCanvas/WorkspaceSidebar.tsx   Vertical icon toolbar (Folder/Open/Save/Skills/Portals/Examples/Help)
   BlockCanvas/BlockCanvas.tsx        Blockly editor wrapper. Read-only during build. Always mounted.
+  Planning/PlanningModal.tsx          Full-screen Planning Mode overlay (conversation + plan state)
+    Planning/PlanningPanel.tsx        Two-panel layout: ChatPanel left, PlanStatePanel right
+    Planning/PlanStatePanel.tsx       Live-updating plan summary (6 primitives with decided/open status)
+    Planning/PlanSummaryCard.tsx      Readiness review card ("Generate Canvas" / "Ask me more")
+    Planning/TeachingAnnotation.tsx   Collapsible teaching annotations (why_asking, patterns, what_if)
+    Planning/widgets/SingleSelectWidget.tsx   Clickable buttons for single-choice planning questions
+    Planning/widgets/MultiSelectWidget.tsx    Checkboxes for multi-select planning questions
+    Planning/widgets/RankPrioritiesWidget.tsx Drag-to-reorder priority ranking
+    Planning/widgets/QuestionWidgetRenderer.tsx Dispatcher: renders correct widget by question.type
   AgentTeam/AgentTeamPanel.tsx       Full-width agent cards + comms feed (Agents tab)
   TaskMap/TaskMapPanel.tsx           Full-width interactive task DAG (Tasks tab)
   SystemPanel/SystemPanel.tsx        System main tab: architecture explorer (spec view pre-build, task list + detail during/post-build)

@@ -17,6 +17,7 @@ src/
   main.tsx                   Entry point. React 19 createRoot.
   components/
     BlockCanvas/             Blockly editor + block-to-NuggetSpec conversion + WorkspaceSidebar
+    Planning/                Planning Mode: PlanningModal, PlanningPanel, PlanStatePanel, PlanSummaryCard, TeachingAnnotation, widgets/
     AgentTeam/               Full-width agent cards + comms feed panel (Agents tab)
     TaskMap/                 Full-width interactive task DAG panel (Tasks tab)
     MissionControl/          MissionControlPanel (layout), MinionSquadPanel, NarratorFeed, TaskDAG, CommsFeed, MetricsPanel
@@ -30,6 +31,7 @@ src/
     TeamPanel/               Persistent Team tab: TeamPanel, TeamMemberList, TeamConversation (reuses ChatPanel+CanvasPanel)
     shared/                  MainTabBar (workspace/mission/team), GoButton, ModalHost, HumanGateModal, QuestionModal, TeachingToast, AgentAvatar, ReadinessBadge, ExamplePickerModal, DirectoryPickerModal, FlashWizardModal, MeetingInviteToast (auto-dismiss preserves invite), DisplayThemePreview, EsptoolFlashStep, ImpactPreview
   hooks/
+    usePlanningSession.ts    Planning Mode state via useReducer + WS events (plan, questions, mutations)
     useBuildSession.ts       Build session state via useReducer (typed actions + reducer)
     useWorkspaceIO.ts        Workspace file I/O: open/save/load nugget, open folder, select example, syncDesignToStorage
     useSkillSession.ts       Standalone skill execution state + WebSocket events
