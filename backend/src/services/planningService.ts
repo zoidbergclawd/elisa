@@ -2,7 +2,6 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import Anthropic from '@anthropic-ai/sdk';
 import { getAnthropicClient } from '../utils/anthropicClient.js';
 import { withTimeout } from '../utils/withTimeout.js';
 import {
@@ -44,7 +43,6 @@ export interface PlanningTurnResult {
 
 export class PlanningService {
   private sessions = new Map<string, PlanningSession>();
-  private client: Anthropic | null = null;
   private model: string;
 
   constructor(model?: string) {
@@ -335,10 +333,6 @@ export class PlanningService {
       return this.forceReadiness(session);
     }
 
-    if (!this.client) {
-      this.client = getAnthropicClient();
-    }
-
     // Record kid's message
     session.conversationHistory.push({
       role: 'kid',
@@ -361,10 +355,6 @@ export class PlanningService {
       return this.forceReadiness(session);
     }
 
-    if (!this.client) {
-      this.client = getAnthropicClient();
-    }
-
     return this.callClaudeWithHistory(session);
   }
 
@@ -379,8 +369,10 @@ export class PlanningService {
 
     console.log(`[planning] calling Claude (turn ${session.plan.conversation_turn}, ${claudeMessages.length} messages, plan ready=${session.plan.ready})`);
 
+    const client = getAnthropicClient();
+
     const response = await withTimeout(
-      this.client!.messages.create({
+      client.messages.create({
         model: this.model,
         max_tokens: PLANNING_MAX_TOKENS,
         system: systemPrompt,
@@ -440,8 +432,10 @@ export class PlanningService {
       },
     ];
 
+    const client = getAnthropicClient();
+
     const response = await withTimeout(
-      this.client!.messages.create({
+      client.messages.create({
         model: this.model,
         max_tokens: PLANNING_MAX_TOKENS,
         system: systemPrompt,

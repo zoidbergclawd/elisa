@@ -106,7 +106,6 @@ const MEETING_TOPIC_DESCRIPTIONS: Record<string, string> = {
 export { MEETING_TOPIC_DESCRIPTIONS };
 
 export class MeetingAgentService {
-  private client: Anthropic | null = null;
   private model: string;
 
   constructor(model?: string) {
@@ -119,17 +118,15 @@ export class MeetingAgentService {
     buildContext: MeetingBuildContext,
     options?: { focusContext?: string; previousDesigns?: string[] },
   ): Promise<AgentResponse> {
-    if (!this.client) {
-      this.client = getAnthropicClient();
-    }
+    const client = getAnthropicClient();
 
     const claudeMessages = this.toClaudeMessages(messages);
     const canvasInstructions = CANVAS_INSTRUCTIONS[meetingType.canvasType];
 
     // Build both calls
-    const chatPromise = this.callChat(meetingType, claudeMessages, buildContext, options);
+    const chatPromise = this.callChat(client, meetingType, claudeMessages, buildContext, options);
     const canvasPromise = canvasInstructions
-      ? this.callCanvas(meetingType, claudeMessages, buildContext, canvasInstructions, options)
+      ? this.callCanvas(client, meetingType, claudeMessages, buildContext, canvasInstructions, options)
       : Promise.resolve(undefined);
 
     // Run in parallel, graceful failure for each
@@ -155,6 +152,7 @@ export class MeetingAgentService {
   }
 
   private async callChat(
+    client: Anthropic,
     meetingType: MeetingType,
     claudeMessages: Array<{ role: 'user' | 'assistant'; content: string }>,
     ctx: MeetingBuildContext,
@@ -163,7 +161,7 @@ export class MeetingAgentService {
     const systemPrompt = this.buildChatSystemPrompt(meetingType, ctx, options);
 
     const response = await withTimeout(
-      this.client!.messages.create({
+      client.messages.create({
         model: this.model,
         max_tokens: MEETING_CHAT_MAX_TOKENS,
         system: systemPrompt,
@@ -176,6 +174,7 @@ export class MeetingAgentService {
   }
 
   private async callCanvas(
+    client: Anthropic,
     meetingType: MeetingType,
     claudeMessages: Array<{ role: 'user' | 'assistant'; content: string }>,
     ctx: MeetingBuildContext,
@@ -185,7 +184,7 @@ export class MeetingAgentService {
     const systemPrompt = this.buildCanvasSystemPrompt(meetingType, ctx, canvasInstructions, claudeMessages, options);
 
     const response = await withTimeout(
-      this.client!.messages.create({
+      client.messages.create({
         model: this.model,
         max_tokens: MEETING_CANVAS_MAX_TOKENS,
         system: systemPrompt,

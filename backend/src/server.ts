@@ -32,7 +32,7 @@ import { LocalRuntimeProvisioner } from './services/runtimeProvisioner.js';
 import { createRuntimeRouter } from './routes/runtime.js';
 import { SpecGraphService } from './services/specGraph.js';
 import { createSpecGraphRouter } from './routes/specGraph.js';
-import { getAnthropicClient } from './utils/anthropicClient.js';
+import { getAnthropicClient, resetAnthropicClient } from './utils/anthropicClient.js';
 import { getLanUrl } from './utils/lanUrl.js';
 import { getDevicesDir } from './utils/resourcePath.js';
 import { WS_PING_INTERVAL_MS } from './utils/constants.js';
@@ -400,6 +400,8 @@ function createApp(staticDir?: string, authToken?: string) {
         return;
       }
       process.env.ANTHROPIC_API_KEY = apiKey;
+      // Reset the singleton so all services pick up the new key
+      resetAnthropicClient();
       // Validate the newly-set key
       try {
         await new Anthropic().models.list({ limit: 1 });

@@ -295,4 +295,26 @@ describe('POST /api/internal/config', () => {
     const body = await res.json();
     expect(body.apiKey).toBe('invalid');
   });
+
+  it('resets the Anthropic client singleton so services pick up the new key', async () => {
+    process.env.ANTHROPIC_API_KEY = 'sk-old-key';
+    await startTestServer();
+
+    // Grab the singleton BEFORE the config call
+    const { getAnthropicClient } = await import('../../utils/anthropicClient.js');
+    const clientBefore = getAnthropicClient();
+
+    // Set a new key via the config endpoint
+    const res = await fetch(`${baseUrl()}/api/internal/config`, {
+      method: 'POST',
+      headers: jsonAuthHeaders(),
+      body: JSON.stringify({ apiKey: 'sk-new-key' }),
+    });
+    expect(res.status).toBe(200);
+
+    // After the config call, the singleton should have been reset,
+    // so the next getAnthropicClient() call returns a NEW instance
+    const clientAfter = getAnthropicClient();
+    expect(clientAfter).not.toBe(clientBefore);
+  });
 });
