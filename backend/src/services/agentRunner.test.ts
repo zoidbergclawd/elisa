@@ -203,6 +203,7 @@ describe('AgentRunner', () => {
       const callArgs = mockQuery.mock.calls[0][0];
       expect(callArgs.options?.executable).toBe(process.execPath);
       expect(callArgs.options?.env?.ELECTRON_RUN_AS_NODE).toBe('1');
+      expect(typeof callArgs.options?.stderr).toBe('function');
     } finally {
       if (origPath === undefined) delete process.env.ELISA_RESOURCES_PATH;
       else process.env.ELISA_RESOURCES_PATH = origPath;

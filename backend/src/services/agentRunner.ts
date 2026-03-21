@@ -7,11 +7,23 @@
 
 import path from 'node:path';
 import fs from 'node:fs';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentResult } from '../models/session.js';
 import { withTimeout, TimeoutError } from '../utils/withTimeout.js';
 import { MAX_TURNS_DEFAULT } from '../utils/constants.js';
+
+/** Path to the diagnostic log file (production only). */
+const DIAG_LOG_PATH = path.join(os.tmpdir(), 'elisa-agent-diagnostics.log');
+
+/** Append a diagnostic entry to the log file. Never throws. */
+function diagLog(lines: string[]): void {
+  if (!process.env.ELISA_RESOURCES_PATH) return;
+  try {
+    fs.appendFileSync(DIAG_LOG_PATH, lines.join('\n') + '\n');
+  } catch { /* best-effort */ }
+}
 
 /**
  * Resolve the path to cli.js bundled with `@anthropic-ai/claude-agent-sdk`.
@@ -166,9 +178,29 @@ export class AgentRunner {
   ): Promise<AgentResult> {
     // In Electron production, Node.js may not be installed on the system.
     // Use the Electron binary itself as the Node.js runtime for spawning cli.js.
-    const electronExecConfig = process.env.ELISA_RESOURCES_PATH
-      ? { executable: process.execPath, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } }
+    const isElectronProd = !!process.env.ELISA_RESOURCES_PATH;
+    const stderrChunks: string[] = [];
+    const electronExecConfig = isElectronProd
+      ? {
+          executable: process.execPath,
+          env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+          stderr: (data: string) => { stderrChunks.push(data); },
+        }
       : {};
+
+    diagLog([
+      `\n=== Agent spawn: ${new Date().toISOString()} ===`,
+      `Task: ${taskId}`,
+      `Executable: ${process.execPath}`,
+      `cli.js: ${claudeCodePath ?? 'auto-detect'}`,
+      `CWD: ${cwd}`,
+      `Model: ${model}`,
+      `Node: ${process.version}`,
+      `Electron: ${(process.versions as Record<string, string>).electron ?? 'N/A'}`,
+      `Platform: ${process.platform} ${process.arch}`,
+      `API key: ${process.env.ANTHROPIC_API_KEY ? `set (${process.env.ANTHROPIC_API_KEY.length} chars)` : 'NOT SET'}`,
+      `ELISA_RESOURCES_PATH: ${process.env.ELISA_RESOURCES_PATH ?? 'not set'}`,
+    ]);
 
     const conversation = query({
       prompt,
@@ -193,6 +225,7 @@ export class AgentRunner {
     let success = true;
     const accumulatedText: string[] = [];
 
+    try {
     for await (const message of conversation) {
       if (message.type === 'assistant') {
         const assistantMsg = message as SDKAssistantMessage;
@@ -220,6 +253,18 @@ export class AgentRunner {
             || 'Unknown error';
         }
       }
+    }
+
+    diagLog([`Result: success=${success}, cost=$${costUsd.toFixed(4)}`]);
+    } catch (err: unknown) {
+      diagLog([
+        `ERROR: ${err instanceof Error ? err.message : String(err)}`,
+        ...(err instanceof Error && err.stack ? [`Stack: ${err.stack}`] : []),
+        ...(stderrChunks.length > 0
+          ? ['--- stderr ---', ...stderrChunks, '--- end stderr ---']
+          : ['(no stderr captured)']),
+      ]);
+      throw err;
     }
 
     const summary = finalResult || accumulatedText.slice(-3).join('\n') || 'No output';
