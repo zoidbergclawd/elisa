@@ -185,6 +185,53 @@ describe('AgentRunner', () => {
     expect(result.summary).toBe('No output');
   });
 
+  it('passes Electron executable config when ELISA_RESOURCES_PATH is set', async () => {
+    const origPath = process.env.ELISA_RESOURCES_PATH;
+    process.env.ELISA_RESOURCES_PATH = '/fake/resources';
+    try {
+      mockQuery.mockReturnValue(asyncIterable(makeResultMessage()) as any);
+
+      const runner = new AgentRunner();
+      await runner.execute({
+        taskId: 'test-1',
+        prompt: 'hello',
+        systemPrompt: 'you are a bot',
+        onOutput: vi.fn().mockResolvedValue(undefined),
+        workingDir: '/tmp/test',
+      });
+
+      const callArgs = mockQuery.mock.calls[0][0];
+      expect(callArgs.options?.executable).toBe(process.execPath);
+      expect(callArgs.options?.env?.ELECTRON_RUN_AS_NODE).toBe('1');
+    } finally {
+      if (origPath === undefined) delete process.env.ELISA_RESOURCES_PATH;
+      else process.env.ELISA_RESOURCES_PATH = origPath;
+    }
+  });
+
+  it('does not pass Electron executable config in dev mode', async () => {
+    const origPath = process.env.ELISA_RESOURCES_PATH;
+    delete process.env.ELISA_RESOURCES_PATH;
+    try {
+      mockQuery.mockReturnValue(asyncIterable(makeResultMessage()) as any);
+
+      const runner = new AgentRunner();
+      await runner.execute({
+        taskId: 'test-1',
+        prompt: 'hello',
+        systemPrompt: 'you are a bot',
+        onOutput: vi.fn().mockResolvedValue(undefined),
+        workingDir: '/tmp/test',
+      });
+
+      const callArgs = mockQuery.mock.calls[0][0];
+      expect(callArgs.options?.executable).toBeUndefined();
+      expect(callArgs.options?.env).toBeUndefined();
+    } finally {
+      if (origPath !== undefined) process.env.ELISA_RESOURCES_PATH = origPath;
+    }
+  });
+
   it('catches thrown errors and returns failure', async () => {
     mockQuery.mockImplementation(() => {
       throw new Error('SDK connection failed');

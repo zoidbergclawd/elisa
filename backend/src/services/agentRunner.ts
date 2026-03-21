@@ -164,6 +164,12 @@ export class AgentRunner {
     abortController?: AbortController,
     allowedTools?: string[],
   ): Promise<AgentResult> {
+    // In Electron production, Node.js may not be installed on the system.
+    // Use the Electron binary itself as the Node.js runtime for spawning cli.js.
+    const electronExecConfig = process.env.ELISA_RESOURCES_PATH
+      ? { executable: process.execPath, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } }
+      : {};
+
     const conversation = query({
       prompt,
       options: {
@@ -172,6 +178,7 @@ export class AgentRunner {
         maxTurns,
         permissionMode: 'bypassPermissions',
         systemPrompt,
+        ...electronExecConfig,
         ...(claudeCodePath ? { pathToClaudeCodeExecutable: claudeCodePath } : {}),
         ...(allowedTools ? { allowedTools } : {}),
         ...(mcpConfig ? { mcpServers: mcpConfig } : {}),
