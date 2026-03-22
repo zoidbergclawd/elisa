@@ -309,6 +309,6 @@ Elisa is distributed as an Electron desktop app. The build pipeline:
 4. `npm run build:electron` -- tsc compiles `electron/main.ts` and `preload.ts`
 5. `npm run dist` -- electron-builder packages into installer (NSIS on Windows, DMG on macOS). `afterPack` hook renames `vendor/` -> `node_modules/` and verifies `cli.js` exists for the Claude Agent SDK. MinGit included as `extraResource` on Windows.
 
-**Zero-dependency install (Windows):** The packaged app bundles MinGit and creates a `node.exe` shim (hardlink of `Elisa.exe` with `ELECTRON_RUN_AS_NODE=1`). System tools are preferred when available; bundled fallbacks activate only when system git/node are missing. Python projects require a separate Python install (see #246).
+**Prerequisites:** Node.js (LTS) must be installed on the system. The Windows installer bundles MinGit (git + bash) so Git is not required separately. If Node.js is missing, a non-blocking dialog prompts the user to install it on first launch. Python projects require a separate Python install (see #246). Web preview uses a built-in static file server (no `npx serve` dependency).
 
 Dev mode (`npm run dev` at root): runs backend + frontend only (no Electron). `npm run dev:electron` runs backend, frontend, and Electron concurrently. Electron loads `http://localhost:5173` (Vite HMR). Production: Electron loads `http://localhost:{free port}` where Express serves everything.

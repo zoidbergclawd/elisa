@@ -35,7 +35,11 @@ Grab the latest installer for your platform from [**Releases**](https://github.c
 | Windows | `Elisa Setup X.Y.Z.exe` |
 | macOS | `Elisa-X.Y.Z.dmg` |
 
-On first launch, Elisa asks for your [Anthropic API key](https://console.anthropic.com). It's stored securely in your OS keychain.
+### Prerequisites
+
+- **[Node.js](https://nodejs.org/) (LTS)** -- required for running tests and agent tools. Elisa will prompt you to install it on first launch if missing.
+- **[Anthropic API key](https://console.anthropic.com)** -- entered on first launch, stored securely in your OS keychain.
+- **Git** -- bundled with the Windows installer (MinGit). macOS users typically have it via Xcode command line tools.
 
 > **Note:** The app is not code-signed yet. Windows will show a SmartScreen warning (click "More info" > "Run anyway"). macOS will show a Gatekeeper warning (right-click the app > "Open").
 
@@ -78,7 +82,7 @@ See [Getting Started](docs/getting-started.md) for full setup. Tested on Windows
 
 **Bug Fix Workflow** -- After a build, use the "Fix It" flow to target specific bugs. The fix endpoint creates a focused repair task, re-runs tests, and reports results -- no full rebuild needed.
 
-**Launch Without Rebuild** -- Re-serve a previously built nugget instantly. The launch endpoint finds the built output and starts a local preview server without re-running the build pipeline.
+**Launch Without Rebuild** -- Re-serve a previously built nugget instantly. The launch endpoint finds the built output and starts a built-in static file server without re-running the build pipeline.
 
 **Skills and Rules** -- Create reusable prompt snippets (skills) and trigger-based rules that shape agent behavior across builds.
 
