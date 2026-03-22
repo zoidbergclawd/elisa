@@ -86,6 +86,9 @@ export interface BuildSessionContextValue {
   isFixing: boolean;
   fixPhase: 'fixing' | 'retesting' | null;
   meetingBlockedTasks: string[];
+  testGatePassed: boolean | null;
+  autoFixAttempt: { passRate: number; threshold: number; attempt: number } | null;
+  visualTestResult: { passed: boolean; summary: string; issues: string[] } | null;
   boundaryAnalysis: {
     inputs: Array<{ name: string; type: string; source?: string }>;
     outputs: Array<{ name: string; type: string; source?: string }>;

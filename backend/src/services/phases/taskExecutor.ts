@@ -732,6 +732,7 @@ export class TaskExecutor {
     if (expectations.length === 0) return null;
 
     const lines = [
+      `// Run with: node tests/test_${task.id}.js`,
       `// TDD tests for task: ${task.name ?? task.id}`,
       '// Make these tests pass by implementing the features!',
       '',

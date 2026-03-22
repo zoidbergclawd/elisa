@@ -57,6 +57,10 @@ describe('testerAgent SYSTEM_PROMPT', () => {
   it('contains wind-down instruction referencing turn limit', () => {
     expect(SYSTEM_PROMPT).toContain('wind down');
   });
+
+  it('requires final verification run', () => {
+    expect(SYSTEM_PROMPT).toContain('Re-run all tests one final time');
+  });
 });
 
 describe('testerAgent formatTaskPrompt', () => {

@@ -58,6 +58,7 @@ export interface BuildSession {
   impactEstimate?: { estimated_tasks: number; complexity: string; heaviest_requirements: string[] };
   boundaryAnalysis?: { inputs: Array<{ name: string; type: string; source?: string }>; outputs: Array<{ name: string; type: string; source?: string }>; boundary_portals: string[] };
   planningSession?: PlanningSession;
+  testGatePassed?: boolean;
 }
 
 export interface AgentResult {

@@ -38,9 +38,11 @@ describe('builderAgent SYSTEM_PROMPT', () => {
     expect(SYSTEM_PROMPT).toContain('BUILDER');
   });
 
-  it('contains Thinking Steps section', () => {
+  it('contains Thinking Steps section with self-verification', () => {
     expect(SYSTEM_PROMPT).toContain('## Thinking Steps');
     expect(SYSTEM_PROMPT).toContain('file manifest and structural digest');
+    expect(SYSTEM_PROMPT).toContain('Run your tests');
+    expect(SYSTEM_PROMPT).toContain('node tests/test_{task_id}.js');
   });
 
   it('contains Turn Efficiency section', () => {
@@ -55,6 +57,19 @@ describe('builderAgent SYSTEM_PROMPT', () => {
 
   it('contains wind-down instruction referencing turn limit', () => {
     expect(SYSTEM_PROMPT).toContain('wind down');
+  });
+
+  it('requires running test file before summary', () => {
+    expect(SYSTEM_PROMPT).toContain('MUST run');
+    expect(SYSTEM_PROMPT).toContain('tests/test_{task_id}.js');
+  });
+
+  it('instructs agents not to leave FAIL stubs', () => {
+    expect(SYSTEM_PROMPT).toContain('do NOT leave FAIL stubs');
+  });
+
+  it('instructs honesty when node is unavailable', () => {
+    expect(SYSTEM_PROMPT).toContain('do not claim manual verification');
   });
 });
 
@@ -99,8 +114,12 @@ describe('formatTaskPrompt', () => {
     role: 'builder',
     persona: 'A friendly robot',
     task: {
+      id: 'task-1',
       name: 'Build UI',
       description: 'Create the main UI',
+      status: 'pending' as const,
+      agent_name: 'Builder Bot',
+      dependencies: [],
       acceptance_criteria: ['Page renders', 'Button works'],
     },
     spec: {
@@ -126,7 +145,7 @@ describe('formatTaskPrompt', () => {
   it('omits acceptance criteria section when empty array', () => {
     const result = formatTaskPrompt({
       ...baseParams,
-      task: { name: 'Test', description: 'Desc', acceptance_criteria: [] },
+      task: { ...baseParams.task, name: 'Test', description: 'Desc', acceptance_criteria: [] },
     });
     expect(result).not.toContain('Acceptance Criteria');
   });
@@ -134,7 +153,7 @@ describe('formatTaskPrompt', () => {
   it('omits acceptance criteria section when undefined', () => {
     const result = formatTaskPrompt({
       ...baseParams,
-      task: { name: 'Test', description: 'Desc' },
+      task: { ...baseParams.task, name: 'Test', description: 'Desc', acceptance_criteria: undefined as any },
     });
     expect(result).not.toContain('Acceptance Criteria');
   });
@@ -421,6 +440,12 @@ describe('formatTaskPrompt', () => {
   it('omits portals section when missing', () => {
     const result = formatTaskPrompt(baseParams);
     expect(result).not.toContain('## Available Portals');
+  });
+
+  it('includes test file path in user prompt', () => {
+    const result = formatTaskPrompt(baseParams);
+    expect(result).toContain('## Your Test File');
+    expect(result).toContain('node tests/test_task-1.js');
   });
 
   it('includes multiple portals', () => {

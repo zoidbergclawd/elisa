@@ -8,7 +8,7 @@ Each service owns one concern. Orchestrator coordinates phase handlers.
 Conversational planning assistant powered by Claude SDK with structured outputs. Manages planning sessions: `startPlanning()` initiates conversation with first question, `handleStructuredAnswer()` applies deterministic mutations from widget clicks (no API call), `handleFreeTextAnswer()` sends free-text to Claude, `generateCanvas()` produces CanvasBlockSpec from finalized plan. Readiness detection: goal solid, 2+ promises with proofs, 1+ portal, 1+ skill, deploy set. Hard cap at 20 turns. Plan persistence via `savePlan()`/`loadPlan()` to `.elisa/plan.json`. In-memory `Map<string, PlanningSession>` for state. Calls `getAnthropicClient()` per-use (no cached `this.client`) so API key changes propagate immediately. Teaching annotations generated per turn via prompt engineering.
 
 ### orchestrator.ts (thin coordinator)
-Delegates to phase handlers in sequence: plan -> meeting triggers (plan_ready) -> execute -> test -> deploy. Owns cancellation (AbortController), gate/question resolvers, and public accessors. Phases live in `phases/` subdirectory. Also exposes `runFix(bugReport, failingTests, send)` for post-build targeted bug fixes: creates a fix task, executes it via TaskExecutor, re-runs tests, and emits `fix_started`/`fix_task_completed`/`fix_tests_completed` events.
+Delegates to phase handlers in sequence: plan -> meeting triggers (plan_ready) -> execute -> test -> **test gate (auto-fix)** -> deploy. Owns cancellation (AbortController), gate/question resolvers, and public accessors. Phases live in `phases/` subdirectory. Test gate loop: after test phase, checks pass rate against level threshold (`getTestGateThreshold`), auto-fixes up to `getMaxAutoFixAttempts` times via `runFix()`, emits `auto_fix_started` events. Also exposes `runFix(bugReport, isAutoFix, send)` for post-build targeted bug fixes: creates a fix task, executes it via TaskExecutor, re-runs tests, and emits `fix_started`/`fix_task_completed`/`fix_tests_completed` events.
 
 ### phases/ (pipeline stages)
 - **planPhase.ts** -- MetaPlanner invocation, DAG setup, teaching moments
@@ -56,6 +56,9 @@ In-memory meeting session management. Lifecycle: `createInvite()` -> invited -> 
 
 ### systemLevelService.ts (progressive mastery levels)
 Pure functions for the Explorer/Builder/Architect progressive mastery system. `getLevel(spec)` extracts system level from NuggetSpec (default: explorer). Feature flags: `shouldAutoMatchTests()`, `shouldNarrate()`, `getDAGDetailLevel()`, `shouldAutoInviteMeetings()`, `getMaxNuggets()`. No state, no side effects.
+
+### visualSmokeTest.ts (visual smoke test)
+Sends a base64 PNG screenshot to a vision model (Haiku) to verify the nugget renders correctly. `analyzeScreenshot(base64, goal, requirements)` returns `{ passed, summary, issues[] }`. 30s timeout, graceful fallback on API errors. Called via `POST /api/sessions/:id/screenshot` from the frontend after deploy.
 
 ### autoTestMatcher.ts (explorer auto-test generation)
 At Explorer level, auto-generates behavioral tests for `when_then` requirements that lack a `test_id`. Parses requirement descriptions to extract when/then clauses. Links generated tests back to requirements via `test_id` and `requirement_id`. Emits narrator messages for each generated test. No-op at Builder and Architect levels. Runs before MetaPlanner in the orchestrator pipeline.
@@ -195,6 +198,7 @@ Orchestrator.run(spec)
   |       ContextManager.update()       writes summary + structural digest
   |       evaluateAndInvite('task_completed')  staggered mid-build meetings (25%/50%/60%)
   |-> TestPhase.execute(ctx)            returns test results + coverage
+  |-> Test gate loop                    auto-fix if pass rate < threshold (builder/architect)
   |-> DeployPhase.deploy*(ctx)          web preview, device flash, or portal deploy
   |     evaluateAndInvite('deploy_started')   Art agent (BOX-3 only)
   |-> evaluateAndInvite('session_complete')   Architecture agent (Blueprint)

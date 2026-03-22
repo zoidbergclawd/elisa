@@ -97,6 +97,33 @@ describe('TaskExecutor.buildTestExpectations', () => {
   });
 });
 
+describe('TaskExecutor.generateTestFile', () => {
+  let executor: TaskExecutor;
+  let nuggetDir: string;
+
+  beforeEach(() => {
+    nuggetDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-gen-'));
+    const deps = {
+      agentRunner: {} as any,
+      git: null,
+      teachingEngine: {} as any,
+      tokenTracker: new TokenTracker(),
+      context: new ContextManager(),
+      promptBuilder: new PromptBuilder(),
+      portalService: { getMcpServers: () => [] } as any,
+    } satisfies TaskExecutorDeps;
+    executor = new TaskExecutor(deps);
+  });
+
+  it('generated test file includes run command comment', () => {
+    const task = makeTask('my-task', 'Build it', 'builder-1', [], ['It works']);
+    const testFile = executor.generateTestFile(task, nuggetDir);
+    expect(testFile).not.toBeNull();
+    const content = fs.readFileSync(testFile!, 'utf-8');
+    expect(content).toMatch(/^\/\/ Run with: node tests\/test_my-task\.js/);
+  });
+});
+
 describe('TaskExecutor.executeTask emits test_expectations', () => {
   let executor: TaskExecutor;
   let events: Record<string, any>[];

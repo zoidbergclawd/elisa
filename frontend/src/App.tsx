@@ -122,7 +122,7 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
     uiState, tasks, agents, events, sessionId,
     teachingMoments, deployUrls, errorNotification, testResults,
     nuggetDir, createSession, startBuild, stopBuild, clearErrorNotification, resetToDesign,
-    launchWorkspace, isFixing,
+    launchWorkspace, isFixing, testGatePassed, visualTestResult,
   } = useBuildSessionContext();
 
   const {
@@ -611,12 +611,23 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
       {uiState === 'done' && !activeMeeting && activeMainTab !== 'team' && (
         <div className="fixed inset-0 modal-backdrop z-40 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="done-modal-title">
           <div className={`glass-elevated rounded-2xl shadow-2xl p-8 mx-4 text-center animate-float-in ${inviteQueue.length > 0 ? 'max-w-lg' : 'max-w-md'}`}>
-            <h2 id="done-modal-title" className="text-2xl font-display font-bold mb-4 gradient-text-warm">Nugget Complete!</h2>
+            <h2 id="done-modal-title" className={`text-2xl font-display font-bold mb-4 ${testGatePassed === false ? 'text-amber-400' : 'gradient-text-warm'}`}>
+              {testGatePassed === false ? 'Nugget Needs Work' : 'Nugget Complete!'}
+            </h2>
             <p className="text-atelier-text-secondary mb-4">
               {events.find(e => e.type === 'session_complete')?.type === 'session_complete'
                 ? (events.find(e => e.type === 'session_complete') as { type: 'session_complete'; summary: string }).summary
                 : 'Your nugget has been built successfully.'}
             </p>
+            {testResults.length > 0 && (() => {
+              const passing = testResults.filter(t => t.passed === true).length;
+              const total = testResults.length;
+              return (
+                <p className={`text-sm mb-3 ${testGatePassed === false ? 'text-amber-400' : 'text-atelier-text-secondary'}`}>
+                  {passing}/{total} tests passing
+                </p>
+              );
+            })()}
             {teachingMoments.length > 0 && (
               <div className="text-left mb-4 bg-accent-lavender/10 rounded-xl p-4 border border-accent-lavender/20">
                 <h3 className="text-sm font-semibold text-accent-lavender mb-2">What you learned:</h3>
@@ -627,6 +638,22 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
                 </ul>
               </div>
             )}
+            {/* Visual smoke test result */}
+            {visualTestResult && (
+              <div className={`text-left mb-4 rounded-xl p-4 border ${visualTestResult.passed ? 'bg-green-950/20 border-green-500/30' : 'bg-amber-950/20 border-amber-500/30'}`}>
+                <h3 className={`text-sm font-semibold mb-1 ${visualTestResult.passed ? 'text-green-400' : 'text-amber-400'}`}>
+                  Visual Check: {visualTestResult.passed ? 'Looks good' : 'Issues found'}
+                </h3>
+                <p className="text-sm text-atelier-text-secondary">{visualTestResult.summary}</p>
+                {visualTestResult.issues.length > 0 && (
+                  <ul className="text-sm text-atelier-text-secondary mt-1 space-y-0.5">
+                    {visualTestResult.issues.map((issue, i) => (
+                      <li key={i}>- {issue}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
             {/* Fix It button when tasks failed or tests failing */}
             {(tasks.some(t => t.status === 'failed') || testResults.some(t => t.passed === false)) && (
               <div className="mb-4">
@@ -635,7 +662,7 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
                     try { await startDirectMeeting('debug-convergence'); }
                     catch { handleBuildEvent({ type: 'error', message: 'Session expired. Please build again.', recoverable: false }); }
                   }}
-                  className="w-full px-4 py-3 rounded-xl text-sm cursor-pointer font-medium border border-red-500/30 bg-red-950/30 text-red-400 hover:bg-red-950/50 transition-colors text-center"
+                  className={`w-full px-4 py-3 rounded-xl text-sm cursor-pointer font-medium transition-colors text-center ${testGatePassed === false ? 'go-btn' : 'border border-red-500/30 bg-red-950/30 text-red-400 hover:bg-red-950/50'}`}
                 >
                   Fix It -- Debug with Bug Detective
                 </button>

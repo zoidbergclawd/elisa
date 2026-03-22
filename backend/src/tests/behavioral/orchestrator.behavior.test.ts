@@ -745,6 +745,112 @@ describe('plan contents propagation', () => {
 });
 
 // ============================================================
+// Test gate (#249)
+// ============================================================
+
+describe('test gate', () => {
+  const builderSpec = { ...minimalWebSpec, workflow: { system_level: 'builder' } };
+  const architectSpec = { ...minimalWebSpec, workflow: { system_level: 'architect' } };
+
+  it('explorer: deploys regardless of test failures', async () => {
+    const { orchestrator, events } = setup(minimalWebSpec);
+    configurePlan(minimalWebPlan);
+    configureAgentSuccess();
+    configureTestResults([
+      { test_name: 'test_one', passed: false, details: 'FAILED' },
+    ]);
+
+    await orchestrator.run(minimalWebSpec);
+
+    // No auto_fix_started events for explorer
+    const autoFixes = eventsOfType(events, 'auto_fix_started');
+    expect(autoFixes.length).toBe(0);
+    // Still completes and deploys
+    expect(events[events.length - 1].type).toBe('session_complete');
+    const deploys = eventsOfType(events, 'deploy_started');
+    expect(deploys.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('builder: auto-fixes once when pass rate < 50%', async () => {
+    const { orchestrator, events } = setup(builderSpec);
+    configurePlan(minimalWebPlan);
+    configureAgentSuccess();
+    configureTestResults([
+      { test_name: 'test_one', passed: false, details: 'FAILED' },
+      { test_name: 'test_two', passed: false, details: 'FAILED' },
+    ]);
+
+    await orchestrator.run(builderSpec);
+
+    const autoFixes = eventsOfType(events, 'auto_fix_started');
+    expect(autoFixes.length).toBe(1);
+    expect(autoFixes[0].passRate).toBe(0);
+    expect(autoFixes[0].threshold).toBe(0.5);
+    expect(autoFixes[0].attempt).toBe(1);
+  });
+
+  it('builder: skips auto-fix when pass rate >= 50%', async () => {
+    const { orchestrator, events } = setup(builderSpec);
+    configurePlan(minimalWebPlan);
+    configureAgentSuccess();
+    configureTestResults([
+      { test_name: 'test_one', passed: true, details: 'PASSED' },
+      { test_name: 'test_two', passed: false, details: 'FAILED' },
+    ]);
+
+    await orchestrator.run(builderSpec);
+
+    const autoFixes = eventsOfType(events, 'auto_fix_started');
+    expect(autoFixes.length).toBe(0);
+  });
+
+  it('sets session.testGatePassed = false when gate fails after all fix attempts', async () => {
+    const { orchestrator, events, session } = setup(builderSpec);
+    configurePlan(minimalWebPlan);
+    configureAgentSuccess();
+    configureTestResults([
+      { test_name: 'test_one', passed: false, details: 'FAILED' },
+    ]);
+
+    await orchestrator.run(builderSpec);
+
+    expect(session.testGatePassed).toBe(false);
+  });
+
+  it('sets session.testGatePassed = true when threshold met', async () => {
+    const { orchestrator, events, session } = setup(builderSpec);
+    configurePlan(minimalWebPlan);
+    configureAgentSuccess();
+    configureTestResults([
+      { test_name: 'test_one', passed: true, details: 'PASSED' },
+    ]);
+
+    await orchestrator.run(builderSpec);
+
+    expect(session.testGatePassed).toBe(true);
+  });
+
+  it('emits auto_fix_started event with correct passRate and threshold', async () => {
+    const { orchestrator, events } = setup(architectSpec);
+    configurePlan(minimalWebPlan);
+    configureAgentSuccess();
+    configureTestResults([
+      { test_name: 'test_one', passed: true, details: 'PASSED' },
+      { test_name: 'test_two', passed: false, details: 'FAILED' },
+      { test_name: 'test_three', passed: false, details: 'FAILED' },
+    ]);
+
+    await orchestrator.run(architectSpec);
+
+    const autoFixes = eventsOfType(events, 'auto_fix_started');
+    expect(autoFixes.length).toBeGreaterThanOrEqual(1);
+    // 1/3 pass rate ≈ 0.333, threshold is 0.8
+    expect(autoFixes[0].passRate).toBeCloseTo(1 / 3, 5);
+    expect(autoFixes[0].threshold).toBe(0.8);
+  });
+});
+
+// ============================================================
 // Logger initialization ordering (#81)
 // ============================================================
 

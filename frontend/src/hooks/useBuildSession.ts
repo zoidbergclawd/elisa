@@ -1,4 +1,4 @@
-import { useReducer, useCallback, useRef } from 'react';
+import { useReducer, useCallback, useRef, useEffect } from 'react';
 import type { NuggetSpec } from '../components/BlockCanvas/blockInterpreter';
 import type { UIState, Task, Agent, Commit, WSEvent, TeachingMoment, TestResult, TokenUsage, QuestionPayload, NarratorMessage, TraceabilitySummary, CorrectionCycleState, HealthHistoryEntry } from '../types';
 import { authFetch } from '../lib/apiClient';
@@ -101,6 +101,9 @@ export interface BuildSessionState {
   isFixing: boolean;
   fixPhase: 'fixing' | 'retesting' | null;
   meetingBlockedTasks: string[];
+  testGatePassed: boolean | null;
+  autoFixAttempt: { passRate: number; threshold: number; attempt: number } | null;
+  visualTestResult: { passed: boolean; summary: string; issues: string[] } | null;
 }
 
 const INITIAL_TOKEN_USAGE: TokenUsage = { input: 0, output: 0, total: 0, costUsd: 0, maxBudget: 500_000, perAgent: {} };
@@ -143,6 +146,9 @@ export const initialState: BuildSessionState = {
   isFixing: false,
   fixPhase: null,
   meetingBlockedTasks: [],
+  testGatePassed: null,
+  autoFixAttempt: null,
+  visualTestResult: null,
 };
 
 // -- Actions --
@@ -409,6 +415,7 @@ function handleWSEvent(state: BuildSessionState, event: WSEvent, deploySteps: Ar
         isPlanning: false,
         agents: state.agents.map(a => ({ ...a, status: 'done' as const })),
         testResults: resolvePendingTests(state.testResults, 'No matching test was generated'),
+        testGatePassed: (event as any).testGatePassed ?? null,
       };
 
     case 'teaching_moment':
@@ -816,7 +823,33 @@ function handleWSEvent(state: BuildSessionState, event: WSEvent, deploySteps: Ar
     case 'workspace_created':
       return { ...state, events, nuggetDir: event.nugget_dir };
 
+    case 'visual_smoke_test':
+      return {
+        ...state,
+        events,
+        visualTestResult: {
+          passed: (event as any).passed,
+          summary: (event as any).summary,
+          issues: (event as any).issues ?? [],
+        },
+      };
+
+    case 'auto_fix_started':
+      return {
+        ...state,
+        events,
+        autoFixAttempt: {
+          passRate: (event as any).passRate,
+          threshold: (event as any).threshold,
+          attempt: (event as any).attempt,
+        },
+      };
+
     case 'fix_started': {
+      // During auto-fix (test gate), don't switch UI to building -- stay in current state
+      if ((event as any).isAutoFix) {
+        return { ...state, events };
+      }
       const fixTask: Task = {
         id: '__fix_pending__',
         name: 'Bug Fix',
@@ -1061,6 +1094,33 @@ export function useBuildSession() {
     }
   }, [state.sessionId]);
 
+  // Screenshot capture side effect: on deploy_complete with URL, capture and POST
+  const screenshotTriggeredRef = useRef(false);
+  useEffect(() => {
+    const elisaAPI = (window as any).elisaAPI;
+    if (!elisaAPI?.captureScreenshot || !state.sessionId) return;
+    // Find deploy_complete with url in events
+    const deployComplete = state.events.find(
+      (e: any) => e.type === 'deploy_complete' && e.url,
+    ) as { type: string; url: string } | undefined;
+    if (!deployComplete || screenshotTriggeredRef.current) return;
+    screenshotTriggeredRef.current = true;
+
+    (async () => {
+      try {
+        const result = await elisaAPI.captureScreenshot(deployComplete.url);
+        if (result.success && result.base64) {
+          await authFetch(`/api/sessions/${state.sessionId}/screenshot`, {
+            method: 'POST',
+            body: JSON.stringify({ base64: result.base64 }),
+          });
+        }
+      } catch {
+        // Silent degradation -- no visual test card shown
+      }
+    })();
+  }, [state.events, state.sessionId]);
+
   return {
     uiState: state.uiState,
     tasks: state.tasks,
@@ -1099,6 +1159,9 @@ export function useBuildSession() {
     isFixing: state.isFixing,
     fixPhase: state.fixPhase,
     meetingBlockedTasks: state.meetingBlockedTasks,
+    testGatePassed: state.testGatePassed,
+    autoFixAttempt: state.autoFixAttempt,
+    visualTestResult: state.visualTestResult,
     handleEvent,
     createSession,
     startBuild,

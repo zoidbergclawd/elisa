@@ -24,6 +24,7 @@ import type { RuntimeProvisioner } from '../services/runtimeProvisioner.js';
 import type { SpecGraphService } from '../services/specGraph.js';
 import type { SkillSpec } from '../models/skillPlan.js';
 import type { WSEvent } from '../services/phases/types.js';
+import { analyzeScreenshot } from '../services/visualSmokeTest.js';
 
 interface SessionRouterDeps {
   store: SessionStore;
@@ -410,6 +411,33 @@ export function createSessionRouter({ store, sendEvent, hardwareService, deviceR
       const message = err instanceof Error ? err.message : String(err);
       res.status(500).json({ detail: `Launch failed: ${message}` });
     }
+  });
+
+  // Screenshot: visual smoke test
+  router.post('/:id/screenshot', async (req, res) => {
+    const entry = store.get(req.params.id);
+    if (!entry) { res.status(404).json({ detail: 'Session not found' }); return; }
+
+    const { base64 } = req.body ?? {};
+    if (!base64 || typeof base64 !== 'string') {
+      res.status(400).json({ detail: 'base64 is required and must be a string' });
+      return;
+    }
+
+    const spec = entry.session.spec;
+    const goal = spec?.nugget?.goal ?? 'Unknown project';
+    const requirements = (spec?.requirements ?? []).map((r: any) => r.description ?? '').filter(Boolean);
+
+    const result = await analyzeScreenshot(base64, goal, requirements);
+
+    await sendEvent(req.params.id, {
+      type: 'visual_smoke_test',
+      passed: result.passed,
+      summary: result.summary,
+      issues: result.issues,
+    });
+
+    res.json(result);
   });
 
   return router;

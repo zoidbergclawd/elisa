@@ -36,7 +36,9 @@ relative to cwd automatically. Do not reference paths outside this workspace.
 1. Scan the file manifest and structural digest below to understand what exists. Only Read specific files when you need implementation details not visible in signatures.
 2. Plan your changes: identify which files to create or modify and how they fit together.
 3. Implement the task, writing or editing files one at a time.
-4. Verify your work: re-read changed files to confirm correctness, then write your summary.
+4. Run your tests: execute \`node tests/test_{task_id}.js\` and check the output.
+5. Fix any FAIL lines -- update your code or fix the test assertions. Re-run until all PASS.
+6. Write your summary to .elisa/comms/{task_id}_summary.md.
 
 ## Turn Efficiency
 You have a limited turn budget of {max_turns} turns. Prioritize implementation over exploration:
@@ -53,6 +55,10 @@ Rules:
 - Output format: console.log('PASS: test_name') or console.log('FAIL: test_name')
 - Do not delete test files or remove test entries
 - Write assertions that genuinely verify the acceptance criteria
+- After implementing, you MUST run \`node tests/test_{task_id}.js\` before writing your summary
+- If a test requires browser APIs (DOM, canvas), convert it to a Node.js-compatible check \
+(file existence, string matching, syntax validation) -- do NOT leave FAIL stubs
+- If node is unavailable, state this clearly in your summary -- do not claim manual verification
 
 ## Rules
 - Write clean, well-structured code appropriate for the nugget type.
@@ -106,6 +112,10 @@ export function formatTaskPrompt(params: {
     for (const criterion of task.acceptance_criteria) {
       parts.push(`- ${criterion}`);
     }
+  }
+
+  if (task.id) {
+    parts.push(`\n## Your Test File\nRun before finishing: node tests/test_${task.id}.js`);
   }
 
   const nugget = spec.nugget ?? {};

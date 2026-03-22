@@ -81,6 +81,33 @@ export function getMaxNuggets(level: SystemLevel): number {
 }
 
 // ---------------------------------------------------------------------------
+// Test Gate
+// ---------------------------------------------------------------------------
+
+/**
+ * Minimum test pass rate required before deploy.
+ * Returns null if no gate applies (explorer level).
+ */
+export function getTestGateThreshold(level: SystemLevel): number | null {
+  switch (level) {
+    case 'explorer': return null;
+    case 'builder': return 0.5;
+    case 'architect': return 0.8;
+  }
+}
+
+/**
+ * Maximum number of automatic fix attempts when the test gate fails.
+ */
+export function getMaxAutoFixAttempts(level: SystemLevel): number {
+  switch (level) {
+    case 'explorer': return 0;
+    case 'builder': return 1;
+    case 'architect': return 2;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Level Progression
 // ---------------------------------------------------------------------------
 

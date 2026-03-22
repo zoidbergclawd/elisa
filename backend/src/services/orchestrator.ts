@@ -35,7 +35,7 @@ import { HealthTracker } from './healthTracker.js';
 import { HealthHistoryService } from './healthHistoryService.js';
 import { autoMatchTests } from './autoTestMatcher.js';
 import { MeetingTriggerWiring } from './meetingTriggerWiring.js';
-import { getLevel } from './systemLevelService.js';
+import { getLevel, getTestGateThreshold, getMaxAutoFixAttempts } from './systemLevelService.js';
 import type { SystemLevel } from './systemLevelService.js';
 import type { MeetingService } from './meetingService.js';
 import type { RuntimeProvisioner } from './runtimeProvisioner.js';
@@ -288,6 +288,29 @@ export class Orchestrator {
       healthHistory.record(spec.nugget?.goal ?? 'Build', healthSummary);
       await healthHistory.emitHistory(this.send);
 
+      // Test gate: auto-fix if pass rate below threshold
+      const threshold = getTestGateThreshold(systemLevel);
+      const maxFixes = getMaxAutoFixAttempts(systemLevel);
+      let autoFixCount = 0;
+
+      while (threshold !== null && autoFixCount < maxFixes) {
+        const passRate = this.testResults.total > 0
+          ? this.testResults.passed / this.testResults.total : 1.0;
+        if (passRate >= threshold) break;
+
+        await this.send({ type: 'auto_fix_started', passRate, threshold, attempt: autoFixCount + 1 });
+
+        const failing = this.testResults.tests.filter(t => !t.passed)
+          .map(t => `${t.test_name}: ${t.details}`).join('\n');
+        await this.runFix(`Auto-fix: ${this.testResults.failed} tests failing\n${failing}`, true);
+
+        autoFixCount++;
+      }
+
+      // Store final gate result for done modal
+      this.session.testGatePassed = threshold === null ||
+        (this.testResults.total > 0 ? this.testResults.passed / this.testResults.total >= threshold : true);
+
       // Deploy
       console.log('[orchestrator] entering deploy phase');
       console.log('[orchestrator] session.spec.devices:', JSON.stringify(this.session.spec?.devices ?? null));
@@ -341,7 +364,7 @@ export class Orchestrator {
         message,
         recoverable: false,
       });
-      await this.send({ type: 'session_complete' });
+      await this.send({ type: 'session_complete', summary: message });
     } finally {
       await this.deployPhase.teardown();
       this.logger?.close();
@@ -397,6 +420,7 @@ export class Orchestrator {
     await this.send({
       type: 'session_complete',
       summary: summaryParts.join(' '),
+      testGatePassed: this.session.testGatePassed,
     });
   }
 
@@ -404,8 +428,8 @@ export class Orchestrator {
    * Run a targeted bug fix after a completed build.
    * Creates a single fix task, executes it via TaskExecutor, then re-runs tests.
    */
-  async runFix(bugReport: string): Promise<void> {
-    await this.send({ type: 'fix_started', bugReport });
+  async runFix(bugReport: string, isAutoFix = false): Promise<void> {
+    await this.send({ type: 'fix_started', bugReport, isAutoFix });
 
     const taskId = `fix-${Date.now()}`;
     const taskName = `Fix: ${bugReport.slice(0, 50)}`;
