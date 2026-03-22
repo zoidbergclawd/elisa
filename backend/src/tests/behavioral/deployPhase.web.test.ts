@@ -8,7 +8,7 @@ import { EventEmitter } from 'node:events';
 import type { PhaseContext } from '../../services/phases/types.js';
 import type { BuildSession } from '../../models/session.js';
 
-// Mock child_process to prevent spawning real servers and opening browser tabs
+// Mock child_process to prevent spawning real processes
 vi.mock('node:child_process', async (importOriginal) => {
   const original = await importOriginal<typeof import('node:child_process')>();
   return {
@@ -20,14 +20,18 @@ vi.mock('node:child_process', async (importOriginal) => {
       proc.stderr = new EventEmitter();
       proc.pid = 99999;
       proc.kill = vi.fn();
-      // Simulate serve printing its listen URL on stderr (serve v14 uses stderr for info)
-      setTimeout(() => {
-        proc.stderr.emit('data', Buffer.from(' INFO  Accepting connections at http://localhost:4567\n'));
-      }, 50);
+      setTimeout(() => proc.emit('close', 0), 50);
       return proc;
     }),
   };
 });
+
+// Mock staticServer to prevent binding real ports
+vi.mock('../../utils/staticServer.js', () => ({
+  startStaticServer: vi.fn((_dir: string, port: number) =>
+    Promise.resolve({ url: `http://localhost:${port}`, close: vi.fn() }),
+  ),
+}));
 
 // Inline mock factories for services
 function makeMockHardwareService() {
@@ -196,10 +200,9 @@ describe('DeployPhase - deployWeb', () => {
     if (result.process) result.process.kill();
   });
 
-  it('spawns serve with cwd and -p flag, not positional dir arg (serve v14 compat)', async () => {
-    const { spawn } = await import('node:child_process');
-    // Clear mock calls from prior tests so we only see this test's spawn
-    (spawn as any).mockClear();
+  it('uses built-in static server with correct serve directory', async () => {
+    const { startStaticServer } = await import('../../utils/staticServer.js');
+    (startStaticServer as any).mockClear();
     const { ctx } = makeCtx({ spec: { deployment: { target: 'web' } } });
     ctx.nuggetDir = tmpDir;
     // Create index.html in src/ subdir so serveDir resolves to src/
@@ -209,53 +212,25 @@ describe('DeployPhase - deployWeb', () => {
 
     const result = await phase.deployWeb(ctx);
 
-    // Find the spawn call for 'npx serve'
-    const calls = (spawn as any).mock.calls as any[][];
-    const serveCall = calls.find(
-      (c: any[]) => c[0] === 'npx' && c[1]?.includes('serve'),
-    );
-    expect(serveCall).toBeDefined();
+    expect(startStaticServer).toHaveBeenCalledOnce();
+    const [dir] = (startStaticServer as any).mock.calls[0];
+    expect(dir).toBe(srcDir);
+    expect(result.url).toMatch(/^http:\/\/localhost:\d+$/);
 
-    const [, args, opts] = serveCall!;
-    // Must use -p flag for port, NOT -l with raw number
-    expect(args).toContain('-p');
-    expect(args).not.toContain('-l');
-    // Must NOT pass directory as positional arg (broken in serve v14)
-    expect(args).not.toContain(srcDir);
-    expect(args).not.toContain(tmpDir);
-    // Must use cwd to set serve directory
-    expect(opts.cwd).toBe(srcDir);
-    // Must not use removed --no-clipboard flag
-    expect(args).not.toContain('--no-clipboard');
-
-    if (result.process) result.process.kill();
+    if (result.staticServer) result.staticServer.close();
   });
 
-  it('uses URL from serve stdout instead of assumed port', async () => {
+  it('emits deploy_complete with URL from static server', async () => {
     const { ctx, events } = makeCtx({ spec: { deployment: { target: 'web' } } });
     ctx.nuggetDir = tmpDir;
 
     const result = await phase.deployWeb(ctx);
 
-    // The mock emits "Accepting connections at http://localhost:4567"
-    // Deploy should parse this and use port 4567, not the findFreePort result
-    const complete = events.find(e => e.type === 'deploy_complete');
-    expect(complete.url).toBe('http://localhost:4567');
-    expect(result.url).toBe('http://localhost:4567');
+    const complete = events.find((e: any) => e.type === 'deploy_complete');
+    expect(complete.url).toBeDefined();
+    expect(result.url).toBe(complete.url);
 
-    if (result.process) result.process.kill();
-  });
-
-  it('does not auto-open browser after starting server', async () => {
-    const { execFile } = await import('node:child_process');
-    const { ctx } = makeCtx({ spec: { deployment: { target: 'web' } } });
-    ctx.nuggetDir = tmpDir;
-
-    const result = await phase.deployWeb(ctx);
-
-    expect(execFile).not.toHaveBeenCalled();
-
-    if (result.process) result.process.kill();
+    if (result.staticServer) result.staticServer.close();
   });
 
   it('does not send deploy_checklist when no before_deploy rules exist', async () => {
