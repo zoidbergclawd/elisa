@@ -183,40 +183,58 @@ async function startBackend(): Promise<void> {
   // Production: tell the backend where packaged resources live
   process.env.ELISA_RESOURCES_PATH = process.resourcesPath;
 
-  // MinGit: set up bundled Git + bash for Windows so Claude Code CLI works
-  // without a system Git installation.
+  // Set up bundled tool fallbacks on Windows.
+  // Prefer system installations when available; fall back to bundled tools
+  // only when the system doesn't have them. This avoids breaking npm/npx
+  // on developer machines that already have Node.js installed.
   if (process.platform === 'win32') {
     const fs = require('fs') as typeof import('fs');
     const os = require('os') as typeof import('os');
-    const mingitDir = path.join(process.resourcesPath, 'mingit');
-    const bashExe = path.join(mingitDir, 'usr', 'bin', 'bash.exe');
-    if (fs.existsSync(bashExe)) {
-      process.env.CLAUDE_CODE_GIT_BASH_PATH = bashExe;
-      const gitCmd = path.join(mingitDir, 'cmd');
-      const gitUsrBin = path.join(mingitDir, 'usr', 'bin');
-      process.env.PATH = `${gitCmd};${gitUsrBin};${process.env.PATH}`;
-    }
+    const { execSync } = require('child_process') as typeof import('child_process');
 
-    // Create a node.exe shim so agents and test runners can execute JS.
-    // Hardlink Elisa.exe -> node.exe (zero disk cost on NTFS).
-    // ELECTRON_RUN_AS_NODE=1 makes it behave as plain Node.js.
-    const nodeShimDir = path.join(os.tmpdir(), 'elisa-node');
-    const shimNodeExe = path.join(nodeShimDir, 'node.exe');
-    try {
-      fs.mkdirSync(nodeShimDir, { recursive: true });
-      try { fs.unlinkSync(shimNodeExe); } catch { /* may not exist */ }
-      try {
-        fs.linkSync(process.execPath, shimNodeExe);
-      } catch {
-        fs.copyFileSync(process.execPath, shimNodeExe);
+    const hasCommand = (cmd: string): boolean => {
+      try { execSync(`where ${cmd}`, { stdio: 'ignore' }); return true; } catch { return false; }
+    };
+
+    // Git + bash: use system Git if available, otherwise bundled MinGit
+    if (!hasCommand('git')) {
+      const mingitDir = path.join(process.resourcesPath, 'mingit');
+      const bashExe = path.join(mingitDir, 'usr', 'bin', 'bash.exe');
+      if (fs.existsSync(bashExe)) {
+        const gitCmd = path.join(mingitDir, 'cmd');
+        const gitUsrBin = path.join(mingitDir, 'usr', 'bin');
+        process.env.PATH = `${process.env.PATH};${gitCmd};${gitUsrBin}`;
+        console.log('[main] Using bundled MinGit (no system git found)');
       }
-      process.env.PATH = `${nodeShimDir};${process.env.PATH}`;
-    } catch (err) {
-      console.error('Failed to create node.exe shim:', err);
     }
 
-    // Let all child processes use the Electron binary as Node.js.
-    process.env.ELECTRON_RUN_AS_NODE = '1';
+    // Claude Code needs bash.exe. Set CLAUDE_CODE_GIT_BASH_PATH if not
+    // already resolvable (system Git puts it in PATH automatically).
+    if (!hasCommand('bash')) {
+      const mingitBash = path.join(process.resourcesPath, 'mingit', 'usr', 'bin', 'bash.exe');
+      if (fs.existsSync(mingitBash)) {
+        process.env.CLAUDE_CODE_GIT_BASH_PATH = mingitBash;
+      }
+    }
+
+    // Node.js: use system node if available, otherwise create Electron shim.
+    if (!hasCommand('node')) {
+      const nodeShimDir = path.join(os.tmpdir(), 'elisa-node');
+      const shimNodeExe = path.join(nodeShimDir, 'node.exe');
+      try {
+        fs.mkdirSync(nodeShimDir, { recursive: true });
+        try { fs.unlinkSync(shimNodeExe); } catch { /* may not exist */ }
+        try { fs.linkSync(process.execPath, shimNodeExe); }
+        catch { fs.copyFileSync(process.execPath, shimNodeExe); }
+        process.env.PATH = `${process.env.PATH};${nodeShimDir}`;
+        // ELECTRON_RUN_AS_NODE makes the Electron binary act as Node.js.
+        // Only set when using the shim; system node doesn't need it.
+        process.env.ELECTRON_RUN_AS_NODE = '1';
+        console.log('[main] Using Electron node.exe shim (no system node found)');
+      } catch (err) {
+        console.error('[main] Failed to create node.exe shim:', err);
+      }
+    }
   }
 
   const backendDist = path.join(process.resourcesPath, 'backend-dist');

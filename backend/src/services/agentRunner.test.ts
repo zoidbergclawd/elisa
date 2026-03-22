@@ -185,9 +185,11 @@ describe('AgentRunner', () => {
     expect(result.summary).toBe('No output');
   });
 
-  it('passes Electron executable config when ELISA_RESOURCES_PATH is set', async () => {
+  it('uses Electron shim when ELECTRON_RUN_AS_NODE is set (no system node)', async () => {
     const origPath = process.env.ELISA_RESOURCES_PATH;
+    const origShim = process.env.ELECTRON_RUN_AS_NODE;
     process.env.ELISA_RESOURCES_PATH = '/fake/resources';
+    process.env.ELECTRON_RUN_AS_NODE = '1';
     try {
       mockQuery.mockReturnValue(asyncIterable(makeResultMessage()) as any);
 
@@ -207,6 +209,37 @@ describe('AgentRunner', () => {
     } finally {
       if (origPath === undefined) delete process.env.ELISA_RESOURCES_PATH;
       else process.env.ELISA_RESOURCES_PATH = origPath;
+      if (origShim === undefined) delete process.env.ELECTRON_RUN_AS_NODE;
+      else process.env.ELECTRON_RUN_AS_NODE = origShim;
+    }
+  });
+
+  it('uses system node when available (no executable override)', async () => {
+    const origPath = process.env.ELISA_RESOURCES_PATH;
+    const origShim = process.env.ELECTRON_RUN_AS_NODE;
+    process.env.ELISA_RESOURCES_PATH = '/fake/resources';
+    delete process.env.ELECTRON_RUN_AS_NODE;
+    try {
+      mockQuery.mockReturnValue(asyncIterable(makeResultMessage()) as any);
+
+      const runner = new AgentRunner();
+      await runner.execute({
+        taskId: 'test-1',
+        prompt: 'hello',
+        systemPrompt: 'you are a bot',
+        onOutput: vi.fn().mockResolvedValue(undefined),
+        workingDir: '/tmp/test',
+      });
+
+      const callArgs = mockQuery.mock.calls[0][0];
+      expect(callArgs.options?.executable).toBeUndefined();
+      expect(callArgs.options?.env).toBeUndefined();
+      expect(typeof callArgs.options?.stderr).toBe('function');
+    } finally {
+      if (origPath === undefined) delete process.env.ELISA_RESOURCES_PATH;
+      else process.env.ELISA_RESOURCES_PATH = origPath;
+      if (origShim === undefined) delete process.env.ELECTRON_RUN_AS_NODE;
+      else process.env.ELECTRON_RUN_AS_NODE = origShim;
     }
   });
 

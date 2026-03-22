@@ -176,14 +176,18 @@ export class AgentRunner {
     abortController?: AbortController,
     allowedTools?: string[],
   ): Promise<AgentResult> {
-    // In Electron production, Node.js may not be installed on the system.
-    // Use the Electron binary itself as the Node.js runtime for spawning cli.js.
+    // In Electron production, capture stderr for diagnostics.
+    // When no system Node.js is available (ELECTRON_RUN_AS_NODE is set by
+    // electron/main.ts), use the Electron binary itself as the runtime.
+    // When system node exists, let the SDK use it (preserves npm/npx).
     const isElectronProd = !!process.env.ELISA_RESOURCES_PATH;
+    const useElectronShim = isElectronProd && process.env.ELECTRON_RUN_AS_NODE === '1';
     const stderrChunks: string[] = [];
     const electronExecConfig = isElectronProd
       ? {
-          executable: process.execPath,
-          env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+          ...(useElectronShim
+            ? { executable: process.execPath, env: { ...process.env } }
+            : {}),
           stderr: (data: string) => { stderrChunks.push(data); },
         }
       : {};
