@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { ChildProcess } from 'node:child_process';
 import { getDevicesDir } from '../utils/resourcePath.js';
+import { copyFrameworkToWorkspace, type FrameworkId } from '../utils/frameworkLoader.js';
 import type { BuildSession, Task, Agent, CommitInfo } from '../models/session.js';
 import type { NuggetSpec } from '../utils/specValidator.js';
 import type { PhaseContext, SendEvent, GateResponse, QuestionAnswers } from './phases/types.js';
@@ -133,6 +134,20 @@ export class Orchestrator {
       // Plan
       const planResult = await this.planPhase.execute(ctx, spec);
       this.nuggetType = planResult.nuggetType;
+
+      // Copy selected framework library to workspace and store on spec for prompt injection
+      const selectedFramework = planResult.framework as FrameworkId | undefined;
+      if (selectedFramework) {
+        const libPath = copyFrameworkToWorkspace(selectedFramework, this.nuggetDir);
+        if (libPath) {
+          console.log(`[orchestrator] Framework ${selectedFramework} copied to ${libPath}`);
+          // Store on spec so promptBuilder can inject framework context
+          (spec as any).framework = selectedFramework;
+          if (this.session.spec) {
+            (this.session.spec as any).framework = selectedFramework;
+          }
+        }
+      }
 
       // Provide spec to meeting trigger wiring for team filtering
       const systemLevel = getLevel(spec);

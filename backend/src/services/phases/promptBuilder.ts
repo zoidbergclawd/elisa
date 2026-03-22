@@ -15,6 +15,7 @@ import { PREDECESSOR_WORD_CAP as PRED_WORD_CAP } from '../../utils/constants.js'
 import * as builderAgent from '../../prompts/builderAgent.js';
 import * as testerAgent from '../../prompts/testerAgent.js';
 import * as reviewerAgent from '../../prompts/reviewerAgent.js';
+import { getFrameworkPrompt } from '../../prompts/frameworks.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -132,6 +133,15 @@ export class PromptBuilder {
       style: spec.style ?? null,
       deviceRegistry,
     });
+
+    // -- Inject framework context if a framework is selected --
+    const frameworkId = (spec as any).framework as string | undefined;
+    if (frameworkId && frameworkId !== 'none') {
+      const fwPrompt = getFrameworkPrompt(frameworkId);
+      if (fwPrompt) {
+        userPrompt += '\n\n' + fwPrompt.context;
+      }
+    }
 
     // -- Inject meeting design context if available --
     if (meetingDesignContext && Object.keys(meetingDesignContext).length > 0) {

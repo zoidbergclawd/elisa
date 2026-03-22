@@ -179,7 +179,9 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | File | Role |
 |------|------|
 | `backend/src/utils/dag.ts` | Task DAG with Kahn's topological sort, cycle detection |
-| `backend/src/utils/specValidator.ts` | Zod schema validation for NuggetSpec |
+| `backend/src/utils/specValidator.ts` | Zod schema validation for NuggetSpec (includes optional `framework` field) |
+| `backend/src/prompts/frameworks.ts` | Framework-specific prompt context (Phaser 3, p5.js, Three.js) + MetaPlanner auto-selection |
+| `backend/src/utils/frameworkLoader.ts` | Copies bundled framework JS into nugget workspace lib/ |
 | `backend/src/utils/contextManager.ts` | File manifests, nugget context, structural digests |
 | `backend/src/utils/sessionLogger.ts` | Per-session structured logging to `.elisa/logs/` |
 | `backend/src/utils/sessionPersistence.ts` | Atomic JSON checkpoint/recovery |

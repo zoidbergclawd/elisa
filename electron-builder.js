@@ -35,6 +35,10 @@ module.exports = {
       from: 'devices/_shared',
       to: 'devices/_shared',
     },
+    // Game/graphics framework libraries (Phaser, p5.js, Three.js)
+    ...(fs.existsSync(path.join(__dirname, 'build', 'frameworks', 'manifest.json'))
+      ? [{ from: 'build/frameworks', to: 'frameworks' }]
+      : []),
     // MinGit: bundled Git + bash for Windows (Claude Code CLI requires git-bash)
     ...(process.platform === 'win32' && fs.existsSync(path.join(__dirname, 'build', 'mingit', 'cmd', 'git.exe'))
       ? [{ from: 'build/mingit', to: 'mingit' }]

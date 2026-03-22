@@ -289,6 +289,10 @@ export function interpretWorkspace(
         const text = (block.fields?.GOAL_TEXT as string) ?? '';
         spec.nugget.goal = text;
         spec.nugget.description = text;
+        const fw = (block.fields?.FRAMEWORK as string) ?? 'auto';
+        if (fw !== 'auto') {
+          (spec as any).framework = fw;
+        }
         break;
       }
       case 'nugget_template': {

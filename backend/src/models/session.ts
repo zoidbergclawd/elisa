@@ -43,6 +43,7 @@ export interface MetaPlannerPlan {
   tasks: Task[];
   agents: Agent[];
   plan_explanation?: string;
+  framework?: string;
 }
 
 export interface BuildSession {

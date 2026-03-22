@@ -104,6 +104,7 @@ src/
     planningAgent.ts     System prompt for Planning Mode conversational agent
     metaPlanner.ts       System prompt for task decomposition
     builderAgent.ts      Builder role prompt template
+    frameworks.ts        Framework-specific prompt context (Phaser, p5.js, Three.js) + MetaPlanner framework selection section
     testerAgent.ts       Tester role prompt template
     reviewerAgent.ts     Reviewer role prompt template
     teaching.ts          Teaching moment curriculum and templates
@@ -121,6 +122,7 @@ src/
     pathValidator.ts     Workspace path validation (blocklist for system/sensitive dirs)
     safeEnv.ts           Sanitized process.env copy (strips ANTHROPIC_API_KEY)
     findFreePort.ts      Scans for available TCP port from a starting port
+    frameworkLoader.ts   Copies selected game framework (Phaser/p5/Three.js) from bundled resources to nugget workspace lib/
     anthropicClient.ts   Singleton factory for the Anthropic SDK client
 ```
 
