@@ -305,7 +305,10 @@ Deeper context for each subsystem lives in CLAUDE.md files within each directory
 Elisa is distributed as an Electron desktop app. The build pipeline:
 1. `npm run build:frontend` -- Vite builds React SPA into `frontend/dist/`
 2. `npm run build:backend` -- esbuild bundles Express server into `backend/dist/server-entry.js`
-3. `npm run build:electron` -- tsc compiles `electron/main.ts` and `preload.ts`
-4. `npm run dist` -- electron-builder packages into installer (NSIS on Windows, DMG on macOS). `afterPack` hook renames `vendor/` -> `node_modules/` and verifies `cli.js` exists for the Claude Agent SDK
+3. `npm run build:mingit` -- downloads MinGit for Windows (git + bash, ~39MB). Copies `sh.exe` to `bash.exe`. Skipped on macOS.
+4. `npm run build:electron` -- tsc compiles `electron/main.ts` and `preload.ts`
+5. `npm run dist` -- electron-builder packages into installer (NSIS on Windows, DMG on macOS). `afterPack` hook renames `vendor/` -> `node_modules/` and verifies `cli.js` exists for the Claude Agent SDK. MinGit included as `extraResource` on Windows.
+
+**Zero-dependency install (Windows):** The packaged app bundles MinGit and creates a `node.exe` shim (hardlink of `Elisa.exe` with `ELECTRON_RUN_AS_NODE=1`). System tools are preferred when available; bundled fallbacks activate only when system git/node are missing. Python projects require a separate Python install (see #246).
 
 Dev mode (`npm run dev` at root): runs backend + frontend only (no Electron). `npm run dev:electron` runs backend, frontend, and Electron concurrently. Electron loads `http://localhost:5173` (Vite HMR). Production: Electron loads `http://localhost:{free port}` where Express serves everything.

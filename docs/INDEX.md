@@ -98,7 +98,8 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/services/planningService.ts` | Planning Mode: conversational plan refinement via Claude SDK, structured question generation, deterministic mutations, canvas generation |
 | `backend/src/services/orchestrator.ts` | Thin coordinator: plan -> meeting triggers -> execute -> test -> deploy. Also runFix() for post-build targeted fixes |
 | `backend/src/services/metaPlanner.ts` | Decomposes NuggetSpec into task DAG via Claude API |
-| `backend/src/services/agentRunner.ts` | Executes agents via Claude Agent SDK `query()` with streaming. Resolves `pathToClaudeCodeExecutable` for Electron packaging; uses `ELECTRON_RUN_AS_NODE` to spawn cli.js without system Node.js. Exports `getClaudeCodePath()` for health checks |
+| `backend/src/services/agentRunner.ts` | Executes agents via Claude Agent SDK `query()` with streaming. Resolves `pathToClaudeCodeExecutable` for Electron packaging; uses Electron shim or system node (prefers system). Diagnostic logging to `%TEMP%/elisa-agent-diagnostics.log`. Exports `getClaudeCodePath()` for health checks |
+| `scripts/bundle-mingit.mjs` | Downloads MinGit for Windows (git + bash) during build. Copies sh.exe to bash.exe. Skipped on macOS |
 | `backend/src/services/sessionStore.ts` | Session state management with JSON persistence |
 | `backend/src/services/gitService.ts` | Per-session git init and task-based commits |
 | `backend/src/services/hardwareService.ts` | ESP32 detection, MicroPython compile, flash, serial |
