@@ -200,6 +200,7 @@ export class AgentRunner {
       `Platform: ${process.platform} ${process.arch}`,
       `API key: ${process.env.ANTHROPIC_API_KEY ? `set (${process.env.ANTHROPIC_API_KEY.length} chars)` : 'NOT SET'}`,
       `ELISA_RESOURCES_PATH: ${process.env.ELISA_RESOURCES_PATH ?? 'not set'}`,
+      `CLAUDE_CODE_GIT_BASH_PATH: ${process.env.CLAUDE_CODE_GIT_BASH_PATH ?? 'not set'}`,
     ]);
 
     const conversation = query({

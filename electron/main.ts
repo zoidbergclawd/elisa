@@ -183,6 +183,19 @@ async function startBackend(): Promise<void> {
   // Production: tell the backend where packaged resources live
   process.env.ELISA_RESOURCES_PATH = process.resourcesPath;
 
+  // MinGit: set up bundled Git + bash for Windows so Claude Code CLI works
+  // without a system Git installation.
+  if (process.platform === 'win32') {
+    const mingitDir = path.join(process.resourcesPath, 'mingit');
+    const bashExe = path.join(mingitDir, 'usr', 'bin', 'bash.exe');
+    if (require('fs').existsSync(bashExe)) {
+      process.env.CLAUDE_CODE_GIT_BASH_PATH = bashExe;
+      const gitCmd = path.join(mingitDir, 'cmd');
+      const gitUsrBin = path.join(mingitDir, 'usr', 'bin');
+      process.env.PATH = `${gitCmd};${gitUsrBin};${process.env.PATH}`;
+    }
+  }
+
   const backendDist = path.join(process.resourcesPath, 'backend-dist');
 
   // Production: start the bundled backend in-process

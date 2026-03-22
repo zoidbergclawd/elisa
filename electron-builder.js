@@ -35,6 +35,10 @@ module.exports = {
       from: 'devices/_shared',
       to: 'devices/_shared',
     },
+    // MinGit: bundled Git + bash for Windows (Claude Code CLI requires git-bash)
+    ...(process.platform === 'win32' && fs.existsSync(path.join(__dirname, 'build', 'mingit', 'cmd', 'git.exe'))
+      ? [{ from: 'build/mingit', to: 'mingit' }]
+      : []),
   ],
   win: {
     target: 'nsis',

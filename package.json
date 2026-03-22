@@ -1,6 +1,6 @@
 {
   "name": "elisa",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "private": true,
   "license": "MIT",
   "author": "Elisa",
@@ -16,7 +16,8 @@
     "build:backend:deps": "node scripts/bundle-backend-deps.mjs",
     "test:electron": "vitest run --config electron/vitest.config.ts",
     "build:electron": "tsc -p electron/tsconfig.json",
-    "build": "npm run build:frontend && npm run build:backend && npm run build:backend:deps && npm run build:electron",
+    "build:mingit": "node scripts/bundle-mingit.mjs",
+    "build": "npm run build:frontend && npm run build:backend && npm run build:backend:deps && npm run build:mingit && npm run build:electron",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder",
     "dist:win": "npm run build && electron-builder --win",
