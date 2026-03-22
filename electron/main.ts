@@ -186,14 +186,37 @@ async function startBackend(): Promise<void> {
   // MinGit: set up bundled Git + bash for Windows so Claude Code CLI works
   // without a system Git installation.
   if (process.platform === 'win32') {
+    const fs = require('fs') as typeof import('fs');
+    const os = require('os') as typeof import('os');
     const mingitDir = path.join(process.resourcesPath, 'mingit');
     const bashExe = path.join(mingitDir, 'usr', 'bin', 'bash.exe');
-    if (require('fs').existsSync(bashExe)) {
+    if (fs.existsSync(bashExe)) {
       process.env.CLAUDE_CODE_GIT_BASH_PATH = bashExe;
       const gitCmd = path.join(mingitDir, 'cmd');
       const gitUsrBin = path.join(mingitDir, 'usr', 'bin');
       process.env.PATH = `${gitCmd};${gitUsrBin};${process.env.PATH}`;
     }
+
+    // Create a node.exe shim so agents and test runners can execute JS.
+    // Hardlink Elisa.exe -> node.exe (zero disk cost on NTFS).
+    // ELECTRON_RUN_AS_NODE=1 makes it behave as plain Node.js.
+    const nodeShimDir = path.join(os.tmpdir(), 'elisa-node');
+    const shimNodeExe = path.join(nodeShimDir, 'node.exe');
+    try {
+      fs.mkdirSync(nodeShimDir, { recursive: true });
+      try { fs.unlinkSync(shimNodeExe); } catch { /* may not exist */ }
+      try {
+        fs.linkSync(process.execPath, shimNodeExe);
+      } catch {
+        fs.copyFileSync(process.execPath, shimNodeExe);
+      }
+      process.env.PATH = `${nodeShimDir};${process.env.PATH}`;
+    } catch (err) {
+      console.error('Failed to create node.exe shim:', err);
+    }
+
+    // Let all child processes use the Electron binary as Node.js.
+    process.env.ELECTRON_RUN_AS_NODE = '1';
   }
 
   const backendDist = path.join(process.resourcesPath, 'backend-dist');
