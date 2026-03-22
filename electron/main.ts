@@ -196,7 +196,9 @@ async function startBackend(): Promise<void> {
       try { execSync(`where ${cmd}`, { stdio: 'ignore' }); return true; } catch { return false; }
     };
 
-    // Git + bash: use system Git if available, otherwise bundled MinGit
+    // Git + bash: use system Git if available, otherwise bundled MinGit.
+    // Claude Code requires CLAUDE_CODE_GIT_BASH_PATH explicitly -- it does
+    // NOT discover bash via PATH. Always set it when using bundled MinGit.
     if (!hasCommand('git')) {
       const mingitDir = path.join(process.resourcesPath, 'mingit');
       const bashExe = path.join(mingitDir, 'usr', 'bin', 'bash.exe');
@@ -204,16 +206,8 @@ async function startBackend(): Promise<void> {
         const gitCmd = path.join(mingitDir, 'cmd');
         const gitUsrBin = path.join(mingitDir, 'usr', 'bin');
         process.env.PATH = `${process.env.PATH};${gitCmd};${gitUsrBin}`;
+        process.env.CLAUDE_CODE_GIT_BASH_PATH = bashExe;
         console.log('[main] Using bundled MinGit (no system git found)');
-      }
-    }
-
-    // Claude Code needs bash.exe. Set CLAUDE_CODE_GIT_BASH_PATH if not
-    // already resolvable (system Git puts it in PATH automatically).
-    if (!hasCommand('bash')) {
-      const mingitBash = path.join(process.resourcesPath, 'mingit', 'usr', 'bin', 'bash.exe');
-      if (fs.existsSync(mingitBash)) {
-        process.env.CLAUDE_CODE_GIT_BASH_PATH = mingitBash;
       }
     }
 
