@@ -6,6 +6,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { safeEnv } from '../../utils/safeEnv.js';
 import { BUILD_TIMEOUT_MS } from '../../utils/constants.js';
 import { findFreePort } from '../../utils/findFreePort.js';
+import { startStaticServer, type StaticServer } from '../../utils/staticServer.js';
 import type { PhaseContext, GateResponse } from './types.js';
 import { maybeTeach } from './types.js';
 import { HardwareService } from '../hardwareService.js';
@@ -411,7 +412,7 @@ export class DeployPhase {
     return result;
   }
 
-  async deployWeb(ctx: PhaseContext): Promise<{ process: ChildProcess | null; url: string | null }> {
+  async deployWeb(ctx: PhaseContext): Promise<{ process: ChildProcess | null; url: string | null; staticServer?: StaticServer | null }> {
     ctx.session.state = 'deploying';
     log('deployWeb: starting');
     await ctx.send({ type: 'deploy_started', target: 'web' });
@@ -470,59 +471,20 @@ export class DeployPhase {
 
     await ctx.send({ type: 'deploy_progress', step: `Starting local server on port ${port}...`, progress: 80 });
 
-    let serverProcess: ChildProcess | null = null;
+    let staticSrv: StaticServer | null = null;
     let finalUrl: string | null = null;
-    const fallbackUrl = `http://localhost:${port}`;
-    const isWin = process.platform === 'win32';
 
     try {
-      serverProcess = spawn('npx', ['serve', '-p', String(port)], {
-        cwd: serveDir,
-        stdio: 'pipe',
-        detached: false,
-        shell: isWin,
-        env: safeEnv(),
-      });
-
-      // Wait for server to start and parse actual URL from output.
-      // Serve v14 may silently switch ports if the requested port is taken.
-      const result = await new Promise<{ started: boolean; url: string | null }>((resolve) => {
-        let resolved = false;
-        const urlPattern = /Accepting connections at (http:\/\/localhost:\d+)/;
-
-        const checkOutput = (data: Buffer) => {
-          const match = data.toString().match(urlPattern);
-          if (match && !resolved) {
-            resolved = true;
-            resolve({ started: true, url: match[1] });
-          }
-        };
-        serverProcess!.stdout?.on('data', checkOutput);
-        serverProcess!.stderr?.on('data', checkOutput);
-
-        serverProcess!.on('error', () => {
-          if (!resolved) { resolved = true; resolve({ started: false, url: null }); }
-        });
-        serverProcess!.on('close', () => {
-          if (!resolved) { resolved = true; resolve({ started: false, url: null }); }
-        });
-        setTimeout(() => {
-          if (!resolved) { resolved = true; resolve({ started: true, url: null }); }
-        }, 5000);
-      });
-
-      if (!result.started) {
-        serverProcess = null;
-      }
-      finalUrl = result.url ?? (serverProcess ? fallbackUrl : null);
+      staticSrv = await startStaticServer(serveDir, port);
+      finalUrl = staticSrv.url;
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       console.warn('Web preview server failed to start:', message);
-      serverProcess = null;
+      staticSrv = null;
     }
     log('deployWeb: finished', { url: finalUrl });
     await ctx.send({ type: 'deploy_complete', target: 'web', ...(finalUrl ? { url: finalUrl } : {}) });
-    return { process: serverProcess, url: finalUrl };
+    return { process: null, url: finalUrl, staticServer: staticSrv };
   }
 
   shouldDeployPortals(ctx: PhaseContext): boolean {

@@ -16,6 +16,8 @@ export interface SessionEntry {
   userWorkspace: boolean;
   /** Process spawned by the launch endpoint (standalone serve without rebuild). */
   launchProcess: import('node:child_process').ChildProcess | null;
+  /** Built-in static server for web preview (replaces npx serve). */
+  staticServer: import('../utils/staticServer.js').StaticServer | null;
 }
 
 export class SessionStore {
@@ -42,6 +44,7 @@ export class SessionStore {
       createdAt: Date.now(),
       userWorkspace: false,
       launchProcess: null,
+      staticServer: null,
     };
     this.entries.set(id, entry);
     this.checkpoint(id);
@@ -90,6 +93,7 @@ export class SessionStore {
           createdAt: new Date(p.savedAt).getTime(),
           userWorkspace: false,
           launchProcess: null,
+          staticServer: null,
         };
         // Mark recovered sessions as done since orchestrators can't be restored
         if (entry.session.state !== 'idle' && entry.session.state !== 'done') {
@@ -124,6 +128,10 @@ export class SessionStore {
       if (entry?.launchProcess) {
         try { entry.launchProcess.kill(); } catch { /* ignore */ }
         entry.launchProcess = null;
+      }
+      if (entry?.staticServer) {
+        entry.staticServer.close();
+        entry.staticServer = null;
       }
       if (entry?.orchestrator && !entry.userWorkspace) {
         entry.orchestrator.cleanup();

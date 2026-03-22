@@ -185,11 +185,9 @@ describe('AgentRunner', () => {
     expect(result.summary).toBe('No output');
   });
 
-  it('uses Electron shim when ELISA_USE_NODE_SHIM is set (no system node)', async () => {
+  it('captures stderr in production mode', async () => {
     const origPath = process.env.ELISA_RESOURCES_PATH;
-    const origShim = process.env.ELISA_USE_NODE_SHIM;
     process.env.ELISA_RESOURCES_PATH = '/fake/resources';
-    process.env.ELISA_USE_NODE_SHIM = '1';
     try {
       mockQuery.mockReturnValue(asyncIterable(makeResultMessage()) as any);
 
@@ -203,47 +201,16 @@ describe('AgentRunner', () => {
       });
 
       const callArgs = mockQuery.mock.calls[0][0];
-      expect(callArgs.options?.executable).toBe(process.execPath);
-      expect(callArgs.options?.env?.ELECTRON_RUN_AS_NODE).toBe('1');
       expect(typeof callArgs.options?.stderr).toBe('function');
-    } finally {
-      if (origPath === undefined) delete process.env.ELISA_RESOURCES_PATH;
-      else process.env.ELISA_RESOURCES_PATH = origPath;
-      if (origShim === undefined) delete process.env.ELISA_USE_NODE_SHIM;
-      else process.env.ELISA_USE_NODE_SHIM = origShim;
-    }
-  });
-
-  it('uses system node when available (no executable override)', async () => {
-    const origPath = process.env.ELISA_RESOURCES_PATH;
-    const origShim = process.env.ELISA_USE_NODE_SHIM;
-    process.env.ELISA_RESOURCES_PATH = '/fake/resources';
-    delete process.env.ELISA_USE_NODE_SHIM;
-    try {
-      mockQuery.mockReturnValue(asyncIterable(makeResultMessage()) as any);
-
-      const runner = new AgentRunner();
-      await runner.execute({
-        taskId: 'test-1',
-        prompt: 'hello',
-        systemPrompt: 'you are a bot',
-        onOutput: vi.fn().mockResolvedValue(undefined),
-        workingDir: '/tmp/test',
-      });
-
-      const callArgs = mockQuery.mock.calls[0][0];
+      // No executable override -- uses system node via SDK default
       expect(callArgs.options?.executable).toBeUndefined();
-      expect(callArgs.options?.env).toBeUndefined();
-      expect(typeof callArgs.options?.stderr).toBe('function');
     } finally {
       if (origPath === undefined) delete process.env.ELISA_RESOURCES_PATH;
       else process.env.ELISA_RESOURCES_PATH = origPath;
-      if (origShim === undefined) delete process.env.ELISA_USE_NODE_SHIM;
-      else process.env.ELISA_USE_NODE_SHIM = origShim;
     }
   });
 
-  it('does not pass Electron executable config in dev mode', async () => {
+  it('does not capture stderr in dev mode', async () => {
     const origPath = process.env.ELISA_RESOURCES_PATH;
     delete process.env.ELISA_RESOURCES_PATH;
     try {

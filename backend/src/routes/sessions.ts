@@ -13,6 +13,7 @@ import { SkillRunner } from '../services/skillRunner.js';
 import { NuggetSpecSchema, detectTruncations } from '../utils/specValidator.js';
 import { validateWorkspacePath } from '../utils/pathValidator.js';
 import { findFreePort } from '../utils/findFreePort.js';
+import { startStaticServer } from '../utils/staticServer.js';
 import { safeEnv } from '../utils/safeEnv.js';
 import type { HardwareService } from '../services/hardwareService.js';
 import type { SessionStore } from '../services/sessionStore.js';
@@ -390,55 +391,21 @@ export function createSessionRouter({ store, sendEvent, hardwareService, deviceR
     }
 
     const port = await findFreePort(3000);
-    const isWin = process.platform === 'win32';
 
     try {
-      const serverProcess = spawn('npx', ['serve', '-p', String(port)], {
-        cwd: serveDir,
-        stdio: 'pipe',
-        detached: false,
-        shell: isWin,
-        env: safeEnv(),
-      });
-
-      // Wait for server to start and parse actual URL from output
-      const result = await new Promise<{ started: boolean; url: string | null }>((resolve) => {
-        let resolved = false;
-        const urlPattern = /Accepting connections at (http:\/\/localhost:\d+)/;
-
-        const checkOutput = (data: Buffer) => {
-          const match = data.toString().match(urlPattern);
-          if (match && !resolved) {
-            resolved = true;
-            resolve({ started: true, url: match[1] });
-          }
-        };
-        serverProcess.stdout?.on('data', checkOutput);
-        serverProcess.stderr?.on('data', checkOutput);
-
-        serverProcess.on('error', () => {
-          if (!resolved) { resolved = true; resolve({ started: false, url: null }); }
-        });
-        serverProcess.on('close', () => {
-          if (!resolved) { resolved = true; resolve({ started: false, url: null }); }
-        });
-        setTimeout(() => {
-          if (!resolved) { resolved = true; resolve({ started: true, url: null }); }
-        }, 5000);
-      });
-
-      if (!result.started) {
-        res.status(500).json({ detail: 'Failed to start preview server' });
-        return;
+      // Close previous static server if any
+      if (entry.staticServer) {
+        entry.staticServer.close();
+        entry.staticServer = null;
       }
 
-      const url = result.url ?? `http://localhost:${port}`;
-      entry.launchProcess = serverProcess;
+      const srv = await startStaticServer(serveDir, port);
+      entry.staticServer = srv;
 
       // Emit deploy_complete so frontend can pick up the URL
-      await sendEvent(req.params.id, { type: 'deploy_complete', target: 'web', url });
+      await sendEvent(req.params.id, { type: 'deploy_complete', target: 'web', url: srv.url });
 
-      res.json({ url });
+      res.json({ url: srv.url });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       res.status(500).json({ detail: `Launch failed: ${message}` });

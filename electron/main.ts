@@ -184,21 +184,17 @@ async function startBackend(): Promise<void> {
   process.env.ELISA_RESOURCES_PATH = process.resourcesPath;
 
   // Set up bundled tool fallbacks on Windows.
-  // Prefer system installations when available; fall back to bundled tools
-  // only when the system doesn't have them. This avoids breaking npm/npx
-  // on developer machines that already have Node.js installed.
   if (process.platform === 'win32') {
     const fs = require('fs') as typeof import('fs');
-    const os = require('os') as typeof import('os');
     const { execSync } = require('child_process') as typeof import('child_process');
+    const { shell } = require('electron') as typeof import('electron');
 
     const hasCommand = (cmd: string): boolean => {
       try { execSync(`where ${cmd}`, { stdio: 'ignore' }); return true; } catch { return false; }
     };
 
     // Git + bash: use system Git if available, otherwise bundled MinGit.
-    // Claude Code requires CLAUDE_CODE_GIT_BASH_PATH explicitly -- it does
-    // NOT discover bash via PATH. Always set it when using bundled MinGit.
+    // Claude Code requires CLAUDE_CODE_GIT_BASH_PATH explicitly.
     if (!hasCommand('git')) {
       const mingitDir = path.join(process.resourcesPath, 'mingit');
       const bashExe = path.join(mingitDir, 'usr', 'bin', 'bash.exe');
@@ -211,26 +207,26 @@ async function startBackend(): Promise<void> {
       }
     }
 
-    // Node.js: use system node if available, otherwise create Electron shim.
+    // Node.js: required for running tests and agent tools.
+    // Show a non-blocking warning if not installed (app still works for building).
     if (!hasCommand('node')) {
-      const nodeShimDir = path.join(os.tmpdir(), 'elisa-node');
-      const shimNodeExe = path.join(nodeShimDir, 'node.exe');
-      try {
-        fs.mkdirSync(nodeShimDir, { recursive: true });
-        try { fs.unlinkSync(shimNodeExe); } catch { /* may not exist */ }
-        try { fs.linkSync(process.execPath, shimNodeExe); }
-        catch { fs.copyFileSync(process.execPath, shimNodeExe); }
-        process.env.PATH = `${process.env.PATH};${nodeShimDir}`;
-        // Signal the backend that the node shim is active. The backend
-        // will inject ELECTRON_RUN_AS_NODE=1 into specific child process
-        // environments (agentRunner, testRunner) rather than setting it
-        // globally -- setting it globally would break Electron's renderer
-        // processes (white screen).
-        process.env.ELISA_USE_NODE_SHIM = '1';
-        console.log('[main] Using Electron node.exe shim (no system node found)');
-      } catch (err) {
-        console.error('[main] Failed to create node.exe shim:', err);
-      }
+      console.warn('[main] Node.js not found in PATH. Tests and some tools will not work.');
+      // Show dialog after window is ready (non-blocking)
+      app.once('browser-window-created', () => {
+        dialog.showMessageBox({
+          type: 'warning',
+          title: 'Node.js not installed',
+          message: 'Elisa works best with Node.js installed.',
+          detail: 'Without it, your projects will build but tests and preview won\'t run.\n\nInstall Node.js (LTS) from nodejs.org to unlock the full experience.',
+          buttons: ['Download Node.js', 'Continue without it'],
+          defaultId: 0,
+          cancelId: 1,
+        }).then((result) => {
+          if (result.response === 0) {
+            shell.openExternal('https://nodejs.org/en/download');
+          }
+        });
+      });
     }
   }
 

@@ -177,20 +177,10 @@ export class AgentRunner {
     allowedTools?: string[],
   ): Promise<AgentResult> {
     // In Electron production, capture stderr for diagnostics.
-    // When no system Node.js is available (ELISA_USE_NODE_SHIM is set by
-    // electron/main.ts), use the Electron binary with ELECTRON_RUN_AS_NODE=1.
-    // ELECTRON_RUN_AS_NODE must NOT be set on the main process (breaks renderers);
-    // it's injected only into child process environments here.
     const isElectronProd = !!process.env.ELISA_RESOURCES_PATH;
-    const useNodeShim = isElectronProd && process.env.ELISA_USE_NODE_SHIM === '1';
     const stderrChunks: string[] = [];
     const electronExecConfig = isElectronProd
-      ? {
-          ...(useNodeShim
-            ? { executable: process.execPath, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } }
-            : {}),
-          stderr: (data: string) => { stderrChunks.push(data); },
-        }
+      ? { stderr: (data: string) => { stderrChunks.push(data); } }
       : {};
 
     diagLog([
