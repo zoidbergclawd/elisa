@@ -4,7 +4,7 @@
  * and opens a BrowserWindow pointed at the local server.
  */
 
-import { app, BrowserWindow, ipcMain, safeStorage, Menu, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, safeStorage, Menu, dialog, shell } from 'electron';
 import * as path from 'path';
 import * as net from 'net';
 // electron-store v10 is ESM-only; use dynamic import() from CommonJS.
@@ -165,6 +165,15 @@ async function propagateApiKeyToBackend(): Promise<void> {
 // -- Server Start --
 
 async function startBackend(): Promise<void> {
+  // Fix PATH on macOS/Linux: GUI apps launched from Finder/Dock don't inherit
+  // the user's shell PATH, so node/git/npm from Homebrew/nvm won't be found.
+  if (process.platform !== 'win32') {
+    try {
+      const { default: fixPath } = await import('fix-path');
+      fixPath();
+    } catch { /* best-effort -- PATH may already be correct */ }
+  }
+
   const apiKey = getApiKey();
   if (apiKey) {
     process.env.ANTHROPIC_API_KEY = apiKey;
@@ -183,35 +192,47 @@ async function startBackend(): Promise<void> {
   // Production: tell the backend where packaged resources live
   process.env.ELISA_RESOURCES_PATH = process.resourcesPath;
 
-  // Set up bundled tool fallbacks on Windows.
-  if (process.platform === 'win32') {
+  // Detect and set up required tools (cross-platform).
+  {
     const fs = require('fs') as typeof import('fs');
     const { execSync } = require('child_process') as typeof import('child_process');
-    const { shell } = require('electron') as typeof import('electron');
+    const isWin = process.platform === 'win32';
+    const whichCmd = isWin ? 'where' : 'which';
 
     const hasCommand = (cmd: string): boolean => {
-      try { execSync(`where ${cmd}`, { stdio: 'ignore' }); return true; } catch { return false; }
+      try { execSync(`${whichCmd} ${cmd}`, { stdio: 'ignore' }); return true; } catch { return false; }
     };
 
-    // Git + bash: use system Git if available, otherwise bundled MinGit.
-    // Claude Code requires CLAUDE_CODE_GIT_BASH_PATH explicitly.
+    // Git + bash: on Windows, fall back to bundled MinGit if no system Git.
+    // On macOS, Git comes with Xcode CLT (prompt to install if missing).
     if (!hasCommand('git')) {
-      const mingitDir = path.join(process.resourcesPath, 'mingit');
-      const bashExe = path.join(mingitDir, 'usr', 'bin', 'bash.exe');
-      if (fs.existsSync(bashExe)) {
-        const gitCmd = path.join(mingitDir, 'cmd');
-        const gitUsrBin = path.join(mingitDir, 'usr', 'bin');
-        process.env.PATH = `${process.env.PATH};${gitCmd};${gitUsrBin}`;
-        process.env.CLAUDE_CODE_GIT_BASH_PATH = bashExe;
-        console.log('[main] Using bundled MinGit (no system git found)');
+      if (isWin) {
+        const mingitDir = path.join(process.resourcesPath, 'mingit');
+        const bashExe = path.join(mingitDir, 'usr', 'bin', 'bash.exe');
+        if (fs.existsSync(bashExe)) {
+          const gitCmd = path.join(mingitDir, 'cmd');
+          const gitUsrBin = path.join(mingitDir, 'usr', 'bin');
+          process.env.PATH = `${process.env.PATH};${gitCmd};${gitUsrBin}`;
+          process.env.CLAUDE_CODE_GIT_BASH_PATH = bashExe;
+          console.log('[main] Using bundled MinGit (no system git found)');
+        }
+      } else {
+        console.warn('[main] Git not found. Install Xcode Command Line Tools: xcode-select --install');
+        app.once('browser-window-created', () => {
+          dialog.showMessageBox({
+            type: 'warning',
+            title: 'Git not installed',
+            message: 'Elisa needs Git to track your project history.',
+            detail: 'Open Terminal and run:\n\nxcode-select --install\n\nThen restart Elisa.',
+            buttons: ['OK'],
+          });
+        });
       }
     }
 
     // Node.js: required for running tests and agent tools.
-    // Show a non-blocking warning if not installed (app still works for building).
     if (!hasCommand('node')) {
       console.warn('[main] Node.js not found in PATH. Tests and some tools will not work.');
-      // Show dialog after window is ready (non-blocking)
       app.once('browser-window-created', () => {
         dialog.showMessageBox({
           type: 'warning',

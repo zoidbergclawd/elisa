@@ -1,6 +1,6 @@
 {
   "name": "elisa",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "license": "MIT",
   "author": "Elisa",
@@ -36,7 +36,8 @@
   },
   "dependencies": {
     "electron-store": "^10.0.1",
-    "electron-updater": "^6.6.2"
+    "electron-updater": "^6.6.2",
+    "fix-path": "^5.0.0"
   },
   "overrides": {
     "minimatch": ">=10.2.1",
