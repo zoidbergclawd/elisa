@@ -185,11 +185,11 @@ describe('AgentRunner', () => {
     expect(result.summary).toBe('No output');
   });
 
-  it('uses Electron shim when ELECTRON_RUN_AS_NODE is set (no system node)', async () => {
+  it('uses Electron shim when ELISA_USE_NODE_SHIM is set (no system node)', async () => {
     const origPath = process.env.ELISA_RESOURCES_PATH;
-    const origShim = process.env.ELECTRON_RUN_AS_NODE;
+    const origShim = process.env.ELISA_USE_NODE_SHIM;
     process.env.ELISA_RESOURCES_PATH = '/fake/resources';
-    process.env.ELECTRON_RUN_AS_NODE = '1';
+    process.env.ELISA_USE_NODE_SHIM = '1';
     try {
       mockQuery.mockReturnValue(asyncIterable(makeResultMessage()) as any);
 
@@ -209,16 +209,16 @@ describe('AgentRunner', () => {
     } finally {
       if (origPath === undefined) delete process.env.ELISA_RESOURCES_PATH;
       else process.env.ELISA_RESOURCES_PATH = origPath;
-      if (origShim === undefined) delete process.env.ELECTRON_RUN_AS_NODE;
-      else process.env.ELECTRON_RUN_AS_NODE = origShim;
+      if (origShim === undefined) delete process.env.ELISA_USE_NODE_SHIM;
+      else process.env.ELISA_USE_NODE_SHIM = origShim;
     }
   });
 
   it('uses system node when available (no executable override)', async () => {
     const origPath = process.env.ELISA_RESOURCES_PATH;
-    const origShim = process.env.ELECTRON_RUN_AS_NODE;
+    const origShim = process.env.ELISA_USE_NODE_SHIM;
     process.env.ELISA_RESOURCES_PATH = '/fake/resources';
-    delete process.env.ELECTRON_RUN_AS_NODE;
+    delete process.env.ELISA_USE_NODE_SHIM;
     try {
       mockQuery.mockReturnValue(asyncIterable(makeResultMessage()) as any);
 
@@ -238,8 +238,8 @@ describe('AgentRunner', () => {
     } finally {
       if (origPath === undefined) delete process.env.ELISA_RESOURCES_PATH;
       else process.env.ELISA_RESOURCES_PATH = origPath;
-      if (origShim === undefined) delete process.env.ELECTRON_RUN_AS_NODE;
-      else process.env.ELECTRON_RUN_AS_NODE = origShim;
+      if (origShim === undefined) delete process.env.ELISA_USE_NODE_SHIM;
+      else process.env.ELISA_USE_NODE_SHIM = origShim;
     }
   });
 

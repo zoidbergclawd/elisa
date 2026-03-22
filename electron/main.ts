@@ -227,9 +227,12 @@ async function startBackend(): Promise<void> {
         try { fs.linkSync(process.execPath, shimNodeExe); }
         catch { fs.copyFileSync(process.execPath, shimNodeExe); }
         process.env.PATH = `${process.env.PATH};${nodeShimDir}`;
-        // ELECTRON_RUN_AS_NODE makes the Electron binary act as Node.js.
-        // Only set when using the shim; system node doesn't need it.
-        process.env.ELECTRON_RUN_AS_NODE = '1';
+        // Signal the backend that the node shim is active. The backend
+        // will inject ELECTRON_RUN_AS_NODE=1 into specific child process
+        // environments (agentRunner, testRunner) rather than setting it
+        // globally -- setting it globally would break Electron's renderer
+        // processes (white screen).
+        process.env.ELISA_USE_NODE_SHIM = '1';
         console.log('[main] Using Electron node.exe shim (no system node found)');
       } catch (err) {
         console.error('[main] Failed to create node.exe shim:', err);
