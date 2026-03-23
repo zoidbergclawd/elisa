@@ -5,10 +5,10 @@ import { render, screen, fireEvent } from '@testing-library/react';
 vi.mock('p5', () => {
   class MockP5 {
     remove = vi.fn();
-    constructor(sketch: Function, container: HTMLElement) {
+    constructor(sketch: (p: Record<string, unknown>) => void, container: HTMLElement) {
       const canvas = document.createElement('canvas');
       container.appendChild(canvas);
-      const self = this as any;
+      const self = this as unknown as Record<string, unknown>;
       self.createCanvas = vi.fn().mockReturnValue({ style: vi.fn() });
       self.pixelDensity = vi.fn();
       self.noLoop = vi.fn();

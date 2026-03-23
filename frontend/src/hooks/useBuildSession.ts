@@ -415,7 +415,7 @@ function handleWSEvent(state: BuildSessionState, event: WSEvent, deploySteps: Ar
         isPlanning: false,
         agents: state.agents.map(a => ({ ...a, status: 'done' as const })),
         testResults: resolvePendingTests(state.testResults, 'No matching test was generated'),
-        testGatePassed: (event as any).testGatePassed ?? null,
+        testGatePassed: (event as { type: 'session_complete'; testGatePassed?: boolean }).testGatePassed ?? null,
       };
 
     case 'teaching_moment':
@@ -828,9 +828,9 @@ function handleWSEvent(state: BuildSessionState, event: WSEvent, deploySteps: Ar
         ...state,
         events,
         visualTestResult: {
-          passed: (event as any).passed,
-          summary: (event as any).summary,
-          issues: (event as any).issues ?? [],
+          passed: event.passed,
+          summary: event.summary,
+          issues: event.issues ?? [],
         },
       };
 
@@ -839,15 +839,15 @@ function handleWSEvent(state: BuildSessionState, event: WSEvent, deploySteps: Ar
         ...state,
         events,
         autoFixAttempt: {
-          passRate: (event as any).passRate,
-          threshold: (event as any).threshold,
-          attempt: (event as any).attempt,
+          passRate: event.passRate,
+          threshold: event.threshold,
+          attempt: event.attempt,
         },
       };
 
     case 'fix_started': {
       // During auto-fix (test gate), don't switch UI to building -- stay in current state
-      if ((event as any).isAutoFix) {
+      if (event.isAutoFix) {
         return { ...state, events };
       }
       const fixTask: Task = {
@@ -1097,12 +1097,14 @@ export function useBuildSession() {
   // Screenshot capture side effect: on deploy_complete with URL, capture and POST
   const screenshotTriggeredRef = useRef(false);
   useEffect(() => {
-    const elisaAPI = (window as any).elisaAPI;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Electron preload exposes elisaAPI on window
+    const elisaAPI = (window as Record<string, any>).elisaAPI;
     if (!elisaAPI?.captureScreenshot || !state.sessionId) return;
     // Find deploy_complete with url in events
     const deployComplete = state.events.find(
-      (e: any) => e.type === 'deploy_complete' && e.url,
-    ) as { type: string; url: string } | undefined;
+      (e): e is WSEvent & { type: 'deploy_complete'; url: string } =>
+        e.type === 'deploy_complete' && !!(e as { url?: string }).url,
+    );
     if (!deployComplete || screenshotTriggeredRef.current) return;
     screenshotTriggeredRef.current = true;
 

@@ -291,7 +291,8 @@ export function interpretWorkspace(
         spec.nugget.description = text;
         const fw = (block.fields?.FRAMEWORK as string) ?? 'auto';
         if (fw !== 'auto') {
-          (spec as any).framework = fw;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- framework field added dynamically from block
+          (spec as Record<string, any>).framework = fw;
         }
         break;
       }
