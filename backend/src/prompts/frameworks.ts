@@ -17,34 +17,68 @@ export interface FrameworkPrompt {
 const PHASER_CONTEXT = `## Framework: Phaser 3
 The Phaser 3 game engine is bundled in your workspace.
 
-Include it in your HTML:
+### CRITICAL: Multi-File Scene Architecture
+Each Phaser scene MUST be in its own separate .js file under scenes/.
+This prevents concurrent agents from overwriting each other's work.
+
+Required file structure:
+\`\`\`
+index.html              -- loads Phaser + all scene scripts, creates game
+scenes/BootScene.js     -- preloads assets, shows loading bar
+scenes/GameScene.js     -- core gameplay loop (player, enemies, physics)
+scenes/UIScene.js       -- HUD overlay (score, lives, powerup indicators)
+scenes/GameOverScene.js -- game over screen with restart
+\`\`\`
+
+index.html must load scenes via separate script tags:
 \`\`\`html
 <script src="lib/phaser.min.js"></script>
+<script src="scenes/BootScene.js"></script>
+<script src="scenes/GameScene.js"></script>
+<script src="scenes/UIScene.js"></script>
+<script src="scenes/GameOverScene.js"></script>
+<script>
+  new Phaser.Game({
+    width: 800, height: 600,
+    physics: { default: 'arcade', arcade: { gravity: { x: 0, y: 0 } } },
+    scene: [BootScene, GameScene, UIScene, GameOverScene],
+    parent: 'game',
+    backgroundColor: '#000000'
+  });
+</script>
+\`\`\`
+
+Each scene file defines a single class on the global scope:
+\`\`\`js
+class GameScene extends Phaser.Scene {
+  constructor() { super('GameScene'); }
+  preload() { }
+  create() { }
+  update() { }
+}
 \`\`\`
 
 ### Key Patterns
-- Game config: \`new Phaser.Game({ width: 800, height: 600, scene: [BootScene, PlayScene], physics: { default: 'arcade' } })\`
-- Separate scenes into Boot (preload assets) and Play (game logic)
-- Preload: \`this.load.image('key', 'path')\` in \`preload()\`
-- Sprites: \`this.physics.add.sprite(x, y, 'key')\` in \`create()\`
+- Preload assets ONLY in BootScene: \`this.load.image('key', 'path')\`
+- Start scenes: \`this.scene.start('GameScene')\`
+- Parallel UI: \`this.scene.launch('UIScene')\` runs alongside GameScene
+- Cross-scene communication: \`this.scene.get('UIScene').updateScore(val)\`
+  or use events: \`this.events.emit('scoreChanged', val)\`
+- Sprites: \`this.physics.add.sprite(x, y, 'key')\`
 - Input: \`this.cursors = this.input.keyboard.createCursorKeys()\`
-- Collision: \`this.physics.add.overlap(player, coins, collectCoin, null, this)\`
+- Collision: \`this.physics.add.overlap(player, coins, collect, null, this)\`
 - Text: \`this.add.text(x, y, 'Score: 0', { fontSize: '24px', fill: '#fff' })\`
-- Game loop: put movement/logic in \`update()\`
-
-### Structure
-- Put everything in a single HTML file with inline \`<script>\`
-- Define scene classes before \`new Phaser.Game()\`
-- Use Phaser's built-in graphics for shapes (no need for separate image files)
-  - \`this.add.rectangle(x, y, w, h, 0xff0000)\` for colored rectangles
-  - \`this.add.circle(x, y, r, 0x00ff00)\` for circles
-  - Use \`Phaser.GameObjects.Graphics\` for complex shapes
+- Use Phaser's built-in graphics for shapes (no separate image files needed):
+  \`this.add.rectangle(x, y, w, h, 0xff0000)\`, \`this.add.circle(x, y, r, 0x00ff00)\`
 
 ### Anti-patterns
-- Do NOT use raw canvas when Phaser is available
-- Do NOT put all game logic in a single \`update()\` -- use scene transitions for menus/gameover
-- Do NOT load assets in \`create()\` -- always use \`preload()\`
-- Do NOT use \`document.createElement('canvas')\` -- Phaser creates its own canvas`;
+- NEVER put multiple scenes in one file -- each scene gets its own .js file
+- NEVER put all game logic in a single update() -- split across scenes
+- Do NOT use raw canvas -- Phaser creates its own
+- Do NOT load assets in create() -- use preload() in BootScene
+- Do NOT use document.createElement('canvas')
+- Do NOT define helper functions or constants inside scene files that other scenes
+  need -- put shared code in a separate src/constants.js or src/utils.js file`;
 
 const P5_CONTEXT = `## Framework: p5.js
 The p5.js creative coding library is bundled in your workspace.
@@ -156,4 +190,29 @@ When a framework is selected (not "none"), the library file will be pre-loaded i
 workspace at lib/. Agents should use it instead of writing raw canvas code.
 
 IMPORTANT: For ANY project involving games, animations, interactive graphics, or visual effects,
-you MUST select a framework. Do NOT default to "none" for visual projects.`;
+you MUST select a framework. Do NOT default to "none" for visual projects.
+
+## Phaser Game Task Planning Rules
+
+When framework is "phaser", you MUST plan tasks around **separate scene files**.
+Each Phaser scene lives in its own file under scenes/. This is critical because
+multiple agents may work in parallel -- if they all edit the same file, they will
+overwrite each other's changes and produce a broken game.
+
+Required task structure for Phaser games:
+1. **Scaffold** (task-1): Create index.html, scenes/BootScene.js, load Phaser from lib/
+2. **Core gameplay** (task-2): Create scenes/GameScene.js with player, movement, core mechanics
+3. **One task per additional feature**: Each creates or edits its OWN scene file
+   - UI/HUD -> scenes/UIScene.js (runs as parallel scene)
+   - Game Over -> scenes/GameOverScene.js
+   - Additional mechanics -> add to GameScene.js ONLY if no other task is editing it
+4. **Test task**: Verify all scene files exist and contain required patterns
+5. **Review task**: Final integration review
+
+Rules:
+- NEVER assign two concurrent tasks to edit the same file
+- Keep total tasks to 5-8 for games (fewer tasks = fewer conflicts)
+- The scaffold task must create ALL scene files with stub classes
+- Feature tasks fill in the stubs -- they Edit, never Write from scratch
+- Shared constants (colors, speeds, sizes) go in src/constants.js (created by scaffold)
+- Set each agent's allowed_paths to the specific files they own`;
