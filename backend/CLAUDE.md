@@ -104,7 +104,7 @@ src/
     planningAgent.ts     System prompt for Planning Mode conversational agent
     metaPlanner.ts       System prompt for task decomposition
     builderAgent.ts      Builder role prompt template
-    frameworks.ts        Framework-specific prompt context (Phaser, p5.js, Three.js) + MetaPlanner framework selection section
+    frameworks.ts        Framework-specific prompt context (Phaser, p5.js, Three.js): multi-file architecture rules, API patterns, MetaPlanner task planning with per-framework decomposition (scenes/modules/components)
     testerAgent.ts       Tester role prompt template
     reviewerAgent.ts     Reviewer role prompt template
     teaching.ts          Teaching moment curriculum and templates
@@ -221,6 +221,7 @@ Client sends `turn` (text) or `audio_turn` (audio) messages. Server responds wit
 - **Context chain**: After each task, summary + structural digest written to `.elisa/context/nugget_context.md`.
 - **Cancellation**: `Orchestrator.cancel()` via AbortController; signal propagated to Agent SDK `query()` calls. Session state set to `done` on error.
 - **Content safety**: All agent prompts enforce age-appropriate output (8-14). Placeholder values sanitized before interpolation (`sanitizePlaceholder()`).
+- **Game frameworks**: Phaser 3, p5.js, Three.js bundled in `build/frameworks/` (downloaded by `scripts/bundle-frameworks.mjs`). MetaPlanner auto-selects or kid picks via Goal block dropdown. Selected library copied to workspace `lib/` after planning. Multi-file architecture enforced: scaffold creates all files as stubs, each feature task owns one module file, no concurrent edits to same file.
 - **Flash mutex**: `HardwareService.flash()` serializes concurrent calls via Promise-chain mutex.
 - **WebSocket heartbeat + send queue**: Server sends protocol-level pings every 30s (`WS_PING_INTERVAL_MS`). Connections that miss a pong are terminated via `ws.terminate()`. All `sendEvent()` calls are serialized through a per-session FIFO queue with `setImmediate` yield between each frame, preventing burst-flooding the Vite proxy even when concurrent fire-and-forget callers (agent_output streaming, meeting triggers) overlap. Queue depth warnings at 10/50/100; drain summaries logged for batches >5. `wsAlive` WeakMap tracks per-connection liveness.
 - **Graceful shutdown**: SIGTERM/SIGINT handlers cancel orchestrators, close WS server, 10s force-exit. `SessionStore.onCleanup` invokes `ConnectionManager.cleanup()` for WS teardown.

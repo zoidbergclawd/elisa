@@ -92,7 +92,7 @@ App.tsx
 
 ## BlockCanvas Subsystem
 
-- `blockDefinitions.ts`: 6-primitive block types (Goal, Promise, Proof, Skill, Portal, Deploy) with `BLOCK_CATEGORIES` metadata (`primitive`/`special`/`ide`). Device plugin blocks registered dynamically.
+- `blockDefinitions.ts`: 6-primitive block types (Goal, Promise, Proof, Skill, Portal, Deploy) with `BLOCK_CATEGORIES` metadata (`primitive`/`special`/`ide`). Goal block includes optional framework dropdown (Auto/Phaser/p5.js/Three.js/None). Device plugin blocks registered dynamically.
 - `blockInterpreter.ts`: Walks Blockly workspace JSON, extracts fields, builds NuggetSpec. Device plugin blocks handled generically.
 - `toolbox.ts`: Defines Blockly sidebar categories. Device plugin blocks dynamically added via `buildDeviceCategories()`.
 - `skillFlowToolbox.ts`: Blockly toolbox definition for the skill flow editor.
@@ -109,5 +109,5 @@ App.tsx
 - BlockCanvas stays mounted (hidden via CSS) to preserve Blockly workspace state across tab switches.
 - Auto-switch: build starts -> Agents tab + Progress bottom tab. Health tab no longer auto-switches post-build (Blueprint meeting is the primary post-build summary).
 - Modals use fixed positioning with backdrop overlay. Only one modal shows at a time.
-- Done modal: "Fix It" button appears when any task failed or tests failing, navigates to Team tab for Bug Detective. "Fix reported bugs" button appears after a Bug Detective meeting ends (captures kid messages as bug report, calls `requestFix()`). Fix progress uses `isFixing` from build session context (not local state); resets automatically via `fix_tests_completed` event. "Report a Bug" button always available post-build. "Your team wants to chat" button appears when invites are pending.
+- Done modal: conditional heading ("Nugget Complete!" green or "Nugget Needs Work" amber based on `testGatePassed`), test pass rate display, visual smoke test result card (green/amber). "Fix It" button appears when any task failed or tests failing (primary `go-btn` style when gate failed), navigates to Team tab for Bug Detective. "Fix reported bugs" button appears after a Bug Detective meeting ends (captures kid messages as bug report, calls `requestFix()`). Fix progress uses `isFixing` from build session context (not local state); resets automatically via `fix_tests_completed` event. "Report a Bug" button always available post-build. "Your team wants to chat" button appears when invites are pending.
 - Skills/Rules and workspace state are persisted to localStorage and restored on page load via `syncDesignToStorage` helper.

@@ -96,8 +96,9 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | File | Role |
 |------|------|
 | `backend/src/services/planningService.ts` | Planning Mode: conversational plan refinement via Claude SDK, structured question generation, deterministic mutations, canvas generation |
-| `backend/src/services/orchestrator.ts` | Thin coordinator: plan -> meeting triggers -> execute -> test -> test gate (auto-fix) -> deploy. Also runFix() for post-build targeted fixes |
+| `backend/src/services/orchestrator.ts` | Thin coordinator: plan -> framework copy -> meeting triggers -> execute -> test -> test gate (auto-fix) -> deploy. Also runFix() for post-build targeted fixes |
 | `backend/src/services/visualSmokeTest.ts` | Visual smoke test: sends screenshot to vision model (Haiku) for rendering verification |
+| `scripts/bundle-frameworks.mjs` | Downloads Phaser 3, p5.js, Three.js minified libs to build/frameworks/ for Electron bundling |
 | `backend/src/services/metaPlanner.ts` | Decomposes NuggetSpec into task DAG via Claude API |
 | `backend/src/services/agentRunner.ts` | Executes agents via Claude Agent SDK `query()` with streaming. Resolves `pathToClaudeCodeExecutable` for Electron packaging. Diagnostic logging to `%TEMP%/elisa-agent-diagnostics.log`. Exports `getClaudeCodePath()` for health checks |
 | `backend/src/utils/staticServer.ts` | Built-in static file server (Node.js http module). Used by deployPhase and launch endpoint. Replaces `npx serve` |
