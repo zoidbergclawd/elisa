@@ -54,6 +54,12 @@ describe('analyzeScreenshot', () => {
     expect(result).toEqual({ passed: true, summary: 'Game renders', issues: [] });
   });
 
+  it('strips markdown fences from JSON response', async () => {
+    mockApiResponse('```json\n{"passed": true, "summary": "Looks great", "issues": []}\n```');
+    const result = await analyzeScreenshot('img', 'A game');
+    expect(result).toEqual({ passed: true, summary: 'Looks great', issues: [] });
+  });
+
   it('handles malformed JSON response gracefully', async () => {
     mockApiResponse('This is not JSON at all.');
     const result = await analyzeScreenshot('img', 'A game');

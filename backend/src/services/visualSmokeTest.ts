@@ -33,13 +33,16 @@ The project goal: ${goal}${requirementsText}
 
 Look at this screenshot and determine:
 1. Does the page render correctly (not blank, not just a black screen)?
-2. Are there visible UI elements matching the goal?
+2. Are there visible UI elements or graphics matching the goal?
 3. Are there any obvious visual issues?
 
-Respond with ONLY a JSON object (no markdown fencing):
-{"passed": true/false, "summary": "one sentence", "issues": ["issue1", "issue2"]}
+A title screen, menu screen, or "Press to Start" screen counts as PASSING --
+it means the game loaded correctly and is waiting for user input.
+Only fail if the screen is completely blank, all black, shows an error,
+or shows a browser default page with no game content.
 
-If the screen is blank, all black, or shows only a default page, set passed to false.`;
+Respond with ONLY a JSON object (no markdown fencing):
+{"passed": true/false, "summary": "one sentence", "issues": ["issue1", "issue2"]}`;
 
   try {
     const client = getAnthropicClient();
@@ -79,7 +82,13 @@ If the screen is blank, all black, or shows only a default page, set passed to f
 
 function parseResponse(text: string): VisualTestResult {
   try {
-    const parsed = JSON.parse(text);
+    let cleaned = text.trim();
+    // Strip markdown code fences (models often add them despite instructions)
+    const fenceMatch = cleaned.match(/```(?:json)?\s*\n?([\s\S]*?)```/);
+    if (fenceMatch) {
+      cleaned = fenceMatch[1].trim();
+    }
+    const parsed = JSON.parse(cleaned);
     return {
       passed: !!parsed.passed,
       summary: String(parsed.summary ?? ''),
