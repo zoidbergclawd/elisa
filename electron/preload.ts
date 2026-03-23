@@ -29,6 +29,9 @@ contextBridge.exposeInMainWorld('elisaAPI', {
     return () => ipcRenderer.removeListener('update-downloaded', handler);
   },
 
+  captureScreenshot: (url: string): Promise<{ success: boolean; base64?: string; error?: string }> =>
+    ipcRenderer.invoke('capture-screenshot', url),
+
   openExternal: (url: string): void => {
     shell.openExternal(url);
   },

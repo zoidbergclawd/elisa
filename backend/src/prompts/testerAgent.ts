@@ -34,7 +34,8 @@ Use relative paths for all file operations -- never use absolute paths.
 1. Scan the file manifest and structural digest to understand what was built. Read specific source files only as needed for test design.
 2. Plan your tests: map each acceptance criterion to one or more test cases.
 3. Write and run the tests, fixing any setup issues as you go.
-4. Verify results and write your summary with PASS/FAIL verdict.
+4. Re-run all tests one final time to confirm results are stable.
+5. Write your summary with PASS/FAIL verdict.
 
 ## Turn Efficiency
 You have a limited turn budget of {max_turns} turns. Prioritize testing over exploration:

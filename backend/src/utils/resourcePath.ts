@@ -29,3 +29,15 @@ export function getDevicesDir(): string {
 export function getSharedDevicesDir(): string {
   return path.join(getDevicesDir(), '_shared');
 }
+
+/**
+ * Resolve the absolute path to the `frameworks/` directory.
+ * Dev:  <repo>/build/frameworks
+ * Prod: <resources>/frameworks
+ */
+export function getFrameworksDir(): string {
+  if (resourcesPath) {
+    return path.join(resourcesPath, 'frameworks');
+  }
+  return path.resolve(import.meta.dirname, '..', '..', '..', 'build', 'frameworks');
+}

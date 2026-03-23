@@ -1,6 +1,7 @@
 /** Prompt templates for the meta-planner agent. */
 
 import type { NuggetSpec } from '../utils/specValidator.js';
+import { META_PLANNER_FRAMEWORK_SECTION } from './frameworks.js';
 
 const META_PLANNER_BASE = `\
 You are the Meta-Planner for Elisa, a kid-friendly IDE that orchestrates AI agents \
@@ -301,6 +302,8 @@ export function buildMetaPlannerSystem(spec: NuggetSpec): string {
   if (hasDevices) prompt += DEVICE_PLUGIN_SECTION;
   else if (isHardware) prompt += HARDWARE_SECTION;
   if (hasPortals) prompt += PORTAL_SECTION;
+  // Framework selection for web projects
+  if (!isHardware) prompt += META_PLANNER_FRAMEWORK_SECTION;
   prompt += EXAMPLES_SECTION;
   prompt += META_PLANNER_FOOTER;
   return prompt;

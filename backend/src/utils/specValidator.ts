@@ -242,6 +242,7 @@ export const NuggetSpecSchema = z.object({
   knowledge: KnowledgeConfigSchema.optional(),
   composition: CompositionSchema.optional(),
   meeting_team: z.array(MeetingTeamMemberSchema).max(20).optional(),
+  framework: z.enum(['phaser', 'p5', 'threejs', 'none']).nullable().optional(),
 }).strict();
 
 /** Inferred TypeScript type from the NuggetSpec Zod schema. */

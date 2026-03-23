@@ -37,17 +37,28 @@ const blockDefs = [
   // --- Goal ---
   {
     type: 'nugget_goal',
-    message0: 'I want to build... %1',
+    message0: 'I want to build... %1 %2',
     args0: [
       {
         type: 'field_input',
         name: 'GOAL_TEXT',
         text: 'describe your nugget here',
       },
+      {
+        type: 'field_dropdown',
+        name: 'FRAMEWORK',
+        options: [
+          ['Auto (recommended)', 'auto'],
+          ['Phaser (2D games)', 'phaser'],
+          ['p5.js (creative coding)', 'p5'],
+          ['Three.js (3D)', 'threejs'],
+          ['None (plain HTML)', 'none'],
+        ],
+      },
     ],
     nextStatement: null,
     colour: 210,
-    tooltip: 'Describe what you want to build',
+    tooltip: 'Describe what you want to build. Optionally pick a graphics framework.',
     helpUrl: '',
     extensions: ['text_field_limits'],
   },

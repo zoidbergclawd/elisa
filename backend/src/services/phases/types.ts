@@ -48,7 +48,7 @@ export type WSEvent =
   | { type: 'narrator_message'; from: string; text: string; mood: 'excited' | 'encouraging' | 'concerned' | 'celebrating'; related_task_id?: string }
   | { type: 'permission_auto_resolved'; task_id: string; permission_type: string; decision: 'approved' | 'denied'; reason: string }
   | { type: 'minion_state_change'; agent_name: string; old_status: string; new_status: string }
-  | { type: 'session_complete'; summary: string }
+  | { type: 'session_complete'; summary: string; testGatePassed?: boolean }
   | { type: 'flash_prompt'; device_role: string; message: string }
   | { type: 'flash_progress'; device_role: string; step: string; progress: number }
   | { type: 'flash_complete'; device_role: string; success: boolean; message?: string }
@@ -76,7 +76,9 @@ export type WSEvent =
   | { type: 'spec_validation_warning'; truncated_fields: Array<{ path: string; max_length: number; actual_length: number }> }
   | { type: 'test_expectations'; task_id: string; tests: Array<{ name: string; description: string }> }
   | { type: 'test_phase_complete'; passed: number; failed: number; total: number }
-  | { type: 'fix_started'; bugReport: string }
+  | { type: 'visual_smoke_test'; passed: boolean; summary: string; issues: string[] }
+  | { type: 'auto_fix_started'; passRate: number; threshold: number; attempt: number }
+  | { type: 'fix_started'; bugReport: string; isAutoFix?: boolean }
   | { type: 'fix_task_completed'; taskId: string; success: boolean }
   | { type: 'fix_tests_completed'; passed: number; failed: number; total: number }
   | { type: 'meeting_blocking_task'; task_id: string; meeting_type_id: string }

@@ -7,6 +7,7 @@ React 19 + TypeScript + Vite SPA. Visual block editor (Blockly) for composing nu
 - React 19.2, Vite 7.3, TypeScript 5.9, Tailwind CSS 4
 - Blockly 12.3 (block editor), @xyflow/react 12.10 (task DAG viz), elkjs (graph layout)
 - JSZip 3 (nugget file save/load)
+- p5.js 1.11 (design preview canvas rendering in meetings)
 - Vitest + Testing Library (tests)
 
 ## Structure

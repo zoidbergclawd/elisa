@@ -410,6 +410,25 @@ ipcMain.handle('get-app-version', () => {
   return app.getVersion();
 });
 
+ipcMain.handle('capture-screenshot', async (_event, url: string) => {
+  const win = new BrowserWindow({
+    width: 1280,
+    height: 720,
+    show: false,
+    webPreferences: { offscreen: true },
+  });
+  try {
+    await win.loadURL(url);
+    await new Promise<void>(r => setTimeout(r, 2000));
+    const image = await win.webContents.capturePage();
+    return { success: true, base64: image.toPNG().toString('base64') };
+  } catch (err) {
+    return { success: false, error: (err as Error).message };
+  } finally {
+    win.destroy();
+  }
+});
+
 // -- App Lifecycle --
 
 app.whenReady().then(async () => {

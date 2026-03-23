@@ -22,6 +22,7 @@ export interface PlanResult {
   agentMap: Record<string, Agent>;
   dag: TaskDAG;
   nuggetType: string;
+  framework?: string;
 }
 
 export class PlanPhase {
@@ -172,6 +173,9 @@ export class PlanPhase {
     if (spec.rules?.length) await maybeTeach(this.teachingEngine, ctx, 'rule_used', '', nuggetType);
     if (spec.portals?.length) await maybeTeach(this.teachingEngine, ctx, 'portal_used', '', nuggetType);
 
-    return { tasks, agents, taskMap, agentMap, dag, nuggetType };
+    // Capture framework selection from MetaPlanner or spec
+    const framework = (spec.framework as string) ?? (plan as any).framework ?? undefined;
+
+    return { tasks, agents, taskMap, agentMap, dag, nuggetType, framework };
   }
 }
