@@ -71,13 +71,20 @@ const CANVAS_INSTRUCTIONS: Record<string, string> = {
   'design-preview':
     'ALWAYS include a ```canvas JSON block with EVERY message so the kid sees the design evolve live. ' +
     'Required fields: scene_title (string), description (string), ' +
-    'background (CSS color or gradient, e.g. "#0a0a2e" or "linear-gradient(135deg, #0a0a2e, #1a1a4e)"), ' +
+    'background (CSS hex color string e.g. "#0a0a2e"), ' +
     'palette (array of 3-6 hex color strings), ' +
     'elements (array ordered background-first, then foreground, then UI. Each object has: ' +
     'name (string), description (string), color (hex string from palette), ' +
-    'draw (string -- Canvas 2D JavaScript code. Variables: ctx (CanvasRenderingContext2D), w (canvas width), h (canvas height), color (hex string). ' +
-    'Use ctx.fillStyle, ctx.beginPath, ctx.arc, ctx.moveTo, ctx.lineTo, ctx.fill, ctx.stroke, ctx.save, ctx.restore, ' +
-    'ctx.shadowBlur, ctx.shadowColor, ctx.createLinearGradient, ctx.fillRect, ctx.font, ctx.fillText, etc. ' +
+    'draw (string -- p5.js JavaScript code. Variables: p (p5 instance), w (canvas width), h (canvas height), color (hex string). ' +
+    'Use p5 drawing functions via the p instance: p.fill(color), p.noStroke(), p.rect(x,y,w,h,radius), ' +
+    'p.ellipse(x,y,w,h), p.triangle(), p.line(), p.arc(), p.bezier(), p.beginShape()/p.vertex()/p.endShape(), ' +
+    'p.push()/p.pop(), p.translate(), p.rotate(), p.scale(), p.stroke(), p.strokeWeight(), ' +
+    'p.textSize(), p.textAlign(), p.text(), p.lerpColor(), p.color(), p.random(), p.noise(), p.map(), ' +
+    'p.sin(), p.cos(), p.PI, p.TWO_PI, p.HALF_PI. ' +
+    'IMPORTANT: Always use "p." prefix for ALL p5 functions and constants. ' +
+    'Create visually rich designs: use gradients via multiple overlapping shapes with varying opacity, ' +
+    'add glow effects with p.drawingContext.shadowBlur/shadowColor, use curves and organic shapes, ' +
+    'add particle-like details with small scattered ellipses, use p.lerpColor for smooth color transitions. ' +
     'Draw the element so it looks like the actual game asset. Background elements fill the canvas; sprites draw at a representative position; UI elements draw at edges.)). ' +
     'Update the canvas with every message so the kid sees their design evolve in real time.',
 };

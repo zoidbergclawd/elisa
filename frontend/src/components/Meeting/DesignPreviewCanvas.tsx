@@ -1,6 +1,7 @@
-/** Design Preview canvas -- display-only design preview for Design Review meetings. */
+/** Design Preview canvas -- p5.js-powered design preview for Design Review meetings. */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import p5 from 'p5';
 import { registerCanvas, type CanvasProps } from './canvasRegistry';
 
 interface DesignElement {
@@ -29,78 +30,9 @@ function parsePalette(data: Record<string, unknown>): string[] {
   return data.palette.filter((c): c is string => typeof c === 'string');
 }
 
-/** Parse a CSS linear-gradient string and draw it on the canvas context. */
-function drawBackground(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
-  background: string,
-): void {
-  if (!background) return;
-
-  if (background.startsWith('linear-gradient(')) {
-    // Parse: linear-gradient(135deg, #0a0a2e, #1a1a4e)
-    const inner = background.slice('linear-gradient('.length, -1);
-    const parts = inner.split(',').map((s) => s.trim());
-    if (parts.length < 2) {
-      ctx.fillStyle = background;
-      ctx.fillRect(0, 0, w, h);
-      return;
-    }
-
-    // Parse angle
-    let angleDeg = 180;
-    let colorStart = 0;
-    const angleMatch = parts[0].match(/^([\d.]+)deg$/);
-    if (angleMatch) {
-      angleDeg = parseFloat(angleMatch[1]);
-      colorStart = 1;
-    }
-
-    const colors = parts.slice(colorStart);
-    if (colors.length === 0) {
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, w, h);
-      return;
-    }
-
-    // Convert CSS angle to canvas gradient coordinates
-    const rad = ((angleDeg - 90) * Math.PI) / 180;
-    const cx = w / 2;
-    const cy = h / 2;
-    const len = Math.max(w, h);
-    const x0 = cx - Math.cos(rad) * len;
-    const y0 = cy - Math.sin(rad) * len;
-    const x1 = cx + Math.cos(rad) * len;
-    const y1 = cy + Math.sin(rad) * len;
-
-    try {
-      const grad = ctx.createLinearGradient(x0, y0, x1, y1);
-      colors.forEach((c, i) => {
-        // Handle CSS color stops like "#0a0a2e 0%" -- strip the percentage
-        const colorOnly = c.split(/\s+/)[0];
-        const stopMatch = c.match(/([\d.]+)%/);
-        const position = stopMatch
-          ? parseFloat(stopMatch[1]) / 100
-          : i / Math.max(colors.length - 1, 1);
-        grad.addColorStop(position, colorOnly);
-      });
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, w, h);
-    } catch {
-      // Fallback on gradient parse error
-      ctx.fillStyle = colors[0]?.split(/\s+/)[0] || '#000';
-      ctx.fillRect(0, 0, w, h);
-    }
-  } else {
-    ctx.fillStyle = background;
-    ctx.fillRect(0, 0, w, h);
-  }
-}
-
-/** Draw a fallback circle with the element name. */
-function drawFallback(
-  ctx: CanvasRenderingContext2D,
+/** Draw a fallback shape with label using p5. */
+function drawFallbackP5(
+  p: p5,
   w: number,
   h: number,
   color: string,
@@ -109,7 +41,6 @@ function drawFallback(
   total: number,
 ): void {
   const radius = Math.min(w, h) * 0.08;
-  // Distribute elements across the canvas
   const cols = Math.ceil(Math.sqrt(total));
   const row = Math.floor(index / cols);
   const col = index % cols;
@@ -118,17 +49,14 @@ function drawFallback(
   const cx = cellW * col + cellW / 2;
   const cy = cellH * row + cellH / 2;
 
-  ctx.fillStyle = color || '#888';
-  ctx.beginPath();
-  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-  ctx.fill();
+  p.fill(color || '#888');
+  p.noStroke();
+  p.ellipse(cx, cy, radius * 2);
 
-  // Label
-  ctx.fillStyle = '#fff';
-  ctx.font = `${Math.max(10, Math.round(w * 0.02))}px sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'top';
-  ctx.fillText(name, cx, cy + radius + 4, cellW - 8);
+  p.fill(255);
+  p.textAlign(p.CENTER, p.TOP);
+  p.textSize(Math.max(10, Math.round(w * 0.02)));
+  p.text(name, cx, cy + radius + 4);
 }
 
 interface SceneCompositionProps {
@@ -139,93 +67,105 @@ interface SceneCompositionProps {
 }
 
 function SceneComposition({ elements, background, palette, sceneTitle }: SceneCompositionProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  const draw = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    const w = Math.round(rect.width * dpr);
-    const h = Math.round(rect.height * dpr);
-
-    // Only resize buffer if dimensions changed
-    if (canvas.width !== w || canvas.height !== h) {
-      canvas.width = w;
-      canvas.height = h;
-    }
-
-    ctx.clearRect(0, 0, w, h);
-
-    // Background
-    if (background) {
-      drawBackground(ctx, w, h, background);
-    } else {
-      ctx.fillStyle = '#1a1a2e';
-      ctx.fillRect(0, 0, w, h);
-    }
-
-    // Elements in order (first = bottom layer)
-    elements.forEach((el, i) => {
-      const color = el.color || palette[i % palette.length] || '#888';
-      ctx.save();
-      if (el.draw) {
-        try {
-          const fn = new Function('ctx', 'w', 'h', 'color', el.draw);
-          fn(ctx, w, h, color);
-        } catch {
-          // Fallback on error
-          drawFallback(ctx, w, h, color, el.name, i, elements.length);
-        }
-      } else {
-        drawFallback(ctx, w, h, color, el.name, i, elements.length);
-      }
-      ctx.restore();
-    });
-
-    // Empty state
-    if (elements.length === 0 && !background) {
-      ctx.fillStyle = 'rgba(255,255,255,0.3)';
-      ctx.font = `${Math.round(w * 0.03)}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('Design elements will appear here', w / 2, h / 2);
-    }
-
-    // Scene title badge
-    if (sceneTitle) {
-      const fontSize = Math.max(12, Math.round(w * 0.025));
-      ctx.font = `bold ${fontSize}px sans-serif`;
-      const textMetrics = ctx.measureText(sceneTitle);
-      const badgeW = textMetrics.width + 16;
-      const badgeH = fontSize + 10;
-      const badgeX = 8;
-      const badgeY = 8;
-
-      ctx.fillStyle = 'rgba(0,0,0,0.5)';
-      ctx.beginPath();
-      ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 6);
-      ctx.fill();
-
-      ctx.fillStyle = '#fff';
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(sceneTitle, badgeX + 8, badgeY + badgeH / 2);
-    }
-  }, [elements, background, palette, sceneTitle]);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const p5Ref = useRef<p5 | null>(null);
 
   useEffect(() => {
-    draw();
-  }, [draw]);
+    const container = containerRef.current;
+    if (!container) return;
+
+    // Clean up previous sketch
+    if (p5Ref.current) {
+      p5Ref.current.remove();
+      p5Ref.current = null;
+    }
+
+    const sketch = new p5((p: p5) => {
+      p.setup = () => {
+        const rect = container.getBoundingClientRect();
+        const w = Math.round(rect.width);
+        const h = Math.round(w * 9 / 16);
+        const canvas = p.createCanvas(w, h);
+        canvas.style('display', 'block');
+        canvas.style('border-radius', '0.75rem');
+        p.pixelDensity(window.devicePixelRatio || 1);
+        p.noLoop();
+      };
+
+      p.draw = () => {
+        const w = p.width;
+        const h = p.height;
+
+        // Background
+        if (background) {
+          p.background(background);
+        } else {
+          p.background(26, 26, 46);
+        }
+
+        // Elements in order (first = bottom layer)
+        elements.forEach((el, i) => {
+          const color = el.color || palette[i % palette.length] || '#888';
+          p.push();
+          if (el.draw) {
+            try {
+              const fn = new Function('p', 'w', 'h', 'color', el.draw);
+              fn(p, w, h, color);
+            } catch {
+              drawFallbackP5(p, w, h, color, el.name, i, elements.length);
+            }
+          } else {
+            drawFallbackP5(p, w, h, color, el.name, i, elements.length);
+          }
+          p.pop();
+        });
+
+        // Empty state
+        if (elements.length === 0 && !background) {
+          p.fill(255, 255, 255, 77);
+          p.textAlign(p.CENTER, p.CENTER);
+          p.textSize(Math.round(w * 0.03));
+          p.text('Design elements will appear here', w / 2, h / 2);
+        }
+
+        // Scene title badge
+        if (sceneTitle) {
+          const fontSize = Math.max(12, Math.round(w * 0.025));
+          p.textSize(fontSize);
+          p.textStyle(p.BOLD);
+          const tw = p.textWidth(sceneTitle);
+          const badgeW = tw + 16;
+          const badgeH = fontSize + 10;
+
+          p.fill(0, 0, 0, 128);
+          p.noStroke();
+          p.rect(8, 8, badgeW, badgeH, 6);
+
+          p.fill(255);
+          p.textAlign(p.LEFT, p.CENTER);
+          p.text(sceneTitle, 16, 8 + badgeH / 2);
+          p.textStyle(p.NORMAL);
+        }
+      };
+
+      // Redraw once setup is complete
+      p.setup();
+      p.redraw();
+    }, container);
+
+    p5Ref.current = sketch;
+
+    return () => {
+      sketch.remove();
+      p5Ref.current = null;
+    };
+  }, [elements, background, palette, sceneTitle]);
 
   return (
-    <canvas
-      ref={canvasRef}
+    <div
+      ref={containerRef}
       data-testid="scene-canvas"
-      className="w-full rounded-xl border border-border-subtle"
+      className="w-full rounded-xl border border-border-subtle overflow-hidden"
       style={{ aspectRatio: '16 / 9' }}
     />
   );
