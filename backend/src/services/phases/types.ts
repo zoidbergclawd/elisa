@@ -92,7 +92,14 @@ export type WSEvent =
   | { type: 'planning_canvas_generated'; blocks: import('../../utils/planSchema.js').CanvasBlockSpec }
   | { type: 'planning_error'; error: string }
   | { type: 'planning_teaching'; teaching: import('../../utils/planSchema.js').TeachingAnnotation }
-  | { type: 'planning_learning_summary'; summary: import('../../utils/planSchema.js').LearningSummary };
+  | { type: 'planning_learning_summary'; summary: import('../../utils/planSchema.js').LearningSummary }
+  // Iterative Chat events (PRD-005)
+  | { type: 'chat_processing'; message: string }
+  | { type: 'chat_agent_output'; content: string }
+  | { type: 'chat_response'; content: string; filesChanged: string[] }
+  | { type: 'chat_tests_completed'; passed: number; failed: number; total: number }
+  | { type: 'chat_preview_refresh' }
+  | { type: 'chat_error'; message: string };
 
 export type SendEvent = (event: WSEvent) => Promise<void>;
 

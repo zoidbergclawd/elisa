@@ -25,6 +25,7 @@ import type { SpecGraphService } from '../services/specGraph.js';
 import type { SkillSpec } from '../models/skillPlan.js';
 import type { WSEvent } from '../services/phases/types.js';
 import { analyzeScreenshot } from '../services/visualSmokeTest.js';
+import { IterativeChatService } from '../services/iterativeChatService.js';
 
 interface SessionRouterDeps {
   store: SessionStore;
@@ -259,6 +260,62 @@ export function createSessionRouter({ store, sendEvent, hardwareService, deviceR
         type: 'error',
         message: `Fix failed: ${message}`,
         recoverable: false,
+      });
+    });
+  });
+
+  // Iterative chat (post-build conversation)
+  const iterativeChatService = new IterativeChatService();
+
+  router.post('/:id/chat', async (req, res) => {
+    const entry = store.get(req.params.id);
+    if (!entry) { res.status(404).json({ detail: 'Session not found' }); return; }
+
+    if (entry.session.state !== 'done') {
+      res.status(409).json({ detail: 'Session must be in done state to chat' });
+      return;
+    }
+
+    if (!entry.orchestrator) {
+      res.status(409).json({ detail: 'No orchestrator available for this session' });
+      return;
+    }
+
+    const { message } = req.body ?? {};
+    if (!message || typeof message !== 'string') {
+      res.status(400).json({ detail: 'message is required and must be a string' });
+      return;
+    }
+
+    // Get or create chat session
+    if (!entry.iterativeChat) {
+      entry.iterativeChat = iterativeChatService.createSession(req.params.id);
+    }
+
+    if (entry.iterativeChat.isProcessing) {
+      res.status(409).json({ detail: 'Chat is already processing a message' });
+      return;
+    }
+
+    res.json({ status: 'processing' });
+    store.scheduleCleanup(req.params.id); // Reset cleanup timer
+
+    const nuggetDir = entry.orchestrator.nuggetDir;
+    const spec = entry.session.spec;
+
+    iterativeChatService.processMessage(
+      req.params.id,
+      message,
+      (evt) => sendEvent(req.params.id, evt),
+      nuggetDir,
+      spec,
+      entry.iterativeChat,
+    ).catch((err) => {
+      console.error('Chat processing error:', err);
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      sendEvent(req.params.id, {
+        type: 'chat_error',
+        message: `Chat failed: ${errorMsg}`,
       });
     });
   });

@@ -5,6 +5,7 @@ import path from 'node:path';
 import type { BuildSession } from '../models/session.js';
 import type { Orchestrator } from './orchestrator.js';
 import type { SkillRunner } from './skillRunner.js';
+import type { IterativeChatSession } from './iterativeChatService.js';
 import { SessionPersistence } from '../utils/sessionPersistence.js';
 import { getProjectsDir } from './projectIndex.js';
 import { CLEANUP_DELAY_MS, SESSION_MAX_AGE_MS } from '../utils/constants.js';
@@ -21,6 +22,8 @@ export interface SessionEntry {
   launchProcess: import('node:child_process').ChildProcess | null;
   /** Built-in static server for web preview (replaces npx serve). */
   staticServer: import('../utils/staticServer.js').StaticServer | null;
+  /** Iterative chat session for post-build conversation. */
+  iterativeChat?: IterativeChatSession;
 }
 
 export class SessionStore {
