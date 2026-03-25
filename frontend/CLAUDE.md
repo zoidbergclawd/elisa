@@ -40,6 +40,7 @@ src/
     useHealthCheck.ts        Polls /api/health for backend readiness (API key + SDK status)
     useWebSocket.ts          WebSocket connection with auto-reconnect (3s interval)
     useMeetingSession.ts     Meeting session state via useReducer + WebSocket events
+    useIterativeChat.ts      Post-build chat: sendMessage(), messages, isAgentThinking, testSummary, previewRefreshKey
     useSystemLevel.ts        Extract system level from NuggetSpec for feature gating
   lib/
     nuggetFile.ts            .elisa nugget file save/load utilities (JSZip-based)
@@ -63,6 +64,8 @@ Workspace JSON, skills, and rules auto-save to `localStorage` on every change an
 Workspace mode (`'specify' | 'compose'`) in WorkspaceContext controls which toolbox the BlockCanvas uses. Composition workspace JSON persisted in .elisa files as `composition.json`.
 
 UI phases: `design` | `building` | `review` | `deploy` | `done`
+
+Build session chat state (in `useBuildSession`): `chatMessages` (Array of `{ role, content, filesChanged? }`), `isChatProcessing` (boolean), `chatTestSummary` ({ passed, failed, total } | null), `previewRefreshKey` (number, incremented on `chat_preview_refresh`).
 
 Main tabs: `workspace` | `mission` | `system` | `tests` (badge shows failing test count) | `team` (badge shows pending invite count)
 

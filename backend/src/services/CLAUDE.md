@@ -7,6 +7,9 @@ Each service owns one concern. Orchestrator coordinates phase handlers.
 ### planningService.ts (Planning Mode)
 Conversational planning assistant powered by Claude SDK with structured outputs. Manages planning sessions: `startPlanning()` initiates conversation with first question, `handleStructuredAnswer()` applies deterministic mutations from widget clicks (no API call), `handleFreeTextAnswer()` sends free-text to Claude, `generateCanvas()` produces CanvasBlockSpec from finalized plan. Readiness detection: goal solid, 2+ promises with proofs, 1+ portal, 1+ skill, deploy set. Hard cap at 20 turns. Plan persistence via `savePlan()`/`loadPlan()` to `.elisa/plan.json`. In-memory `Map<string, PlanningSession>` for state. Calls `getAnthropicClient()` per-use (no cached `this.client`) so API key changes propagate immediately. Teaching annotations generated per turn via prompt engineering.
 
+### iterativeChatService.ts (post-build iterative chat)
+Post-build conversational agent for fixing bugs and adding features. `createSession()` initializes a `IterativeChatSession` with turn history and token tracking. `processMessage()` builds context (file manifest, structural digest, conversation history capped at 20 turns), runs agent via `AgentRunner.execute()` with `ITERATIVE_CHAT_MAX_TURNS`, detects changed files via mtime snapshot diffing, re-runs tests if `tests/` dir exists, and emits `chat_preview_refresh` for frontend preview reload. One-at-a-time guard via `isProcessing` flag. Prompt built by `buildIterativeChatPrompt()`. Emits: `chat_processing`, `chat_agent_output`, `chat_response`, `chat_tests_completed`, `chat_preview_refresh`, `chat_error`.
+
 ### projectIndex.ts (project directory management)
 Manages persistent project directories under `~/Elisa/projects/`. `getProjectsDir()` returns root path. `slugify(goal)` converts goal text to URL-safe slug. `resolveProjectDir(goal)` returns unique path with collision-avoiding suffix (-2, -3, etc). `listProjects()` scans for `.elisa/session.json` files, returns `ProjectSummary[]` sorted by savedAt descending. Graceful handling of missing dirs and corrupt JSON.
 
@@ -213,4 +216,14 @@ Post-build (optional):
   |-> TaskExecutor.execute(fixTask)
   |-> TestPhase.execute() re-runs tests
   |-> emits fix_started, fix_task_completed, fix_tests_completed
+
+Post-build (iterative):
+  POST /api/sessions/:id/chat { message }
+  |-> IterativeChatService.processMessage()
+  |-> builds context (file manifest + structural digest + conversation history)
+  |-> AgentRunner.execute() against nugget workspace
+  |-> detects changed files (mtime diff), re-runs tests
+  |-> emits chat_processing -> chat_agent_output -> chat_response
+  |     -> chat_tests_completed -> chat_preview_refresh
+  |-> session stays in 'done' state, loops for subsequent messages
 ```

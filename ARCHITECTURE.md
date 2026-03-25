@@ -117,6 +117,14 @@ Planning Mode (conversational specification assistant):
    - LAUNCH: POST /api/sessions/:id/launch -> finds index.html in workspace
              (dist/ > build/ > public/ > src/ > root) -> spawns local serve
              process -> returns preview URL (no rebuild required)
+   - CHAT: POST /api/sessions/:id/chat with { message }
+           -> IterativeChatService.processMessage()
+           -> builds context (file manifest + structural digest + conversation history)
+           -> runs agent via SDK query() against existing workspace
+           -> detects changed files, re-runs tests if present
+           -> emits chat_processing, chat_agent_output, chat_response,
+              chat_tests_completed, chat_preview_refresh events
+           -> session stays in 'done' state (loops for multiple chat turns)
 ```
 
 Human gates can pause execution at any point, requiring user approval via REST endpoint.
@@ -204,6 +212,7 @@ Note: `reviewing` is a transient state during human gate pauses within execution
 - **Bearer token auth**: Server generates a random auth token on startup. All `/api/*` routes (except `/api/health`) require `Authorization: Bearer <token>`. WebSocket upgrades require `?token=<token>` query param. In Electron, token is shared to renderer via IPC.
 - **WebSocket heartbeat + send queue**: Server sends protocol-level ping frames every 30s via `ws.ping()`. Connections missing a pong cycle are terminated. `sendEvent()` serializes all sends through a per-session FIFO queue with `setImmediate` yields between frames, preventing burst-flooding the Vite dev proxy even from concurrent fire-and-forget callers.
 - **Content safety**: All agent prompts include a Content Safety section enforcing age-appropriate output (ages 8-14). User-controlled placeholder values are sanitized before prompt interpolation. Runtime responses are post-processed through a mandatory content filter (PII redaction, inappropriate topic blocking) before delivery.
+- **Iterative chat**: After build completes (`done` state), kids can chat with the agent to fix bugs or add features via `POST /api/sessions/:id/chat`. `IterativeChatService` runs agent against the existing workspace, detects file changes, re-runs tests, and refreshes the preview. Conversation history (last 20 turns) is carried forward. The session remains in `done` state throughout.
 - **Abort propagation**: Orchestrator's AbortController signal is forwarded to each agent's SDK `query()` call. On cancel or error, agents are aborted immediately.
 - **API key management**: In dev, read from `ANTHROPIC_API_KEY` env var. In Electron, encrypted via OS keychain (`safeStorage`) and stored locally. When the key is changed at runtime via `/api/internal/config`, the Anthropic client singleton is reset so all services pick up the new key immediately. Child processes (test runners, flash scripts, builds) receive sanitized env without the API key.
 

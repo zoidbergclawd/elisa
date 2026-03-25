@@ -16,6 +16,7 @@ Base URL: `http://localhost:8000/api`
 | GET | `/sessions/:id/git` | -- | `CommitInfo[]` | Get commit history |
 | GET | `/sessions/:id/tests` | -- | Test results object | Get test outcomes |
 | GET | `/sessions/:id/export` | -- | `application/zip` | Export nugget directory as zip |
+| POST | `/sessions/:id/chat` | `{ message: string }` | `{ status: "processing" }` | Post-build iterative chat (requires session in `done` state, response streamed via WS) |
 | POST | `/sessions/:id/gate` | `{ approved?: boolean, feedback?: string }` | `{ status: "ok" }` | Respond to a human gate |
 | POST | `/sessions/:id/question` | `{ task_id: string, answers: Record<string, any> }` | `{ status: "ok" }` | Answer an agent question |
 
@@ -296,6 +297,17 @@ All events flow server to client as JSON with a `type` discriminator field.
 |-------|---------|-------------|
 | `audio_status` | `{ status: 'transcribing' \| 'thinking' \| 'speaking' }` | Audio turn processing state for face animation |
 | `audio_response` | `{ transcript, response_text, audio_base64, audio_format, session_id, usage }` | Completed audio turn result |
+
+### Iterative Chat
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `chat_processing` | `{ message }` | Chat message received, agent is thinking |
+| `chat_agent_output` | `{ content }` | Streamed agent output chunk during chat |
+| `chat_response` | `{ content, filesChanged: string[] }` | Agent finished responding with summary and changed files |
+| `chat_tests_completed` | `{ passed, failed, total }` | Test results after chat-driven code change |
+| `chat_preview_refresh` | -- | Files changed, frontend should reload preview |
+| `chat_error` | `{ message }` | Chat processing error |
 
 ### Context Flow
 
