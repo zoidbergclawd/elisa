@@ -14,6 +14,7 @@ import { createSessionRouter } from './routes/sessions.js';
 import { createHardwareRouter } from './routes/hardware.js';
 import { createSkillRouter } from './routes/skills.js';
 import { createWorkspaceRouter } from './routes/workspace.js';
+import { createProjectRouter } from './routes/projects.js';
 import { DeviceRegistry } from './services/deviceRegistry.js';
 import { createDeviceRouter } from './routes/devices.js';
 import { MeetingRegistry } from './services/meetingRegistry.js';
@@ -423,6 +424,7 @@ function createApp(staticDir?: string, authToken?: string) {
   app.use('/api/skills', createSkillRouter({ store, sendEvent }));
   app.use('/api/hardware', createHardwareRouter({ store, hardwareService }));
   app.use('/api/workspace', createWorkspaceRouter());
+  app.use('/api', createProjectRouter({ store }));
   app.use('/api/devices', createDeviceRouter({ registry: deviceRegistry }));
   app.use('/api/sessions/:sessionId/meetings', createMeetingRouter({ store, meetingService, meetingAgentService, sendEvent }));
   app.use('/api/sessions/:id/planning', createPlanningRouter({
