@@ -7,6 +7,7 @@ import type { ChildProcess } from 'node:child_process';
 import { getDevicesDir } from '../utils/resourcePath.js';
 import { copyFrameworkToWorkspace, type FrameworkId } from '../utils/frameworkLoader.js';
 import { resolveProjectDir } from './projectIndex.js';
+import { SessionPersistence } from '../utils/sessionPersistence.js';
 import type { BuildSession, Task, Agent, CommitInfo } from '../models/session.js';
 import type { NuggetSpec } from '../utils/specValidator.js';
 import type { PhaseContext, SendEvent, GateResponse, QuestionAnswers } from './phases/types.js';
@@ -114,6 +115,18 @@ export class Orchestrator {
     );
   }
 
+  /** Checkpoint session metadata to the workspace .elisa/session.json. */
+  private checkpointToWorkspace(): void {
+    SessionPersistence.checkpointToWorkspace(this.nuggetDir, this.session, {
+      framework: (this.session.spec as any)?.framework,
+      tokenUsage: this.tokenTracker ? {
+        input: this.tokenTracker.inputTokens,
+        output: this.tokenTracker.outputTokens,
+        total: this.tokenTracker.total,
+      } : undefined,
+    });
+  }
+
   private makeContext(): PhaseContext {
     return {
       session: this.session,
@@ -200,6 +213,9 @@ export class Orchestrator {
         systemLevel,
       );
 
+      // Checkpoint after planning phase
+      this.checkpointToWorkspace();
+
       // Build traceability map from spec requirements and behavioral tests
       this.traceabilityTracker.buildMap(
         spec.requirements,
@@ -263,6 +279,9 @@ export class Orchestrator {
         this.tokenTracker.total,
         this.tokenTracker.maxBudget,
       );
+      // Checkpoint after execute phase
+      this.checkpointToWorkspace();
+
       // Emit health update after execution
       await this.healthTracker.emitUpdate(this.send);
 
@@ -310,6 +329,9 @@ export class Orchestrator {
       this.session.healthSummary = { score: healthSummary.health_score, grade: healthSummary.grade, breakdown: healthSummary.breakdown };
       healthHistory.record(spec.nugget?.goal ?? 'Build', healthSummary);
       await healthHistory.emitHistory(this.send);
+
+      // Checkpoint after test phase
+      this.checkpointToWorkspace();
 
       // Test gate: auto-fix if pass rate below threshold
       const threshold = getTestGateThreshold(systemLevel);
@@ -389,6 +411,8 @@ export class Orchestrator {
       });
       await this.send({ type: 'session_complete', summary: message });
     } finally {
+      // Final checkpoint on completion or error
+      try { this.checkpointToWorkspace(); } catch { /* best-effort */ }
       await this.deployPhase.teardown();
       this.logger?.close();
     }

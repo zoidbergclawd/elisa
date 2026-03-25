@@ -457,14 +457,38 @@ app.whenReady().then(async () => {
   }
 });
 
-app.on('before-quit', () => {
-  // Cancel any running orchestrators to release resources before exit
-  // In dev mode this is a no-op since the backend runs separately
+let isShuttingDown = false;
+app.on('before-quit', (e) => {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+
+  // In dev mode the backend runs separately
   if (!app.isPackaged) return;
-  console.log('Elisa shutting down: cleaning up resources...');
-  if (serverInstance) {
-    serverInstance.close();
-    serverInstance = null;
+  console.log('Elisa shutting down: saving sessions and cleaning up resources...');
+
+  // Trigger graceful session checkpoint before server closes
+  if (authToken && serverPort) {
+    e.preventDefault();
+    fetch(`http://127.0.0.1:${serverPort}/api/internal/shutdown`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authToken}`,
+      },
+    })
+      .catch(() => { /* best-effort */ })
+      .finally(() => {
+        if (serverInstance) {
+          serverInstance.close();
+          serverInstance = null;
+        }
+        app.quit();
+      });
+  } else {
+    if (serverInstance) {
+      serverInstance.close();
+      serverInstance = null;
+    }
   }
 });
 

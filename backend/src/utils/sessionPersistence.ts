@@ -11,6 +11,23 @@ export interface PersistedSession {
   phase: string;
 }
 
+/** Comprehensive session metadata written to {nuggetDir}/.elisa/session.json for project persistence. */
+export interface PersistedSessionMetadata {
+  sessionId: string;
+  savedAt: string;
+  state: string;
+  spec: any;
+  tasks: any[];
+  agents: any[];
+  testResults: { passed: number; total: number } | null;
+  individualTestResults: Array<{ test_name: string; passed: boolean; details: string }>;
+  testGatePassed: boolean | null;
+  deployUrl?: string;
+  framework?: string;
+  tokenUsage: { input: number; output: number; total: number } | null;
+  chatHistory: any[];
+}
+
 const DEFAULT_DIR = path.join(os.tmpdir(), '.elisa-sessions');
 
 export class SessionPersistence {
@@ -112,6 +129,48 @@ export class SessionPersistence {
       }
     } catch {
       // ignore
+    }
+  }
+
+  /**
+   * Write comprehensive session metadata to the workspace's .elisa/session.json.
+   * This is the project-level persistence file read by listProjects() and restoreFromProject().
+   */
+  static checkpointToWorkspace(nuggetDir: string, session: BuildSession, extra?: {
+    deployUrl?: string;
+    framework?: string;
+    tokenUsage?: { input: number; output: number; total: number };
+  }): void {
+    try {
+      const elisaDir = path.join(nuggetDir, '.elisa');
+      if (!fs.existsSync(elisaDir)) {
+        fs.mkdirSync(elisaDir, { recursive: true });
+      }
+
+      const metadata: PersistedSessionMetadata = {
+        sessionId: session.id,
+        savedAt: new Date().toISOString(),
+        state: session.state,
+        spec: session.spec ?? null,
+        tasks: session.tasks ?? [],
+        agents: session.agents ?? [],
+        testResults: session.testResults ?? null,
+        individualTestResults: session.individualTestResults ?? [],
+        testGatePassed: session.testGatePassed ?? null,
+        deployUrl: extra?.deployUrl,
+        framework: extra?.framework ?? (session.spec as any)?.framework,
+        tokenUsage: extra?.tokenUsage ?? null,
+        chatHistory: [],
+      };
+
+      const filePath = path.join(elisaDir, 'session.json');
+      const tmp = filePath + '.tmp';
+      fs.writeFileSync(tmp, JSON.stringify(metadata, null, 2));
+      // Cross-platform atomic write (Windows compat)
+      fs.copyFileSync(tmp, filePath);
+      fs.unlinkSync(tmp);
+    } catch (err) {
+      console.warn('Workspace checkpoint failed:', (err as Error).message);
     }
   }
 }
