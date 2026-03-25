@@ -78,6 +78,7 @@ App.tsx
   Meeting/CodeExplorerCanvas.tsx    Code Explorer canvas: syntax-highlighted code viewer with agent line annotations
   Meeting/WhiteboardCanvas.tsx      Whiteboard canvas: HTML5 Canvas free-form drawing (pen, line, rect, circle, eraser, text, colors)
   IterativeChat/IterativeChatPanel.tsx  Post-build chat panel: message list, input form, test summary, preview refresh
+  shared/CheckpointModal.tsx           HITL checkpoint modal: screenshot preview, choice buttons, approve/reject, comment field
   TestPanel/TestPanel.tsx            Main Tests tab: summary stats, test list, add test form
   TestPanel/TestList.tsx             Test result list with pass/fail icons and expandable error details
   TestPanel/AddTestForm.tsx          Form to add behavioral tests (when/then)

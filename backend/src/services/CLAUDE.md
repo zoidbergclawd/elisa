@@ -7,6 +7,9 @@ Each service owns one concern. Orchestrator coordinates phase handlers.
 ### planningService.ts (Planning Mode)
 Conversational planning assistant powered by Claude SDK with structured outputs. Manages planning sessions: `startPlanning()` initiates conversation with first question, `handleStructuredAnswer()` applies deterministic mutations from widget clicks (no API call), `handleFreeTextAnswer()` sends free-text to Claude, `generateCanvas()` produces CanvasBlockSpec from finalized plan. Readiness detection: goal solid, 2+ promises with proofs, 1+ portal, 1+ skill, deploy set. Hard cap at 20 turns. Plan persistence via `savePlan()`/`loadPlan()` to `.elisa/plan.json`. In-memory `Map<string, PlanningSession>` for state. Calls `getAnthropicClient()` per-use (no cached `this.client`) so API key changes propagate immediately. Teaching annotations generated per turn via prompt engineering.
 
+### checkpointService.ts (HITL checkpoints)
+Mid-build kid checkpoints during task execution. `shouldFireCheckpoint(task, completedCount, totalCount, checkpointsFired, maxCheckpoints)` returns checkpoint type or null. Three types: `visual` (task matches `DESIGN_KEYWORDS`), `choice` (agent-written decision file), `progress` (fires at ~33% and ~66% completion milestones). `createCheckpoint()` builds `CheckpointData` with UUID, type, progress percentage, and summary. `readDecisionFiles()` reads agent-written `.elisa/decisions/{taskId}.json` for choice checkpoint options. Max 3 per build (`HITL_MAX_CHECKPOINTS_PER_BUILD`). 120s timeout (`HITL_CHECKPOINT_TIMEOUT_MS`). Execution blocked via Promise-based resolver in orchestrator.
+
 ### iterativeChatService.ts (post-build iterative chat)
 Post-build conversational agent for fixing bugs and adding features. `createSession()` initializes a `IterativeChatSession` with turn history and token tracking. `processMessage()` builds context (file manifest, structural digest, conversation history capped at 20 turns), runs agent via `AgentRunner.execute()` with `ITERATIVE_CHAT_MAX_TURNS`, detects changed files via mtime snapshot diffing, re-runs tests if `tests/` dir exists, and emits `chat_preview_refresh` for frontend preview reload. One-at-a-time guard via `isProcessing` flag. Prompt built by `buildIterativeChatPrompt()`. Emits: `chat_processing`, `chat_agent_output`, `chat_response`, `chat_tests_completed`, `chat_preview_refresh`, `chat_error`.
 
@@ -216,6 +219,15 @@ Post-build (optional):
   |-> TaskExecutor.execute(fixTask)
   |-> TestPhase.execute() re-runs tests
   |-> emits fix_started, fix_task_completed, fix_tests_completed
+
+HITL Checkpoint (mid-build):
+  ExecutePhase: task completes
+  |-> shouldFireCheckpoint(task, completedCount, totalCount, fired, max)
+  |-> createCheckpoint(type, task, completedCount, totalCount)
+  |-> readDecisionFiles() for choice type
+  |-> emit hitl_checkpoint -> CheckpointModal shown to kid
+  |-> block via Promise until kid responds (POST /checkpoint) or 120s timeout
+  |-> hitl_checkpoint_response emitted, execution resumes
 
 Post-build (iterative):
   POST /api/sessions/:id/chat { message }

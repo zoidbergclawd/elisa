@@ -17,6 +17,7 @@ Base URL: `http://localhost:8000/api`
 | GET | `/sessions/:id/tests` | -- | Test results object | Get test outcomes |
 | GET | `/sessions/:id/export` | -- | `application/zip` | Export nugget directory as zip |
 | POST | `/sessions/:id/chat` | `{ message: string }` | `{ status: "processing" }` | Post-build iterative chat (requires session in `done` state, response streamed via WS) |
+| POST | `/sessions/:id/checkpoint` | `{ checkpoint_id: string, response: "approve"\|"reject"\|"choice", choice_id?: string, comment?: string }` | `{ status: "ok" }` | Respond to a HITL checkpoint (resumes blocked execution) |
 | POST | `/sessions/:id/gate` | `{ approved?: boolean, feedback?: string }` | `{ status: "ok" }` | Respond to a human gate |
 | POST | `/sessions/:id/question` | `{ task_id: string, answers: Record<string, any> }` | `{ status: "ok" }` | Answer an agent question |
 
@@ -297,6 +298,13 @@ All events flow server to client as JSON with a `type` discriminator field.
 |-------|---------|-------------|
 | `audio_status` | `{ status: 'transcribing' \| 'thinking' \| 'speaking' }` | Audio turn processing state for face animation |
 | `audio_response` | `{ transcript, response_text, audio_base64, audio_format, session_id, usage }` | Completed audio turn result |
+
+### HITL Checkpoints
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `hitl_checkpoint` | `{ checkpoint_id, checkpoint_type: 'visual'\|'choice'\|'progress', task_id, screenshot_base64?, choices?: Array<{ id, label, description }>, summary?, progress_pct, narrator_message? }` | Mid-build checkpoint requires kid response (blocks execution) |
+| `hitl_checkpoint_response` | `{ checkpoint_id, response: 'approve'\|'reject'\|'choice', choice_id?, comment? }` | Kid responded to checkpoint (execution resumes) |
 
 ### Iterative Chat
 
