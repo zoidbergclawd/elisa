@@ -24,6 +24,7 @@ src/
     devices.ts           /api/devices endpoint (list device plugin manifests)
     meetings.ts          /api/sessions/:id/meetings/* endpoints (accept, decline, message, end)
     runtime.ts           /v1/agents/* endpoints (provision, update, delete, turn, history, heartbeat)
+    projects.ts          /api/projects (list), /api/sessions/:id/restore (rehydrate from project dir)
     specGraph.ts         /api/spec-graph/* endpoints (CRUD, compose, impact, interfaces)
   models/
     session.ts           Type definitions: Session, Task, Agent, BuildPhase, WSEvent
@@ -36,6 +37,7 @@ src/
   services/
     planningService.ts   Planning Mode: conversational plan refinement via Claude SDK structured outputs
     orchestrator.ts      Thin coordinator: delegates to phase handlers in sequence. Also runFix() for post-build targeted fixes
+    projectIndex.ts      Project directory management: getProjectsDir, slugify, resolveProjectDir, listProjects
     sessionStore.ts      Consolidated session state (replaces 4 parallel Maps)
     phases/
       types.ts           Shared PhaseContext, SendEvent, GateResponse, QuestionAnswers types
@@ -150,6 +152,9 @@ src/
 | GET | /api/sessions/:id/git | Commit history |
 | GET | /api/sessions/:id/tests | Test results |
 | GET | /api/sessions/:id/export | Export nugget directory as zip |
+| GET | /api/projects | List all saved projects under ~/Elisa/projects/ |
+| POST | /api/sessions/:id/restore | Restore session from project directory (body: { projectDir }) |
+| POST | /api/internal/shutdown | Graceful shutdown: checkpoint all sessions to disk |
 | POST | /api/workspace/save | Save design files to workspace directory |
 | POST | /api/workspace/load | Load design files from workspace directory |
 | POST | /api/skills/run | Start standalone skill execution |
@@ -210,6 +215,7 @@ Client sends `turn` (text) or `audio_turn` (audio) messages. Server responds wit
 ## Key Patterns
 
 - **Session state**: In-memory Maps with optional JSON persistence for checkpoint/recovery. Cleanup timer (5 min) starts on WS connect; cancelled at build start, re-armed in `.finally()` after build completes. Meeting activity (accept, message, end), kid-initiated meeting starts, and fix/launch requests also reset the timer. `impactEstimate` and `boundaryAnalysis` persisted on session during plan phase for Blueprint meeting context.
+- **Session persistence**: Builds use persistent directories under `~/Elisa/projects/`. Orchestrator resolves via `resolveProjectDir(goal)`. Comprehensive `PersistedSessionMetadata` written to `{nuggetDir}/.elisa/session.json` at phase transitions. `checkpointAll()` on graceful shutdown. `restoreFromProject()` for rehydration. Cleanup skips project dirs.
 - **NuggetSpec validation**: Zod schema validates at `/api/sessions/:id/start` (string caps, array limits, portal command allowlist).
 - **SDK query per task**: Each agent task calls `query()` from `@anthropic-ai/claude-agent-sdk` with `permissionMode: 'bypassPermissions'` and explicit `pathToClaudeCodeExecutable` (resolved once at module load by `agentRunner.ts`). The SDK uses system `node` to spawn `cli.js`. Node.js is a prerequisite; Electron main process shows a dialog prompting install if missing. Default `maxTurns=40` (`MAX_TURNS_DEFAULT`). On retry, grants 15 additional turns per attempt (`MAX_TURNS_RETRY_INCREMENT`), so retries progress: 40 → 55 → 70. Also passes `effort` (high or max based on complexity), `thinking: { type: 'adaptive' }`, and `maxBudgetUsd` (2.0 standard, 5.0 for complex builds). Complexity derived from session `impactEstimate` via `complexityToWeight()` in taskExecutor. Builder agents are instructed to self-verify by running `node tests/test_{task_id}.js` before writing their summary.
 - **API key propagation**: `POST /api/internal/config` sets `process.env.ANTHROPIC_API_KEY` then calls `resetAnthropicClient()` to invalidate the singleton. Module-level services (`meetingAgentService`, `planningService`) call `getAnthropicClient()` per-use (no cached `this.client`) so key changes propagate immediately.

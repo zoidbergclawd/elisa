@@ -123,6 +123,19 @@ Base URL: `http://localhost:8000/api/spec-graph`
 
 **EdgeRelationship**: `"depends_on"` | `"provides_to"` | `"shares_interface"` | `"composes_into"`
 
+### Projects
+
+| Method | Path | Request Body | Response | Description |
+|--------|------|--------------|----------|-------------|
+| GET | `/projects` | -- | `ProjectSummary[]` | List all saved projects under `~/Elisa/projects/` |
+| POST | `/sessions/:id/restore` | `{ projectDir: string }` | `{ status: "restored", sessionId }` | Restore a session from a persisted project directory |
+
+### Internal
+
+| Method | Path | Request Body | Response | Description |
+|--------|------|--------------|----------|-------------|
+| POST | `/internal/shutdown` | -- | `{ status: "ok" }` | Checkpoint all active sessions to disk (called by Electron on quit) |
+
 ### Other
 
 | Method | Path | Response | Description |

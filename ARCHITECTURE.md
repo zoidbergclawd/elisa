@@ -210,7 +210,8 @@ Note: `reviewing` is a transient state during human gate pauses within execution
 ## Storage
 
 - **Session state**: In-memory `Map<sessionId, Session>` with optional JSON persistence for crash recovery. Cleanup timer (5 min) starts on WS connect; cancelled at build start, re-armed after build completes. Meeting accepts and fix/launch requests also reset the timer.
-- **Workspace**: Temp directory per session (`/tmp/elisa-nugget-{timestamp}`) or user-chosen directory. Contains generated code, tests, git repo, `.elisa/` metadata, and design artifacts (nugget.json, dag.json, workspace.json, etc.)
+- **Session persistence**: Builds use persistent project directories under `~/Elisa/projects/{slug}/`. Orchestrator resolves dir via `resolveProjectDir(goal)` with collision-avoiding suffixes. Comprehensive metadata written to `{nuggetDir}/.elisa/session.json` at phase transitions (plan, execute, test, completion). Graceful shutdown: Electron `before-quit` calls `POST /api/internal/shutdown` -> `store.checkpointAll()`. `GET /api/projects` lists all saved projects. `POST /api/sessions/:id/restore` rehydrates a session from a project directory.
+- **Workspace**: Persistent project directory under `~/Elisa/projects/` (slug derived from goal). Contains generated code, tests, git repo, `.elisa/` metadata, and design artifacts. Cleanup logic skips project directories to preserve user work.
 - **localStorage**: Workspace JSON, skills, and rules auto-saved in browser (`elisa:workspace`, `elisa:skills`, `elisa:rules`). Restored on page load.
 - **Nugget files**: `.elisa` zip format for export/import (workspace + skills + rules + generated code)
 - **No database**

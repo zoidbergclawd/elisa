@@ -89,6 +89,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/routes/runtime.ts` | /v1/agents/* endpoints (provision, update, delete, turn, history, heartbeat) |
 | `backend/src/routes/specGraph.ts` | /api/spec-graph/* endpoints (CRUD, compose, impact, interfaces) |
 | `backend/src/routes/planning.ts` | /api/sessions/:id/planning/* endpoints (start, answer, message, generate, state) |
+| `backend/src/routes/projects.ts` | /api/projects (list), /api/sessions/:id/restore (rehydrate from project dir) |
 | `backend/src/routes/devices.ts` | /api/devices endpoint (list device plugin manifests) |
 
 ### Services
@@ -103,7 +104,8 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/services/agentRunner.ts` | Executes agents via Claude Agent SDK `query()` with streaming. Resolves `pathToClaudeCodeExecutable` for Electron packaging. Diagnostic logging to `%TEMP%/elisa-agent-diagnostics.log`. Exports `getClaudeCodePath()` for health checks |
 | `backend/src/utils/staticServer.ts` | Built-in static file server (Node.js http module). Used by deployPhase and launch endpoint. Replaces `npx serve` |
 | `scripts/bundle-mingit.mjs` | Downloads MinGit for Windows (git + bash) during build. Copies sh.exe to bash.exe. Skipped on macOS |
-| `backend/src/services/sessionStore.ts` | Session state management with JSON persistence |
+| `backend/src/services/projectIndex.ts` | Project directory management: getProjectsDir, slugify, resolveProjectDir, listProjects |
+| `backend/src/services/sessionStore.ts` | Session state management with JSON persistence, checkpointAll, restoreFromProject |
 | `backend/src/services/gitService.ts` | Per-session git init and task-based commits |
 | `backend/src/services/hardwareService.ts` | ESP32 detection, MicroPython compile, flash, serial |
 | `backend/src/services/testRunner.ts` | pytest / Node test runner with coverage parsing |
