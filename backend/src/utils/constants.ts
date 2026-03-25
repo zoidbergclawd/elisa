@@ -4,7 +4,7 @@
 export const DEFAULT_MODEL = 'claude-opus-4-6';
 
 /** Agent execution timeout in seconds. */
-export const AGENT_TIMEOUT_SECONDS = 300;
+export const AGENT_TIMEOUT_SECONDS = 600;
 
 /** Maximum concurrent agent tasks. */
 export const MAX_CONCURRENT_TASKS = 3;
@@ -34,16 +34,16 @@ export const SESSION_MAX_AGE_MS = 3_600_000;
 export const PRUNE_INTERVAL_MS = 600_000;
 
 /** Maximum predecessor word count for context. */
-export const PREDECESSOR_WORD_CAP = 2000;
+export const PREDECESSOR_WORD_CAP = 5_000;
 
 /** Default token budget per session. */
-export const DEFAULT_TOKEN_BUDGET = 500_000;
+export const DEFAULT_TOKEN_BUDGET = 1_000_000;
 
 /** Default max turns per agent invocation. */
-export const MAX_TURNS_DEFAULT = 25;
+export const MAX_TURNS_DEFAULT = 40;
 
 /** Additional turns granted per retry attempt. */
-export const MAX_TURNS_RETRY_INCREMENT = 10;
+export const MAX_TURNS_RETRY_INCREMENT = 15;
 
 /** Meeting agent response timeout in milliseconds. */
 export const MEETING_AGENT_TIMEOUT_MS = 45_000;
@@ -80,3 +80,15 @@ export const PLANNING_CANVAS_MAX_TOKENS = 8192;
 
 /** Max conversation history entries before trimming oldest. */
 export const PLANNING_MAX_HISTORY = 50;
+
+/** Human-in-the-loop checkpoint timeout in milliseconds. */
+export const HITL_CHECKPOINT_TIMEOUT_MS = 120_000;
+
+/** Maximum HITL checkpoints allowed per build. */
+export const HITL_MAX_CHECKPOINTS_PER_BUILD = 3;
+
+/** Complexity weight threshold for max effort agents. */
+export const EFFORT_COMPLEX_THRESHOLD = 15;
+
+/** Maximum turns for iterative chat sessions. */
+export const ITERATIVE_CHAT_MAX_TURNS = 15;
