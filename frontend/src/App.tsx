@@ -27,6 +27,7 @@ import { SHIPPED_NUGGETS } from './lib/shippedNuggets';
 import { playChime } from './lib/playChime';
 import PlanningModal from './components/Planning/PlanningModal';
 import { usePlanningSession } from './hooks/usePlanningSession';
+import IterativeChatPanel from './components/IterativeChat/IterativeChatPanel';
 import { populateCanvasFromPlan } from './components/BlockCanvas/planToBlocks';
 import { updateSkillOptions } from './components/Skills/skillsRegistry';
 import { BuildSessionProvider } from './contexts/BuildSessionContext';
@@ -119,19 +120,19 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const {
-    uiState, tasks, agents, events, sessionId,
-    teachingMoments, deployUrls, errorNotification, testResults,
+    uiState, tasks, agents, sessionId,
+    teachingMoments, errorNotification, testResults,
     nuggetDir, createSession, startBuild, stopBuild, clearErrorNotification, resetToDesign,
-    launchWorkspace, isFixing, testGatePassed, visualTestResult,
+    launchWorkspace,
   } = useBuildSessionContext();
 
   const {
     inviteQueue, nextInvite, activeMeeting, isAgentThinking,
     messages: meetingMessages, canvasState: meetingCanvasState,
-    handleMeetingEvent, acceptInvite, declineInvite, dismissToast, startDirectMeeting,
+    handleMeetingEvent, acceptInvite, declineInvite, dismissToast,
     sendMessage: sendMeetingMessage, endMeeting, updateCanvas: updateMeetingCanvas,
     materializeArtifacts: materializeMeetingArtifacts,
-    requestFix, resetMeetings,
+    resetMeetings,
   } = useMeetingContext();
 
   const {
@@ -145,25 +146,6 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
   const [planningModalOpen, setPlanningModalOpen] = useState(false);
   const [planningIdeaPrompt, setPlanningIdeaPrompt] = useState(false);
   const planning = usePlanningSession(sessionId);
-
-  // Post-bug-report fix state
-  const [lastBugReport, setLastBugReport] = useState<string | null>(null);
-  const prevActiveMeetingRef = useRef<typeof activeMeeting>(null);
-
-  useEffect(() => {
-    const prev = prevActiveMeetingRef.current;
-    prevActiveMeetingRef.current = activeMeeting;
-
-    // Bug Detective meeting just ended: extract kid messages as bug report
-    if (prev && !activeMeeting && prev.meetingTypeId === 'debug-convergence') {
-      const kidMessages = prev.messages
-        .filter(m => m.role === 'kid')
-        .map(m => m.content);
-      if (kidMessages.length > 0) {
-        setLastBugReport(kidMessages.join('\n'));
-      }
-    }
-  }, [activeMeeting]);
 
   // Route WS events to build session, meeting session, and planning session handlers
   const handleAllEvents = useCallback((event: WSEvent) => {
@@ -607,165 +589,21 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
         </div>
       )}
 
-      {/* Done mode overlay -- hidden when meeting modal open or Team tab active */}
+      {/* Done mode: iterative chat panel -- hidden when meeting modal open or Team tab active */}
       {uiState === 'done' && !activeMeeting && activeMainTab !== 'team' && (
-        <div className="fixed inset-0 modal-backdrop z-40 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="done-modal-title">
-          <div className={`glass-elevated rounded-2xl shadow-2xl p-8 mx-4 text-center animate-float-in ${inviteQueue.length > 0 ? 'max-w-lg' : 'max-w-md'}`}>
-            <h2 id="done-modal-title" className={`text-2xl font-display font-bold mb-4 ${testGatePassed === false ? 'text-amber-400' : 'gradient-text-warm'}`}>
-              {testGatePassed === false ? 'Nugget Needs Work' : 'Nugget Complete!'}
-            </h2>
-            <p className="text-atelier-text-secondary mb-4">
-              {events.find(e => e.type === 'session_complete')?.type === 'session_complete'
-                ? (events.find(e => e.type === 'session_complete') as { type: 'session_complete'; summary: string }).summary
-                : 'Your nugget has been built successfully.'}
-            </p>
-            {testResults.length > 0 && (() => {
-              const passing = testResults.filter(t => t.passed === true).length;
-              const total = testResults.length;
-              return (
-                <p className={`text-sm mb-3 ${testGatePassed === false ? 'text-amber-400' : 'text-atelier-text-secondary'}`}>
-                  {passing}/{total} tests passing
-                </p>
-              );
-            })()}
-            {teachingMoments.length > 0 && (
-              <div className="text-left mb-4 bg-accent-lavender/10 rounded-xl p-4 border border-accent-lavender/20">
-                <h3 className="text-sm font-semibold text-accent-lavender mb-2">What you learned:</h3>
-                <ul className="text-sm text-atelier-text-secondary space-y-1">
-                  {teachingMoments.map((m, i) => (
-                    <li key={i}>- {m.headline}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {/* Visual smoke test result */}
-            {visualTestResult && (
-              <div className={`text-left mb-4 rounded-xl p-4 border ${visualTestResult.passed ? 'bg-green-950/20 border-green-500/30' : 'bg-amber-950/20 border-amber-500/30'}`}>
-                <h3 className={`text-sm font-semibold mb-1 ${visualTestResult.passed ? 'text-green-400' : 'text-amber-400'}`}>
-                  Visual Check: {visualTestResult.passed ? 'Looks good' : 'Issues found'}
-                </h3>
-                <p className="text-sm text-atelier-text-secondary">{visualTestResult.summary}</p>
-                {visualTestResult.issues.length > 0 && (
-                  <ul className="text-sm text-atelier-text-secondary mt-1 space-y-0.5">
-                    {visualTestResult.issues.map((issue, i) => (
-                      <li key={i}>- {issue}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
-            {/* Fix It button when tasks failed or tests failing */}
-            {(tasks.some(t => t.status === 'failed') || testResults.some(t => t.passed === false)) && (
-              <div className="mb-4">
-                <button
-                  onClick={async () => {
-                    try { await startDirectMeeting('debug-convergence'); }
-                    catch { handleBuildEvent({ type: 'error', message: 'Session expired. Please build again.', recoverable: false }); }
-                  }}
-                  className={`w-full px-4 py-3 rounded-xl text-sm cursor-pointer font-medium transition-colors text-center ${testGatePassed === false ? 'go-btn' : 'border border-red-500/30 bg-red-950/30 text-red-400 hover:bg-red-950/50'}`}
-                >
-                  Fix It -- Debug with Bug Detective
-                </button>
-              </div>
-            )}
-            {/* Report a Bug button -- always available post-build */}
-            {!tasks.some(t => t.status === 'failed') && !testResults.some(t => t.passed === false) && (
-              <div className="mb-4">
-                <button
-                  onClick={async () => {
-                    try { await startDirectMeeting('debug-convergence'); }
-                    catch { handleBuildEvent({ type: 'error', message: 'Session expired. Please build again.', recoverable: false }); }
-                  }}
-                  className="w-full px-4 py-3 rounded-xl text-sm cursor-pointer border border-amber-500/30 bg-amber-950/20 text-amber-400 hover:bg-amber-950/40 transition-colors text-center"
-                >
-                  Report a Bug
-                </button>
-              </div>
-            )}
-            {/* Fix reported bugs -- shown after Bug Detective meeting */}
-            {lastBugReport && !isFixing && (
-              <div className="mb-4">
-                <button
-                  onClick={async () => {
-                    const report = lastBugReport;
-                    setLastBugReport(null);
-                    try {
-                      await requestFix(report);
-                    } catch {
-                      handleBuildEvent({ type: 'error', message: 'Session expired. Please build again.', recoverable: false });
-                    }
-                  }}
-                  className="w-full px-4 py-3 rounded-xl text-sm cursor-pointer font-medium border border-red-500/30 bg-red-950/30 text-red-400 hover:bg-red-950/50 transition-colors text-center"
-                >
-                  Fix reported bugs
-                </button>
-              </div>
-            )}
-            {isFixing && (
-              <div className="mb-4 px-4 py-3 rounded-xl text-sm border border-amber-500/30 bg-amber-950/20 text-amber-400 text-center">
-                Fix in progress...
-              </div>
-            )}
-            {/* Pending meeting invites -- accept directly (opens modal overlay) */}
-            {inviteQueue.length > 0 && (
-              <div className="mb-4 space-y-2">
-                <p className="text-xs font-semibold text-accent-sky">Your team wants to chat:</p>
-                {inviteQueue.map(invite => (
-                  <button
-                    key={invite.meetingId}
-                    onClick={() => acceptInvite(invite.meetingId)}
-                    className="w-full px-4 py-2.5 rounded-xl text-sm cursor-pointer border border-accent-sky/30 bg-accent-sky/10 text-accent-sky hover:bg-accent-sky/20 transition-colors text-left flex items-center gap-2"
-                  >
-                    <span className="font-medium">{invite.agentName}</span>
-                    <span className="text-accent-sky/60 text-xs truncate">{invite.title}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-            <div className="flex flex-col items-center gap-2 w-full">
-              {Object.entries(deployUrls).map(([target, url]) => (
-                <a
-                  key={target}
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="go-btn w-full px-6 py-2.5 rounded-xl text-sm text-center inline-block"
-                >
-                  {Object.keys(deployUrls).length > 1 ? `Open ${target}` : 'Open in Browser'}
-                </a>
-              ))}
-              {(nuggetDir || workspacePath) && (
-                <button
-                  onClick={() => launchWorkspace(nuggetDir || workspacePath || undefined)}
-                  className="w-full px-6 py-2.5 rounded-xl text-sm cursor-pointer border border-border-subtle text-atelier-text-secondary hover:bg-atelier-surface/60 hover:text-atelier-text transition-colors"
-                >
-                  {Object.keys(deployUrls).length > 0 ? 'Relaunch Preview' : 'Launch Preview'}
-                </button>
-              )}
-              <button
-                onClick={() => {
-                  if (sessionId) {
-                    navigator.sendBeacon(`/api/sessions/${sessionId}/stop`, '');
-                  }
-                  window.location.reload();
-                }}
-                className="w-full px-6 py-2.5 rounded-xl text-sm cursor-pointer border border-border-subtle text-atelier-text-secondary hover:bg-atelier-surface/60 hover:text-atelier-text transition-colors"
-              >
-                Build something new
-              </button>
-              <button
-                onClick={() => {
-                  resetMeetings();
-                  resetToDesign();
-                  setActiveMainTab('workspace');
-                }}
-                className="w-full px-6 py-2.5 rounded-xl text-sm cursor-pointer text-atelier-text-muted hover:text-atelier-text-secondary transition-colors"
-              >
-                Keep working on this nugget
-              </button>
-            </div>
-          </div>
-        </div>
+        <IterativeChatPanel
+          onBuildNew={() => {
+            if (sessionId) {
+              navigator.sendBeacon(`/api/sessions/${sessionId}/stop`, '');
+            }
+            window.location.reload();
+          }}
+          onKeepWorking={() => {
+            resetMeetings();
+            resetToDesign();
+            setActiveMainTab('workspace');
+          }}
+        />
       )}
 
       {/* Teaching toast overlay */}

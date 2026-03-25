@@ -104,6 +104,10 @@ export interface BuildSessionState {
   testGatePassed: boolean | null;
   autoFixAttempt: { passRate: number; threshold: number; attempt: number } | null;
   visualTestResult: { passed: boolean; summary: string; issues: string[] } | null;
+  chatMessages: Array<{ role: 'kid' | 'agent'; content: string; filesChanged?: string[] }>;
+  isChatProcessing: boolean;
+  chatTestSummary: { passed: number; failed: number; total: number } | null;
+  previewRefreshKey: number;
 }
 
 const INITIAL_TOKEN_USAGE: TokenUsage = { input: 0, output: 0, total: 0, costUsd: 0, maxBudget: 500_000, perAgent: {} };
@@ -149,6 +153,10 @@ export const initialState: BuildSessionState = {
   testGatePassed: null,
   autoFixAttempt: null,
   visualTestResult: null,
+  chatMessages: [],
+  isChatProcessing: false,
+  chatTestSummary: null,
+  previewRefreshKey: 0,
 };
 
 // -- Actions --
@@ -823,6 +831,44 @@ function handleWSEvent(state: BuildSessionState, event: WSEvent, deploySteps: Ar
     case 'workspace_created':
       return { ...state, events, nuggetDir: event.nugget_dir };
 
+    // Post-build iterative chat events (PRD-005)
+    case 'chat_processing':
+      return {
+        ...state,
+        events,
+        isChatProcessing: true,
+        chatMessages: [...state.chatMessages, { role: 'kid', content: event.message }],
+      };
+
+    case 'chat_agent_output':
+      return { ...state, events };
+
+    case 'chat_response':
+      return {
+        ...state,
+        events,
+        isChatProcessing: false,
+        chatMessages: [...state.chatMessages, { role: 'agent', content: event.content, filesChanged: event.filesChanged }],
+      };
+
+    case 'chat_tests_completed':
+      return {
+        ...state,
+        events,
+        chatTestSummary: { passed: event.passed, failed: event.failed, total: event.total },
+      };
+
+    case 'chat_preview_refresh':
+      return { ...state, events, previewRefreshKey: state.previewRefreshKey + 1 };
+
+    case 'chat_error':
+      return {
+        ...state,
+        events,
+        isChatProcessing: false,
+        chatMessages: [...state.chatMessages, { role: 'agent', content: `Error: ${event.message}` }],
+      };
+
     case 'visual_smoke_test':
       return {
         ...state,
@@ -1164,6 +1210,10 @@ export function useBuildSession() {
     testGatePassed: state.testGatePassed,
     autoFixAttempt: state.autoFixAttempt,
     visualTestResult: state.visualTestResult,
+    chatMessages: state.chatMessages,
+    isChatProcessing: state.isChatProcessing,
+    chatTestSummary: state.chatTestSummary,
+    previewRefreshKey: state.previewRefreshKey,
     handleEvent,
     createSession,
     startBuild,

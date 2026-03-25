@@ -89,6 +89,10 @@ export interface BuildSessionContextValue {
   testGatePassed: boolean | null;
   autoFixAttempt: { passRate: number; threshold: number; attempt: number } | null;
   visualTestResult: { passed: boolean; summary: string; issues: string[] } | null;
+  chatMessages: Array<{ role: 'kid' | 'agent'; content: string; filesChanged?: string[] }>;
+  isChatProcessing: boolean;
+  chatTestSummary: { passed: number; failed: number; total: number } | null;
+  previewRefreshKey: number;
   boundaryAnalysis: {
     inputs: Array<{ name: string; type: string; source?: string }>;
     outputs: Array<{ name: string; type: string; source?: string }>;
