@@ -6,6 +6,7 @@ import path from 'node:path';
 import type { ChildProcess } from 'node:child_process';
 import { getDevicesDir } from '../utils/resourcePath.js';
 import { copyFrameworkToWorkspace, type FrameworkId } from '../utils/frameworkLoader.js';
+import { resolveProjectDir } from './projectIndex.js';
 import type { BuildSession, Task, Agent, CommitInfo } from '../models/session.js';
 import type { NuggetSpec } from '../utils/specValidator.js';
 import type { PhaseContext, SendEvent, GateResponse, QuestionAnswers } from './phases/types.js';
@@ -126,6 +127,13 @@ export class Orchestrator {
 
   async run(spec: NuggetSpec): Promise<void> {
     try {
+      // Upgrade temp dir to persistent project directory when no explicit workspace was provided
+      if (!this.userWorkspace) {
+        const goal = spec.nugget?.goal ?? spec.goal ?? `project-${this.session.id.slice(0, 8)}`;
+        this.nuggetDir = resolveProjectDir(goal as string);
+        this.userWorkspace = true;
+      }
+
       const ctx = this.makeContext();
 
       // Auto-match tests at Explorer level (before planning)

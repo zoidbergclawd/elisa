@@ -1,9 +1,12 @@
 /** Encapsulates all session state into a single store. Replaces 4 parallel Maps. */
 
+import fs from 'node:fs';
+import path from 'node:path';
 import type { BuildSession } from '../models/session.js';
 import type { Orchestrator } from './orchestrator.js';
 import type { SkillRunner } from './skillRunner.js';
 import { SessionPersistence } from '../utils/sessionPersistence.js';
+import { getProjectsDir } from './projectIndex.js';
 import { CLEANUP_DELAY_MS, SESSION_MAX_AGE_MS } from '../utils/constants.js';
 
 export interface SessionEntry {
@@ -158,7 +161,9 @@ export class SessionStore {
       if (now - entry.createdAt > maxAgeMs) {
         // Don't prune sessions with active WS connections
         if (this.isConnected?.(id)) continue;
-        if (entry.orchestrator) {
+        // Don't delete workspace files for persistent project directories
+        const nuggetDir = entry.orchestrator?.nuggetDir;
+        if (entry.orchestrator && !(nuggetDir && this.isProjectDir(nuggetDir))) {
           entry.orchestrator.cleanup();
         }
         this.entries.delete(id);
@@ -186,6 +191,66 @@ export class SessionStore {
         entry.cancelFn();
         entry.cancelFn = null;
       }
+    }
+  }
+
+  /** Checkpoint all sessions to disk. Used during graceful shutdown. */
+  checkpointAll(): void {
+    for (const [id] of this.entries) {
+      this.checkpoint(id);
+    }
+  }
+
+  /** Restore a session from a project directory's .elisa/session.json. */
+  restoreFromProject(projectDir: string): SessionEntry | null {
+    const sessionFile = path.join(projectDir, '.elisa', 'session.json');
+    try {
+      if (!fs.existsSync(sessionFile)) return null;
+      const raw = fs.readFileSync(sessionFile, 'utf-8');
+      const data = JSON.parse(raw);
+
+      const session: BuildSession = data.session ?? {
+        id: data.sessionId ?? '',
+        state: data.state ?? 'done',
+        spec: data.spec ?? null,
+        tasks: data.tasks ?? [],
+        agents: data.agents ?? [],
+      };
+
+      if (!session.id) return null;
+      if (this.entries.has(session.id)) return this.entries.get(session.id)!;
+
+      // Mark restored sessions as done (orchestrators can't be restored)
+      if (session.state !== 'idle' && session.state !== 'done') {
+        session.state = 'done';
+      }
+
+      const entry: SessionEntry = {
+        session,
+        orchestrator: null,
+        skillRunner: null,
+        cancelFn: null,
+        createdAt: data.savedAt ? new Date(data.savedAt).getTime() : Date.now(),
+        userWorkspace: true,
+        launchProcess: null,
+        staticServer: null,
+      };
+      this.entries.set(session.id, entry);
+      return entry;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Returns true if the directory is under the persistent projects folder. */
+  private isProjectDir(dir: string): boolean {
+    try {
+      const projectsRoot = getProjectsDir();
+      const normalized = path.resolve(dir);
+      const normalizedRoot = path.resolve(projectsRoot);
+      return normalized.startsWith(normalizedRoot + path.sep) || normalized === normalizedRoot;
+    } catch {
+      return false;
     }
   }
 
