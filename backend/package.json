@@ -14,7 +14,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.39",
+    "@anthropic-ai/claude-agent-sdk": "^0.2.83",
     "@anthropic-ai/sdk": "^0.74.0",
     "archiver": "^7.0.1",
     "dotenv": "^17.2.4",

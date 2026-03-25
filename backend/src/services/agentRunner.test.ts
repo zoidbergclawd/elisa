@@ -50,6 +50,28 @@ describe('AgentRunner', () => {
     expect(callArgs.options?.permissionMode).toBe('bypassPermissions');
     expect(callArgs.options?.maxTurns).toBe(40);
     expect(callArgs.options?.cwd).toBe('/tmp/test');
+    expect(callArgs.options?.effort).toBe('high');
+    expect(callArgs.options?.thinking).toEqual({ type: 'adaptive' });
+    expect(callArgs.options?.maxBudgetUsd).toBe(2.0);
+  });
+
+  it('uses max effort and higher budget for complex tasks', async () => {
+    mockQuery.mockReturnValue(asyncIterable(makeResultMessage()) as any);
+
+    const runner = new AgentRunner();
+    await runner.execute({
+      taskId: 'test-complex',
+      prompt: 'build complex app',
+      systemPrompt: 'you are a bot',
+      onOutput: vi.fn().mockResolvedValue(undefined),
+      workingDir: '/tmp/test',
+      complexity: 20,
+    });
+
+    const callArgs = mockQuery.mock.calls[0][0];
+    expect(callArgs.options?.effort).toBe('max');
+    expect(callArgs.options?.maxBudgetUsd).toBe(5.0);
+    expect(callArgs.options?.thinking).toEqual({ type: 'adaptive' });
   });
 
   it('forwards assistant text blocks to onOutput callback', async () => {

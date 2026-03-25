@@ -28,8 +28,18 @@ import type { TestRunner } from '../testRunner.js';
 import { ContextManager } from '../../utils/contextManager.js';
 import type { TokenTracker } from '../../utils/tokenTracker.js';
 import { TaskDAG } from '../../utils/dag.js';
-import { DEFAULT_MODEL, MAX_TURNS_DEFAULT, MAX_TURNS_RETRY_INCREMENT } from '../../utils/constants.js';
+import { DEFAULT_MODEL, MAX_TURNS_DEFAULT, MAX_TURNS_RETRY_INCREMENT, EFFORT_COMPLEX_THRESHOLD } from '../../utils/constants.js';
 import { PromptBuilder } from './promptBuilder.js';
+
+/** Map complexity label to a numeric weight for agent effort selection. */
+function complexityToWeight(complexity?: string): number | undefined {
+  switch (complexity) {
+    case 'simple': return 6;
+    case 'moderate': return 12;
+    case 'complex': return EFFORT_COMPLEX_THRESHOLD + 1;
+    default: return undefined;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -253,6 +263,8 @@ export class TaskExecutor {
         await this.deps.feedbackLoopTracker.markRetesting(taskId);
       }
 
+      const complexityWeight = complexityToWeight(ctx.session.impactEstimate?.complexity);
+
       result = await this.deps.agentRunner.execute({
         taskId,
         prompt,
@@ -262,6 +274,7 @@ export class TaskExecutor {
         workingDir: options.nuggetDir,
         model: process.env.CLAUDE_MODEL || DEFAULT_MODEL,
         maxTurns,
+        complexity: complexityWeight,
         allowedTools: [
           'Read', 'Write', 'Edit', 'MultiEdit',
           'Glob', 'Grep', 'LS',
