@@ -167,30 +167,17 @@ describe('IterativeChatPanel in done state', () => {
     expect(screen.getByText(/Tell me what you'd like to change/i)).toBeInTheDocument();
   });
 
-  it('shows Fix It button when tests are failing', async () => {
+  it('does not show Fix It button (chat panel is the fix mechanism)', async () => {
     const { useBuildSession } = await import('./hooks/useBuildSession');
-    const { useMeetingSession } = await import('./hooks/useMeetingSession');
     const mockUseBuild = useBuildSession as ReturnType<typeof vi.fn>;
-    const mockUseMeeting = useMeetingSession as ReturnType<typeof vi.fn>;
 
-    const handleEvent = vi.fn();
     mockUseBuild.mockReturnValue({
       ...buildSessionDefaults,
-      handleEvent,
       testResults: [{ test_name: 'test1', passed: false, details: 'fail' }],
     });
 
-    const mockStart = vi.fn().mockRejectedValue(new Error('Session not found'));
-    mockUseMeeting.mockReturnValue(makeMeetingState({ startDirectMeeting: mockStart }));
-
     render(<App />);
-
-    const fixButton = screen.getByText(/Fix It/);
-    await act(async () => { fireEvent.click(fixButton); });
-
-    expect(handleEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'error', message: 'Session expired. Please build again.' }),
-    );
+    expect(screen.queryByText('Fix It')).not.toBeInTheDocument();
   });
 
   it('shows Fix in progress indicator when isFixing is true', async () => {

@@ -153,7 +153,7 @@ describe('IterativeChatPanel', () => {
     expect(defaultProps.onKeepWorking).toHaveBeenCalled();
   });
 
-  it('shows Fix It button when there are test failures', async () => {
+  it('does not show Fix It button (chat panel is the fix mechanism)', async () => {
     const { useBuildSessionContext } = await import('../../contexts/BuildSessionContext');
     (useBuildSessionContext as ReturnType<typeof vi.fn>).mockReturnValue({
       ...defaultBuildSessionValue,
@@ -162,7 +162,7 @@ describe('IterativeChatPanel', () => {
     });
 
     render(<IterativeChatPanel {...defaultProps} />);
-    expect(screen.getByText('Fix It')).toBeInTheDocument();
+    expect(screen.queryByText('Fix It')).not.toBeInTheDocument();
   });
 
   it('shows test pass count in header when tests exist', async () => {

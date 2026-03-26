@@ -5,6 +5,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useBuildSessionContext } from '../../contexts/BuildSessionContext';
 import { useMeetingContext } from '../../contexts/MeetingContext';
 import { useIterativeChat } from '../../hooks/useIterativeChat';
+import rooSvg from '../../../assets/roo.svg';
 
 export interface IterativeChatPanelProps {
   onBuildNew: () => void;
@@ -15,11 +16,11 @@ export default function IterativeChatPanel({ onBuildNew, onKeepWorking }: Iterat
   const {
     testResults, deployUrls, nuggetDir,
     testGatePassed, isFixing, events,
-    launchWorkspace, handleEvent,
+    launchWorkspace,
   } = useBuildSessionContext();
 
   const {
-    inviteQueue, acceptInvite, startDirectMeeting,
+    inviteQueue, acceptInvite,
   } = useMeetingContext();
 
   const { messages, isAgentThinking, testSummary, previewRefreshKey, sendMessage } = useIterativeChat();
@@ -51,7 +52,6 @@ export default function IterativeChatPanel({ onBuildNew, onKeepWorking }: Iterat
     ? (events.find(e => e.type === 'session_complete') as { type: 'session_complete'; summary: string }).summary
     : null;
 
-  const hasFailures = testResults.some(t => t.passed === false);
   const firstDeployUrl = Object.values(deployUrls)[0] ?? null;
 
   return (
@@ -62,9 +62,12 @@ export default function IterativeChatPanel({ onBuildNew, onKeepWorking }: Iterat
         <div className="w-96 flex flex-col border-r border-border-subtle glass-panel">
           {/* Header */}
           <div className="px-4 py-3 border-b border-border-subtle">
-            <h2 id="chat-panel-title" className={`text-lg font-display font-bold ${testGatePassed === false ? 'text-amber-400' : 'gradient-text-warm'}`}>
-              {testGatePassed === false ? 'Nugget Needs Work' : 'Chat with Roo'}
-            </h2>
+            <div className="flex items-center gap-2">
+              <img src={rooSvg} alt="Roo" className="w-8 h-8" />
+              <h2 id="chat-panel-title" className={`text-lg font-display font-bold ${testGatePassed === false ? 'text-amber-400' : 'gradient-text-warm'}`}>
+                {testGatePassed === false ? 'Nugget Needs Work' : 'Chat with Roo'}
+              </h2>
+            </div>
             {sessionSummary && (
               <p className="text-xs text-atelier-text-secondary mt-1 line-clamp-2">{sessionSummary}</p>
             )}
@@ -217,32 +220,6 @@ export default function IterativeChatPanel({ onBuildNew, onKeepWorking }: Iterat
               </button>
             )}
 
-            {/* Fix It -- shown when tests are failing */}
-            {hasFailures && !isFixing && (
-              <button
-                data-testid="fix-it-button"
-                onClick={async () => {
-                  try { await startDirectMeeting('debug-convergence'); }
-                  catch { handleEvent({ type: 'error', message: 'Session expired. Please build again.', recoverable: false }); }
-                }}
-                className="px-4 py-2 rounded-xl text-sm cursor-pointer border border-red-500/30 bg-red-950/30 text-red-400 hover:bg-red-950/50 transition-colors"
-              >
-                Fix It
-              </button>
-            )}
-            {/* Report a Bug -- shown when no failures */}
-            {!hasFailures && !isFixing && (
-              <button
-                data-testid="report-bug-button"
-                onClick={async () => {
-                  try { await startDirectMeeting('debug-convergence'); }
-                  catch { handleEvent({ type: 'error', message: 'Session expired. Please build again.', recoverable: false }); }
-                }}
-                className="px-4 py-2 rounded-xl text-sm cursor-pointer border border-amber-500/30 bg-amber-950/20 text-amber-400 hover:bg-amber-950/40 transition-colors"
-              >
-                Report a Bug
-              </button>
-            )}
             {isFixing && (
               <span className="px-4 py-2 rounded-xl text-sm border border-amber-500/30 bg-amber-950/20 text-amber-400">
                 Fix in progress...
