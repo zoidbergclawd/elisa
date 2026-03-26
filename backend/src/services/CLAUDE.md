@@ -7,8 +7,17 @@ Each service owns one concern. Orchestrator coordinates phase handlers.
 ### planningService.ts (Planning Mode)
 Conversational planning assistant powered by Claude SDK with structured outputs. Manages planning sessions: `startPlanning()` initiates conversation with first question, `handleStructuredAnswer()` applies deterministic mutations from widget clicks (no API call), `handleFreeTextAnswer()` sends free-text to Claude, `generateCanvas()` produces CanvasBlockSpec from finalized plan. Readiness detection: goal solid, 2+ promises with proofs, 1+ portal, 1+ skill, deploy set. Hard cap at 20 turns. Plan persistence via `savePlan()`/`loadPlan()` to `.elisa/plan.json`. In-memory `Map<string, PlanningSession>` for state. Calls `getAnthropicClient()` per-use (no cached `this.client`) so API key changes propagate immediately. Teaching annotations generated per turn via prompt engineering.
 
+### checkpointService.ts (HITL checkpoints)
+Mid-build kid checkpoints during task execution. `shouldFireCheckpoint(task, completedCount, totalCount, checkpointsFired, maxCheckpoints)` returns checkpoint type or null. Three types: `visual` (task matches `DESIGN_KEYWORDS`), `choice` (agent-written decision file), `progress` (fires at ~33% and ~66% completion milestones). `createCheckpoint()` builds `CheckpointData` with UUID, type, progress percentage, and summary. `readDecisionFiles()` reads agent-written `.elisa/decisions/{taskId}.json` for choice checkpoint options. Max 3 per build (`HITL_MAX_CHECKPOINTS_PER_BUILD`). 120s timeout (`HITL_CHECKPOINT_TIMEOUT_MS`). Execution blocked via Promise-based resolver in orchestrator.
+
+### iterativeChatService.ts (post-build iterative chat)
+Post-build conversational agent for fixing bugs and adding features. `createSession()` initializes a `IterativeChatSession` with turn history and token tracking. `processMessage()` builds context (file manifest, structural digest, conversation history capped at 20 turns), runs agent via `AgentRunner.execute()` with `ITERATIVE_CHAT_MAX_TURNS`, detects changed files via mtime snapshot diffing, re-runs tests if `tests/` dir exists, and emits `chat_preview_refresh` for frontend preview reload. One-at-a-time guard via `isProcessing` flag. Prompt built by `buildIterativeChatPrompt()`. Emits: `chat_processing`, `chat_agent_output`, `chat_response`, `chat_tests_completed`, `chat_preview_refresh`, `chat_error`.
+
+### projectIndex.ts (project directory management)
+Manages persistent project directories under `~/Elisa/projects/`. `getProjectsDir()` returns root path. `slugify(goal)` converts goal text to URL-safe slug. `resolveProjectDir(goal)` returns unique path with collision-avoiding suffix (-2, -3, etc). `listProjects()` scans for `.elisa/session.json` files, returns `ProjectSummary[]` sorted by savedAt descending. Graceful handling of missing dirs and corrupt JSON.
+
 ### orchestrator.ts (thin coordinator)
-Delegates to phase handlers in sequence: plan -> **framework copy** -> meeting triggers (plan_ready) -> execute -> test -> **test gate (auto-fix)** -> deploy. Owns cancellation (AbortController), gate/question resolvers, and public accessors. Phases live in `phases/` subdirectory. After planning, copies the selected game framework (Phaser/p5/Three.js) from bundled resources to workspace `lib/` via `copyFrameworkToWorkspace()`. Test gate loop: after test phase, checks pass rate against level threshold (`getTestGateThreshold`), auto-fixes up to `getMaxAutoFixAttempts` times via `runFix()`, emits `auto_fix_started` events. Also exposes `runFix(bugReport, isAutoFix, send)` for post-build targeted bug fixes: creates a fix task, executes it via TaskExecutor, re-runs tests, and emits `fix_started`/`fix_task_completed`/`fix_tests_completed` events.
+Delegates to phase handlers in sequence: plan -> **framework copy** -> meeting triggers (plan_ready) -> execute -> test -> **test gate (auto-fix)** -> deploy. Owns cancellation (AbortController), gate/question resolvers, and public accessors. Phases live in `phases/` subdirectory. After planning, copies the selected game framework (Phaser/p5/Three.js) from bundled resources to workspace `lib/` via `copyFrameworkToWorkspace()`. When no explicit workspace is provided, resolves a persistent project directory via `resolveProjectDir(goal)` under `~/Elisa/projects/`. Checkpoints session metadata to `{nuggetDir}/.elisa/session.json` at plan, execute, test, and completion phase transitions via `SessionPersistence.checkpointToWorkspace()`. Test gate loop: after test phase, checks pass rate against level threshold (`getTestGateThreshold`), auto-fixes up to `getMaxAutoFixAttempts` times via `runFix()`, emits `auto_fix_started` events. Also exposes `runFix(bugReport, isAutoFix, send)` for post-build targeted bug fixes: creates a fix task, executes it via TaskExecutor, re-runs tests, and emits `fix_started`/`fix_task_completed`/`fix_tests_completed` events.
 
 ### phases/ (pipeline stages)
 - **planPhase.ts** -- MetaPlanner invocation, DAG setup, teaching moments
@@ -22,7 +31,7 @@ Delegates to phase handlers in sequence: plan -> **framework copy** -> meeting t
 - **types.ts** -- Shared `PhaseContext`, `SendEvent`, `WSEvent` discriminated union, `GateResponse`, `QuestionAnswers` types
 
 ### agentRunner.ts (SDK agent runner)
-Calls `query()` from `@anthropic-ai/claude-agent-sdk` to run agents programmatically. Streams `assistant` messages and extracts `result` metadata (tokens, cost). 300s timeout, default `maxTurns=25` (`MAX_TURNS_DEFAULT`), 2 retries with increasing turn budgets (25→35→45 via `MAX_TURNS_RETRY_INCREMENT`). Explicitly resolves and passes `pathToClaudeCodeExecutable` to `query()` so the app works without Claude Code installed on the system. `resolveClaudeCodePath()` checks prod path (`ELISA_RESOURCES_PATH`), then dev path (`import.meta.resolve`), then falls back to SDK auto-detect. Captures stderr in production for diagnostics (`%TEMP%/elisa-agent-diagnostics.log`). Exports `getClaudeCodePath()` for startup health validation.
+Calls `query()` from `@anthropic-ai/claude-agent-sdk` to run agents programmatically. Streams `assistant` messages and extracts `result` metadata (tokens, cost). 600s timeout, default `maxTurns=40` (`MAX_TURNS_DEFAULT`), 2 retries with increasing turn budgets (40→55→70 via `MAX_TURNS_RETRY_INCREMENT`). Accepts optional `complexity` param (numeric weight from impactEstimator); when above `EFFORT_COMPLEX_THRESHOLD` (15), uses `effort: 'max'` and `maxBudgetUsd: 5.0`, otherwise `effort: 'high'` and `maxBudgetUsd: 2.0`. Always passes `thinking: { type: 'adaptive' }`. Explicitly resolves and passes `pathToClaudeCodeExecutable` to `query()` so the app works without Claude Code installed on the system. `resolveClaudeCodePath()` checks prod path (`ELISA_RESOURCES_PATH`), then dev path (`import.meta.resolve`), then falls back to SDK auto-detect. Captures stderr in production for diagnostics (`%TEMP%/elisa-agent-diagnostics.log`). Exports `getClaudeCodePath()` for startup health validation.
 
 ### metaPlanner.ts (task decomposition)
 Calls Claude API (opus model) with NuggetSpec + system prompt. Returns structured task DAG with dependencies, acceptance criteria, and role assignments. Validates DAG for cycles. Retry on JSON parse failure.
@@ -40,7 +49,7 @@ Detects project type from file extensions in `tests/`. Runs `pytest` for `.py` f
 Executes SkillPlans step-by-step with user interaction. 6 step types: `ask_user`, `branch`, `invoke_skill`, `run_agent`, `set_context`, `output`. Context variables use `{{key}}` syntax with parent-chain resolution. Cycle detection at depth 10 (call stack tracks skill IDs). `ask_user` blocks via Promise with 5-minute timeout. Composite skills are interpreted from Blockly workspace JSON on the backend (no Blockly dependency). Sandboxed execution in temp directory (`elisa-skill-<uuid>`). Agent prompts wrapped in `<user-data>` tags to prevent prompt injection.
 
 ### sessionStore.ts (session state)
-Consolidates all session state into a single `Map<string, SessionEntry>`. Optional JSON persistence via `SessionPersistence` for checkpoint/recovery. Methods: `create()`, `get()`, `getOrThrow()`, `has()`, `checkpoint()`, `recover()`, `cancelCleanup()`, `scheduleCleanup()`, `pruneStale()`, `cancelAll()`. `scheduleCleanup(id, delayMs?)` starts a cleanup timer (default 5 min). Calling it again resets the timer. `cancelCleanup(id)` cancels a pending timer without deleting the session (used at build start to prevent mid-build cleanup). WebSocket connections, meeting starts, fix requests, and launch requests all reset the timer to keep the session alive while the user is active.
+Consolidates all session state into a single `Map<string, SessionEntry>`. Optional JSON persistence via `SessionPersistence` for checkpoint/recovery. Methods: `create()`, `get()`, `getOrThrow()`, `has()`, `checkpoint()`, `checkpointAll()`, `recover()`, `restoreFromProject()`, `cancelCleanup()`, `scheduleCleanup()`, `pruneStale()`, `cancelAll()`. `checkpointAll()` iterates all sessions and checkpoints each (used during graceful shutdown via `POST /api/internal/shutdown`). `restoreFromProject(projectDir)` reads `.elisa/session.json` from a project directory and creates a session entry with `userWorkspace=true`. `pruneStale()` skips `orchestrator.cleanup()` for directories under `~/Elisa/projects/` to preserve persistent workspaces. `scheduleCleanup(id, delayMs?)` starts a cleanup timer (default 5 min). Calling it again resets the timer. `cancelCleanup(id)` cancels a pending timer without deleting the session (used at build start to prevent mid-build cleanup). WebSocket connections, meeting starts, fix requests, and launch requests all reset the timer to keep the session alive while the user is active.
 
 ### portalService.ts (portal adapters)
 Manages portal adapters per session (MCP, CLI). Command allowlist validation (`ALLOWED_COMMANDS`) prevents shell injection. `CliPortalAdapter.execute()` runs CLI tools via `execFile` (no shell). `getMcpServers()` collects MCP configs for agent context. `getCliPortals()` collects CLI adapters for deploy phase.
@@ -210,4 +219,23 @@ Post-build (optional):
   |-> TaskExecutor.execute(fixTask)
   |-> TestPhase.execute() re-runs tests
   |-> emits fix_started, fix_task_completed, fix_tests_completed
+
+HITL Checkpoint (mid-build):
+  ExecutePhase: task completes
+  |-> shouldFireCheckpoint(task, completedCount, totalCount, fired, max)
+  |-> createCheckpoint(type, task, completedCount, totalCount)
+  |-> readDecisionFiles() for choice type
+  |-> emit hitl_checkpoint -> CheckpointModal shown to kid
+  |-> block via Promise until kid responds (POST /checkpoint) or 120s timeout
+  |-> hitl_checkpoint_response emitted, execution resumes
+
+Post-build (iterative):
+  POST /api/sessions/:id/chat { message }
+  |-> IterativeChatService.processMessage()
+  |-> builds context (file manifest + structural digest + conversation history)
+  |-> AgentRunner.execute() against nugget workspace
+  |-> detects changed files (mtime diff), re-runs tests
+  |-> emits chat_processing -> chat_agent_output -> chat_response
+  |     -> chat_tests_completed -> chat_preview_refresh
+  |-> session stays in 'done' state, loops for subsequent messages
 ```

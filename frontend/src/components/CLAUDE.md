@@ -77,6 +77,8 @@ App.tsx
   Meeting/LivePreviewCanvas.tsx     Live Preview canvas: embeds iframe to local web preview, auto-refreshes on task_completed
   Meeting/CodeExplorerCanvas.tsx    Code Explorer canvas: syntax-highlighted code viewer with agent line annotations
   Meeting/WhiteboardCanvas.tsx      Whiteboard canvas: HTML5 Canvas free-form drawing (pen, line, rect, circle, eraser, text, colors)
+  IterativeChat/IterativeChatPanel.tsx  Post-build chat panel: message list, input form, test summary, preview refresh
+  shared/CheckpointModal.tsx           HITL checkpoint modal: screenshot preview, choice buttons, approve/reject, comment field
   TestPanel/TestPanel.tsx            Main Tests tab: summary stats, test list, add test form
   TestPanel/TestList.tsx             Test result list with pass/fail icons and expandable error details
   TestPanel/AddTestForm.tsx          Form to add behavioral tests (when/then)
@@ -109,5 +111,6 @@ App.tsx
 - BlockCanvas stays mounted (hidden via CSS) to preserve Blockly workspace state across tab switches.
 - Auto-switch: build starts -> Agents tab + Progress bottom tab. Health tab no longer auto-switches post-build (Blueprint meeting is the primary post-build summary).
 - Modals use fixed positioning with backdrop overlay. Only one modal shows at a time.
-- Done modal: conditional heading ("Nugget Complete!" green or "Nugget Needs Work" amber based on `testGatePassed`), test pass rate display, visual smoke test result card (green/amber). "Fix It" button appears when any task failed or tests failing (primary `go-btn` style when gate failed), navigates to Team tab for Bug Detective. "Fix reported bugs" button appears after a Bug Detective meeting ends (captures kid messages as bug report, calls `requestFix()`). Fix progress uses `isFixing` from build session context (not local state); resets automatically via `fix_tests_completed` event. "Report a Bug" button always available post-build. "Your team wants to chat" button appears when invites are pending.
+- Done modal shows "Keep chatting" option post-build, opening the IterativeChatPanel for iterative conversation with the agent.
+- Done modal: conditional heading ("Nugget Complete!" green or "Nugget Needs Work" amber based on `testGatePassed`), test pass rate display, visual smoke test result card (green/amber). "Fix It" button appears when any task failed or tests failing (primary `go-btn` style when gate failed), opens the IterativeChatPanel for iterative conversation with the agent to fix issues. "Fix reported bugs" button appears after a Bug Detective meeting ends (captures kid messages as bug report, calls `requestFix()`). Fix progress uses `isFixing` from build session context (not local state); resets automatically via `fix_tests_completed` event. "Report a Bug" button always available post-build. "Your team wants to chat" button appears when invites are pending.
 - Skills/Rules and workspace state are persisted to localStorage and restored on page load via `syncDesignToStorage` helper.

@@ -117,6 +117,14 @@ Planning Mode (conversational specification assistant):
    - LAUNCH: POST /api/sessions/:id/launch -> finds index.html in workspace
              (dist/ > build/ > public/ > src/ > root) -> spawns local serve
              process -> returns preview URL (no rebuild required)
+   - CHAT: POST /api/sessions/:id/chat with { message }
+           -> IterativeChatService.processMessage()
+           -> builds context (file manifest + structural digest + conversation history)
+           -> runs agent via SDK query() against existing workspace
+           -> detects changed files, re-runs tests if present
+           -> emits chat_processing, chat_agent_output, chat_response,
+              chat_tests_completed, chat_preview_refresh events
+           -> session stays in 'done' state (loops for multiple chat turns)
 ```
 
 Human gates can pause execution at any point, requiring user approval via REST endpoint.
@@ -191,8 +199,9 @@ idle -> planning -> executing -> testing -> deploying -> done
                                                            |
                                                            +-> fix (POST /fix: targeted bug fix -> re-test)
                                                            +-> launch (POST /launch: serve without rebuild)
+                                                           +-> chat (POST /chat: iterative conversation loop, stays in done)
 
-Note: `reviewing` is a transient state during human gate pauses within execution, not a separate pipeline phase. Reviewer agents execute as tasks within the execute phase.
+Note: `reviewing` is a transient state during human gate pauses within execution, not a separate pipeline phase. Reviewer agents execute as tasks within the execute phase. During execution, HITL checkpoints may pause task processing for kid approval (visual, choice, or progress checkpoints).
 ```
 
 ## Key Patterns
@@ -204,13 +213,16 @@ Note: `reviewing` is a transient state during human gate pauses within execution
 - **Bearer token auth**: Server generates a random auth token on startup. All `/api/*` routes (except `/api/health`) require `Authorization: Bearer <token>`. WebSocket upgrades require `?token=<token>` query param. In Electron, token is shared to renderer via IPC.
 - **WebSocket heartbeat + send queue**: Server sends protocol-level ping frames every 30s via `ws.ping()`. Connections missing a pong cycle are terminated. `sendEvent()` serializes all sends through a per-session FIFO queue with `setImmediate` yields between frames, preventing burst-flooding the Vite dev proxy even from concurrent fire-and-forget callers.
 - **Content safety**: All agent prompts include a Content Safety section enforcing age-appropriate output (ages 8-14). User-controlled placeholder values are sanitized before prompt interpolation. Runtime responses are post-processed through a mandatory content filter (PII redaction, inappropriate topic blocking) before delivery.
+- **Iterative chat**: After build completes (`done` state), kids can chat with the agent to fix bugs or add features via `POST /api/sessions/:id/chat`. `IterativeChatService` runs agent against the existing workspace, detects file changes, re-runs tests, and refreshes the preview. Conversation history (last 20 turns) is carried forward. The session remains in `done` state throughout.
+- **Kid-friendly HITL**: During execution, `checkpointService.shouldFireCheckpoint()` evaluates each completed task. Three checkpoint types: `visual` (design keyword match), `choice` (agent-written decision file in `.elisa/decisions/`), `progress` (fires at ~33% and ~66% completion). Max 3 checkpoints per build (`HITL_MAX_CHECKPOINTS_PER_BUILD`). Checkpoint blocks execution via Promise until kid responds or 120s timeout (`HITL_CHECKPOINT_TIMEOUT_MS`). Kid responds via `POST /api/sessions/:id/checkpoint` with approve/reject/choice. `CheckpointModal` renders the checkpoint UI.
 - **Abort propagation**: Orchestrator's AbortController signal is forwarded to each agent's SDK `query()` call. On cancel or error, agents are aborted immediately.
 - **API key management**: In dev, read from `ANTHROPIC_API_KEY` env var. In Electron, encrypted via OS keychain (`safeStorage`) and stored locally. When the key is changed at runtime via `/api/internal/config`, the Anthropic client singleton is reset so all services pick up the new key immediately. Child processes (test runners, flash scripts, builds) receive sanitized env without the API key.
 
 ## Storage
 
 - **Session state**: In-memory `Map<sessionId, Session>` with optional JSON persistence for crash recovery. Cleanup timer (5 min) starts on WS connect; cancelled at build start, re-armed after build completes. Meeting accepts and fix/launch requests also reset the timer.
-- **Workspace**: Temp directory per session (`/tmp/elisa-nugget-{timestamp}`) or user-chosen directory. Contains generated code, tests, git repo, `.elisa/` metadata, and design artifacts (nugget.json, dag.json, workspace.json, etc.)
+- **Session persistence**: Builds use persistent project directories under `~/Elisa/projects/{slug}/`. Orchestrator resolves dir via `resolveProjectDir(goal)` with collision-avoiding suffixes. Comprehensive metadata written to `{nuggetDir}/.elisa/session.json` at phase transitions (plan, execute, test, completion). Graceful shutdown: Electron `before-quit` calls `POST /api/internal/shutdown` -> `store.checkpointAll()`. `GET /api/projects` lists all saved projects. `POST /api/sessions/:id/restore` rehydrates a session from a project directory.
+- **Workspace**: Persistent project directory under `~/Elisa/projects/` (slug derived from goal). Contains generated code, tests, git repo, `.elisa/` metadata, and design artifacts. Cleanup logic skips project directories to preserve user work.
 - **localStorage**: Workspace JSON, skills, and rules auto-saved in browser (`elisa:workspace`, `elisa:skills`, `elisa:rules`). Restored on page load.
 - **Nugget files**: `.elisa` zip format for export/import (workspace + skills + rules + generated code)
 - **No database**

@@ -6,6 +6,8 @@ import path from 'node:path';
 import type { ChildProcess } from 'node:child_process';
 import { getDevicesDir } from '../utils/resourcePath.js';
 import { copyFrameworkToWorkspace, type FrameworkId } from '../utils/frameworkLoader.js';
+import { resolveProjectDir } from './projectIndex.js';
+import { SessionPersistence } from '../utils/sessionPersistence.js';
 import type { BuildSession, Task, Agent, CommitInfo } from '../models/session.js';
 import type { NuggetSpec } from '../utils/specValidator.js';
 import type { PhaseContext, SendEvent, GateResponse, QuestionAnswers } from './phases/types.js';
@@ -65,6 +67,10 @@ export class Orchestrator {
   // Meeting block: tasks wait for meetings to end/decline before proceeding
   private meetingBlockResolvers = new Map<string, () => void>();
 
+  // HITL checkpoint: Promise-based blocking for kid checkpoint responses
+  private checkpointResolvers = new Map<string, (response: import('./checkpointService.js').CheckpointResponse) => void>();
+  private checkpointCounter = { value: 0 };
+
   // Services
   private agentRunner = new AgentRunner();
   private git: GitService | null = new GitService();
@@ -113,6 +119,18 @@ export class Orchestrator {
     );
   }
 
+  /** Checkpoint session metadata to the workspace .elisa/session.json. */
+  private checkpointToWorkspace(): void {
+    SessionPersistence.checkpointToWorkspace(this.nuggetDir, this.session, {
+      framework: (this.session.spec as any)?.framework,
+      tokenUsage: this.tokenTracker ? {
+        input: this.tokenTracker.inputTokens,
+        output: this.tokenTracker.outputTokens,
+        total: this.tokenTracker.total,
+      } : undefined,
+    });
+  }
+
   private makeContext(): PhaseContext {
     return {
       session: this.session,
@@ -126,6 +144,13 @@ export class Orchestrator {
 
   async run(spec: NuggetSpec): Promise<void> {
     try {
+      // Upgrade temp dir to persistent project directory when no explicit workspace was provided
+      if (!this.userWorkspace) {
+        const goal = spec.nugget?.goal ?? spec.goal ?? `project-${this.session.id.slice(0, 8)}`;
+        this.nuggetDir = resolveProjectDir(goal as string);
+        this.userWorkspace = true;
+      }
+
       const ctx = this.makeContext();
 
       // Auto-match tests at Explorer level (before planning)
@@ -192,6 +217,9 @@ export class Orchestrator {
         systemLevel,
       );
 
+      // Checkpoint after planning phase
+      this.checkpointToWorkspace();
+
       // Build traceability map from spec requirements and behavioral tests
       this.traceabilityTracker.buildMap(
         spec.requirements,
@@ -237,6 +265,10 @@ export class Orchestrator {
         meetingBlockResolvers: this.meetingBlockResolvers,
         sessionId: this.session.id,
         systemLevel,
+        enableCheckpoints: true,
+        checkpointResolvers: this.checkpointResolvers,
+        checkpointsFired: this.checkpointCounter,
+        onCheckpointFired: () => { this.checkpointCounter.value++; },
       });
 
       // Initialize logger before execute so plan and execute phases get logging
@@ -255,6 +287,9 @@ export class Orchestrator {
         this.tokenTracker.total,
         this.tokenTracker.maxBudget,
       );
+      // Checkpoint after execute phase
+      this.checkpointToWorkspace();
+
       // Emit health update after execution
       await this.healthTracker.emitUpdate(this.send);
 
@@ -302,6 +337,9 @@ export class Orchestrator {
       this.session.healthSummary = { score: healthSummary.health_score, grade: healthSummary.grade, breakdown: healthSummary.breakdown };
       healthHistory.record(spec.nugget?.goal ?? 'Build', healthSummary);
       await healthHistory.emitHistory(this.send);
+
+      // Checkpoint after test phase
+      this.checkpointToWorkspace();
 
       // Test gate: auto-fix if pass rate below threshold
       const threshold = getTestGateThreshold(systemLevel);
@@ -381,6 +419,8 @@ export class Orchestrator {
       });
       await this.send({ type: 'session_complete', summary: message });
     } finally {
+      // Final checkpoint on completion or error
+      try { this.checkpointToWorkspace(); } catch { /* best-effort */ }
       await this.deployPhase.teardown();
       this.logger?.close();
     }
@@ -563,6 +603,14 @@ export class Orchestrator {
     if (this.gateResolver.current) {
       this.gateResolver.current({ approved, feedback });
       this.gateResolver.current = null;
+    }
+  }
+
+  resolveCheckpoint(checkpointId: string, response: import('./checkpointService.js').CheckpointResponse): void {
+    const resolver = this.checkpointResolvers.get(checkpointId);
+    if (resolver) {
+      resolver(response);
+      this.checkpointResolvers.delete(checkpointId);
     }
   }
 

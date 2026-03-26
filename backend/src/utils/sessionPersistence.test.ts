@@ -169,3 +169,84 @@ describe('SessionPersistence', () => {
     expect(files.filter((f) => f.endsWith('.tmp'))).toHaveLength(0);
   });
 });
+
+describe('SessionPersistence.checkpointToWorkspace', () => {
+  let workspaceDir: string;
+
+  beforeEach(() => {
+    workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'elisa-ws-ckpt-test-'));
+  });
+
+  afterEach(() => {
+    try {
+      fs.rmSync(workspaceDir, { recursive: true, force: true });
+    } catch { /* ignore */ }
+  });
+
+  it('writes session.json to .elisa/ directory', () => {
+    const session = makeSession();
+    SessionPersistence.checkpointToWorkspace(workspaceDir, session);
+
+    const filePath = path.join(workspaceDir, '.elisa', 'session.json');
+    expect(fs.existsSync(filePath)).toBe(true);
+
+    const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    expect(data.sessionId).toBe('test-session-1');
+    expect(data.state).toBe('executing');
+    expect(data.savedAt).toBeTruthy();
+    expect(data.chatHistory).toEqual([]);
+  });
+
+  it('includes comprehensive metadata fields', () => {
+    const session = makeSession({
+      testResults: { passed: 3, total: 4 },
+      individualTestResults: [{ test_name: 'test1', passed: true, details: '' }],
+      testGatePassed: true,
+    });
+
+    SessionPersistence.checkpointToWorkspace(workspaceDir, session, {
+      framework: 'phaser',
+      tokenUsage: { input: 1000, output: 500, total: 1500 },
+      deployUrl: 'http://localhost:3000',
+    });
+
+    const data = JSON.parse(fs.readFileSync(
+      path.join(workspaceDir, '.elisa', 'session.json'), 'utf-8',
+    ));
+    expect(data.testResults).toEqual({ passed: 3, total: 4 });
+    expect(data.individualTestResults).toHaveLength(1);
+    expect(data.testGatePassed).toBe(true);
+    expect(data.framework).toBe('phaser');
+    expect(data.tokenUsage).toEqual({ input: 1000, output: 500, total: 1500 });
+    expect(data.deployUrl).toBe('http://localhost:3000');
+  });
+
+  it('creates .elisa directory if missing', () => {
+    const session = makeSession();
+    SessionPersistence.checkpointToWorkspace(workspaceDir, session);
+
+    expect(fs.existsSync(path.join(workspaceDir, '.elisa'))).toBe(true);
+  });
+
+  it('does not leave .tmp files', () => {
+    const session = makeSession();
+    SessionPersistence.checkpointToWorkspace(workspaceDir, session);
+
+    const elisaDir = path.join(workspaceDir, '.elisa');
+    const tmpFiles = fs.readdirSync(elisaDir).filter(f => f.endsWith('.tmp'));
+    expect(tmpFiles).toHaveLength(0);
+  });
+
+  it('overwrites previous checkpoint', () => {
+    const session = makeSession({ state: 'planning' });
+    SessionPersistence.checkpointToWorkspace(workspaceDir, session);
+
+    session.state = 'done';
+    SessionPersistence.checkpointToWorkspace(workspaceDir, session);
+
+    const data = JSON.parse(fs.readFileSync(
+      path.join(workspaceDir, '.elisa', 'session.json'), 'utf-8',
+    ));
+    expect(data.state).toBe('done');
+  });
+});

@@ -305,8 +305,8 @@ describe('buildTaskPrompt predecessor summaries', () => {
   });
 
   it('omits predecessors exceeding word cap', () => {
-    // PREDECESSOR_WORD_CAP is 2000 and capSummary caps at 500 words.
-    // We need 5 predecessors each with 500-word summaries to exceed the 2000 word cap.
+    // PREDECESSOR_WORD_CAP is 5000 and capSummary caps at 500 words.
+    // We need 11 predecessors each with 500-word summaries to exceed the 5000 word cap.
     const fiveHundredWords = Array(500).fill('word').join(' ');
     const tasks: Record<string, Task> = {
       'task-0': makeTask('task-0', 'Step 0', 'Agent-A'),
@@ -314,7 +314,13 @@ describe('buildTaskPrompt predecessor summaries', () => {
       'task-2': makeTask('task-2', 'Step 2', 'Agent-C', ['task-1']),
       'task-3': makeTask('task-3', 'Step 3', 'Agent-D', ['task-2']),
       'task-4': makeTask('task-4', 'Step 4', 'Agent-E', ['task-3']),
-      'task-5': makeTask('task-5', 'Build', 'Builder Bot', ['task-4']),
+      'task-5': makeTask('task-5', 'Step 5', 'Agent-F', ['task-4']),
+      'task-6': makeTask('task-6', 'Step 6', 'Agent-G', ['task-5']),
+      'task-7': makeTask('task-7', 'Step 7', 'Agent-H', ['task-6']),
+      'task-8': makeTask('task-8', 'Step 8', 'Agent-I', ['task-7']),
+      'task-9': makeTask('task-9', 'Step 9', 'Agent-J', ['task-8']),
+      'task-10': makeTask('task-10', 'Step 10', 'Agent-K', ['task-9']),
+      'task-11': makeTask('task-11', 'Build', 'Builder Bot', ['task-10']),
     };
     const summaries: Record<string, string> = {
       'task-0': fiveHundredWords,
@@ -322,22 +328,28 @@ describe('buildTaskPrompt predecessor summaries', () => {
       'task-2': fiveHundredWords,
       'task-3': fiveHundredWords,
       'task-4': fiveHundredWords,
+      'task-5': fiveHundredWords,
+      'task-6': fiveHundredWords,
+      'task-7': fiveHundredWords,
+      'task-8': fiveHundredWords,
+      'task-9': fiveHundredWords,
+      'task-10': fiveHundredWords,
     };
 
     const pb = new PromptBuilder();
     pb.buildTaskPrompt(makeParams({
-      task: tasks['task-5'],
+      task: tasks['task-11'],
       taskMap: tasks,
       taskSummaries: summaries,
     }));
 
     const call = (builderAgent.formatTaskPrompt as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    // With 5 x 500-word summaries (2500 total), the cap of 2000 should trigger
+    // With 11 x 500-word summaries (5500 total), the cap of 5000 should trigger
     // the "omitted for brevity" message before all summaries are included
     const lastSummary = call.predecessors[call.predecessors.length - 1];
     expect(lastSummary).toContain('omitted for brevity');
-    // Not all 5 summaries should be included
-    expect(call.predecessors.length).toBeLessThan(6);
+    // Not all 11 summaries should be included
+    expect(call.predecessors.length).toBeLessThan(12);
   });
 
   it('passes empty predecessors when task has no dependencies', () => {

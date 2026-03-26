@@ -12,6 +12,7 @@ import { AgentRunner } from '../services/agentRunner.js';
 import { SkillRunner } from '../services/skillRunner.js';
 import { NuggetSpecSchema, detectTruncations } from '../utils/specValidator.js';
 import { validateWorkspacePath } from '../utils/pathValidator.js';
+import { SessionPersistence } from '../utils/sessionPersistence.js';
 import { findFreePort } from '../utils/findFreePort.js';
 import { startStaticServer } from '../utils/staticServer.js';
 import { safeEnv } from '../utils/safeEnv.js';
@@ -25,6 +26,7 @@ import type { SpecGraphService } from '../services/specGraph.js';
 import type { SkillSpec } from '../models/skillPlan.js';
 import type { WSEvent } from '../services/phases/types.js';
 import { analyzeScreenshot } from '../services/visualSmokeTest.js';
+import { IterativeChatService } from '../services/iterativeChatService.js';
 
 interface SessionRouterDeps {
   store: SessionStore;
@@ -263,6 +265,69 @@ export function createSessionRouter({ store, sendEvent, hardwareService, deviceR
     });
   });
 
+  // Iterative chat (post-build conversation)
+  const iterativeChatService = new IterativeChatService();
+
+  router.post('/:id/chat', async (req, res) => {
+    const entry = store.get(req.params.id);
+    if (!entry) { res.status(404).json({ detail: 'Session not found' }); return; }
+
+    if (entry.session.state !== 'done') {
+      res.status(409).json({ detail: 'Session must be in done state to chat' });
+      return;
+    }
+
+    if (!entry.orchestrator) {
+      res.status(409).json({ detail: 'No orchestrator available for this session' });
+      return;
+    }
+
+    const { message } = req.body ?? {};
+    if (typeof message !== 'string' || message.length === 0 || message.length > 5000) {
+      res.status(400).json({ detail: 'message is required, must be a string, and at most 5000 characters' });
+      return;
+    }
+
+    // Get or create chat session
+    if (!entry.iterativeChat) {
+      entry.iterativeChat = iterativeChatService.createSession(req.params.id);
+    }
+
+    if (entry.iterativeChat.isProcessing) {
+      res.status(409).json({ detail: 'Chat is already processing a message' });
+      return;
+    }
+
+    res.json({ status: 'processing' });
+    store.scheduleCleanup(req.params.id); // Reset cleanup timer
+
+    const nuggetDir = entry.orchestrator.nuggetDir;
+    const spec = entry.session.spec;
+
+    iterativeChatService.processMessage(
+      req.params.id,
+      message,
+      (evt) => sendEvent(req.params.id, evt),
+      nuggetDir,
+      spec,
+      entry.iterativeChat,
+    ).then(() => {
+      // Persist chat history to workspace after each message
+      if (entry.iterativeChat && entry.session) {
+        SessionPersistence.checkpointToWorkspace(nuggetDir, entry.session, {
+          chatHistory: entry.iterativeChat.turns,
+        });
+      }
+    }).catch((err) => {
+      console.error('Chat processing error:', err);
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      sendEvent(req.params.id, {
+        type: 'chat_error',
+        message: `Chat failed: ${errorMsg}`,
+      });
+    });
+  });
+
   // Get tasks
   router.get('/:id/tasks', (req, res) => {
     const entry = store.get(req.params.id);
@@ -289,6 +354,29 @@ export function createSessionRouter({ store, sendEvent, hardwareService, deviceR
     const entry = store.get(req.params.id);
     if (!entry?.orchestrator) { res.status(404).json({ detail: 'Session not found' }); return; }
     entry.orchestrator.respondToGate(req.body.approved ?? true, req.body.feedback ?? '');
+    res.json({ status: 'ok' });
+  });
+
+  // HITL checkpoint response
+  router.post('/:id/checkpoint', (req, res) => {
+    const entry = store.get(req.params.id);
+    if (!entry?.orchestrator) { res.status(404).json({ detail: 'Session not found' }); return; }
+
+    const { checkpoint_id, response } = req.body ?? {};
+    if (!checkpoint_id || typeof checkpoint_id !== 'string') {
+      res.status(400).json({ detail: 'checkpoint_id is required and must be a non-empty string' });
+      return;
+    }
+    const validResponses = ['approve', 'reject', 'choice'];
+    if (!response || !validResponses.includes(response)) {
+      res.status(400).json({ detail: `response must be one of: ${validResponses.join(', ')}` });
+      return;
+    }
+
+    entry.orchestrator.resolveCheckpoint(
+      checkpoint_id,
+      { response, choice_id: req.body.choice_id, comment: req.body.comment },
+    );
     res.json({ status: 'ok' });
   });
 

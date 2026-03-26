@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentResult } from '../models/session.js';
 import { withTimeout, TimeoutError } from '../utils/withTimeout.js';
-import { MAX_TURNS_DEFAULT } from '../utils/constants.js';
+import { MAX_TURNS_DEFAULT, EFFORT_COMPLEX_THRESHOLD } from '../utils/constants.js';
 
 /** Path to the diagnostic log file (production only). */
 const DIAG_LOG_PATH = path.join(os.tmpdir(), 'elisa-agent-diagnostics.log');
@@ -98,6 +98,7 @@ export interface AgentRunnerParams {
   timeout?: number;
   model?: string;
   maxTurns?: number;
+  complexity?: number;
   mcpServers?: Array<{ name: string; command: string; args?: string[]; env?: Record<string, string> }>;
   allowedTools?: string[];
   abortSignal?: AbortSignal;
@@ -114,6 +115,7 @@ export class AgentRunner {
       timeout = 300,
       model = process.env.CLAUDE_MODEL || 'claude-opus-4-6',
       maxTurns = MAX_TURNS_DEFAULT,
+      complexity,
       mcpServers,
       allowedTools,
     } = params;
@@ -138,7 +140,7 @@ export class AgentRunner {
 
     try {
       return await withTimeout(
-        this.runQuery(prompt, systemPrompt, workingDir, taskId, onOutput, model, maxTurns, mcpConfig, abortController, allowedTools),
+        this.runQuery(prompt, systemPrompt, workingDir, taskId, onOutput, model, maxTurns, mcpConfig, abortController, allowedTools, complexity),
         timeout * 1000,
       );
     } catch (err: unknown) {
@@ -175,6 +177,7 @@ export class AgentRunner {
     mcpConfig?: Record<string, any>,
     abortController?: AbortController,
     allowedTools?: string[],
+    complexity?: number,
   ): Promise<AgentResult> {
     // In Electron production, capture stderr for diagnostics.
     const isElectronProd = !!process.env.ELISA_RESOURCES_PATH;
@@ -198,6 +201,8 @@ export class AgentRunner {
       `CLAUDE_CODE_GIT_BASH_PATH: ${process.env.CLAUDE_CODE_GIT_BASH_PATH ?? 'not set'}`,
     ]);
 
+    const isComplex = complexity !== undefined && complexity > EFFORT_COMPLEX_THRESHOLD;
+
     const conversation = query({
       prompt,
       options: {
@@ -206,6 +211,9 @@ export class AgentRunner {
         maxTurns,
         permissionMode: 'bypassPermissions',
         systemPrompt,
+        effort: isComplex ? 'max' : 'high',
+        thinking: { type: 'adaptive' },
+        maxBudgetUsd: isComplex ? 5.0 : 2.0,
         ...electronExecConfig,
         ...(claudeCodePath ? { pathToClaudeCodeExecutable: claudeCodePath } : {}),
         ...(allowedTools ? { allowedTools } : {}),

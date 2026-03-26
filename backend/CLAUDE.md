@@ -24,6 +24,7 @@ src/
     devices.ts           /api/devices endpoint (list device plugin manifests)
     meetings.ts          /api/sessions/:id/meetings/* endpoints (accept, decline, message, end)
     runtime.ts           /v1/agents/* endpoints (provision, update, delete, turn, history, heartbeat)
+    projects.ts          /api/projects (list), /api/sessions/:id/restore (rehydrate from project dir)
     specGraph.ts         /api/spec-graph/* endpoints (CRUD, compose, impact, interfaces)
   models/
     session.ts           Type definitions: Session, Task, Agent, BuildPhase, WSEvent
@@ -36,6 +37,7 @@ src/
   services/
     planningService.ts   Planning Mode: conversational plan refinement via Claude SDK structured outputs
     orchestrator.ts      Thin coordinator: delegates to phase handlers in sequence. Also runFix() for post-build targeted fixes
+    projectIndex.ts      Project directory management: getProjectsDir, slugify, resolveProjectDir, listProjects
     sessionStore.ts      Consolidated session state (replaces 4 parallel Maps)
     phases/
       types.ts           Shared PhaseContext, SendEvent, GateResponse, QuestionAnswers types
@@ -59,6 +61,8 @@ src/
     deviceRegistry.ts    Loads device plugin manifests, provides block defs + agent context
     meetingRegistry.ts   Meeting type registry + trigger engine for build events
     meetingService.ts    In-memory meeting session lifecycle management
+    iterativeChatService.ts  Post-build iterative chat: runs agent against workspace, detects file changes, re-runs tests
+    checkpointService.ts  HITL checkpoints: shouldFireCheckpoint(), createCheckpoint(), readDecisionFiles() for mid-build kid checkpoints
     meetingAgentService.ts  Claude-powered agent responses for meeting chat (Haiku)
     meetingMaterializer.ts  Materializes canvas data into real workspace files (HTML, JSON, Markdown)
     taskMeetingTypes.ts  Task-level meeting types (design review before art/visual tasks)
@@ -140,9 +144,11 @@ src/
 | POST | /api/sessions/:id/planning/message | Submit free-text answer (streamed via WS) |
 | POST | /api/sessions/:id/planning/generate | Generate canvas blocks from plan |
 | GET | /api/sessions/:id/planning | Get current planning state |
+| POST | /api/sessions/:id/chat | Post-build iterative chat (requires session in 'done' state, body: { message }, returns { status: 'processing' }) |
 | POST | /api/sessions/:id/fix | Targeted bug fix (requires session in 'done' state, body: bugReport + failingTests) |
 | POST | /api/sessions/:id/screenshot | Visual smoke test (body: { base64 }, returns { passed, summary, issues }) |
 | POST | /api/sessions/:id/launch | Serve built nugget without rebuild (finds index.html, spawns local server, returns URL) |
+| POST | /api/sessions/:id/checkpoint | HITL checkpoint response (body: { checkpoint_id, response: 'approve'\|'reject'\|'choice', choice_id?, comment? }) |
 | POST | /api/sessions/:id/gate | Human gate response |
 | POST | /api/sessions/:id/question | Answer agent question |
 | GET | /api/sessions/:id | Session state |
@@ -150,6 +156,9 @@ src/
 | GET | /api/sessions/:id/git | Commit history |
 | GET | /api/sessions/:id/tests | Test results |
 | GET | /api/sessions/:id/export | Export nugget directory as zip |
+| GET | /api/projects | List all saved projects under ~/Elisa/projects/ |
+| POST | /api/sessions/:id/restore | Restore session from project directory (body: { projectDir }) |
+| POST | /api/internal/shutdown | Graceful shutdown: checkpoint all sessions to disk |
 | POST | /api/workspace/save | Save design files to workspace directory |
 | POST | /api/workspace/load | Load design files from workspace directory |
 | POST | /api/skills/run | Start standalone skill execution |
@@ -198,7 +207,7 @@ src/
 | GET | /api/spec-graph/:id/interfaces | Resolve interface contracts among nodes |
 
 ### WebSocket Events (server -> client)
-`planning_started`, `plan_ready`, `planning_mode_started`, `planning_turn`, `planning_question`, `planning_plan_updated`, `planning_ready`, `planning_canvas_generated`, `planning_teaching`, `planning_learning_summary`, `planning_error`, `task_started`, `task_completed`, `task_failed`, `agent_output`, `commit_created`, `token_usage`, `budget_warning`, `test_expectations` (task_id, tests[] with name/description -- pre-generated pending tests), `test_result`, `test_phase_complete` (passed, failed, total -- emitted after all `test_result` events), `coverage_update`, `deploy_started`, `deploy_progress`, `deploy_checklist`, `deploy_complete` (includes `url?` for web deploys), `serial_data`, `human_gate`, `user_question`, `skill_*`, `teaching_moment`, `narrator_message`, `permission_auto_resolved`, `minion_state_change`, `workspace_created`, `flash_prompt`, `flash_progress`, `flash_complete`, `context_flow` (from_task_id, to_task_ids, summary_preview), `documentation_ready`, `meeting_invite`, `meeting_started`, `meeting_message`, `meeting_canvas_update`, `meeting_outcome`, `meeting_ended`, `traceability_update`, `traceability_summary`, `correction_cycle_started`, `correction_cycle_progress`, `convergence_update`, `composition_started` (graph_id, node_ids), `composition_impact` (graph_id, changed_node_id, affected_nodes, severity), `decomposition_narrated`, `impact_estimate`, `boundary_analysis`, `system_health_update`, `system_health_summary`, `health_history` (entries array for Architect trend tracking), `auto_fix_started` (passRate, threshold, attempt), `visual_smoke_test` (passed, summary, issues[]), `fix_started` (bugReport, isAutoFix?), `fix_task_completed` (taskId, success), `fix_tests_completed` (passed, failed, total), `meeting_blocking_task` (task_id, meeting_type_id), `meeting_unblocking_task` (task_id), `error`, `session_complete`
+`planning_started`, `plan_ready`, `planning_mode_started`, `planning_turn`, `planning_question`, `planning_plan_updated`, `planning_ready`, `planning_canvas_generated`, `planning_teaching`, `planning_learning_summary`, `planning_error`, `chat_processing`, `chat_agent_output`, `chat_response` (content, filesChanged[]), `chat_tests_completed` (passed, failed, total), `chat_preview_refresh`, `chat_error`, `hitl_checkpoint` (checkpoint_id, checkpoint_type, task_id, screenshot_base64?, choices?, summary?, progress_pct, narrator_message?), `hitl_checkpoint_response` (checkpoint_id, response, choice_id?, comment?), `task_started`, `task_completed`, `task_failed`, `agent_output`, `commit_created`, `token_usage`, `budget_warning`, `test_expectations` (task_id, tests[] with name/description -- pre-generated pending tests), `test_result`, `test_phase_complete` (passed, failed, total -- emitted after all `test_result` events), `coverage_update`, `deploy_started`, `deploy_progress`, `deploy_checklist`, `deploy_complete` (includes `url?` for web deploys), `serial_data`, `human_gate`, `user_question`, `skill_*`, `teaching_moment`, `narrator_message`, `permission_auto_resolved`, `minion_state_change`, `workspace_created`, `flash_prompt`, `flash_progress`, `flash_complete`, `context_flow` (from_task_id, to_task_ids, summary_preview), `documentation_ready`, `meeting_invite`, `meeting_started`, `meeting_message`, `meeting_canvas_update`, `meeting_outcome`, `meeting_ended`, `traceability_update`, `traceability_summary`, `correction_cycle_started`, `correction_cycle_progress`, `convergence_update`, `composition_started` (graph_id, node_ids), `composition_impact` (graph_id, changed_node_id, affected_nodes, severity), `decomposition_narrated`, `impact_estimate`, `boundary_analysis`, `system_health_update`, `system_health_summary`, `health_history` (entries array for Architect trend tracking), `auto_fix_started` (passRate, threshold, attempt), `visual_smoke_test` (passed, summary, issues[]), `fix_started` (bugReport, isAutoFix?), `fix_task_completed` (taskId, success), `fix_tests_completed` (passed, failed, total), `meeting_blocking_task` (task_id, meeting_type_id), `meeting_unblocking_task` (task_id), `error`, `session_complete`
 
 ### Agent Runtime WebSocket Events (/v1/agents/:id/stream)
 Client sends `turn` (text) or `audio_turn` (audio) messages. Server responds with:
@@ -210,23 +219,26 @@ Client sends `turn` (text) or `audio_turn` (audio) messages. Server responds wit
 ## Key Patterns
 
 - **Session state**: In-memory Maps with optional JSON persistence for checkpoint/recovery. Cleanup timer (5 min) starts on WS connect; cancelled at build start, re-armed in `.finally()` after build completes. Meeting activity (accept, message, end), kid-initiated meeting starts, and fix/launch requests also reset the timer. `impactEstimate` and `boundaryAnalysis` persisted on session during plan phase for Blueprint meeting context.
+- **Session persistence**: Builds use persistent directories under `~/Elisa/projects/`. Orchestrator resolves via `resolveProjectDir(goal)`. Comprehensive `PersistedSessionMetadata` written to `{nuggetDir}/.elisa/session.json` at phase transitions. `checkpointAll()` on graceful shutdown. `restoreFromProject()` for rehydration. Cleanup skips project dirs.
 - **NuggetSpec validation**: Zod schema validates at `/api/sessions/:id/start` (string caps, array limits, portal command allowlist).
-- **SDK query per task**: Each agent task calls `query()` from `@anthropic-ai/claude-agent-sdk` with `permissionMode: 'bypassPermissions'` and explicit `pathToClaudeCodeExecutable` (resolved once at module load by `agentRunner.ts`). The SDK uses system `node` to spawn `cli.js`. Node.js is a prerequisite; Electron main process shows a dialog prompting install if missing. Default `maxTurns=25` (`MAX_TURNS_DEFAULT`). On retry, grants 10 additional turns per attempt (`MAX_TURNS_RETRY_INCREMENT`), so retries progress: 25 → 35 → 45. Builder agents are instructed to self-verify by running `node tests/test_{task_id}.js` before writing their summary.
+- **SDK query per task**: Each agent task calls `query()` from `@anthropic-ai/claude-agent-sdk` with `permissionMode: 'bypassPermissions'` and explicit `pathToClaudeCodeExecutable` (resolved once at module load by `agentRunner.ts`). The SDK uses system `node` to spawn `cli.js`. Node.js is a prerequisite; Electron main process shows a dialog prompting install if missing. Default `maxTurns=40` (`MAX_TURNS_DEFAULT`). On retry, grants 15 additional turns per attempt (`MAX_TURNS_RETRY_INCREMENT`), so retries progress: 40 → 55 → 70. Also passes `effort` (high or max based on complexity), `thinking: { type: 'adaptive' }`, and `maxBudgetUsd` (2.0 standard, 5.0 for complex builds). Complexity derived from session `impactEstimate` via `complexityToWeight()` in taskExecutor. Builder agents are instructed to self-verify by running `node tests/test_{task_id}.js` before writing their summary.
 - **API key propagation**: `POST /api/internal/config` sets `process.env.ANTHROPIC_API_KEY` then calls `resetAnthropicClient()` to invalidate the singleton. Module-level services (`meetingAgentService`, `planningService`) call `getAnthropicClient()` per-use (no cached `this.client`) so key changes propagate immediately.
 - **Stale metadata cleanup**: On each build, `setupWorkspace()` removes `.elisa/{comms,context,status}` from previous sessions before recreating them. Preserves `.elisa/logs/`, source files, and `.git/`.
 - **Structural digest injection**: Agent task prompts include function/class signatures extracted from workspace source files (via `ContextManager.buildStructuralDigest()`), allowing agents to orient without reading each file.
 - **Retry context**: Failed tasks are retried (up to 2 retries) with a "Retry Attempt" header prepended to the prompt, instructing agents to skip orientation and go straight to implementation.
 - **Streaming-parallel execution**: Up to 3 independent tasks run concurrently via Promise.race pool. New tasks schedule as soon as any completes. Git commits serialized via mutex.
-- **Token budget**: Default 500k token limit per session. Warning event at 80%. Graceful stop when exceeded. Cost tracking per agent.
+- **Token budget**: Default 1M token limit per session. Warning event at 80%. Graceful stop when exceeded. Cost tracking per agent.
 - **Context chain**: After each task, summary + structural digest written to `.elisa/context/nugget_context.md`.
 - **Cancellation**: `Orchestrator.cancel()` via AbortController; signal propagated to Agent SDK `query()` calls. Session state set to `done` on error.
 - **Content safety**: All agent prompts enforce age-appropriate output (8-14). Placeholder values sanitized before interpolation (`sanitizePlaceholder()`).
 - **Game frameworks**: Phaser 3, p5.js, Three.js bundled in `build/frameworks/` (downloaded by `scripts/bundle-frameworks.mjs`). MetaPlanner auto-selects or kid picks via Goal block dropdown. Selected library copied to workspace `lib/` after planning. Multi-file architecture enforced: scaffold creates all files as stubs, each feature task owns one module file, no concurrent edits to same file.
+- **HITL checkpoints**: `checkpointService.ts` fires mid-build checkpoints (visual, choice, progress) after task completion. `shouldFireCheckpoint()` evaluates task name/description against `DESIGN_KEYWORDS` and completion thresholds (33%, 66%). Max 3 per build. Blocks execution via Promise-based resolver in `Orchestrator.checkpointResolvers` with 120s timeout. Choice checkpoints read `.elisa/decisions/{taskId}.json` written by agents. `CheckpointModal` renders UI with screenshot preview, choice buttons, and comment field.
+- **Iterative chat**: `IterativeChatService` enables post-build conversation. `processMessage()` builds context from file manifest + structural digest + conversation history (last 20 turns), runs agent via SDK, detects file changes via mtime diffing, re-runs tests if `tests/` dir exists, and emits `chat_preview_refresh` to reload the preview. Session stays in `done` state. One message at a time (`isProcessing` guard).
 - **Flash mutex**: `HardwareService.flash()` serializes concurrent calls via Promise-chain mutex.
 - **WebSocket heartbeat + send queue**: Server sends protocol-level pings every 30s (`WS_PING_INTERVAL_MS`). Connections that miss a pong are terminated via `ws.terminate()`. All `sendEvent()` calls are serialized through a per-session FIFO queue with `setImmediate` yield between each frame, preventing burst-flooding the Vite proxy even when concurrent fire-and-forget callers (agent_output streaming, meeting triggers) overlap. Queue depth warnings at 10/50/100; drain summaries logged for batches >5. `wsAlive` WeakMap tracks per-connection liveness.
 - **Graceful shutdown**: SIGTERM/SIGINT handlers cancel orchestrators, close WS server, 10s force-exit. `SessionStore.onCleanup` invokes `ConnectionManager.cleanup()` for WS teardown.
 - **Graceful degradation**: Missing external tools (git, pytest, mpremote) produce warnings, not crashes.
-- **Timeouts**: Agent=300s, Tests=120s, Flash=60s. Task retry limit=2.
+- **Timeouts**: Agent=600s, Tests=120s, Flash=60s. Task retry limit=2.
 - **Spec Graph**: Persistent directed graph of NuggetSpecs persisted to `.elisa/spec-graph.json`. Nodes=nuggets, edges=dependencies/interfaces. Graph context injected into MetaPlanner when `composition.parent_graph_id` is set.
 - **Nugget composition**: NuggetSpec `composition` field declares `provides`/`requires` interfaces. CompositionService merges selected nuggets, detects emergence (feedback loops, pipelines, hubs), resolves interface contracts. System level gates max nuggets (explorer=1, builder=3, architect=unlimited).
 - **Audio pipeline**: `AudioPipeline` wraps OpenAI Whisper (STT) + Claude text turn + OpenAI TTS into a single `processAudioTurn()` call. Used by both the REST `/turn/audio` endpoint and the WebSocket `/stream` handler. Gracefully returns 501 when `OPENAI_API_KEY` is not set.

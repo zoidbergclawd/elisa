@@ -89,6 +89,20 @@ export interface BuildSessionContextValue {
   testGatePassed: boolean | null;
   autoFixAttempt: { passRate: number; threshold: number; attempt: number } | null;
   visualTestResult: { passed: boolean; summary: string; issues: string[] } | null;
+  chatMessages: Array<{ role: 'kid' | 'agent'; content: string; filesChanged?: string[] }>;
+  isChatProcessing: boolean;
+  chatTestSummary: { passed: number; failed: number; total: number } | null;
+  previewRefreshKey: number;
+  activeCheckpoint: {
+    checkpoint_id: string;
+    checkpoint_type: 'visual' | 'choice' | 'progress';
+    task_id: string;
+    screenshot_base64?: string;
+    choices?: Array<{ id: string; label: string; description: string }>;
+    summary?: string;
+    progress_pct: number;
+    narrator_message?: string;
+  } | null;
   boundaryAnalysis: {
     inputs: Array<{ name: string; type: string; source?: string }>;
     outputs: Array<{ name: string; type: string; source?: string }>;
@@ -107,6 +121,10 @@ export interface BuildSessionContextValue {
   clearGateRequest: () => void;
   clearQuestionRequest: () => void;
   clearErrorNotification: () => void;
+  clearCheckpoint: () => void;
+  createSession: () => Promise<string | null>;
+  restoreProject: (projectDir: string) => Promise<boolean>;
+  reconnectSession: (sessionId: string, workspacePath?: string) => Promise<boolean>;
   resetToDesign: () => void;
   launchWorkspace: (workspacePath?: string) => Promise<void>;
 }

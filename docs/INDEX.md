@@ -89,6 +89,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/routes/runtime.ts` | /v1/agents/* endpoints (provision, update, delete, turn, history, heartbeat) |
 | `backend/src/routes/specGraph.ts` | /api/spec-graph/* endpoints (CRUD, compose, impact, interfaces) |
 | `backend/src/routes/planning.ts` | /api/sessions/:id/planning/* endpoints (start, answer, message, generate, state) |
+| `backend/src/routes/projects.ts` | /api/projects (list), /api/sessions/:id/restore (rehydrate from project dir) |
 | `backend/src/routes/devices.ts` | /api/devices endpoint (list device plugin manifests) |
 
 ### Services
@@ -103,7 +104,10 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/services/agentRunner.ts` | Executes agents via Claude Agent SDK `query()` with streaming. Resolves `pathToClaudeCodeExecutable` for Electron packaging. Diagnostic logging to `%TEMP%/elisa-agent-diagnostics.log`. Exports `getClaudeCodePath()` for health checks |
 | `backend/src/utils/staticServer.ts` | Built-in static file server (Node.js http module). Used by deployPhase and launch endpoint. Replaces `npx serve` |
 | `scripts/bundle-mingit.mjs` | Downloads MinGit for Windows (git + bash) during build. Copies sh.exe to bash.exe. Skipped on macOS |
-| `backend/src/services/sessionStore.ts` | Session state management with JSON persistence |
+| `backend/src/services/checkpointService.ts` | HITL checkpoints: shouldFireCheckpoint(), createCheckpoint(), readDecisionFiles() for mid-build kid checkpoints |
+| `backend/src/services/iterativeChatService.ts` | Post-build iterative chat: runs agent against workspace, detects file changes, re-runs tests |
+| `backend/src/services/projectIndex.ts` | Project directory management: getProjectsDir, slugify, resolveProjectDir, listProjects |
+| `backend/src/services/sessionStore.ts` | Session state management with JSON persistence, checkpointAll, restoreFromProject |
 | `backend/src/services/gitService.ts` | Per-session git init and task-based commits |
 | `backend/src/services/hardwareService.ts` | ESP32 detection, MicroPython compile, flash, serial |
 | `backend/src/services/testRunner.ts` | pytest / Node test runner with coverage parsing |
@@ -206,6 +210,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `backend/src/prompts/builderAgent.ts` | Builder role prompt template |
 | `backend/src/prompts/testerAgent.ts` | Tester role prompt template |
 | `backend/src/prompts/reviewerAgent.ts` | Reviewer role prompt template |
+| `backend/src/prompts/iterativeChatAgent.ts` | System prompt for post-build iterative chat agent |
 | `backend/src/prompts/narratorAgent.ts` | Narrator role prompt for build event narration |
 | `backend/src/prompts/teaching.ts` | Teaching moment curriculum and templates |
 
@@ -274,6 +279,8 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/components/Meeting/LivePreviewCanvas.tsx` | Live Preview: iframe web preview with auto-refresh |
 | `frontend/src/components/Meeting/CodeExplorerCanvas.tsx` | Code Explorer: syntax-highlighted viewer with annotations |
 | `frontend/src/components/Meeting/WhiteboardCanvas.tsx` | Whiteboard: free-form HTML5 Canvas drawing with tools |
+| `frontend/src/components/shared/CheckpointModal.tsx` | HITL checkpoint modal: screenshot preview, choice buttons, approve/reject, comment |
+| `frontend/src/components/IterativeChat/IterativeChatPanel.tsx` | Post-build chat panel: message list, input, test summary, preview refresh |
 | `frontend/src/components/TestPanel/TestPanel.tsx` | Main Tests tab: summary stats, test list, add test form |
 | `frontend/src/components/TestPanel/TestList.tsx` | Test result list with pass/fail icons and expandable error details |
 | `frontend/src/components/TestPanel/AddTestForm.tsx` | Form to add behavioral tests (when/then) |
@@ -293,6 +300,7 @@ Block-based visual programming IDE where kids build software by snapping togethe
 | `frontend/src/hooks/useHealthCheck.ts` | Backend readiness polling |
 | `frontend/src/hooks/useWebSocket.ts` | WebSocket connection with auto-reconnect |
 | `frontend/src/hooks/useMeetingSession.ts` | Meeting session state via useReducer + WebSocket events |
+| `frontend/src/hooks/useIterativeChat.ts` | Post-build chat hook: sendMessage(), messages, isAgentThinking, testSummary, previewRefreshKey |
 | `frontend/src/hooks/useSystemLevel.ts` | Extract system level from NuggetSpec for feature gating |
 
 ### Lib
@@ -329,6 +337,7 @@ Blockly workspace
   -> (optional) "Keep working" -> design phase -> re-build with existing workspace + git history
   -> (optional) POST /fix -> targeted bug fix task -> re-test -> fix_* events
   -> (optional) POST /launch -> serve built nugget without rebuild -> deploy_complete
+  -> (optional) POST /chat -> IterativeChatService -> iterative conversation -> stays in done
 ```
 
 ### Planning Mode Pipeline (PRD-004)

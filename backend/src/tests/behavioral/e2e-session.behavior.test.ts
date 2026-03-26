@@ -75,6 +75,12 @@ vi.mock('../../services/teachingEngine.js', () => {
   return { TeachingEngine };
 });
 
+vi.mock('../../services/checkpointService.js', () => ({
+  shouldFireCheckpoint: vi.fn().mockReturnValue(null),
+  createCheckpoint: vi.fn(),
+  readDecisionFiles: vi.fn().mockReturnValue(null),
+}));
+
 vi.mock('../../services/hardwareService.js', () => {
   const HardwareService = vi.fn();
   HardwareService.prototype.compile = vi.fn().mockResolvedValue({

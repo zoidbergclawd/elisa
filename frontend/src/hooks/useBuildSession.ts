@@ -104,6 +104,20 @@ export interface BuildSessionState {
   testGatePassed: boolean | null;
   autoFixAttempt: { passRate: number; threshold: number; attempt: number } | null;
   visualTestResult: { passed: boolean; summary: string; issues: string[] } | null;
+  chatMessages: Array<{ role: 'kid' | 'agent'; content: string; filesChanged?: string[] }>;
+  isChatProcessing: boolean;
+  chatTestSummary: { passed: number; failed: number; total: number } | null;
+  previewRefreshKey: number;
+  activeCheckpoint: {
+    checkpoint_id: string;
+    checkpoint_type: 'visual' | 'choice' | 'progress';
+    task_id: string;
+    screenshot_base64?: string;
+    choices?: Array<{ id: string; label: string; description: string }>;
+    summary?: string;
+    progress_pct: number;
+    narrator_message?: string;
+  } | null;
 }
 
 const INITIAL_TOKEN_USAGE: TokenUsage = { input: 0, output: 0, total: 0, costUsd: 0, maxBudget: 500_000, perAgent: {} };
@@ -149,6 +163,11 @@ export const initialState: BuildSessionState = {
   testGatePassed: null,
   autoFixAttempt: null,
   visualTestResult: null,
+  chatMessages: [],
+  isChatProcessing: false,
+  chatTestSummary: null,
+  previewRefreshKey: 0,
+  activeCheckpoint: null,
 };
 
 // -- Actions --
@@ -161,9 +180,11 @@ export type BuildSessionAction =
   | { type: 'CLEAR_GATE_REQUEST' }
   | { type: 'CLEAR_QUESTION_REQUEST' }
   | { type: 'CLEAR_ERROR_NOTIFICATION' }
+  | { type: 'CLEAR_CHECKPOINT' }
   | { type: 'RESET_FOR_BUILD' }
   | { type: 'RESET_TO_DESIGN' }
-  | { type: 'STOP_BUILD' };
+  | { type: 'STOP_BUILD' }
+  | { type: 'RESTORE_SESSION'; sessionId: string; session: { state: string; tasks?: Task[]; agents?: Agent[]; testResults?: { passed: number; total: number }; individualTestResults?: Array<{ test_name: string; passed: boolean; details: string }>; testGatePassed?: boolean }; nuggetDir: string };
 
 // -- Helpers for task updates --
 
@@ -823,6 +844,63 @@ function handleWSEvent(state: BuildSessionState, event: WSEvent, deploySteps: Ar
     case 'workspace_created':
       return { ...state, events, nuggetDir: event.nugget_dir };
 
+    // Post-build iterative chat events (PRD-005)
+    case 'chat_processing':
+      return {
+        ...state,
+        events,
+        isChatProcessing: true,
+        chatMessages: [...state.chatMessages, { role: 'kid', content: event.message }],
+      };
+
+    case 'chat_agent_output':
+      return { ...state, events };
+
+    case 'chat_response':
+      return {
+        ...state,
+        events,
+        isChatProcessing: false,
+        chatMessages: [...state.chatMessages, { role: 'agent', content: event.content, filesChanged: event.filesChanged }],
+      };
+
+    case 'chat_tests_completed':
+      return {
+        ...state,
+        events,
+        chatTestSummary: { passed: event.passed, failed: event.failed, total: event.total },
+      };
+
+    case 'chat_preview_refresh':
+      return { ...state, events, previewRefreshKey: state.previewRefreshKey + 1 };
+
+    case 'chat_error':
+      return {
+        ...state,
+        events,
+        isChatProcessing: false,
+        chatMessages: [...state.chatMessages, { role: 'agent', content: `Error: ${event.message}` }],
+      };
+
+    case 'hitl_checkpoint':
+      return {
+        ...state,
+        events,
+        activeCheckpoint: {
+          checkpoint_id: event.checkpoint_id,
+          checkpoint_type: event.checkpoint_type,
+          task_id: event.task_id,
+          screenshot_base64: event.screenshot_base64,
+          choices: event.choices,
+          summary: event.summary,
+          progress_pct: event.progress_pct,
+          narrator_message: event.narrator_message,
+        },
+      };
+
+    case 'hitl_checkpoint_response':
+      return { ...state, events, activeCheckpoint: null };
+
     case 'visual_smoke_test':
       return {
         ...state,
@@ -954,6 +1032,9 @@ export function buildSessionReducer(state: BuildSessionState, action: BuildSessi
     case 'CLEAR_ERROR_NOTIFICATION':
       return { ...state, errorNotification: null };
 
+    case 'CLEAR_CHECKPOINT':
+      return { ...state, activeCheckpoint: null };
+
     case 'RESET_FOR_BUILD':
       return {
         ...initialState,
@@ -971,6 +1052,25 @@ export function buildSessionReducer(state: BuildSessionState, action: BuildSessi
         agents: state.agents.map(a => ({ ...a, status: 'done' as const })),
         testResults: resolvePendingTests(state.testResults, 'Build was stopped'),
       };
+
+    case 'RESTORE_SESSION': {
+      const restoredTests: TestResult[] = (action.session.individualTestResults ?? []).map(t => ({
+        test_name: t.test_name,
+        passed: t.passed,
+        details: t.details,
+        status: t.passed ? 'passed' as const : 'failed' as const,
+      }));
+      return {
+        ...initialState,
+        uiState: 'done',
+        sessionId: action.sessionId,
+        tasks: (action.session.tasks ?? []) as Task[],
+        agents: (action.session.agents ?? []).map((a: Agent) => ({ ...a, status: 'done' as const })),
+        testResults: restoredTests,
+        nuggetDir: action.nuggetDir,
+        testGatePassed: action.session.testGatePassed ?? null,
+      };
+    }
 
     default:
       return state;
@@ -996,6 +1096,53 @@ export function useBuildSession() {
     const { session_id } = await res.json();
     dispatch({ type: 'SET_SESSION_ID', sessionId: session_id });
     return session_id;
+  }, []);
+
+  /** Restore a session from a saved project directory. Returns true on success. */
+  const restoreProject = useCallback(async (projectDir: string): Promise<boolean> => {
+    const sessionRes = await authFetch('/api/sessions', { method: 'POST' });
+    if (!sessionRes.ok) {
+      dispatch({ type: 'SET_ERROR', message: 'Could not create session', recoverable: true });
+      return false;
+    }
+    const { session_id } = await sessionRes.json();
+
+    const restoreRes = await authFetch(`/api/sessions/${session_id}/restore`, {
+      method: 'POST',
+      body: JSON.stringify({ projectDir }),
+    });
+    if (!restoreRes.ok) {
+      const body = await restoreRes.json().catch(() => ({ detail: 'Restore failed' }));
+      dispatch({ type: 'SET_ERROR', message: body.detail || 'Could not restore project', recoverable: true });
+      return false;
+    }
+    const data = await restoreRes.json();
+    dispatch({
+      type: 'RESTORE_SESSION',
+      sessionId: session_id,
+      session: data.session,
+      nuggetDir: projectDir,
+    });
+    return true;
+  }, []);
+
+  /** Attempt to reconnect to an existing session (e.g., after page reload). Returns true on success. */
+  const reconnectSession = useCallback(async (sessionId: string, workspacePath?: string): Promise<boolean> => {
+    const res = await authFetch(`/api/sessions/${sessionId}`);
+    if (!res.ok) {
+      // Session no longer exists -- clear stored state
+      localStorage.removeItem('elisa:sessionId');
+      localStorage.removeItem('elisa:workspacePath');
+      return false;
+    }
+    const data = await res.json();
+    dispatch({
+      type: 'RESTORE_SESSION',
+      sessionId,
+      session: data,
+      nuggetDir: workspacePath ?? data.nuggetDir ?? '',
+    });
+    return true;
   }, []);
 
   const startBuild = useCallback(async (
@@ -1064,6 +1211,10 @@ export function useBuildSession() {
     dispatch({ type: 'CLEAR_ERROR_NOTIFICATION' });
   }, []);
 
+  const clearCheckpoint = useCallback(() => {
+    dispatch({ type: 'CLEAR_CHECKPOINT' });
+  }, []);
+
   const stopBuild = useCallback(async () => {
     if (!state.sessionId) return;
     await authFetch(`/api/sessions/${state.sessionId}/stop`, { method: 'POST' });
@@ -1073,6 +1224,8 @@ export function useBuildSession() {
   const resetToDesign = useCallback(() => {
     dispatch({ type: 'RESET_TO_DESIGN' });
     deployStepsRef.current = [];
+    localStorage.removeItem('elisa:sessionId');
+    localStorage.removeItem('elisa:workspacePath');
   }, []);
 
   const launchWorkspace = useCallback(async (workspacePath?: string) => {
@@ -1123,6 +1276,21 @@ export function useBuildSession() {
     })();
   }, [state.events, state.sessionId]);
 
+  // Persist session ID and nugget dir to localStorage for reconnection after page reload
+  useEffect(() => {
+    if (state.sessionId) {
+      localStorage.setItem('elisa:sessionId', state.sessionId);
+    } else {
+      localStorage.removeItem('elisa:sessionId');
+    }
+  }, [state.sessionId]);
+
+  useEffect(() => {
+    if (state.nuggetDir) {
+      localStorage.setItem('elisa:workspacePath', state.nuggetDir);
+    }
+  }, [state.nuggetDir]);
+
   return {
     uiState: state.uiState,
     tasks: state.tasks,
@@ -1164,13 +1332,21 @@ export function useBuildSession() {
     testGatePassed: state.testGatePassed,
     autoFixAttempt: state.autoFixAttempt,
     visualTestResult: state.visualTestResult,
+    chatMessages: state.chatMessages,
+    isChatProcessing: state.isChatProcessing,
+    chatTestSummary: state.chatTestSummary,
+    previewRefreshKey: state.previewRefreshKey,
+    activeCheckpoint: state.activeCheckpoint,
     handleEvent,
     createSession,
+    restoreProject,
+    reconnectSession,
     startBuild,
     stopBuild,
     clearGateRequest,
     clearQuestionRequest,
     clearErrorNotification,
+    clearCheckpoint,
     resetToDesign,
     launchWorkspace,
   };

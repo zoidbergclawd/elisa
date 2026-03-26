@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import App from './App';
 
 // Shared mock state for useBuildSession
@@ -24,7 +24,33 @@ const buildSessionDefaults = {
   nuggetDir: null,
   errorNotification: null,
   narratorMessages: [],
+  isPlanning: false,
+  flashWizardState: null,
+  contextFlows: [],
+  traceability: null,
+  correctionCycles: {},
+  impactEstimate: null,
+  healthUpdate: null,
+  healthSummary: null,
+  healthHistory: [],
+  isFixing: false,
+  fixPhase: null,
+  meetingBlockedTasks: [],
+  testGatePassed: null,
+  autoFixAttempt: null,
+  visualTestResult: null,
+  boundaryAnalysis: null,
+  agentOutputs: {},
+  decomposition: null,
+  compositionStarted: null,
+  compositionImpacts: [],
+  documentationPath: null,
+  chatMessages: [],
+  isChatProcessing: false,
+  chatTestSummary: null,
+  previewRefreshKey: 0,
   handleEvent: vi.fn(),
+  createSession: vi.fn(),
   startBuild: vi.fn(),
   stopBuild: vi.fn(),
   clearGateRequest: vi.fn(),
@@ -39,8 +65,6 @@ vi.mock('./hooks/useBuildSession', () => ({
 }));
 
 // Meeting session mock with controllable activeMeeting
-const mockRequestFix = vi.fn().mockResolvedValue(undefined);
-
 function makeMeetingState(overrides: Record<string, unknown> = {}) {
   return {
     inviteQueue: [],
@@ -66,7 +90,7 @@ function makeMeetingState(overrides: Record<string, unknown> = {}) {
     endMeeting: vi.fn(),
     updateCanvas: vi.fn(),
     materializeArtifacts: vi.fn(),
-    requestFix: mockRequestFix,
+    requestFix: vi.fn().mockResolvedValue(undefined),
     resetMeetings: vi.fn(),
     clearAllInvites: vi.fn(),
     ...overrides,
@@ -131,133 +155,64 @@ vi.mock('./components/shared/ExamplePickerModal', () => ({ default: vi.fn(() => 
 vi.mock('./components/shared/DirectoryPickerModal', () => ({ default: vi.fn(() => null) }));
 vi.mock('./components/shared/BoardDetectedModal', () => ({ default: vi.fn(() => null) }));
 
-const bugMeeting = {
-  meetingId: 'mtg-1',
-  meetingTypeId: 'debug-convergence',
-  agentName: 'Bug Detective',
-  canvasType: 'bug-detective',
-  canvasState: { type: 'bug-detective', data: {} },
-  messages: [
-    { role: 'agent' as const, content: 'What bug did you find?' },
-    { role: 'kid' as const, content: 'The button does not work' },
-    { role: 'agent' as const, content: 'I see the issue.' },
-    { role: 'kid' as const, content: 'Also the color is wrong' },
-  ],
-  outcomes: [],
-};
-
-/**
- * Helper: simulates the full Bug Detective meeting lifecycle.
- * Returns the rendered component after the meeting ends and the done modal is visible.
- */
-async function renderWithBugMeetingEnded(meeting = bugMeeting) {
-  const { useMeetingSession } = await import('./hooks/useMeetingSession');
-  const mockUseMeeting = useMeetingSession as ReturnType<typeof vi.fn>;
-
-  // Phase 1: active Bug Detective meeting (auto-switches to Team tab)
-  mockUseMeeting.mockReturnValue(makeMeetingState({
-    activeMeeting: meeting,
-    messages: meeting.messages,
-  }));
-
-  const result = render(<App />);
-
-  // Phase 2: meeting ends (lastBugReport captured, but Team tab still active)
-  mockUseMeeting.mockReturnValue(makeMeetingState());
-  await act(async () => { result.rerender(<App />); });
-
-  // Phase 3: click Workspace tab so done modal is visible
-  const wsTab = screen.getByText('Workspace');
-  await act(async () => { fireEvent.click(wsTab); });
-
-  return result;
-}
-
-describe('Fix It button error handling', () => {
+describe('IterativeChatPanel in done state', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
   });
 
-  it('shows error notification when Fix It button click fails (session expired)', async () => {
-    const { useBuildSession } = await import('./hooks/useBuildSession');
-    const { useMeetingSession } = await import('./hooks/useMeetingSession');
-    const mockUseBuild = useBuildSession as ReturnType<typeof vi.fn>;
-    const mockUseMeeting = useMeetingSession as ReturnType<typeof vi.fn>;
+  it('shows iterative chat panel when build is done', () => {
+    render(<App />);
+    // The panel should render its chat prompt
+    expect(screen.getByText(/Tell me what you'd like to change/i)).toBeInTheDocument();
+  });
 
-    const handleEvent = vi.fn();
+  it('does not show Fix It button (chat panel is the fix mechanism)', async () => {
+    const { useBuildSession } = await import('./hooks/useBuildSession');
+    const mockUseBuild = useBuildSession as ReturnType<typeof vi.fn>;
+
     mockUseBuild.mockReturnValue({
       ...buildSessionDefaults,
-      handleEvent,
       testResults: [{ test_name: 'test1', passed: false, details: 'fail' }],
     });
 
-    const mockStart = vi.fn().mockRejectedValue(new Error('Session not found'));
-    mockUseMeeting.mockReturnValue(makeMeetingState({ startDirectMeeting: mockStart }));
-
     render(<App />);
-
-    const fixButton = screen.getByText(/Fix It/);
-    await act(async () => { fireEvent.click(fixButton); });
-
-    expect(handleEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'error', message: 'Session expired. Please build again.' }),
-    );
-  });
-});
-
-describe('Post-bug-report Fix button', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    localStorage.clear();
+    expect(screen.queryByText('Fix It')).not.toBeInTheDocument();
   });
 
-  it('shows "Fix reported bugs" button after Bug Detective meeting ends with kid messages', async () => {
-    await renderWithBugMeetingEnded();
-    expect(screen.getByText('Fix reported bugs')).toBeInTheDocument();
-  });
-
-  it('calls requestFix when Fix button clicked and shows progress when isFixing is true', async () => {
+  it('shows Fix in progress indicator when isFixing is true', async () => {
     const { useBuildSession } = await import('./hooks/useBuildSession');
     const mockUseBuild = useBuildSession as ReturnType<typeof vi.fn>;
 
-    const result = await renderWithBugMeetingEnded();
+    mockUseBuild.mockReturnValue({
+      ...buildSessionDefaults,
+      isFixing: true,
+    });
 
-    const fixButton = screen.getByText('Fix reported bugs');
-    await act(async () => { fireEvent.click(fixButton); });
-
-    // requestFix should be called with concatenated kid messages
-    expect(mockRequestFix).toHaveBeenCalledWith(
-      'The button does not work\nAlso the color is wrong'
-    );
-
-    // Button should be gone (lastBugReport cleared)
-    expect(screen.queryByText('Fix reported bugs')).not.toBeInTheDocument();
-
-    // Simulate backend responding with fix_started (isFixing becomes true via context)
-    mockUseBuild.mockReturnValue({ ...buildSessionDefaults, isFixing: true });
-    await act(async () => { result.rerender(<App />); });
+    render(<App />);
     expect(screen.getByText('Fix in progress...')).toBeInTheDocument();
   });
 
-  it('does not show Fix button if Bug Detective had no kid messages', async () => {
-    const agentOnlyMeeting = {
-      ...bugMeeting,
-      meetingId: 'mtg-3',
-      messages: [{ role: 'agent' as const, content: 'What bug did you find?' }],
-    };
-    await renderWithBugMeetingEnded(agentOnlyMeeting);
-    expect(screen.queryByText('Fix reported bugs')).not.toBeInTheDocument();
+  it('shows chat input that can send messages', () => {
+    render(<App />);
+    const input = screen.getByLabelText('Chat message input');
+    expect(input).toBeInTheDocument();
+    expect(input).not.toBeDisabled();
   });
 
-  it('does not show Fix button when a non-debug meeting ends', async () => {
-    const nonDebugMeeting = {
-      ...bugMeeting,
-      meetingId: 'mtg-4',
-      meetingTypeId: 'explain-it',
-      agentName: 'Explainer',
-    };
-    await renderWithBugMeetingEnded(nonDebugMeeting);
-    expect(screen.queryByText('Fix reported bugs')).not.toBeInTheDocument();
+  it('shows test pass count when tests exist', async () => {
+    const { useBuildSession } = await import('./hooks/useBuildSession');
+    const mockUseBuild = useBuildSession as ReturnType<typeof vi.fn>;
+
+    mockUseBuild.mockReturnValue({
+      ...buildSessionDefaults,
+      testResults: [
+        { test_name: 'test1', passed: true, details: 'ok' },
+        { test_name: 'test2', passed: false, details: 'fail' },
+      ],
+    });
+
+    render(<App />);
+    expect(screen.getByText('1/2 tests passing')).toBeInTheDocument();
   });
 });

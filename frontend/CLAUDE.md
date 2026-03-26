@@ -26,11 +26,12 @@ src/
     Skills/                  Skills editor modal + template library + SkillFlowEditor (visual flow editor)
     Rules/                   Rules editor modal + template library
     Portals/                 Portals editor modal + registry
+    IterativeChat/           Post-build chat: IterativeChatPanel.tsx (message list, input, test summary, preview refresh)
     Meeting/                 Agent Meeting framework: MeetingModal (composes ChatPanel+CanvasPanel+MeetingLayout), canvasRegistry, DefaultCanvas, ThemePickerCanvas, BugDetectiveCanvas, BlueprintCanvas, CampaignCanvas, ExplainItCanvas, InterfaceDesignerCanvas, LaunchPadCanvas, AgentStudioCanvas, FacePreview
     SystemPanel/             System main tab: architecture explorer (spec view pre-build, task list + detail during/post-build)
     TestPanel/               Tests main tab: TestPanel, TestList, AddTestForm (behavioral test management)
     TeamPanel/               Persistent Team tab: TeamPanel, TeamMemberList, TeamConversation (reuses ChatPanel+CanvasPanel)
-    shared/                  MainTabBar (workspace/mission/team), GoButton, ModalHost, HumanGateModal, QuestionModal, TeachingToast, AgentAvatar, ReadinessBadge, ExamplePickerModal, DirectoryPickerModal, FlashWizardModal, MeetingInviteToast (auto-dismiss preserves invite), DisplayThemePreview, EsptoolFlashStep, ImpactPreview
+    shared/                  MainTabBar (workspace/mission/team), GoButton, ModalHost, HumanGateModal, QuestionModal, TeachingToast, AgentAvatar, ReadinessBadge, ExamplePickerModal, DirectoryPickerModal, FlashWizardModal, MeetingInviteToast (auto-dismiss preserves invite), DisplayThemePreview, EsptoolFlashStep, ImpactPreview, CheckpointModal
   hooks/
     usePlanningSession.ts    Planning Mode state via useReducer + WS events (plan, questions, mutations)
     useBuildSession.ts       Build session state via useReducer (typed actions + reducer)
@@ -40,6 +41,7 @@ src/
     useHealthCheck.ts        Polls /api/health for backend readiness (API key + SDK status)
     useWebSocket.ts          WebSocket connection with auto-reconnect (3s interval)
     useMeetingSession.ts     Meeting session state via useReducer + WebSocket events
+    useIterativeChat.ts      Post-build chat: sendMessage(), messages, isAgentThinking, testSummary, previewRefreshKey
     useSystemLevel.ts        Extract system level from NuggetSpec for feature gating
   lib/
     nuggetFile.ts            .elisa nugget file save/load utilities (JSZip-based)
@@ -63,6 +65,8 @@ Workspace JSON, skills, and rules auto-save to `localStorage` on every change an
 Workspace mode (`'specify' | 'compose'`) in WorkspaceContext controls which toolbox the BlockCanvas uses. Composition workspace JSON persisted in .elisa files as `composition.json`.
 
 UI phases: `design` | `building` | `review` | `deploy` | `done`
+
+Build session chat state (in `useBuildSession`): `chatMessages` (Array of `{ role, content, filesChanged? }`), `isChatProcessing` (boolean), `chatTestSummary` ({ passed, failed, total } | null), `previewRefreshKey` (number, incremented on `chat_preview_refresh`).
 
 Main tabs: `workspace` | `mission` | `system` | `tests` (badge shows failing test count) | `team` (badge shows pending invite count)
 

@@ -237,11 +237,11 @@ describe('retry prompt failure context (#103)', () => {
 // ============================================================
 
 describe('agentRunner defaults to MAX_TURNS_DEFAULT', () => {
-  it('MAX_TURNS_DEFAULT equals 25', () => {
-    expect(MAX_TURNS_DEFAULT).toBe(25);
+  it('MAX_TURNS_DEFAULT equals 40', () => {
+    expect(MAX_TURNS_DEFAULT).toBe(40);
   });
 
-  it('MAX_TURNS_RETRY_INCREMENT equals 10', () => {
-    expect(MAX_TURNS_RETRY_INCREMENT).toBe(10);
+  it('MAX_TURNS_RETRY_INCREMENT equals 15', () => {
+    expect(MAX_TURNS_RETRY_INCREMENT).toBe(15);
   });
 });
