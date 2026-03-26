@@ -104,4 +104,31 @@ describe('CheckpointModal', () => {
     fireEvent.click(screen.getByText('Option A'));
     expect(pickBtn.hasAttribute('disabled')).toBe(false);
   });
+
+  it('calls authFetch with reject response when clicking reject button', async () => {
+    const { authFetch } = await import('../../lib/apiClient');
+    render(<CheckpointModal {...defaultProps} />);
+    fireEvent.click(screen.getByText("Let's change something"));
+    await waitFor(() => {
+      expect(authFetch).toHaveBeenCalledWith('/api/sessions/sess-1/checkpoint', expect.objectContaining({
+        method: 'POST',
+        body: expect.stringContaining('"response":"reject"'),
+      }));
+      expect(defaultProps.onClose).toHaveBeenCalled();
+    });
+  });
+
+  it('includes comment in POST body when approving with comment', async () => {
+    const { authFetch } = await import('../../lib/apiClient');
+    render(<CheckpointModal {...defaultProps} />);
+    const textarea = screen.getByPlaceholderText('Any feedback? (optional)');
+    fireEvent.change(textarea, { target: { value: 'Looks nice but make it blue' } });
+    fireEvent.click(screen.getByText('Looks great!'));
+    await waitFor(() => {
+      const callBody = (authFetch as ReturnType<typeof vi.fn>).mock.calls[0][1].body;
+      const parsed = JSON.parse(callBody);
+      expect(parsed.response).toBe('approve');
+      expect(parsed.comment).toBe('Looks nice but make it blue');
+    });
+  });
 });

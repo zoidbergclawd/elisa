@@ -122,6 +122,9 @@ export interface BuildSessionContextValue {
   clearQuestionRequest: () => void;
   clearErrorNotification: () => void;
   clearCheckpoint: () => void;
+  createSession: () => Promise<string | null>;
+  restoreProject: (projectDir: string) => Promise<boolean>;
+  reconnectSession: (sessionId: string, workspacePath?: string) => Promise<boolean>;
   resetToDesign: () => void;
   launchWorkspace: (workspacePath?: string) => Promise<void>;
 }

@@ -183,7 +183,8 @@ export type BuildSessionAction =
   | { type: 'CLEAR_CHECKPOINT' }
   | { type: 'RESET_FOR_BUILD' }
   | { type: 'RESET_TO_DESIGN' }
-  | { type: 'STOP_BUILD' };
+  | { type: 'STOP_BUILD' }
+  | { type: 'RESTORE_SESSION'; sessionId: string; session: { state: string; tasks?: Task[]; agents?: Agent[]; testResults?: { passed: number; total: number }; individualTestResults?: Array<{ test_name: string; passed: boolean; details: string }>; testGatePassed?: boolean }; nuggetDir: string };
 
 // -- Helpers for task updates --
 
@@ -1052,6 +1053,25 @@ export function buildSessionReducer(state: BuildSessionState, action: BuildSessi
         testResults: resolvePendingTests(state.testResults, 'Build was stopped'),
       };
 
+    case 'RESTORE_SESSION': {
+      const restoredTests: TestResult[] = (action.session.individualTestResults ?? []).map(t => ({
+        test_name: t.test_name,
+        passed: t.passed,
+        details: t.details,
+        status: t.passed ? 'passed' as const : 'failed' as const,
+      }));
+      return {
+        ...initialState,
+        uiState: 'done',
+        sessionId: action.sessionId,
+        tasks: (action.session.tasks ?? []) as Task[],
+        agents: (action.session.agents ?? []).map((a: Agent) => ({ ...a, status: 'done' as const })),
+        testResults: restoredTests,
+        nuggetDir: action.nuggetDir,
+        testGatePassed: action.session.testGatePassed ?? null,
+      };
+    }
+
     default:
       return state;
   }
@@ -1076,6 +1096,53 @@ export function useBuildSession() {
     const { session_id } = await res.json();
     dispatch({ type: 'SET_SESSION_ID', sessionId: session_id });
     return session_id;
+  }, []);
+
+  /** Restore a session from a saved project directory. Returns true on success. */
+  const restoreProject = useCallback(async (projectDir: string): Promise<boolean> => {
+    const sessionRes = await authFetch('/api/sessions', { method: 'POST' });
+    if (!sessionRes.ok) {
+      dispatch({ type: 'SET_ERROR', message: 'Could not create session', recoverable: true });
+      return false;
+    }
+    const { session_id } = await sessionRes.json();
+
+    const restoreRes = await authFetch(`/api/sessions/${session_id}/restore`, {
+      method: 'POST',
+      body: JSON.stringify({ projectDir }),
+    });
+    if (!restoreRes.ok) {
+      const body = await restoreRes.json().catch(() => ({ detail: 'Restore failed' }));
+      dispatch({ type: 'SET_ERROR', message: body.detail || 'Could not restore project', recoverable: true });
+      return false;
+    }
+    const data = await restoreRes.json();
+    dispatch({
+      type: 'RESTORE_SESSION',
+      sessionId: session_id,
+      session: data.session,
+      nuggetDir: projectDir,
+    });
+    return true;
+  }, []);
+
+  /** Attempt to reconnect to an existing session (e.g., after page reload). Returns true on success. */
+  const reconnectSession = useCallback(async (sessionId: string, workspacePath?: string): Promise<boolean> => {
+    const res = await authFetch(`/api/sessions/${sessionId}`);
+    if (!res.ok) {
+      // Session no longer exists -- clear stored state
+      localStorage.removeItem('elisa:sessionId');
+      localStorage.removeItem('elisa:workspacePath');
+      return false;
+    }
+    const data = await res.json();
+    dispatch({
+      type: 'RESTORE_SESSION',
+      sessionId,
+      session: data,
+      nuggetDir: workspacePath ?? data.nuggetDir ?? '',
+    });
+    return true;
   }, []);
 
   const startBuild = useCallback(async (
@@ -1157,6 +1224,8 @@ export function useBuildSession() {
   const resetToDesign = useCallback(() => {
     dispatch({ type: 'RESET_TO_DESIGN' });
     deployStepsRef.current = [];
+    localStorage.removeItem('elisa:sessionId');
+    localStorage.removeItem('elisa:workspacePath');
   }, []);
 
   const launchWorkspace = useCallback(async (workspacePath?: string) => {
@@ -1207,6 +1276,21 @@ export function useBuildSession() {
     })();
   }, [state.events, state.sessionId]);
 
+  // Persist session ID and nugget dir to localStorage for reconnection after page reload
+  useEffect(() => {
+    if (state.sessionId) {
+      localStorage.setItem('elisa:sessionId', state.sessionId);
+    } else {
+      localStorage.removeItem('elisa:sessionId');
+    }
+  }, [state.sessionId]);
+
+  useEffect(() => {
+    if (state.nuggetDir) {
+      localStorage.setItem('elisa:workspacePath', state.nuggetDir);
+    }
+  }, [state.nuggetDir]);
+
   return {
     uiState: state.uiState,
     tasks: state.tasks,
@@ -1255,6 +1339,8 @@ export function useBuildSession() {
     activeCheckpoint: state.activeCheckpoint,
     handleEvent,
     createSession,
+    restoreProject,
+    reconnectSession,
     startBuild,
     stopBuild,
     clearGateRequest,

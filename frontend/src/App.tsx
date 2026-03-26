@@ -28,6 +28,7 @@ import { playChime } from './lib/playChime';
 import PlanningModal from './components/Planning/PlanningModal';
 import { usePlanningSession } from './hooks/usePlanningSession';
 import IterativeChatPanel from './components/IterativeChat/IterativeChatPanel';
+import ProjectPicker from './components/shared/ProjectPicker';
 import { populateCanvasFromPlan } from './components/BlockCanvas/planToBlocks';
 import { updateSkillOptions } from './components/Skills/skillsRegistry';
 import { BuildSessionProvider } from './contexts/BuildSessionContext';
@@ -122,7 +123,7 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
   const {
     uiState, tasks, agents, sessionId,
     teachingMoments, errorNotification, testResults,
-    nuggetDir, createSession, startBuild, stopBuild, clearErrorNotification, resetToDesign,
+    nuggetDir, createSession, restoreProject, reconnectSession, startBuild, stopBuild, clearErrorNotification, resetToDesign,
     launchWorkspace,
   } = useBuildSessionContext();
 
@@ -158,6 +159,17 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
   const { health, loading: healthLoading } = useHealthCheck(uiState === 'design');
 
   const { boardInfo, justConnected, acknowledgeConnection } = useBoardDetect(uiState === 'design' && authReady);
+
+  // Reconnect to stored session on page load
+  const reconnectAttemptedRef = useRef(false);
+  useEffect(() => {
+    if (!authReady || reconnectAttemptedRef.current || sessionId) return;
+    reconnectAttemptedRef.current = true;
+    const storedSessionId = localStorage.getItem('elisa:sessionId');
+    if (!storedSessionId) return;
+    const storedWorkspace = localStorage.getItem('elisa:workspacePath') ?? undefined;
+    reconnectSession(storedSessionId, storedWorkspace); // eslint-disable-line @typescript-eslint/no-floating-promises
+  }, [authReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Main tab state
   const [activeMainTab, setActiveMainTab] = useState<MainTab>('workspace');
@@ -477,6 +489,14 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
                 mode={workspaceMode}
               />
             </div>
+            {/* Recent projects strip in design mode */}
+            {uiState === 'design' && authReady && (
+              <div className="border-t border-border-subtle">
+                <ProjectPicker onSelectProject={async (projectDir) => {
+                  await restoreProject(projectDir);
+                }} />
+              </div>
+            )}
           </div>
         </div>
 
@@ -596,6 +616,8 @@ function AppShell({ blockCanvasRef, authReady, handleBuildEvent }: AppShellProps
             if (sessionId) {
               navigator.sendBeacon(`/api/sessions/${sessionId}/stop`, '');
             }
+            localStorage.removeItem('elisa:sessionId');
+            localStorage.removeItem('elisa:workspacePath');
             window.location.reload();
           }}
           onKeepWorking={() => {
