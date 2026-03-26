@@ -1450,4 +1450,15 @@ comments but write normal, functional code.
 
 ---
 
-*End of PRD — Let's build Elisa! 🚀*
+## PRD-005: Post-Build Iteration and Agent Quality (v0.4.0)
+
+Replaces the Bug Detective ceremony with a chat panel on the done screen.
+
+- Iterative chat panel for bugs and features (POST /api/sessions/:id/chat)
+- Session persistence to ~/Elisa/projects/ with rehydration on restart
+- Agent quality: turns 40, budget 1M, SDK effort/thinking/maxBudgetUsd
+- Kid-friendly HITL checkpoints at build milestones (visual, choice, progress)
+
+---
+
+*End of PRD*
