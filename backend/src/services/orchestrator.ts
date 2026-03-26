@@ -67,6 +67,10 @@ export class Orchestrator {
   // Meeting block: tasks wait for meetings to end/decline before proceeding
   private meetingBlockResolvers = new Map<string, () => void>();
 
+  // HITL checkpoint: Promise-based blocking for kid checkpoint responses
+  private checkpointResolvers = new Map<string, (response: import('./checkpointService.js').CheckpointResponse) => void>();
+  private checkpointsFired = 0;
+
   // Services
   private agentRunner = new AgentRunner();
   private git: GitService | null = new GitService();
@@ -261,6 +265,10 @@ export class Orchestrator {
         meetingBlockResolvers: this.meetingBlockResolvers,
         sessionId: this.session.id,
         systemLevel,
+        enableCheckpoints: true,
+        checkpointResolvers: this.checkpointResolvers,
+        checkpointsFired: this.checkpointsFired,
+        onCheckpointFired: () => { this.checkpointsFired++; },
       });
 
       // Initialize logger before execute so plan and execute phases get logging
@@ -595,6 +603,14 @@ export class Orchestrator {
     if (this.gateResolver.current) {
       this.gateResolver.current({ approved, feedback });
       this.gateResolver.current = null;
+    }
+  }
+
+  resolveCheckpoint(checkpointId: string, response: import('./checkpointService.js').CheckpointResponse): void {
+    const resolver = this.checkpointResolvers.get(checkpointId);
+    if (resolver) {
+      resolver(response);
+      this.checkpointResolvers.delete(checkpointId);
     }
   }
 

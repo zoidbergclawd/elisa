@@ -93,6 +93,16 @@ export interface BuildSessionContextValue {
   isChatProcessing: boolean;
   chatTestSummary: { passed: number; failed: number; total: number } | null;
   previewRefreshKey: number;
+  activeCheckpoint: {
+    checkpoint_id: string;
+    checkpoint_type: 'visual' | 'choice' | 'progress';
+    task_id: string;
+    screenshot_base64?: string;
+    choices?: Array<{ id: string; label: string; description: string }>;
+    summary?: string;
+    progress_pct: number;
+    narrator_message?: string;
+  } | null;
   boundaryAnalysis: {
     inputs: Array<{ name: string; type: string; source?: string }>;
     outputs: Array<{ name: string; type: string; source?: string }>;
@@ -111,6 +121,7 @@ export interface BuildSessionContextValue {
   clearGateRequest: () => void;
   clearQuestionRequest: () => void;
   clearErrorNotification: () => void;
+  clearCheckpoint: () => void;
   resetToDesign: () => void;
   launchWorkspace: (workspacePath?: string) => Promise<void>;
 }

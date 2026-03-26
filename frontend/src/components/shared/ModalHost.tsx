@@ -1,6 +1,7 @@
 import { useRef, useCallback, type KeyboardEvent } from 'react';
 import HumanGateModal from './HumanGateModal';
 import QuestionModal from './QuestionModal';
+import CheckpointModal from './CheckpointModal';
 import FlashWizardModal from './FlashWizardModal';
 import SkillsModal from '../Skills/SkillsModal';
 import RulesModal from '../Rules/RulesModal';
@@ -49,6 +50,7 @@ export default function ModalHost({
   const {
     sessionId, gateRequest, clearGateRequest,
     questionRequest, clearQuestionRequest, flashWizardState,
+    activeCheckpoint, clearCheckpoint,
   } = useBuildSessionContext();
   const {
     skills, setSkills: onSkillsChange,
@@ -85,6 +87,22 @@ export default function ModalHost({
 
   return (
     <>
+      {/* HITL checkpoint modal */}
+      {activeCheckpoint && sessionId && (
+        <CheckpointModal
+          checkpointId={activeCheckpoint.checkpoint_id}
+          checkpointType={activeCheckpoint.checkpoint_type}
+          taskId={activeCheckpoint.task_id}
+          sessionId={sessionId}
+          screenshotBase64={activeCheckpoint.screenshot_base64}
+          choices={activeCheckpoint.choices}
+          summary={activeCheckpoint.summary}
+          progressPct={activeCheckpoint.progress_pct}
+          narratorMessage={activeCheckpoint.narrator_message}
+          onClose={clearCheckpoint}
+        />
+      )}
+
       {/* Human gate modal */}
       {gateRequest && sessionId && (
         <HumanGateModal

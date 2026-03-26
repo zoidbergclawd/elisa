@@ -71,6 +71,14 @@ Rules:
 - After completing your task, write a brief summary of what you did to \
 .elisa/comms/{task_id}_summary.md (2-3 sentences max).
 
+## Creative Decisions
+When your task involves creative choices (e.g. color scheme, layout, character design, art style), \
+write a decision file to .elisa/decisions/{task_id}.json with format:
+\`\`\`json
+{ "choices": [{ "id": "opt1", "label": "Option A", "description": "..." }, ...], "question": "Which style do you prefer?" }
+\`\`\`
+This lets the kid weigh in on creative decisions during the build.
+
 ## Communication
 When you finish, your summary file should contain:
 - What files you created or modified

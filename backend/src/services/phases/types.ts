@@ -99,7 +99,10 @@ export type WSEvent =
   | { type: 'chat_response'; content: string; filesChanged: string[] }
   | { type: 'chat_tests_completed'; passed: number; failed: number; total: number }
   | { type: 'chat_preview_refresh' }
-  | { type: 'chat_error'; message: string };
+  | { type: 'chat_error'; message: string }
+  // HITL Checkpoint events (PRD-005)
+  | { type: 'hitl_checkpoint'; checkpoint_id: string; checkpoint_type: 'visual' | 'choice' | 'progress'; task_id: string; screenshot_base64?: string; choices?: Array<{ id: string; label: string; description: string }>; summary?: string; progress_pct: number; narrator_message?: string }
+  | { type: 'hitl_checkpoint_response'; checkpoint_id: string; response: 'approve' | 'reject' | 'choice'; choice_id?: string; comment?: string };
 
 export type SendEvent = (event: WSEvent) => Promise<void>;
 

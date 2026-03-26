@@ -33,6 +33,9 @@ import type { SystemLevel } from '../systemLevelService.js';
 import { PromptBuilder, sanitizePlaceholder } from './promptBuilder.js';
 import { TaskExecutor } from './taskExecutor.js';
 import { DeviceFileValidator } from './deviceFileValidator.js';
+import { shouldFireCheckpoint, createCheckpoint, readDecisionFiles } from '../checkpointService.js';
+import type { CheckpointResponse } from '../checkpointService.js';
+import { HITL_CHECKPOINT_TIMEOUT_MS, HITL_MAX_CHECKPOINTS_PER_BUILD } from '../../utils/constants.js';
 
 // Re-export for backward compatibility (existing imports from executePhase)
 export { sanitizePlaceholder };
@@ -69,6 +72,10 @@ export interface ExecuteDeps {
   meetingBlockResolvers?: Map<string, () => void>;
   sessionId?: string;
   systemLevel?: SystemLevel;
+  enableCheckpoints?: boolean;
+  checkpointResolvers?: Map<string, (response: import('../checkpointService.js').CheckpointResponse) => void>;
+  checkpointsFired?: number;
+  onCheckpointFired?: () => void;
 }
 
 export class ExecutePhase {
@@ -159,6 +166,8 @@ export class ExecutePhase {
             completed.add(taskId);
             // Fire-and-forget: don't block the parallel pool
             this.evaluateTaskCompletedMeetings(ctx, completed.size).catch(() => {});
+            // HITL checkpoint evaluation
+            await this.evaluateCheckpoint(ctx, taskId, completed.size);
           } else {
             failed.add(taskId);
           }
@@ -417,6 +426,78 @@ export class ExecutePhase {
       ctx.send,
       systemLevel,
     );
+  }
+
+  /**
+   * Evaluate whether a HITL checkpoint should fire after a task completes.
+   * If so, emit checkpoint event and block until kid responds or timeout.
+   */
+  private async evaluateCheckpoint(
+    ctx: PhaseContext,
+    taskId: string,
+    completedCount: number,
+  ): Promise<void> {
+    if (!this.deps.enableCheckpoints) return;
+    const { checkpointResolvers, onCheckpointFired } = this.deps;
+    if (!checkpointResolvers || !onCheckpointFired) return;
+
+    const task = this.deps.taskMap[taskId];
+    if (!task) return;
+
+    const checkpointsFired = this.deps.checkpointsFired ?? 0;
+    const type = shouldFireCheckpoint(task, completedCount, this.deps.tasks.length, checkpointsFired, HITL_MAX_CHECKPOINTS_PER_BUILD);
+    if (!type) return;
+
+    const checkpoint = createCheckpoint(type, task, completedCount, this.deps.tasks.length);
+
+    // If choice type, try to read decision file from agent
+    if (type === 'choice') {
+      const decision = readDecisionFiles(ctx.nuggetDir, taskId);
+      if (decision) {
+        checkpoint.choices = decision.choices;
+        checkpoint.summary = decision.question;
+      }
+    }
+
+    // Emit checkpoint event
+    await ctx.send({
+      type: 'hitl_checkpoint',
+      checkpoint_id: checkpoint.checkpoint_id,
+      checkpoint_type: checkpoint.checkpoint_type,
+      task_id: checkpoint.task_id,
+      screenshot_base64: checkpoint.screenshot_base64,
+      choices: checkpoint.choices,
+      summary: checkpoint.summary,
+      progress_pct: checkpoint.progress_pct,
+      narrator_message: checkpoint.narrator_message,
+    });
+
+    onCheckpointFired();
+
+    // Block until kid responds or timeout
+    await new Promise<CheckpointResponse | null>((resolve) => {
+      checkpointResolvers.set(checkpoint.checkpoint_id, (response) => {
+        resolve(response);
+      });
+
+      const timer = setTimeout(() => {
+        checkpointResolvers.delete(checkpoint.checkpoint_id);
+        resolve(null);
+      }, HITL_CHECKPOINT_TIMEOUT_MS);
+
+      // Also resolve on abort
+      if (ctx.abortSignal.aborted) {
+        clearTimeout(timer);
+        checkpointResolvers.delete(checkpoint.checkpoint_id);
+        resolve(null);
+      } else {
+        ctx.abortSignal.addEventListener('abort', () => {
+          clearTimeout(timer);
+          checkpointResolvers.delete(checkpoint.checkpoint_id);
+          resolve(null);
+        }, { once: true });
+      }
+    });
   }
 
   /**

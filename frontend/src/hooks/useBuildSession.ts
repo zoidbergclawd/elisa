@@ -108,6 +108,16 @@ export interface BuildSessionState {
   isChatProcessing: boolean;
   chatTestSummary: { passed: number; failed: number; total: number } | null;
   previewRefreshKey: number;
+  activeCheckpoint: {
+    checkpoint_id: string;
+    checkpoint_type: 'visual' | 'choice' | 'progress';
+    task_id: string;
+    screenshot_base64?: string;
+    choices?: Array<{ id: string; label: string; description: string }>;
+    summary?: string;
+    progress_pct: number;
+    narrator_message?: string;
+  } | null;
 }
 
 const INITIAL_TOKEN_USAGE: TokenUsage = { input: 0, output: 0, total: 0, costUsd: 0, maxBudget: 500_000, perAgent: {} };
@@ -157,6 +167,7 @@ export const initialState: BuildSessionState = {
   isChatProcessing: false,
   chatTestSummary: null,
   previewRefreshKey: 0,
+  activeCheckpoint: null,
 };
 
 // -- Actions --
@@ -169,6 +180,7 @@ export type BuildSessionAction =
   | { type: 'CLEAR_GATE_REQUEST' }
   | { type: 'CLEAR_QUESTION_REQUEST' }
   | { type: 'CLEAR_ERROR_NOTIFICATION' }
+  | { type: 'CLEAR_CHECKPOINT' }
   | { type: 'RESET_FOR_BUILD' }
   | { type: 'RESET_TO_DESIGN' }
   | { type: 'STOP_BUILD' };
@@ -869,6 +881,25 @@ function handleWSEvent(state: BuildSessionState, event: WSEvent, deploySteps: Ar
         chatMessages: [...state.chatMessages, { role: 'agent', content: `Error: ${event.message}` }],
       };
 
+    case 'hitl_checkpoint':
+      return {
+        ...state,
+        events,
+        activeCheckpoint: {
+          checkpoint_id: event.checkpoint_id,
+          checkpoint_type: event.checkpoint_type,
+          task_id: event.task_id,
+          screenshot_base64: event.screenshot_base64,
+          choices: event.choices,
+          summary: event.summary,
+          progress_pct: event.progress_pct,
+          narrator_message: event.narrator_message,
+        },
+      };
+
+    case 'hitl_checkpoint_response':
+      return { ...state, events, activeCheckpoint: null };
+
     case 'visual_smoke_test':
       return {
         ...state,
@@ -1000,6 +1031,9 @@ export function buildSessionReducer(state: BuildSessionState, action: BuildSessi
     case 'CLEAR_ERROR_NOTIFICATION':
       return { ...state, errorNotification: null };
 
+    case 'CLEAR_CHECKPOINT':
+      return { ...state, activeCheckpoint: null };
+
     case 'RESET_FOR_BUILD':
       return {
         ...initialState,
@@ -1110,6 +1144,10 @@ export function useBuildSession() {
     dispatch({ type: 'CLEAR_ERROR_NOTIFICATION' });
   }, []);
 
+  const clearCheckpoint = useCallback(() => {
+    dispatch({ type: 'CLEAR_CHECKPOINT' });
+  }, []);
+
   const stopBuild = useCallback(async () => {
     if (!state.sessionId) return;
     await authFetch(`/api/sessions/${state.sessionId}/stop`, { method: 'POST' });
@@ -1214,6 +1252,7 @@ export function useBuildSession() {
     isChatProcessing: state.isChatProcessing,
     chatTestSummary: state.chatTestSummary,
     previewRefreshKey: state.previewRefreshKey,
+    activeCheckpoint: state.activeCheckpoint,
     handleEvent,
     createSession,
     startBuild,
@@ -1221,6 +1260,7 @@ export function useBuildSession() {
     clearGateRequest,
     clearQuestionRequest,
     clearErrorNotification,
+    clearCheckpoint,
     resetToDesign,
     launchWorkspace,
   };

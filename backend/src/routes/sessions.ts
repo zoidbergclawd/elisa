@@ -349,6 +349,17 @@ export function createSessionRouter({ store, sendEvent, hardwareService, deviceR
     res.json({ status: 'ok' });
   });
 
+  // HITL checkpoint response
+  router.post('/:id/checkpoint', (req, res) => {
+    const entry = store.get(req.params.id);
+    if (!entry?.orchestrator) { res.status(404).json({ detail: 'Session not found' }); return; }
+    entry.orchestrator.resolveCheckpoint(
+      req.body.checkpoint_id,
+      { response: req.body.response, choice_id: req.body.choice_id, comment: req.body.comment },
+    );
+    res.json({ status: 'ok' });
+  });
+
   // Question response
   router.post('/:id/question', (req, res) => {
     const entry = store.get(req.params.id);
