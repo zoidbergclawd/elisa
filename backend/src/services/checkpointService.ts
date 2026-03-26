@@ -54,13 +54,9 @@ export function shouldFireCheckpoint(
   const text = `${task.name ?? ''} ${task.description ?? ''}`.toLowerCase();
   if (DESIGN_KEYWORDS.test(text)) return 'visual';
 
-  // Progress checkpoints at ~33% and ~66% completion
-  // Skip if only 1 task (nothing meaningful to check in on) or at 100% (build about to end)
-  if (totalCount <= 1 || completedCount >= totalCount) return null;
-  const pct = completedCount / totalCount;
-  const prevPct = (completedCount - 1) / totalCount;
-  if (prevPct < 0.33 && pct >= 0.33) return 'progress';
-  if (prevPct < 0.66 && pct >= 0.66) return 'progress';
+  // Progress checkpoints disabled: without a deployed preview, kids have
+  // nothing actionable to respond to ("How does this look?" with nothing to look at).
+  // Only visual (screenshot) and choice (creative decision) checkpoints are useful.
 
   return null;
 }

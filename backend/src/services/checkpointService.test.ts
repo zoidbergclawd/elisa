@@ -37,38 +37,17 @@ describe('shouldFireCheckpoint', () => {
     expect(shouldFireCheckpoint(task, 1, 10, 0, 3)).toBe('visual');
   });
 
-  it('returns progress at ~33% boundary', () => {
+  it('does not fire progress checkpoints (disabled -- not actionable without preview)', () => {
     const task = makeTask({ name: 'Add logic' });
-    // completedCount=4, totalCount=10 -> pct=0.4, prevPct=0.3 -> crosses 0.33
-    expect(shouldFireCheckpoint(task, 4, 10, 0, 3)).toBe('progress');
+    // 33% boundary
+    expect(shouldFireCheckpoint(task, 4, 10, 0, 3)).toBeNull();
+    // 66% boundary
+    expect(shouldFireCheckpoint(task, 7, 10, 0, 3)).toBeNull();
   });
 
-  it('returns progress at ~66% boundary', () => {
-    const task = makeTask({ name: 'Add feature' });
-    // completedCount=7, totalCount=10 -> pct=0.7, prevPct=0.6 -> crosses 0.66
-    expect(shouldFireCheckpoint(task, 7, 10, 0, 3)).toBe('progress');
-  });
-
-  it('returns null when not at a boundary', () => {
-    const task = makeTask({ name: 'Add logic' });
-    // completedCount=5, totalCount=10 -> pct=0.5, prevPct=0.4 -> no boundary crossed
-    expect(shouldFireCheckpoint(task, 5, 10, 0, 3)).toBeNull();
-  });
-
-  it('visual takes priority over progress at 33%', () => {
+  it('still fires visual even at progress boundaries', () => {
     const task = makeTask({ name: 'Design the logo' });
-    // Would match both visual (keyword) and progress (33% boundary)
     expect(shouldFireCheckpoint(task, 4, 10, 0, 3)).toBe('visual');
-  });
-
-  it('does not fire progress for single-task builds', () => {
-    const task = makeTask({ name: 'Add logic' });
-    expect(shouldFireCheckpoint(task, 1, 1, 0, 3)).toBeNull();
-  });
-
-  it('does not fire progress at 100% completion', () => {
-    const task = makeTask({ name: 'Final task' });
-    expect(shouldFireCheckpoint(task, 10, 10, 0, 3)).toBeNull();
   });
 });
 

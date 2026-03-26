@@ -25,18 +25,10 @@ describe('HITL Checkpoint System', () => {
       expect(result).toBe('visual');
     });
 
-    it('fires progress checkpoint at 33% mark', () => {
+    it('does not fire progress checkpoints (disabled -- not actionable without preview)', () => {
       const task = makeTask({ name: 'Add game logic' });
-      // 4/10 = 40%, previous was 3/10 = 30% -> crosses 33%
-      const result = shouldFireCheckpoint(task, 4, 10, 0, 3);
-      expect(result).toBe('progress');
-    });
-
-    it('fires progress checkpoint at 66% mark', () => {
-      const task = makeTask({ name: 'Polish code' });
-      // 7/10 = 70%, previous was 6/10 = 60% -> crosses 66%
-      const result = shouldFireCheckpoint(task, 7, 10, 0, 3);
-      expect(result).toBe('progress');
+      expect(shouldFireCheckpoint(task, 4, 10, 0, 3)).toBeNull();
+      expect(shouldFireCheckpoint(task, 7, 10, 0, 3)).toBeNull();
     });
 
     it('respects max checkpoint limit', () => {
