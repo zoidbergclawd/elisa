@@ -140,6 +140,7 @@ export class SessionPersistence {
     deployUrl?: string;
     framework?: string;
     tokenUsage?: { input: number; output: number; total: number };
+    chatHistory?: Array<{ role: string; content: string; timestamp: number; filesChanged?: string[] }>;
   }): void {
     try {
       const elisaDir = path.join(nuggetDir, '.elisa');
@@ -160,7 +161,7 @@ export class SessionPersistence {
         deployUrl: extra?.deployUrl,
         framework: extra?.framework ?? (session.spec as any)?.framework,
         tokenUsage: extra?.tokenUsage ?? null,
-        chatHistory: [],
+        chatHistory: extra?.chatHistory ?? [],
       };
 
       const filePath = path.join(elisaDir, 'session.json');

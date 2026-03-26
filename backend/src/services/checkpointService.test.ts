@@ -130,4 +130,21 @@ describe('readDecisionFiles', () => {
     const expectedPath = path.join('/tmp/nugget', '.elisa', 'decisions', 'task-42.json');
     expect(spy).toHaveBeenCalledWith(expectedPath);
   });
+
+  it('returns decision data with multiple choices for choice checkpoint', () => {
+    const data = {
+      choices: [
+        { id: 'dark', label: 'Dark Mode', description: 'Use dark background' },
+        { id: 'light', label: 'Light Mode', description: 'Use light background' },
+      ],
+      question: 'Which color theme should we use?',
+    };
+    vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+    vi.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify(data));
+    const result = readDecisionFiles('/tmp/nugget', 'task-1');
+    expect(result).not.toBeNull();
+    expect(result!.choices).toHaveLength(2);
+    expect(result!.choices[0].id).toBe('dark');
+    expect(result!.question).toBe('Which color theme should we use?');
+  });
 });

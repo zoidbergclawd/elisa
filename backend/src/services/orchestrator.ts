@@ -69,7 +69,7 @@ export class Orchestrator {
 
   // HITL checkpoint: Promise-based blocking for kid checkpoint responses
   private checkpointResolvers = new Map<string, (response: import('./checkpointService.js').CheckpointResponse) => void>();
-  private checkpointsFired = 0;
+  private checkpointCounter = { value: 0 };
 
   // Services
   private agentRunner = new AgentRunner();
@@ -267,8 +267,8 @@ export class Orchestrator {
         systemLevel,
         enableCheckpoints: true,
         checkpointResolvers: this.checkpointResolvers,
-        checkpointsFired: this.checkpointsFired,
-        onCheckpointFired: () => { this.checkpointsFired++; },
+        checkpointsFired: this.checkpointCounter,
+        onCheckpointFired: () => { this.checkpointCounter.value++; },
       });
 
       // Initialize logger before execute so plan and execute phases get logging

@@ -74,7 +74,7 @@ export interface ExecuteDeps {
   systemLevel?: SystemLevel;
   enableCheckpoints?: boolean;
   checkpointResolvers?: Map<string, (response: import('../checkpointService.js').CheckpointResponse) => void>;
-  checkpointsFired?: number;
+  checkpointsFired?: { value: number };
   onCheckpointFired?: () => void;
 }
 
@@ -444,7 +444,7 @@ export class ExecutePhase {
     const task = this.deps.taskMap[taskId];
     if (!task) return;
 
-    const checkpointsFired = this.deps.checkpointsFired ?? 0;
+    const checkpointsFired = this.deps.checkpointsFired?.value ?? 0;
     const type = shouldFireCheckpoint(task, completedCount, this.deps.tasks.length, checkpointsFired, HITL_MAX_CHECKPOINTS_PER_BUILD);
     if (!type) return;
 
@@ -476,14 +476,15 @@ export class ExecutePhase {
 
     // Block until kid responds or timeout
     await new Promise<CheckpointResponse | null>((resolve) => {
-      checkpointResolvers.set(checkpoint.checkpoint_id, (response) => {
-        resolve(response);
-      });
-
       const timer = setTimeout(() => {
         checkpointResolvers.delete(checkpoint.checkpoint_id);
         resolve(null);
       }, HITL_CHECKPOINT_TIMEOUT_MS);
+
+      checkpointResolvers.set(checkpoint.checkpoint_id, (response) => {
+        clearTimeout(timer);
+        resolve(response);
+      });
 
       // Also resolve on abort
       if (ctx.abortSignal.aborted) {

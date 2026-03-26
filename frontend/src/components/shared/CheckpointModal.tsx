@@ -37,16 +37,21 @@ export default function CheckpointModal({
 
   const respond = async (response: 'approve' | 'reject' | 'choice', choiceId?: string) => {
     setSubmitting(true);
-    await authFetch(`/api/sessions/${sessionId}/checkpoint`, {
-      method: 'POST',
-      body: JSON.stringify({
-        checkpoint_id: checkpointId,
-        response,
-        choice_id: choiceId,
-        comment: comment || undefined,
-      }),
-    });
-    onClose();
+    try {
+      await authFetch(`/api/sessions/${sessionId}/checkpoint`, {
+        method: 'POST',
+        body: JSON.stringify({
+          checkpoint_id: checkpointId,
+          response,
+          choice_id: choiceId,
+          comment: comment || undefined,
+        }),
+      });
+      onClose();
+    } catch (err) {
+      console.error('Checkpoint response failed:', err);
+      setSubmitting(false);
+    }
   };
 
   const title =

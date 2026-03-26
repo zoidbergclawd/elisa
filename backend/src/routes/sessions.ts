@@ -12,6 +12,7 @@ import { AgentRunner } from '../services/agentRunner.js';
 import { SkillRunner } from '../services/skillRunner.js';
 import { NuggetSpecSchema, detectTruncations } from '../utils/specValidator.js';
 import { validateWorkspacePath } from '../utils/pathValidator.js';
+import { SessionPersistence } from '../utils/sessionPersistence.js';
 import { findFreePort } from '../utils/findFreePort.js';
 import { startStaticServer } from '../utils/staticServer.js';
 import { safeEnv } from '../utils/safeEnv.js';
@@ -282,8 +283,8 @@ export function createSessionRouter({ store, sendEvent, hardwareService, deviceR
     }
 
     const { message } = req.body ?? {};
-    if (!message || typeof message !== 'string') {
-      res.status(400).json({ detail: 'message is required and must be a string' });
+    if (typeof message !== 'string' || message.length === 0 || message.length > 5000) {
+      res.status(400).json({ detail: 'message is required, must be a string, and at most 5000 characters' });
       return;
     }
 
@@ -310,7 +311,14 @@ export function createSessionRouter({ store, sendEvent, hardwareService, deviceR
       nuggetDir,
       spec,
       entry.iterativeChat,
-    ).catch((err) => {
+    ).then(() => {
+      // Persist chat history to workspace after each message
+      if (entry.iterativeChat && entry.session) {
+        SessionPersistence.checkpointToWorkspace(nuggetDir, entry.session, {
+          chatHistory: entry.iterativeChat.turns,
+        });
+      }
+    }).catch((err) => {
       console.error('Chat processing error:', err);
       const errorMsg = err instanceof Error ? err.message : String(err);
       sendEvent(req.params.id, {
@@ -353,9 +361,21 @@ export function createSessionRouter({ store, sendEvent, hardwareService, deviceR
   router.post('/:id/checkpoint', (req, res) => {
     const entry = store.get(req.params.id);
     if (!entry?.orchestrator) { res.status(404).json({ detail: 'Session not found' }); return; }
+
+    const { checkpoint_id, response } = req.body ?? {};
+    if (!checkpoint_id || typeof checkpoint_id !== 'string') {
+      res.status(400).json({ detail: 'checkpoint_id is required and must be a non-empty string' });
+      return;
+    }
+    const validResponses = ['approve', 'reject', 'choice'];
+    if (!response || !validResponses.includes(response)) {
+      res.status(400).json({ detail: `response must be one of: ${validResponses.join(', ')}` });
+      return;
+    }
+
     entry.orchestrator.resolveCheckpoint(
-      req.body.checkpoint_id,
-      { response: req.body.response, choice_id: req.body.choice_id, comment: req.body.comment },
+      checkpoint_id,
+      { response, choice_id: req.body.choice_id, comment: req.body.comment },
     );
     res.json({ status: 'ok' });
   });

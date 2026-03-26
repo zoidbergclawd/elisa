@@ -4,7 +4,7 @@ import { Router } from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { listProjects } from '../services/projectIndex.js';
+import { listProjects, getProjectsDir } from '../services/projectIndex.js';
 import type { SessionStore } from '../services/sessionStore.js';
 
 interface ProjectRouterDeps {
@@ -30,6 +30,13 @@ export function createProjectRouter({ store }: ProjectRouterDeps): Router {
     const { projectDir } = req.body;
     if (!projectDir || typeof projectDir !== 'string') {
       res.status(400).json({ detail: 'projectDir is required' });
+      return;
+    }
+
+    const projectsRoot = path.resolve(getProjectsDir());
+    const resolved = path.resolve(projectDir);
+    if (!resolved.startsWith(projectsRoot + path.sep)) {
+      res.status(403).json({ detail: 'Project directory outside allowed path' });
       return;
     }
 

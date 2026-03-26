@@ -37,10 +37,6 @@ export class IterativeChatService {
     };
   }
 
-  getSession(sessionId: string, chatSession: IterativeChatSession | undefined): IterativeChatSession | undefined {
-    return chatSession;
-  }
-
   async processMessage(
     sessionId: string,
     message: string,
@@ -56,7 +52,7 @@ export class IterativeChatService {
     chatSession.isProcessing = true;
 
     try {
-      await send({ type: 'chat_processing', message: 'Thinking about your request...' });
+      await send({ type: 'chat_processing', message });
 
       // Record kid's turn
       chatSession.turns.push({

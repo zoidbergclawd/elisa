@@ -72,7 +72,7 @@ describe('GET /api/projects', () => {
 
 describe('POST /api/sessions/:id/restore', () => {
   it('restores a session from project directory', async () => {
-    const projDir = path.join(tmpDir, 'test-project');
+    const projDir = path.join(tmpDir, 'Elisa', 'projects', 'test-project');
     const elisaDir = path.join(projDir, '.elisa');
     fs.mkdirSync(elisaDir, { recursive: true });
     fs.writeFileSync(path.join(elisaDir, 'session.json'), JSON.stringify({
@@ -118,8 +118,21 @@ describe('POST /api/sessions/:id/restore', () => {
     expect(body.detail).toBe('projectDir is required');
   });
 
+  it('returns 403 for path outside projects root', async () => {
+    const projDir = path.join(tmpDir, 'outside-project');
+    fs.mkdirSync(projDir, { recursive: true });
+
+    const res = await fetch(`${baseUrl}/api/sessions/test/restore`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectDir: projDir }),
+    });
+
+    expect(res.status).toBe(403);
+  });
+
   it('returns 404 when session.json is missing', async () => {
-    const projDir = path.join(tmpDir, 'empty-project');
+    const projDir = path.join(tmpDir, 'Elisa', 'projects', 'empty-project');
     fs.mkdirSync(projDir, { recursive: true });
 
     const res = await fetch(`${baseUrl}/api/sessions/test/restore`, {
@@ -132,7 +145,7 @@ describe('POST /api/sessions/:id/restore', () => {
   });
 
   it('returns 422 for invalid JSON', async () => {
-    const projDir = path.join(tmpDir, 'bad-project');
+    const projDir = path.join(tmpDir, 'Elisa', 'projects', 'bad-project');
     const elisaDir = path.join(projDir, '.elisa');
     fs.mkdirSync(elisaDir, { recursive: true });
     fs.writeFileSync(path.join(elisaDir, 'session.json'), '{broken json');

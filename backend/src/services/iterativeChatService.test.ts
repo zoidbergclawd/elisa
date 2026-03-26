@@ -153,6 +153,84 @@ describe('IterativeChatService', () => {
       ).rejects.toThrow('already processing');
     });
 
+    it('emits chat_preview_refresh when files change', async () => {
+      const chatSession = service.createSession('sess-1');
+
+      // Mock the private snapshotFiles to return different snapshots before/after
+      let snapshotCallCount = 0;
+      vi.spyOn(service as any, 'snapshotFiles').mockImplementation(() => {
+        snapshotCallCount++;
+        const map = new Map<string, number>();
+        if (snapshotCallCount === 1) {
+          // Before snapshot
+          map.set('index.js', 1000);
+        } else {
+          // After snapshot -- different mtime means file changed
+          map.set('index.js', 2000);
+        }
+        return map;
+      });
+
+      await service.processMessage(
+        'sess-1',
+        'Change the heading',
+        send,
+        '/fake/workspace',
+        null,
+        chatSession,
+      );
+
+      const types = events.map(e => e.type);
+      expect(types).toContain('chat_preview_refresh');
+
+      // Also verify the chat_response includes filesChanged
+      const chatResponse = events.find(e => e.type === 'chat_response') as any;
+      expect(chatResponse.filesChanged).toContain('index.js');
+    });
+
+    it('does not emit chat_tests_completed when tests dir does not exist', async () => {
+      const fs = await import('node:fs');
+      const chatSession = service.createSession('sess-1');
+
+      // Make existsSync return false for tests dir
+      (fs.default.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(false);
+
+      await service.processMessage(
+        'sess-1',
+        'Update the title',
+        send,
+        '/fake/workspace',
+        null,
+        chatSession,
+      );
+
+      const types = events.map(e => e.type);
+      expect(types).not.toContain('chat_tests_completed');
+
+      // Restore default mock
+      (fs.default.existsSync as ReturnType<typeof vi.fn>).mockImplementation((p: string) => {
+        if (typeof p === 'string' && p.includes('tests')) return true;
+        return false;
+      });
+    });
+
+    it('sends kid message text in chat_processing event', async () => {
+      const chatSession = service.createSession('sess-1');
+
+      await service.processMessage(
+        'sess-1',
+        'Make it blue',
+        send,
+        '/fake/workspace',
+        null,
+        chatSession,
+      );
+
+      const processingEvent = events.find(e => e.type === 'chat_processing');
+      expect(processingEvent).toBeDefined();
+      expect((processingEvent as any).message).toBe('Make it blue');
+    });
+
     it('emits chat_error on failure and clears isProcessing', async () => {
       const chatSession = service.createSession('sess-1');
 
