@@ -44,7 +44,7 @@ export default function IterativeChatPanel({ onBuildNew, onKeepWorking }: Iterat
     if (!trimmed || isAgentThinking) return;
     sendMessage(trimmed);
     setInputValue('');
-  }, [isAgentThinking, sendMessage]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isAgentThinking, sendMessage]);
 
   const passing = testResults.filter(t => t.passed === true).length;
   const total = testResults.length;
