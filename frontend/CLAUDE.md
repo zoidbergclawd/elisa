@@ -26,11 +26,12 @@ src/
     Skills/                  Skills editor modal + template library + SkillFlowEditor (visual flow editor)
     Rules/                   Rules editor modal + template library
     Portals/                 Portals editor modal + registry
+    IterativeChat/           Post-build chat: IterativeChatPanel.tsx (message list, input, test summary, preview refresh)
     Meeting/                 Agent Meeting framework: MeetingModal (composes ChatPanel+CanvasPanel+MeetingLayout), canvasRegistry, DefaultCanvas, ThemePickerCanvas, BugDetectiveCanvas, BlueprintCanvas, CampaignCanvas, ExplainItCanvas, InterfaceDesignerCanvas, LaunchPadCanvas, AgentStudioCanvas, FacePreview
     SystemPanel/             System main tab: architecture explorer (spec view pre-build, task list + detail during/post-build)
     TestPanel/               Tests main tab: TestPanel, TestList, AddTestForm (behavioral test management)
     TeamPanel/               Persistent Team tab: TeamPanel, TeamMemberList, TeamConversation (reuses ChatPanel+CanvasPanel)
-    shared/                  MainTabBar (workspace/mission/team), GoButton, ModalHost, HumanGateModal, QuestionModal, TeachingToast, AgentAvatar, ReadinessBadge, ExamplePickerModal, DirectoryPickerModal, FlashWizardModal, MeetingInviteToast (auto-dismiss preserves invite), DisplayThemePreview, EsptoolFlashStep, ImpactPreview
+    shared/                  MainTabBar (workspace/mission/team), GoButton, ModalHost, HumanGateModal, QuestionModal, TeachingToast, AgentAvatar, ReadinessBadge, ExamplePickerModal, DirectoryPickerModal, FlashWizardModal, MeetingInviteToast (auto-dismiss preserves invite), DisplayThemePreview, EsptoolFlashStep, ImpactPreview, CheckpointModal
   hooks/
     usePlanningSession.ts    Planning Mode state via useReducer + WS events (plan, questions, mutations)
     useBuildSession.ts       Build session state via useReducer (typed actions + reducer)

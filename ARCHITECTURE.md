@@ -199,8 +199,9 @@ idle -> planning -> executing -> testing -> deploying -> done
                                                            |
                                                            +-> fix (POST /fix: targeted bug fix -> re-test)
                                                            +-> launch (POST /launch: serve without rebuild)
+                                                           +-> chat (POST /chat: iterative conversation loop, stays in done)
 
-Note: `reviewing` is a transient state during human gate pauses within execution, not a separate pipeline phase. Reviewer agents execute as tasks within the execute phase.
+Note: `reviewing` is a transient state during human gate pauses within execution, not a separate pipeline phase. Reviewer agents execute as tasks within the execute phase. During execution, HITL checkpoints may pause task processing for kid approval (visual, choice, or progress checkpoints).
 ```
 
 ## Key Patterns

@@ -337,6 +337,7 @@ Blockly workspace
   -> (optional) "Keep working" -> design phase -> re-build with existing workspace + git history
   -> (optional) POST /fix -> targeted bug fix task -> re-test -> fix_* events
   -> (optional) POST /launch -> serve built nugget without rebuild -> deploy_complete
+  -> (optional) POST /chat -> IterativeChatService -> iterative conversation -> stays in done
 ```
 
 ### Planning Mode Pipeline (PRD-004)

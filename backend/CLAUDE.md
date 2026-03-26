@@ -61,6 +61,8 @@ src/
     deviceRegistry.ts    Loads device plugin manifests, provides block defs + agent context
     meetingRegistry.ts   Meeting type registry + trigger engine for build events
     meetingService.ts    In-memory meeting session lifecycle management
+    iterativeChatService.ts  Post-build iterative chat: runs agent against workspace, detects file changes, re-runs tests
+    checkpointService.ts  HITL checkpoints: shouldFireCheckpoint(), createCheckpoint(), readDecisionFiles() for mid-build kid checkpoints
     meetingAgentService.ts  Claude-powered agent responses for meeting chat (Haiku)
     meetingMaterializer.ts  Materializes canvas data into real workspace files (HTML, JSON, Markdown)
     taskMeetingTypes.ts  Task-level meeting types (design review before art/visual tasks)
