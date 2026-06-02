@@ -8,7 +8,7 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
-import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentResult } from '../models/session.js';
 import { withTimeout, TimeoutError } from '../utils/withTimeout.js';
@@ -26,37 +26,77 @@ function diagLog(lines: string[]): void {
 }
 
 /**
- * Resolve the path to cli.js bundled with `@anthropic-ai/claude-agent-sdk`.
+ * Elisa-owned config directory for the Claude Code CLI subprocess.
+ *
+ * Pointing CLAUDE_CONFIG_DIR here isolates the CLI from the host operator's
+ * personal `~/.claude` directory: the subprocess can neither fall back to a host
+ * login nor pollute the operator's real credentials. Elisa is a kids' app and
+ * must always run on the configured ANTHROPIC_API_KEY, never an ambient login.
+ */
+const ELISA_CLAUDE_CONFIG_DIR = path.join(os.homedir(), '.elisa', 'claude-cli-config');
+
+/**
+ * Build the environment for the CLI subprocess.
+ *
+ * In claude-agent-sdk 0.3.x, `options.env` REPLACES process.env for the spawned
+ * subprocess (it is not merged), so we spread process.env to preserve PATH and
+ * friends. We then force ANTHROPIC_API_KEY (kids' app: never ride a host login)
+ * and isolate CLAUDE_CONFIG_DIR to an Elisa-owned directory so the CLI cannot
+ * fall back to the operator's `~/.claude` credentials.
+ */
+function buildSubprocessEnv(): NodeJS.ProcessEnv {
+  // Best-effort: ensure the isolated config dir exists so the CLI has a writable home.
+  try {
+    fs.mkdirSync(ELISA_CLAUDE_CONFIG_DIR, { recursive: true });
+  } catch { /* best-effort; CLI will create/handle it if absent */ }
+
+  return {
+    ...process.env,
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '',
+    CLAUDE_CONFIG_DIR: ELISA_CLAUDE_CONFIG_DIR,
+  };
+}
+
+/**
+ * Resolve the path to the native Claude Code CLI binary shipped with
+ * `@anthropic-ai/claude-agent-sdk` (0.3.x). The CLI is a per-platform native
+ * executable (`claude`, or `claude.exe` on Windows) delivered as the
+ * host-platform optional dependency `@anthropic-ai/claude-agent-sdk-<plat>-<arch>`.
  *
  * Production (Electron): ELISA_RESOURCES_PATH is set by Electron main process;
- *   cli.js lives at <resources>/backend-dist/node_modules/@anthropic-ai/claude-agent-sdk/cli.js
+ *   the binary lives at
+ *   <resources>/backend-dist/node_modules/@anthropic-ai/claude-agent-sdk-<plat>-<arch>/<bin>
  *   (afterPack renames vendor/ -> node_modules/).
  *
- * Dev: resolve relative to the SDK package via import.meta.resolve.
+ * Dev: resolve the native subpath via createRequire(import.meta.url).resolve.
  *
- * This ensures the app works whether or not Claude Code is installed on the system.
+ * Returning undefined lets the SDK auto-resolve the binary itself (0.3.x can do
+ * this from node_modules), so the app still works if the explicit path is absent.
  */
 function resolveClaudeCodePath(): string | undefined {
-  const sdkSubpath = path.join('@anthropic-ai', 'claude-agent-sdk', 'cli.js');
+  const CLAUDE_BIN = process.platform === 'win32' ? 'claude.exe' : 'claude';
+  const platformPkg = `claude-agent-sdk-${process.platform}-${process.arch}`;
 
   // Production: use ELISA_RESOURCES_PATH set by Electron
   if (process.env.ELISA_RESOURCES_PATH) {
-    const prodPath = path.join(process.env.ELISA_RESOURCES_PATH, 'backend-dist', 'node_modules', sdkSubpath);
+    const prodPath = path.join(
+      process.env.ELISA_RESOURCES_PATH,
+      'backend-dist', 'node_modules', '@anthropic-ai', platformPkg, CLAUDE_BIN,
+    );
     if (fs.existsSync(prodPath)) return prodPath;
-    console.warn(`[agentRunner] cli.js not found at production path: ${prodPath}`);
+    console.warn(`[agentRunner] Claude binary not found at production path: ${prodPath}`);
   }
 
-  // Dev: resolve from the SDK package location
+  // Dev: resolve the native subpath from the host-platform optional dependency
   try {
-    const sdkEntry = import.meta.resolve('@anthropic-ai/claude-agent-sdk');
-    const sdkDir = path.dirname(fileURLToPath(sdkEntry));
-    const devPath = path.join(sdkDir, 'cli.js');
+    const nodeRequire = createRequire(import.meta.url);
+    const devPath = nodeRequire.resolve(`@anthropic-ai/${platformPkg}/${CLAUDE_BIN}`);
     if (fs.existsSync(devPath)) return devPath;
   } catch {
-    // import.meta.resolve unavailable or package not found
+    // optional dep not present (foreign arch / --omit=optional); fall through
   }
 
-  // Fallback: let the SDK auto-detect (works if Claude Code is in PATH)
+  // Fallback: let the SDK auto-resolve the native binary from node_modules
   return undefined;
 }
 
@@ -190,7 +230,7 @@ export class AgentRunner {
       `\n=== Agent spawn: ${new Date().toISOString()} ===`,
       `Task: ${taskId}`,
       `Executable: ${process.execPath}`,
-      `cli.js: ${claudeCodePath ?? 'auto-detect'}`,
+      `claude binary path: ${claudeCodePath ?? '(auto-resolve)'}`,
       `CWD: ${cwd}`,
       `Model: ${model}`,
       `Node: ${process.version}`,
@@ -203,6 +243,16 @@ export class AgentRunner {
 
     const isComplex = complexity !== undefined && complexity > EFFORT_COMPLEX_THRESHOLD;
 
+    // Build the subprocess environment. As of claude-agent-sdk 0.3.x, options.env
+    // REPLACES process.env for the CLI subprocess (it is not merged), so we must
+    // spread process.env ourselves or the subprocess loses everything (PATH, etc.).
+    //
+    // Elisa is a kids' app: every agent MUST run on the configured ANTHROPIC_API_KEY
+    // and must NEVER silently ride a host ~/.claude login. We force the key explicitly
+    // and point CLAUDE_CONFIG_DIR at an Elisa-owned directory so the CLI cannot fall
+    // back to (or write into) the operator's personal Claude credentials.
+    const subprocessEnv = buildSubprocessEnv();
+
     const conversation = query({
       prompt,
       options: {
@@ -214,6 +264,7 @@ export class AgentRunner {
         effort: isComplex ? 'max' : 'high',
         thinking: { type: 'adaptive' },
         maxBudgetUsd: isComplex ? 5.0 : 2.0,
+        env: subprocessEnv,
         ...electronExecConfig,
         ...(claudeCodePath ? { pathToClaudeCodeExecutable: claudeCodePath } : {}),
         ...(allowedTools ? { allowedTools } : {}),

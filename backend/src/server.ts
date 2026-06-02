@@ -167,15 +167,15 @@ async function validateStartupHealth(): Promise<void> {
     healthStatus.agentSdk = 'not_found';
   }
 
-  // Check Claude Code CLI (cli.js) -- required by the SDK at runtime
+  // Check Claude Code native CLI binary -- the SDK can also auto-resolve it
   const cliPath = getClaudeCodePath();
   if (cliPath) {
     healthStatus.claudeCodeCli = 'found';
     healthStatus.claudeCodeCliPath = cliPath;
-    console.log(`[health] Claude Code CLI resolved: ${cliPath}`);
+    console.log(`[health] Claude Code native binary resolved: ${cliPath}`);
   } else {
     healthStatus.claudeCodeCli = 'not_found';
-    console.error('[health] Claude Code CLI (cli.js) not found. Agent builds will fail. Ensure @anthropic-ai/claude-agent-sdk is installed or Claude Code is in PATH.');
+    console.warn('[health] Claude Code native binary not explicitly resolved; the SDK will attempt auto-resolution from node_modules. Agent builds may fail if the host-platform optional dependency is missing.');
   }
 
   // Check API key

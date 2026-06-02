@@ -56,6 +56,15 @@ module.exports = {
     category: 'public.app-category.developer-tools',
     hardenedRuntime: true,
     gatekeeperAssess: false,
+    // The bundled Claude Agent SDK CLI is a Bun-based native binary. Under the
+    // hardened runtime it needs JIT, unsigned-executable-memory, library-validation
+    // disabled, and dyld env-var passthrough. electron-builder's deep sign re-signs
+    // the nested binary under Elisa's identity (do NOT add it to signIgnore).
+    entitlements: 'build/entitlements.mac.plist',
+    entitlementsInherit: 'build/entitlements.mac.inherit.plist',
+    // D3: re-sign + notarize. Requires APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD /
+    // APPLE_TEAM_ID (or APPLE_API_KEY/APPLE_API_KEY_ID/APPLE_API_ISSUER) in CI.
+    notarize: true,
   },
   nsis: {
     oneClick: false,
@@ -87,13 +96,37 @@ module.exports = {
       fs.renameSync(vendor, nodeModules);
     }
 
-    // Verify critical files exist after rename
-    const cliJs = path.join(nodeModules, '@anthropic-ai', 'claude-agent-sdk', 'cli.js');
-    const sdkMjs = path.join(nodeModules, '@anthropic-ai', 'claude-agent-sdk', 'sdk.mjs');
-    console.log(`afterPack: cli.js exists: ${fs.existsSync(cliJs)}`);
-    console.log(`afterPack: sdk.mjs exists: ${fs.existsSync(sdkMjs)}`);
-    if (!fs.existsSync(cliJs)) {
-      console.error(`afterPack: CRITICAL -- cli.js missing at ${cliJs}. Agent builds will fail in production.`);
+    // Verify the native Claude Agent SDK CLI binary landed at exactly the path
+    // backend/src/services/agentRunner.ts resolveClaudeCodePath() expects in prod:
+    //   <resources>/backend-dist/node_modules/@anthropic-ai/claude-agent-sdk-<plat>-<arch>/<bin>
+    // As of agent-sdk 0.3.x the CLI is a per-platform native binary delivered via
+    // the host-platform optional dependency (file name: 'claude', or 'claude.exe' on win32).
+    // Each per-arch runner vendors only its OWN host package, so we check against
+    // process.platform/process.arch (D1 FULL COVERAGE via per-arch runners).
+    const nativeBin = path.join(
+      nodeModules,
+      '@anthropic-ai',
+      `claude-agent-sdk-${process.platform}-${process.arch}`,
+      process.platform === 'win32' ? 'claude.exe' : 'claude',
+    );
+    console.log(`afterPack: native CLI binary expected at: ${nativeBin}`);
+    if (!fs.existsSync(nativeBin)) {
+      // THROW to fail the build -- a packaged app without this binary cannot run agents.
+      throw new Error(
+        `afterPack: FATAL -- native Claude Agent SDK CLI binary missing at ${nativeBin}. ` +
+          `The host-platform optional dependency ` +
+          `@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch} was not vendored. ` +
+          `Agent builds would be impossible in production; failing the build.`,
+      );
     }
+    if (process.platform !== 'win32') {
+      // Guarantee the user-exec bit survives packaging (NTFS has no POSIX exec bit).
+      fs.chmodSync(nativeBin, 0o755);
+    }
+    const { size, mode } = fs.statSync(nativeBin);
+    console.log(
+      `afterPack: verified native CLI binary (mode=${(mode & 0o777).toString(8)}, ` +
+        `size=${size} bytes, ${(size / (1024 * 1024)).toFixed(1)} MB).`,
+    );
   },
 };

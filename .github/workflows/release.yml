@@ -10,6 +10,20 @@ permissions:
 
 jobs:
   build:
+    # Full per-arch coverage via dedicated native runners. Each runner natively
+    # installs ONLY its own optional native dep — no force-install hacks.
+    #   macOS x64   -> macos-13 (Intel)
+    #   macOS arm64 -> macos-latest (Apple Silicon)
+    #   Windows x64 -> windows-latest
+    # KNOWN GAP: win32-arm64 is intentionally not built. GitHub-hosted Windows
+    # ARM runners are preview/limited, so there is no reliable native runner for
+    # win32-arm64 at this time. Windows ARM users are unsupported until a stable
+    # GitHub-hosted Windows ARM runner is available.
+    #
+    # Required GitHub secrets for signing + notarization:
+    #   macOS:   MAC_CSC_LINK, MAC_CSC_KEY_PASSWORD (Developer ID signing)
+    #            APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID (notarization)
+    #   Windows: WIN_CSC_LINK, WIN_CSC_KEY_PASSWORD (optional code signing)
     strategy:
       fail-fast: false
       matrix:
@@ -20,7 +34,16 @@ jobs:
               release/*.exe
               release/*.blockmap
               release/latest.yml
+          # macOS arm64 (Apple Silicon)
           - os: macos-latest
+            cmd: dist:mac
+            artifact_glob: |
+              release/*.dmg
+              release/*.zip
+              release/*.blockmap
+              release/latest-mac.yml
+          # macOS x64 (Intel)
+          - os: macos-13
             cmd: dist:mac
             artifact_glob: |
               release/*.dmg
@@ -50,11 +73,11 @@ jobs:
           # Mac code signing (only on macOS runner)
           CSC_LINK: ${{ runner.os == 'macOS' && secrets.MAC_CSC_LINK || '' }}
           CSC_KEY_PASSWORD: ${{ runner.os == 'macOS' && secrets.MAC_CSC_KEY_PASSWORD || '' }}
-          # Mac notarization — disabled until Apple clears first-time submissions
-          # Re-enable by uncommenting these lines:
-          # APPLE_ID: ${{ runner.os == 'macOS' && secrets.APPLE_ID || '' }}
-          # APPLE_APP_SPECIFIC_PASSWORD: ${{ runner.os == 'macOS' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
-          # APPLE_TEAM_ID: ${{ runner.os == 'macOS' && secrets.APPLE_TEAM_ID || '' }}
+          # Mac notarization (only on macOS runner) — re-signs the nested Anthropic
+          # CLI binary under Elisa's identity and notarizes the app with Apple.
+          APPLE_ID: ${{ runner.os == 'macOS' && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ runner.os == 'macOS' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ runner.os == 'macOS' && secrets.APPLE_TEAM_ID || '' }}
           # Windows code signing (only on Windows runner)
           WIN_CSC_LINK: ${{ runner.os == 'Windows' && secrets.WIN_CSC_LINK || '' }}
           WIN_CSC_KEY_PASSWORD: ${{ runner.os == 'Windows' && secrets.WIN_CSC_KEY_PASSWORD || '' }}

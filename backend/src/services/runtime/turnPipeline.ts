@@ -203,10 +203,11 @@ export class TurnPipeline {
           }
         }
 
-        // Collect tool_use blocks
-        const toolUseBlocks = response.content.filter(
-          (b: any): b is ToolUseBlock => b.type === 'tool_use',
-        );
+        // Collect tool_use blocks. The SDK types `input` as `unknown`; the local
+        // ToolUseBlock narrows it to Record<string, unknown>, so map explicitly.
+        const toolUseBlocks: ToolUseBlock[] = response.content
+          .filter((b) => b.type === 'tool_use')
+          .map((b) => b as unknown as ToolUseBlock);
 
         // Execute all tool calls
         const toolResults = await toolExecutor.executeAll(toolUseBlocks);
