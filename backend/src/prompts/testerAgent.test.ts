@@ -64,7 +64,15 @@ describe('testerAgent SYSTEM_PROMPT', () => {
 });
 
 describe('testerAgent formatTaskPrompt', () => {
-  const baseParams = {
+  const baseParams: {
+    agentName: string;
+    role: string;
+    persona: string;
+    task: any;
+    spec: any;
+    predecessors: string[];
+    style?: any;
+  } = {
     agentName: 'Test Bot',
     role: 'tester',
     persona: 'A detective',
@@ -96,7 +104,7 @@ describe('testerAgent formatTaskPrompt', () => {
   it('omits acceptance criteria when empty', () => {
     const result = formatTaskPrompt({
       ...baseParams,
-      task: { name: 'T', description: 'D', acceptance_criteria: [] },
+      task: { name: 'T', description: 'D', acceptance_criteria: [] } as any,
     });
     expect(result).not.toContain('Acceptance Criteria');
   });
@@ -104,7 +112,7 @@ describe('testerAgent formatTaskPrompt', () => {
   it('omits acceptance criteria when undefined', () => {
     const result = formatTaskPrompt({
       ...baseParams,
-      task: { name: 'T', description: 'D' },
+      task: { name: 'T', description: 'D' } as any,
     });
     expect(result).not.toContain('Acceptance Criteria');
   });

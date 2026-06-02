@@ -41,7 +41,7 @@ describe('StubRuntimeProvisioner', () => {
   describe('provision', () => {
     it('returns result with agent_id, api_key, and runtime_url', async () => {
       const provisioner = new StubRuntimeProvisioner();
-      const result = await provisioner.provision({ name: 'test-nugget' });
+      const result = await provisioner.provision({ name: 'test-nugget' } as any);
 
       expect(result).toHaveProperty('agent_id');
       expect(result).toHaveProperty('api_key');
@@ -93,7 +93,7 @@ describe('StubRuntimeProvisioner', () => {
     it('resolves without error', async () => {
       const provisioner = new StubRuntimeProvisioner();
       await expect(
-        provisioner.updateConfig('some-id', { personality: 'friendly' }),
+        provisioner.updateConfig('some-id', { personality: 'friendly' } as any),
       ).resolves.toBeUndefined();
     });
   });

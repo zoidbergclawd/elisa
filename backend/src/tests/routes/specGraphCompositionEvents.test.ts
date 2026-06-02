@@ -1,6 +1,6 @@
 /** Tests for composition event emission from specGraph route handlers. */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import http from 'node:http';
 import express from 'express';
 import { SpecGraphService } from '../../services/specGraph.js';
@@ -11,7 +11,7 @@ import type { WSEvent } from '../../services/phases/types.js';
 let server: http.Server | null = null;
 let baseUrl = '';
 let specGraphService: SpecGraphService;
-let sendEventMock: ReturnType<typeof vi.fn>;
+let sendEventMock: Mock<(sessionId: string, event: WSEvent) => Promise<void>>;
 let sentEvents: Array<{ sessionId: string; event: WSEvent }>;
 
 function createTestApp() {

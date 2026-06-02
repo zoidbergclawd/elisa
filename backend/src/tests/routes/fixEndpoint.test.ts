@@ -1,6 +1,6 @@
 /** Tests for POST /api/sessions/:id/fix endpoint. */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { Router } from 'express';
 import express from 'express';
 import http from 'node:http';
@@ -50,7 +50,7 @@ async function listen(app: express.Application): Promise<{ server: http.Server; 
 
 describe('POST /api/sessions/:id/fix', () => {
   let store: SessionStore;
-  let sendEvent: ReturnType<typeof vi.fn>;
+  let sendEvent: Mock<(id: string, evt: WSEvent) => Promise<void>>;
   let app: express.Application;
   let server: http.Server;
   let port: number;
@@ -96,7 +96,7 @@ describe('POST /api/sessions/:id/fix', () => {
       body: JSON.stringify({ bugReport: 'test bug' }),
     });
     expect(res.status).toBe(409);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toContain('done state');
   });
 
@@ -115,7 +115,7 @@ describe('POST /api/sessions/:id/fix', () => {
       body: JSON.stringify({}),
     });
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toContain('bugReport');
   });
 
@@ -134,7 +134,7 @@ describe('POST /api/sessions/:id/fix', () => {
       body: JSON.stringify({ bugReport: 'some bug' }),
     });
     expect(res.status).toBe(409);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toContain('orchestrator');
   });
 
@@ -155,7 +155,7 @@ describe('POST /api/sessions/:id/fix', () => {
       body: JSON.stringify({ bugReport: 'Button is broken' }),
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.status).toBe('fix_started');
 
     // Give async runFix a tick to be called

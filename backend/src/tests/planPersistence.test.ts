@@ -177,7 +177,7 @@ describe('Plan Persistence', () => {
       (readyOutput.plan as any).skills = [{ name: 'S1', description: 'Skill' }];
       (readyOutput.plan as any).portals = [{ name: 'API', subtype: 'api', description: 'AI' }];
       (readyOutput.plan as any).deploy.target = 'web';
-      readyOutput.question = null;
+      readyOutput.question = null as any;
       mockClaudeResponse(readyOutput);
       await service.startPlanning('session-1', 'Test app');
 

@@ -231,7 +231,7 @@ describe('deployPortals - teaching moment', () => {
     const calls = getSendCalls(ctx);
     const teachEvent = calls.find((c) => c.type === 'teaching_moment');
     expect(teachEvent).toBeDefined();
-    expect(teachEvent.concept).toBe('portals');
+    expect(teachEvent!.concept).toBe('portals');
   });
 });
 
@@ -249,7 +249,8 @@ describe('findFreePort', () => {
     // Occupy a port, then ask findFreePort to start from it
     const occupied = net.createServer();
     const occupiedPort = await new Promise<number>((resolve) => {
-      occupied.listen(0, () => {
+      // Occupy on 127.0.0.1 to match the interface findFreePort probes / servers bind to
+      occupied.listen(0, '127.0.0.1', () => {
         resolve((occupied.address() as net.AddressInfo).port);
       });
     });

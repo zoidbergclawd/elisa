@@ -755,8 +755,8 @@ describe('plan contents propagation', () => {
 // ============================================================
 
 describe('test gate', () => {
-  const builderSpec = { ...minimalWebSpec, workflow: { system_level: 'builder' } };
-  const architectSpec = { ...minimalWebSpec, workflow: { system_level: 'architect' } };
+  const builderSpec = { ...minimalWebSpec, workflow: { system_level: 'builder' } } as any;
+  const architectSpec = { ...minimalWebSpec, workflow: { system_level: 'architect' } } as any;
 
   it('explorer: deploys regardless of test failures', async () => {
     const { orchestrator, events } = setup(minimalWebSpec);

@@ -41,10 +41,13 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  // Kill any launch processes spawned during tests
+  // Kill any launch processes and close any static servers spawned during tests
   for (const [, entry] of store) {
     if (entry.launchProcess) {
       try { entry.launchProcess.kill(); } catch { /* ignore */ }
+    }
+    if (entry.staticServer) {
+      try { entry.staticServer.close(); } catch { /* ignore */ }
     }
   }
   await new Promise<void>((resolve) => server.close(() => resolve()));
@@ -70,7 +73,7 @@ describe('POST /api/sessions/:id/launch', () => {
   it('returns 400 when no workspace directory is available', async () => {
     // Create a session without an orchestrator
     const createRes = await fetch(`${baseUrl}/api/sessions`, { method: 'POST' });
-    const { session_id } = await createRes.json();
+    const { session_id } = await createRes.json() as any;
 
     const res = await fetch(`${baseUrl}/api/sessions/${session_id}/launch`, {
       method: 'POST',
@@ -78,13 +81,13 @@ describe('POST /api/sessions/:id/launch', () => {
       body: JSON.stringify({}),
     });
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toBe('No workspace directory available');
   });
 
   it('returns 400 when workspace has no index.html', async () => {
     const createRes = await fetch(`${baseUrl}/api/sessions`, { method: 'POST' });
-    const { session_id } = await createRes.json();
+    const { session_id } = await createRes.json() as any;
 
     // Create a workspace dir with no index.html
     const workDir = path.join(tmpDir, 'empty-project');
@@ -97,13 +100,13 @@ describe('POST /api/sessions/:id/launch', () => {
       body: JSON.stringify({ workspace_path: workDir }),
     });
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toBe('No index.html found in workspace');
   });
 
   it('launches a server and returns url when index.html exists in root', async () => {
     const createRes = await fetch(`${baseUrl}/api/sessions`, { method: 'POST' });
-    const { session_id } = await createRes.json();
+    const { session_id } = await createRes.json() as any;
 
     // Create a workspace dir with index.html
     const workDir = path.join(tmpDir, 'web-project');
@@ -116,7 +119,7 @@ describe('POST /api/sessions/:id/launch', () => {
       body: JSON.stringify({ workspace_path: workDir }),
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.url).toMatch(/^http:\/\/localhost:\d+$/);
 
     // Verify deploy_complete event was emitted
@@ -128,7 +131,7 @@ describe('POST /api/sessions/:id/launch', () => {
 
   it('prefers dist/ directory when it has index.html', async () => {
     const createRes = await fetch(`${baseUrl}/api/sessions`, { method: 'POST' });
-    const { session_id } = await createRes.json();
+    const { session_id } = await createRes.json() as any;
 
     // Create workspace with both root and dist index.html
     const workDir = path.join(tmpDir, 'dist-project');
@@ -142,7 +145,7 @@ describe('POST /api/sessions/:id/launch', () => {
       body: JSON.stringify({ workspace_path: workDir }),
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.url).toMatch(/^http:\/\/localhost:\d+$/);
 
     // Verify the server serves the dist content
@@ -153,7 +156,7 @@ describe('POST /api/sessions/:id/launch', () => {
 
   it('kills previous launch process on re-launch', async () => {
     const createRes = await fetch(`${baseUrl}/api/sessions`, { method: 'POST' });
-    const { session_id } = await createRes.json();
+    const { session_id } = await createRes.json() as any;
 
     const workDir = path.join(tmpDir, 'relaunch-project');
     fs.mkdirSync(workDir, { recursive: true });
@@ -166,7 +169,7 @@ describe('POST /api/sessions/:id/launch', () => {
       body: JSON.stringify({ workspace_path: workDir }),
     });
     expect(res1.status).toBe(200);
-    const { url: url1 } = await res1.json();
+    const { url: url1 } = await res1.json() as any;
 
     // Second launch should work and return a new (or same) URL
     const res2 = await fetch(`${baseUrl}/api/sessions/${session_id}/launch`, {
@@ -175,7 +178,7 @@ describe('POST /api/sessions/:id/launch', () => {
       body: JSON.stringify({ workspace_path: workDir }),
     });
     expect(res2.status).toBe(200);
-    const { url: url2 } = await res2.json();
+    const { url: url2 } = await res2.json() as any;
     expect(url2).toMatch(/^http:\/\/localhost:\d+$/);
 
     // The urls may differ (different ports) but both should be valid

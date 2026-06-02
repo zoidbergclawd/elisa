@@ -287,7 +287,7 @@ describe('Orchestrator error handling (#75/#76)', () => {
     const orchestrator = new Orchestrator(session, sendEvent);
 
     // run() with an invalid spec should cause an error during planning
-    await orchestrator.run({ invalid: true });
+    await orchestrator.run({ invalid: true } as any);
 
     expect(session.state).toBe('done');
 

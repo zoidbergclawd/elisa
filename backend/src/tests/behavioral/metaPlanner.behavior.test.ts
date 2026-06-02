@@ -330,7 +330,7 @@ describe('validate() edge cases', () => {
 
     const result = await planner.plan({ nugget: { goal: 'test', type: 'software' } });
     const agent = result.agents[0];
-    const elisaEntries = agent.restricted_paths.filter((p: string) => p.includes('.elisa'));
+    const elisaEntries = agent.restricted_paths!.filter((p: string) => p.includes('.elisa'));
     expect(elisaEntries).toHaveLength(1);
   });
 

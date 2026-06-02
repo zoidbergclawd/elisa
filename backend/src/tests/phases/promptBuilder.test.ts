@@ -499,7 +499,7 @@ describe('buildTaskPrompt device registry', () => {
     pb.buildTaskPrompt(makeParams({
       spec: {
         nugget: { goal: 'test', type: 'hardware', description: 'test' },
-        devices: [{ pluginId: 'esp32', fields: {} }],
+        devices: [{ pluginId: 'esp32', instanceId: 'i1', fields: {} }],
       },
       deviceRegistry: mockRegistry,
     }));

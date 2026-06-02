@@ -84,8 +84,8 @@ describe('TestPhase', () => {
     const coverageEvent = vi.mocked(ctx.send).mock.calls
       .find(([ev]) => ev.type === 'coverage_update');
     expect(coverageEvent).toBeDefined();
-    expect(coverageEvent![0].percentage).toBe(85);
-    expect(coverageEvent![0].details).toEqual({ 'main.py': { statements: 100, covered: 85, percentage: 85 } });
+    expect((coverageEvent![0] as any).percentage).toBe(85);
+    expect((coverageEvent![0] as any).details).toEqual({ 'main.py': { statements: 100, covered: 85, percentage: 85 } });
   });
 
   it('does NOT send coverage_update when coverage_pct is null', async () => {

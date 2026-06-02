@@ -113,7 +113,7 @@ export class AgentRunner {
       onOutput,
       workingDir,
       timeout = 300,
-      model = process.env.CLAUDE_MODEL || 'claude-opus-4-6',
+      model = process.env.CLAUDE_MODEL || 'claude-opus-4-7',
       maxTurns = MAX_TURNS_DEFAULT,
       complexity,
       mcpServers,

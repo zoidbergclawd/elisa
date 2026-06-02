@@ -489,7 +489,7 @@ describe('PlanningService', () => {
   describe('applyMutations', () => {
     it('sets a nested value via dot notation', () => {
       const plan = readyPlan();
-      service.applyMutations(plan as unknown as Record<string, unknown>, {
+      service.applyMutations(plan as any, {
         'deploy.target': 'cli',
       });
       expect(plan.deploy.target).toBe('cli');
@@ -498,7 +498,7 @@ describe('PlanningService', () => {
     it('pushes to an array via .push suffix', () => {
       const plan = readyPlan();
       const originalLength = plan.promises.length;
-      service.applyMutations(plan as unknown as Record<string, unknown>, {
+      service.applyMutations(plan as any, {
         'promises.push': { description: 'New promise', category: 'security', proofs: [] },
       });
       expect(plan.promises).toHaveLength(originalLength + 1);
@@ -507,7 +507,7 @@ describe('PlanningService', () => {
 
     it('sets top-level value', () => {
       const plan = readyPlan();
-      service.applyMutations(plan as unknown as Record<string, unknown>, {
+      service.applyMutations(plan as any, {
         ready: true,
       });
       expect(plan.ready).toBe(true);
@@ -515,7 +515,7 @@ describe('PlanningService', () => {
 
     it('sets deeply nested value', () => {
       const plan = readyPlan();
-      service.applyMutations(plan as unknown as Record<string, unknown>, {
+      service.applyMutations(plan as any, {
         'goal.confidence': 'solid',
       });
       expect(plan.goal.confidence).toBe('solid');

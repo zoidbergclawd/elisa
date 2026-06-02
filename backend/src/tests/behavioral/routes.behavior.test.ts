@@ -104,7 +104,7 @@ describe('POST /api/sessions', () => {
     await startTestServer();
     const res = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST', headers: authHeaders() });
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body).toHaveProperty('session_id');
     expect(typeof body.session_id).toBe('string');
     expect(body.session_id.length).toBeGreaterThan(0);
@@ -116,11 +116,11 @@ describe('GET /api/sessions/:id', () => {
     await startTestServer();
     // Create a session first
     const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST', headers: authHeaders() });
-    const { session_id } = await createRes.json();
+    const { session_id } = await createRes.json() as any;
 
     const res = await fetch(`${baseUrl()}/api/sessions/${session_id}`, { headers: authHeaders() });
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.id).toBe(session_id);
     expect(body.state).toBe('idle');
     expect(body.tasks).toEqual([]);
@@ -131,7 +131,7 @@ describe('GET /api/sessions/:id', () => {
     await startTestServer();
     const res = await fetch(`${baseUrl()}/api/sessions/nonexistent`, { headers: authHeaders() });
     expect(res.status).toBe(404);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toBe('Session not found');
   });
 });
@@ -140,7 +140,7 @@ describe('POST /api/sessions/:id/start', () => {
   it('rejects an invalid spec with 400', async () => {
     await startTestServer();
     const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST', headers: authHeaders() });
-    const { session_id } = await createRes.json();
+    const { session_id } = await createRes.json() as any;
 
     // Send a spec with a field that violates the schema (e.g. goal > 2000 chars)
     const invalidSpec = {
@@ -152,7 +152,7 @@ describe('POST /api/sessions/:id/start', () => {
       body: JSON.stringify({ spec: invalidSpec }),
     });
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toBe('Invalid NuggetSpec');
     expect(body.errors).toBeDefined();
     expect(Array.isArray(body.errors)).toBe(true);
@@ -161,7 +161,7 @@ describe('POST /api/sessions/:id/start', () => {
   it('accepts a valid spec and returns started', async () => {
     await startTestServer();
     const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST', headers: authHeaders() });
-    const { session_id } = await createRes.json();
+    const { session_id } = await createRes.json() as any;
 
     const validSpec = {
       nugget: { goal: 'Build a weather app', type: 'software' },
@@ -172,7 +172,7 @@ describe('POST /api/sessions/:id/start', () => {
       body: JSON.stringify({ spec: validSpec }),
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.status).toBe('started');
   });
 
@@ -189,7 +189,7 @@ describe('POST /api/sessions/:id/start', () => {
   it('rejects workspace_path that is not a string', async () => {
     await startTestServer();
     const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST', headers: authHeaders() });
-    const { session_id } = await createRes.json();
+    const { session_id } = await createRes.json() as any;
 
     const validSpec = { nugget: { goal: 'Build an app', type: 'software' } };
     const res = await fetch(`${baseUrl()}/api/sessions/${session_id}/start`, {
@@ -198,14 +198,14 @@ describe('POST /api/sessions/:id/start', () => {
       body: JSON.stringify({ spec: validSpec, workspace_path: 12345 }),
     });
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toMatch(/workspace_path/i);
   });
 
   it('rejects workspace_path exceeding 500 characters', async () => {
     await startTestServer();
     const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST', headers: authHeaders() });
-    const { session_id } = await createRes.json();
+    const { session_id } = await createRes.json() as any;
 
     const validSpec = { nugget: { goal: 'Build an app', type: 'software' } };
     const longPath = 'C:\\' + 'a'.repeat(500);
@@ -215,14 +215,14 @@ describe('POST /api/sessions/:id/start', () => {
       body: JSON.stringify({ spec: validSpec, workspace_path: longPath }),
     });
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toMatch(/workspace_path/i);
   });
 
   it('accepts a valid spec with workspace_path and returns started', async () => {
     await startTestServer();
     const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST', headers: authHeaders() });
-    const { session_id } = await createRes.json();
+    const { session_id } = await createRes.json() as any;
 
     const os = await import('node:os');
     const path = await import('node:path');
@@ -235,7 +235,7 @@ describe('POST /api/sessions/:id/start', () => {
       body: JSON.stringify({ spec: validSpec, workspace_path: tmpDir }),
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.status).toBe('started');
 
     // Cleanup
@@ -248,7 +248,7 @@ describe('POST /api/sessions/:id/start - race condition (#73)', () => {
   it('rejects concurrent start requests with 409', async () => {
     await startTestServer();
     const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST', headers: authHeaders() });
-    const { session_id } = await createRes.json();
+    const { session_id } = await createRes.json() as any;
 
     const validSpec = { nugget: { goal: 'Build an app', type: 'software' } };
     const body = JSON.stringify({ spec: validSpec });
@@ -268,7 +268,7 @@ describe('POST /api/sessions/:id/start - race condition (#73)', () => {
   it('resets state to idle when spec validation fails after claiming session', async () => {
     await startTestServer();
     const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST', headers: authHeaders() });
-    const { session_id } = await createRes.json();
+    const { session_id } = await createRes.json() as any;
 
     // Send invalid spec
     const invalidSpec = { nugget: { goal: 'x'.repeat(2001) } };
@@ -281,7 +281,7 @@ describe('POST /api/sessions/:id/start - race condition (#73)', () => {
 
     // Session should be back to idle so a valid start can proceed
     const getRes = await fetch(`${baseUrl()}/api/sessions/${session_id}`, { headers: authHeaders() });
-    const session = await getRes.json();
+    const session = await getRes.json() as any;
     expect(session.state).toBe('idle');
   });
 });
@@ -290,14 +290,14 @@ describe('POST /api/sessions/:id/stop', () => {
   it('stops a session and returns stopped', async () => {
     await startTestServer();
     const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST', headers: authHeaders() });
-    const { session_id } = await createRes.json();
+    const { session_id } = await createRes.json() as any;
 
     const res = await fetch(`${baseUrl()}/api/sessions/${session_id}/stop`, {
       method: 'POST',
       headers: authHeaders(),
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.status).toBe('stopped');
   });
 
@@ -308,7 +308,7 @@ describe('POST /api/sessions/:id/stop', () => {
       headers: authHeaders(),
     });
     expect(res.status).toBe(404);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toBe('Session not found');
   });
 });
@@ -317,11 +317,11 @@ describe('GET /api/sessions/:id/tasks', () => {
   it('returns tasks array for an existing session', async () => {
     await startTestServer();
     const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST', headers: authHeaders() });
-    const { session_id } = await createRes.json();
+    const { session_id } = await createRes.json() as any;
 
     const res = await fetch(`${baseUrl()}/api/sessions/${session_id}/tasks`, { headers: authHeaders() });
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(Array.isArray(body)).toBe(true);
     expect(body).toEqual([]);
   });
@@ -330,7 +330,7 @@ describe('GET /api/sessions/:id/tasks', () => {
     await startTestServer();
     const res = await fetch(`${baseUrl()}/api/sessions/nonexistent/tasks`, { headers: authHeaders() });
     expect(res.status).toBe(404);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toBe('Session not found');
   });
 });
@@ -339,12 +339,12 @@ describe('GET /api/sessions/:id/git', () => {
   it('returns 404 when session has no orchestrator', async () => {
     await startTestServer();
     const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST', headers: authHeaders() });
-    const { session_id } = await createRes.json();
+    const { session_id } = await createRes.json() as any;
 
     // Session exists but has no orchestrator (not started)
     const res = await fetch(`${baseUrl()}/api/sessions/${session_id}/git`, { headers: authHeaders() });
     expect(res.status).toBe(404);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toBe('Session not found');
   });
 });
@@ -353,11 +353,11 @@ describe('GET /api/sessions/:id/tests', () => {
   it('returns 404 when session has no orchestrator', async () => {
     await startTestServer();
     const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST', headers: authHeaders() });
-    const { session_id } = await createRes.json();
+    const { session_id } = await createRes.json() as any;
 
     const res = await fetch(`${baseUrl()}/api/sessions/${session_id}/tests`, { headers: authHeaders() });
     expect(res.status).toBe(404);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toBe('Session not found');
   });
 });
@@ -366,7 +366,7 @@ describe('POST /api/sessions/:id/gate', () => {
   it('returns 404 when session has no orchestrator', async () => {
     await startTestServer();
     const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST', headers: authHeaders() });
-    const { session_id } = await createRes.json();
+    const { session_id } = await createRes.json() as any;
 
     const res = await fetch(`${baseUrl()}/api/sessions/${session_id}/gate`, {
       method: 'POST',
@@ -374,7 +374,7 @@ describe('POST /api/sessions/:id/gate', () => {
       body: JSON.stringify({ approved: true }),
     });
     expect(res.status).toBe(404);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toBe('Session not found');
   });
 });
@@ -383,7 +383,7 @@ describe('POST /api/sessions/:id/question', () => {
   it('returns 404 when session has no orchestrator', async () => {
     await startTestServer();
     const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST', headers: authHeaders() });
-    const { session_id } = await createRes.json();
+    const { session_id } = await createRes.json() as any;
 
     const res = await fetch(`${baseUrl()}/api/sessions/${session_id}/question`, {
       method: 'POST',
@@ -391,7 +391,7 @@ describe('POST /api/sessions/:id/question', () => {
       body: JSON.stringify({ task_id: 'task-1', answers: {} }),
     });
     expect(res.status).toBe(404);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toBe('Session not found');
   });
 });
@@ -405,7 +405,7 @@ describe('GET /api/hardware/detect', () => {
     await startTestServer();
     const res = await fetch(`${baseUrl()}/api/hardware/detect`, { headers: authHeaders() });
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detected).toBe(false);
   });
 });
@@ -414,14 +414,14 @@ describe('POST /api/hardware/flash/:id', () => {
   it('returns 404 when session has no orchestrator', async () => {
     await startTestServer();
     const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST', headers: authHeaders() });
-    const { session_id } = await createRes.json();
+    const { session_id } = await createRes.json() as any;
 
     const res = await fetch(`${baseUrl()}/api/hardware/flash/${session_id}`, {
       method: 'POST',
       headers: authHeaders(),
     });
     expect(res.status).toBe(404);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toBe('Session not found');
   });
 });
@@ -439,7 +439,7 @@ describe('POST /api/skills/run', () => {
       body: JSON.stringify({}),
     });
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toBe('Invalid skill plan');
   });
 
@@ -455,7 +455,7 @@ describe('POST /api/skills/run', () => {
       body: JSON.stringify({ plan }),
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body).toHaveProperty('session_id');
     expect(typeof body.session_id).toBe('string');
   });
@@ -472,7 +472,7 @@ describe('POST /api/skills/run', () => {
       body: JSON.stringify({ plan }),
     });
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toBe('Invalid skill plan');
   });
 
@@ -531,7 +531,7 @@ describe('POST /api/workspace/save', () => {
       body: JSON.stringify({}),
     });
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toBe('workspace_path is required');
   });
 
@@ -548,7 +548,7 @@ describe('POST /api/workspace/save', () => {
       }),
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.status).toBe('saved');
 
     // Verify files were written
@@ -588,7 +588,7 @@ describe('POST /api/workspace/load', () => {
       body: JSON.stringify({}),
     });
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toBe('workspace_path is required');
   });
 
@@ -602,7 +602,7 @@ describe('POST /api/workspace/load', () => {
       body: JSON.stringify({ workspace_path: blockedPath }),
     });
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toContain('protected system directory');
   });
 
@@ -616,7 +616,7 @@ describe('POST /api/workspace/load', () => {
       body: JSON.stringify({ workspace_path: missingDir }),
     });
     expect(res.status).toBe(404);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toBe('Directory not found');
   });
 
@@ -627,7 +627,7 @@ describe('POST /api/workspace/load', () => {
       body: JSON.stringify({ workspace_path: tmpDir }),
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.workspace).toEqual({ blocks: [1] });
     expect(body.skills).toEqual([{ id: 's1' }]);
     expect(body.rules).toEqual([]);  // file doesn't exist, defaults to []
@@ -644,7 +644,7 @@ describe('POST /api/skills/:sessionId/answer', () => {
     await startTestServer();
     // Create a regular session (no skill runner)
     const createRes = await fetch(`${baseUrl()}/api/sessions`, { method: 'POST', headers: authHeaders() });
-    const { session_id } = await createRes.json();
+    const { session_id } = await createRes.json() as any;
 
     const res = await fetch(`${baseUrl()}/api/skills/${session_id}/answer`, {
       method: 'POST',
@@ -652,7 +652,7 @@ describe('POST /api/skills/:sessionId/answer', () => {
       body: JSON.stringify({ step_id: 'step-1', answers: {} }),
     });
     expect(res.status).toBe(404);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toBe('Skill session not found');
   });
 });
