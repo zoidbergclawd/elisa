@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { AgentRunner } from './agentRunner.js';
 import { DEFAULT_MODEL } from '../utils/constants.js';
@@ -272,5 +275,75 @@ describe('AgentRunner', () => {
 
     expect(result.success).toBe(false);
     expect(result.summary).toContain('SDK connection failed');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Regression coverage for the 0.3.x native-binary resolver. `resolveClaudeCodePath`
+// runs once at module load, so each case re-imports the module with a clean
+// registry and a controlled ELISA_RESOURCES_PATH. The SDK is mocked at the top of
+// this file, so importing agentRunner.js never touches the real SDK.
+// ---------------------------------------------------------------------------
+describe('getClaudeCodePath (native binary resolution)', () => {
+  const BIN_NAME = process.platform === 'win32' ? 'claude.exe' : 'claude';
+  const NATIVE_SUBPATH = `claude-agent-sdk-${process.platform}-${process.arch}`;
+
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it('dev mode (no ELISA_RESOURCES_PATH): resolves the host-platform native binary', async () => {
+    const orig = process.env.ELISA_RESOURCES_PATH;
+    delete process.env.ELISA_RESOURCES_PATH;
+    try {
+      const { getClaudeCodePath } = await import('./agentRunner.js');
+      const resolved = getClaudeCodePath();
+      // The native optional dep is installed for the host arch, so the dev
+      // branch should resolve it to the per-platform package's binary.
+      expect(resolved).toBeDefined();
+      expect(resolved).toContain(NATIVE_SUBPATH);
+      expect(resolved!.endsWith(BIN_NAME)).toBe(true);
+    } finally {
+      if (orig === undefined) delete process.env.ELISA_RESOURCES_PATH;
+      else process.env.ELISA_RESOURCES_PATH = orig;
+    }
+  });
+
+  it('prod mode: resolves the binary under ELISA_RESOURCES_PATH/backend-dist/node_modules', async () => {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'elisa-agentrunner-prod-'));
+    const binDir = path.join(tmpRoot, 'backend-dist', 'node_modules', '@anthropic-ai', NATIVE_SUBPATH);
+    fs.mkdirSync(binDir, { recursive: true });
+    const binPath = path.join(binDir, BIN_NAME);
+    fs.writeFileSync(binPath, '#!/bin/sh\n');
+
+    const orig = process.env.ELISA_RESOURCES_PATH;
+    process.env.ELISA_RESOURCES_PATH = tmpRoot;
+    try {
+      const { getClaudeCodePath } = await import('./agentRunner.js');
+      expect(getClaudeCodePath()).toBe(binPath);
+    } finally {
+      if (orig === undefined) delete process.env.ELISA_RESOURCES_PATH;
+      else process.env.ELISA_RESOURCES_PATH = orig;
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('prod mode with missing prod binary: falls through to dev resolution of the native binary', async () => {
+    // ELISA_RESOURCES_PATH set but no binary at the prod path -> the resolver
+    // must fall through to the host-platform optional dep (not return the bad path).
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'elisa-agentrunner-fallthrough-'));
+    const orig = process.env.ELISA_RESOURCES_PATH;
+    process.env.ELISA_RESOURCES_PATH = tmpRoot;
+    try {
+      const { getClaudeCodePath } = await import('./agentRunner.js');
+      const resolved = getClaudeCodePath();
+      expect(resolved).toBeDefined();
+      expect(resolved).toContain(NATIVE_SUBPATH);
+      expect(resolved).not.toContain(tmpRoot);
+    } finally {
+      if (orig === undefined) delete process.env.ELISA_RESOURCES_PATH;
+      else process.env.ELISA_RESOURCES_PATH = orig;
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
   });
 });
