@@ -140,7 +140,6 @@ describe('CliPortalAdapter', () => {
 
 describe('PortalService.getCliPortals', () => {
   it('returns only CLI portals', async () => {
-    const mockHw = {} as any;
     const service = new PortalService();
 
     await service.initializePortals([
@@ -171,7 +170,6 @@ describe('PortalService.getCliPortals', () => {
   });
 
   it('returns empty array when no CLI portals exist', async () => {
-    const mockHw = {} as any;
     const service = new PortalService();
 
     await service.initializePortals([]);

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { AgentRunner } from './agentRunner.js';
+import { DEFAULT_MODEL } from '../utils/constants.js';
 
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
   query: vi.fn(),
@@ -46,7 +47,7 @@ describe('AgentRunner', () => {
     const callArgs = mockQuery.mock.calls[0][0];
     expect(callArgs.prompt).toBe('hello');
     expect(callArgs.options?.systemPrompt).toBe('you are a bot');
-    expect(callArgs.options?.model).toBe('claude-opus-4-7');
+    expect(callArgs.options?.model).toBe(DEFAULT_MODEL);
     expect(callArgs.options?.permissionMode).toBe('bypassPermissions');
     expect(callArgs.options?.maxTurns).toBe(40);
     expect(callArgs.options?.cwd).toBe('/tmp/test');

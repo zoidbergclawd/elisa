@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentResult } from '../models/session.js';
 import { withTimeout, TimeoutError } from '../utils/withTimeout.js';
-import { MAX_TURNS_DEFAULT, EFFORT_COMPLEX_THRESHOLD } from '../utils/constants.js';
+import { MAX_TURNS_DEFAULT, EFFORT_COMPLEX_THRESHOLD, DEFAULT_MODEL } from '../utils/constants.js';
 
 /** Path to the diagnostic log file (production only). */
 const DIAG_LOG_PATH = path.join(os.tmpdir(), 'elisa-agent-diagnostics.log');
@@ -113,7 +113,7 @@ export class AgentRunner {
       onOutput,
       workingDir,
       timeout = 300,
-      model = process.env.CLAUDE_MODEL || 'claude-opus-4-7',
+      model = process.env.CLAUDE_MODEL || DEFAULT_MODEL,
       maxTurns = MAX_TURNS_DEFAULT,
       complexity,
       mcpServers,
