@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Inherited entitlements applied to nested executables (helpers + the bundled
+	  Claude Agent SDK CLI native binary) during electron-builder's deep sign.
+
+	  com.apple.security.inherit lets child processes inherit the parent's
+	  sandbox/entitlement context. The same hardened-runtime relaxations as the
+	  parent plist are required so the Bun-based native CLI can execute (JIT,
+	  unsigned executable memory, library validation disabled, dyld env vars).
+	-->
+	<key>com.apple.security.inherit</key>
+	<true/>
+	<key>com.apple.security.cs.allow-jit</key>
+	<true/>
+	<key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+	<true/>
+	<key>com.apple.security.cs.disable-library-validation</key>
+	<true/>
+	<key>com.apple.security.cs.allow-dyld-environment-variables</key>
+	<true/>
+</dict>
+</plist>

@@ -322,10 +322,15 @@ Deeper context for each subsystem lives in CLAUDE.md files within each directory
 Elisa is distributed as an Electron desktop app. The build pipeline:
 1. `npm run build:frontend` -- Vite builds React SPA into `frontend/dist/`
 2. `npm run build:backend` -- esbuild bundles Express server into `backend/dist/server-entry.js`
-3. `npm run build:mingit` -- downloads MinGit for Windows (git + bash, ~39MB). Copies `sh.exe` to `bash.exe`. Skipped on macOS.
-4. `npm run build:electron` -- tsc compiles `electron/main.ts` and `preload.ts`
-5. `npm run dist` -- electron-builder packages into installer (NSIS on Windows, DMG on macOS). `afterPack` hook renames `vendor/` -> `node_modules/` and verifies `cli.js` exists for the Claude Agent SDK. MinGit included as `extraResource` on Windows.
+3. `npm run build:backend:deps` -- vendors external runtime deps into `backend/dist/vendor/`, **including the host-arch native Claude Code CLI binary** (`@anthropic-ai/claude-agent-sdk-<plat>-<arch>`, ~200 MB; verified present + executable, build fails loudly if missing).
+4. `npm run build:mingit` -- downloads MinGit for Windows (git + bash, ~39MB). Copies `sh.exe` to `bash.exe`. Skipped on macOS.
+5. `npm run build:electron` -- tsc compiles `electron/main.ts` and `preload.ts`
+6. `npm run dist` -- electron-builder packages into installer (NSIS on Windows, DMG on macOS). `afterPack` hook renames `vendor/` -> `node_modules/` and verifies the **native CLI binary** is present at `node_modules/@anthropic-ai/claude-agent-sdk-<plat>-<arch>/<claude|claude.exe>`. MinGit included as `extraResource` on Windows. On macOS, the nested binary is re-signed under Elisa's identity (hardened runtime + Bun entitlements) and the app is notarized.
 
-**Prerequisites:** Node.js (LTS) must be installed on the system. The Windows installer bundles MinGit (git + bash) so Git is not required separately. If Node.js is missing, a non-blocking dialog prompts the user to install it on first launch. Python projects require a separate Python install (see #246). Web preview uses a built-in static file server (no `npx serve` dependency).
+**CLI distribution (agent-sdk 0.3.x):** The Claude Code CLI is a **per-platform native binary** (`claude`/`claude.exe`), shipped as a host-platform optional dependency, not the old arch-agnostic `cli.js`. The SDK spawns it directly, so **system `node` is not required to launch the agent CLI**. Because the binary is arch-specific, each target arch is built on a runner of that arch (CI matrix: `macos-13` Intel + `macos-latest` Apple Silicon + `windows-latest` x64; win32-arm64 is a known gap). See `docs/packaging.md`.
+
+**Forced API key:** The CLI subprocess always runs on the configured `ANTHROPIC_API_KEY` and never falls back to a host `~/.claude` login. In 0.3.x `options.env` *replaces* `process.env` for the subprocess, so `agentRunner.ts` spreads `{ ...process.env }`, force-sets the key, and isolates `CLAUDE_CONFIG_DIR` to `~/.elisa/claude-cli-config`.
+
+**Prerequisites:** Node.js (LTS) is still used to run generated project tests/tools (not to launch the agent CLI). The Windows installer bundles MinGit (git + bash) so Git is not required separately. If Node.js is missing, a non-blocking dialog prompts the user to install it on first launch. Python projects require a separate Python install (see #246). Web preview uses a built-in static file server (no `npx serve` dependency).
 
 Dev mode (`npm run dev` at root): runs backend + frontend only (no Electron). `npm run dev:electron` runs backend, frontend, and Electron concurrently. Electron loads `http://localhost:5173` (Vite HMR). Production: Electron loads `http://localhost:{free port}` where Express serves everything.

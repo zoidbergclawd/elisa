@@ -253,9 +253,63 @@ describe('AgentRunner', () => {
 
       const callArgs = mockQuery.mock.calls[0][0];
       expect(callArgs.options?.executable).toBeUndefined();
-      expect(callArgs.options?.env).toBeUndefined();
     } finally {
       if (origPath !== undefined) process.env.ELISA_RESOURCES_PATH = origPath;
+    }
+  });
+
+  it('forces ANTHROPIC_API_KEY and an isolated CLAUDE_CONFIG_DIR in the subprocess env', async () => {
+    const origKey = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = 'sk-ant-test-key';
+    try {
+      mockQuery.mockReturnValue(asyncIterable(makeResultMessage()) as any);
+
+      const runner = new AgentRunner();
+      await runner.execute({
+        taskId: 'test-1',
+        prompt: 'hello',
+        systemPrompt: 'you are a bot',
+        onOutput: vi.fn().mockResolvedValue(undefined),
+        workingDir: '/tmp/test',
+      });
+
+      const callArgs = mockQuery.mock.calls[0][0];
+      const env = callArgs.options?.env as Record<string, string> | undefined;
+      expect(env).toBeDefined();
+      // (b) the configured key is forced through.
+      expect(env?.ANTHROPIC_API_KEY).toBe('sk-ant-test-key');
+      // (c) CLAUDE_CONFIG_DIR points at an Elisa-owned dir, never the host ~/.claude.
+      const expectedConfigDir = path.join(os.homedir(), '.elisa', 'claude-cli-config');
+      expect(env?.CLAUDE_CONFIG_DIR).toBe(expectedConfigDir);
+      expect(env?.CLAUDE_CONFIG_DIR).not.toBe(path.join(os.homedir(), '.claude'));
+      // (a) process.env is spread, not replaced wholesale (0.3.x replace-semantics).
+      expect(env?.PATH).toBe(process.env.PATH);
+    } finally {
+      if (origKey === undefined) delete process.env.ANTHROPIC_API_KEY;
+      else process.env.ANTHROPIC_API_KEY = origKey;
+    }
+  });
+
+  it('defaults ANTHROPIC_API_KEY to empty string when host key is unset', async () => {
+    const origKey = process.env.ANTHROPIC_API_KEY;
+    delete process.env.ANTHROPIC_API_KEY;
+    try {
+      mockQuery.mockReturnValue(asyncIterable(makeResultMessage()) as any);
+
+      const runner = new AgentRunner();
+      await runner.execute({
+        taskId: 'test-1',
+        prompt: 'hello',
+        systemPrompt: 'you are a bot',
+        onOutput: vi.fn().mockResolvedValue(undefined),
+        workingDir: '/tmp/test',
+      });
+
+      const callArgs = mockQuery.mock.calls[0][0];
+      const env = callArgs.options?.env as Record<string, string> | undefined;
+      expect(env?.ANTHROPIC_API_KEY).toBe('');
+    } finally {
+      if (origKey !== undefined) process.env.ANTHROPIC_API_KEY = origKey;
     }
   });
 

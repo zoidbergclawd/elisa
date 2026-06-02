@@ -1,6 +1,20 @@
 # Plan: Upgrade `@anthropic-ai/claude-agent-sdk` (0.2.112 → 0.3.x) + `@anthropic-ai/sdk` (0.74 → 0.100)
 
-**Status:** Planning · **Branch:** `feature/upgrade-agent-sdk`
+**Status:** Part 1 (code + dev-mode + resolution) DONE · Part 2 (production packaging / per-arch / signing / docs) IN PROGRESS · **Branch:** `feature/upgrade-agent-sdk`
+
+## Status Summary
+
+- **Part 1 — DONE.** SDKs bumped (`@anthropic-ai/claude-agent-sdk ^0.3.x`, `@anthropic-ai/sdk ^0.100.x`); `agentRunner.ts` rewritten to resolve the **native binary** (prod `ELISA_RESOURCES_PATH` path → dev `createRequire(...).resolve` → SDK auto-resolve fallback); subprocess env handling fixed for the 0.3.x `options.env`-**replaces**-`process.env` change (spread `{ ...process.env }`); **forced `ANTHROPIC_API_KEY`** + isolated `CLAUDE_CONFIG_DIR` (`~/.elisa/claude-cli-config`) so no host `~/.claude` fallback; `bundle-backend-deps.mjs` bumped pins and now **installs + verifies** the host-arch native CLI package (exists, regular file, exec bit). Module CLAUDE.md docs updated.
+- **Part 2 — IN PROGRESS.** Production packaging (electron-builder `afterPack` native-binary verify + macOS re-sign/entitlements/notarize), per-arch CI matrix, and these docs (`packaging.md`, `ARCHITECTURE.md`, this plan). **All open decisions below are RESOLVED** (see "Resolved decisions").
+
+## Resolved decisions (Part 2)
+
+- **D1 — Arch coverage: FULL per-arch coverage via per-arch runners.** macOS builds on **both** `macos-13` (Intel/x64) **and** `macos-latest` (Apple Silicon/arm64). Windows keeps `windows-latest` (x64). win32-arm64 GitHub-hosted runners are preview/limited, so **no win-arm runner** is added; win32-arm64 is documented as a **known gap** (runs x64 under emulation). Each runner natively installs only its own optional native dep — no force-install/cross-arch hacks.
+- **D2 — Scope:** the `@anthropic-ai/sdk` 0.74→0.100 bump rides with the native-binary change (landed together in Part 1).
+- **D3 — Notarization: ON.** The nested Bun-based CLI binary (Anthropic-signed under TeamID `Q6L2SF6YDW`) is **re-signed under Elisa's identity** and the app is **notarized** on macOS. Required because Gatekeeper blocks the ~200 MB nested executable otherwise.
+- **AUTH — Force configured API key (RESOLVED, landed in Part 1).** The CLI subprocess must use `ANTHROPIC_API_KEY` and must NOT silently fall back to a host `~/.claude` login.
+
+Hardened-runtime entitlements required for the Bun native binary: `com.apple.security.cs.allow-jit`, `com.apple.security.cs.allow-unsigned-executable-memory`, `com.apple.security.cs.disable-library-validation`, `com.apple.security.cs.allow-dyld-environment-variables` (+ `com.apple.security.inherit` in the inherit plist).
 
 ## Goal
 
@@ -30,6 +44,8 @@ Each extracted binary is ~200 MB (per the SDK's `manifest.json`).
 
 ## Current mechanism (what we're changing)
 
+> _Historical baseline (the pre-upgrade `cli.js` world). Line numbers and pins reflect the starting point; see the Status Summary above for what has since landed._
+
 - **Backend runs in-process inside Electron** in production (`electron/main.ts:258` imports `backend-dist/server-entry.js` and calls `startServer()`). The agent SDK's `query()` runs inside the Electron main process and spawns the CLI as a subprocess.
 - **CLI resolution:** `backend/src/services/agentRunner.ts:39 resolveClaudeCodePath()` → `<ELISA_RESOURCES_PATH>/backend-dist/node_modules/@anthropic-ai/claude-agent-sdk/cli.js` (prod) or `import.meta.resolve` (dev); passed as `pathToClaudeCodeExecutable` (`agentRunner.ts:218`).
 - **Bundling:** `scripts/build-backend.mjs` keeps the SDK `external`; `scripts/bundle-backend-deps.mjs` installs externals into `backend/dist/vendor/` (pinned `@anthropic-ai/claude-agent-sdk: ^0.2.39`); `electron-builder.js` ships `backend/dist` as `extraResources` and `afterPack` renames `vendor/ → node_modules/` and **verifies `cli.js` exists**.
@@ -37,59 +53,66 @@ Each extracted binary is ~200 MB (per the SDK's `manifest.json`).
 
 ## Impact map (files to change)
 
-| File | Change |
-|---|---|
-| `backend/package.json` | bump `@anthropic-ai/claude-agent-sdk` → `^0.3.x`, `@anthropic-ai/sdk` → `^0.100` |
-| `backend/src/services/agentRunner.ts` | rewrite `resolveClaudeCodePath()` to locate the **native binary** (from the per-platform optional-dep package) instead of `cli.js`; update diag log text; verify `pathToClaudeCodeExecutable` semantics for a binary path |
-| `backend/src/server.ts` | health check: resolve/verify the native binary instead of `cli.js`; update warning copy |
-| `scripts/bundle-backend-deps.mjs` | bump SDK pin to `^0.3.x`; ensure the **host-platform optional-dep native package** is installed and copied into `vendor/` (and not stripped) |
-| `scripts/build-backend.mjs` | keep SDK external; confirm the native optional package is treated as external/runtime |
-| `electron-builder.js` | `afterPack`: replace `cli.js` verification with **native-binary** verification; ensure the binary keeps its **executable bit**; address macOS signing of the embedded binary (see Risks) |
-| `electron/main.ts` | verify binary is runnable (perms/quarantine); revisit the "Node.js not installed" prompt (the native binary may remove the system-Node dependency for agent runs) |
-| `backend/CLAUDE.md`, `backend/src/services/CLAUDE.md`, `ARCHITECTURE.md`, `docs/INDEX.md` | update the cli.js/native-binary description per the staleness rules |
-| `@anthropic-ai/sdk` consumers | audit for breaking API changes: `anthropicClient.ts`, `narratorService.ts`, `meetingAgentService.ts`, `metaPlanner.ts`, `teachingEngine.ts`, `runtime/turnPipeline.ts`, `server.ts` |
+| File | Change | Status |
+|---|---|---|
+| `backend/package.json` | bump `@anthropic-ai/claude-agent-sdk` → `^0.3.x`, `@anthropic-ai/sdk` → `^0.100` | DONE (Part 1) |
+| `backend/src/services/agentRunner.ts` | rewrite `resolveClaudeCodePath()` to locate the **native binary** (from the per-platform optional-dep package) instead of `cli.js`; force `ANTHROPIC_API_KEY` + isolate `CLAUDE_CONFIG_DIR`; spread `{ ...process.env }` into `options.env`; update diag log text | DONE (Part 1) |
+| `backend/src/server.ts` | health check: resolve/verify the native binary instead of `cli.js`; update warning copy | DONE (Part 1) |
+| `scripts/bundle-backend-deps.mjs` | bump SDK pin to `^0.3.x`; install + **verify** the host-platform optional-dep native package in `vendor/` (exists, regular file, exec bit) | DONE (Part 1) |
+| `scripts/build-backend.mjs` | keep SDK external; confirm the native optional package is treated as external/runtime | DONE (Part 1) |
+| `electron-builder.js` | `afterPack`: replace `cli.js` verification with **native-binary** verification; ensure the binary keeps its **executable bit**; macOS re-sign of the nested binary + entitlements + notarization | TODO (Part 2) |
+| `electron/main.ts` | verify binary is runnable (perms/quarantine); revisit the "Node.js not installed" prompt (native binary removes the system-Node dependency for agent runs) | TODO (Part 2) |
+| `.github/workflows/release.yml` | per-arch matrix (`macos-13` + `macos-latest` + `windows-latest`); macOS signing + notarization secrets | TODO (Part 2) |
+| `build/*.plist` (entitlements) | hardened-runtime entitlements for the Bun native binary (JIT, unsigned-exec-memory, disable-library-validation, dyld-env) + inherit plist | TODO (Part 2) |
+| `backend/CLAUDE.md`, `backend/src/services/CLAUDE.md`, `ARCHITECTURE.md`, `docs/packaging.md`, `docs/INDEX.md` | update the cli.js/native-binary description per the staleness rules | DONE (CLAUDE.md, ARCHITECTURE.md, packaging.md); `docs/INDEX.md` TODO |
+| `@anthropic-ai/sdk` consumers | audit for breaking API changes: `anthropicClient.ts`, `narratorService.ts`, `meetingAgentService.ts`, `metaPlanner.ts`, `teachingEngine.ts`, `runtime/turnPipeline.ts`, `server.ts` | DONE (Part 1) |
 
 ## Phased work breakdown
 
-### Phase 0 — Spike (de-risk before committing)
-- [ ] In a scratch app, install `@anthropic-ai/claude-agent-sdk@0.3.x` and run a trivial `query()` to confirm the new resolution/spawn works and what `pathToClaudeCodeExecutable` should point at (binary path? still needed?).
-- [ ] Confirm whether the SDK auto-resolves its native binary from the optional dep without us setting `pathToClaudeCodeExecutable` at all.
+### Phase 0 — Spike (de-risk before committing) — DONE
+- [x] In a scratch app, install `@anthropic-ai/claude-agent-sdk@0.3.x` and run a trivial `query()` to confirm the new resolution/spawn works and what `pathToClaudeCodeExecutable` should point at (binary path? still needed?).
+- [x] Confirm whether the SDK auto-resolves its native binary from the optional dep without us setting `pathToClaudeCodeExecutable` at all. (It can — used as the fallback when the explicit path is absent.)
 
-### Phase 1 — Dev-mode upgrade
-- [ ] Bump both SDKs in `backend/package.json`; `npm install`.
-- [ ] Fix `resolveClaudeCodePath()` + `getClaudeCodePath()` for the native binary (or remove if auto-resolution suffices in dev).
-- [ ] Resolve `@anthropic-ai/sdk` 0.74→0.100 breaking changes across the 7 consumer files; get `tsc`, `lint`, and the full test suite green (Node 20).
-- [ ] `npm run dev:electron` + a live agent build smoke test.
+### Phase 1 — Dev-mode upgrade — DONE
+- [x] Bump both SDKs in `backend/package.json`; `npm install`.
+- [x] Fix `resolveClaudeCodePath()` + `getClaudeCodePath()` for the native binary (prod path → dev `createRequire` resolve → SDK auto-resolve fallback).
+- [x] Force `ANTHROPIC_API_KEY` + isolate `CLAUDE_CONFIG_DIR`; spread `{ ...process.env }` for the 0.3.x `options.env`-replaces-`process.env` change.
+- [x] Resolve `@anthropic-ai/sdk` 0.74→0.100 breaking changes across the consumer files; `tsc`, `lint`, and tests green (Node 20).
+- [x] `bundle-backend-deps.mjs`: vendor + verify the host-arch native optional package (exists, regular file, exec bit).
 
-### Phase 2 — Production packaging (the hard part)
-- [ ] `bundle-backend-deps.mjs`: include the host-platform native optional package in `vendor/`.
-- [ ] `electron-builder.js` `afterPack`: verify the native binary, preserve exec bit.
-- [ ] macOS: sign the embedded native binary under hardened runtime (+ entitlements); re-enable notarization.
+### Phase 2 — Production packaging (the hard part) — IN PROGRESS
+- [x] `bundle-backend-deps.mjs`: include + verify the host-platform native optional package in `vendor/`.
+- [ ] `electron-builder.js` `afterPack`: verify the **native binary** (replace the legacy `cli.js` check), preserve exec bit.
+- [ ] macOS: re-sign the embedded native binary under Elisa's identity (hardened runtime + Bun entitlements); enable notarization (D3 = ON).
 - [ ] Build the DMG locally; install; run a live agent build end-to-end.
 
-### Phase 3 — Cross-platform / cross-arch
-- [ ] Decide + implement arch coverage (see Open Decisions).
+### Phase 3 — Cross-platform / cross-arch — IN PROGRESS
+- [x] Decide arch coverage (D1 = FULL per-arch coverage; see Resolved decisions).
+- [ ] Implement the per-arch CI matrix (`macos-13` + `macos-latest` + `windows-latest`); wire the macOS signing + notarization secrets.
 - [ ] Validate the Windows `.exe` via the release workflow.
-- [ ] Confirm installer size impact and update release notes/expectations.
+- [ ] Confirm installer size impact (~200 MB native CLI per arch) and update release notes/expectations.
 
 ### Phase 4 — Docs + cleanup
-- [ ] Update all architecture docs per the staleness table.
-- [ ] Remove dead `cli.js` references.
+- [x] Update architecture docs per the staleness table (`packaging.md`, `ARCHITECTURE.md`, backend CLAUDE.md, services CLAUDE.md, this plan).
+- [ ] Remove the last dead `cli.js` reference in `electron-builder.js` `afterPack` (tracked in Phase 2).
 
 ## Risks
 
-1. **macOS code-signing / notarization of the embedded native binary (highest).** `electron-builder.js` sets `hardenedRuntime: true`; an embedded, unsigned ~200 MB executable will be blocked by Gatekeeper. The binary must be signed as part of the app with correct entitlements, and notarization (currently disabled, `release.yml:54-57`) likely must be re-enabled for distribution.
-2. **Arch coverage regression.** Today's `cli.js` is arch-agnostic, so one Mac build serves Intel + Apple Silicon. The native binary is arch-specific and `macos-latest` is arm64 → Intel Macs would ship **without a binary**. Same gap for Windows arm64.
-3. **App/installer size.** ~200 MB binary per platform vs a single JS file — materially larger downloads.
-4. **`options.env` breaking change (0.2.113):** `options.env` now *replaces* `process.env` instead of overlaying. **Low impact** — `agentRunner.ts` does not pass `env` to `query()` today — but must stay that way (or spread `{ ...process.env }` if we ever add it).
-5. **`@anthropic-ai/sdk` 0.74→0.100** is ~26 minor versions; expect message-shape / option / beta-header changes across the 7 consumers.
-6. **`extraResources` filtering.** The `vendor/`→`node_modules/` rename trick exists because electron-builder strips `node_modules`; the native optional-dep package must survive the same path.
+1. **macOS code-signing / notarization of the embedded native binary (highest).** `electron-builder.js` sets `hardenedRuntime: true`; an embedded, unsigned ~200 MB executable is blocked by Gatekeeper. **Mitigation (D3 = ON):** re-sign the nested binary under Elisa's identity with the Bun entitlements and **notarize** the app. Anthropic ships the binary already hardened-runtime signed under TeamID `Q6L2SF6YDW`; we re-sign so the whole bundle is consistent. _Still TODO in code (Part 2)._
+2. **Arch coverage regression.** The old `cli.js` was arch-agnostic; the native binary is arch-specific. **Mitigation (D1 = FULL coverage):** build macOS on both `macos-13` (x64) and `macos-latest` (arm64), Windows on `windows-latest` (x64). **win32-arm64 remains a documented gap** (preview/limited runner) — runs x64 under emulation. _CI matrix still TODO in code (Part 2)._
+3. **App/installer size.** ~200 MB native CLI per arch vs a single JS file — materially larger downloads, one payload per arch. Record the delta in release notes.
+4. **`options.env` breaking change (0.2.113):** `options.env` now *replaces* `process.env` instead of overlaying. **RESOLVED (Part 1):** `agentRunner.ts` now passes `options.env` and spreads `{ ...process.env }`, then force-sets `ANTHROPIC_API_KEY` and isolates `CLAUDE_CONFIG_DIR`.
+5. **`@anthropic-ai/sdk` 0.74→0.100** is ~26 minor versions; message-shape / option / beta-header changes across the consumers. **RESOLVED (Part 1).**
+6. **`extraResources` filtering.** The `vendor/`→`node_modules/` rename trick exists because electron-builder strips `node_modules`; the native optional-dep package survives the same path (`cpSync` preserves the 0755 exec bit; `removeBinDirs` only deletes `.bin`). Verified in `bundle-backend-deps.mjs`.
 
-## Open decisions (need product/owner input)
+## Open decisions — RESOLVED
 
-- **D1 — macOS arch:** ship **arm64-only** (matches `macos-latest`, simplest) or **Intel + Apple Silicon** (separate runners or universal build, more work)? Today both work; the upgrade forces a choice.
-- **D2 — Scope:** do the `@anthropic-ai/sdk` 0.74→0.100 bump **in this branch** or split it into its own PR (it's independent of the native-binary change)?
-- **D3 — Notarization:** re-enable Apple notarization now (needed for clean Gatekeeper on the signed binary) or defer and accept the right-click-open friction?
+All previously-open decisions are now locked (see "Resolved decisions (Part 2)" above):
+
+- **D1 — macOS arch:** RESOLVED → **FULL per-arch coverage** (Intel via `macos-13` + Apple Silicon via `macos-latest`). Windows stays x64 only; **win32-arm64 is a documented gap** (no preview/limited arm Windows runner).
+- **D2 — Scope:** RESOLVED → bundled with the native-binary change (landed in Part 1).
+- **D3 — Notarization:** RESOLVED → **ON** (re-sign nested binary under Elisa's identity + notarize).
+- **AUTH:** RESOLVED → **force configured `ANTHROPIC_API_KEY`**, no host `~/.claude` fallback (landed in Part 1).
 
 ## Verification plan
 

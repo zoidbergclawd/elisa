@@ -26,6 +26,38 @@ function diagLog(lines: string[]): void {
 }
 
 /**
+ * Elisa-owned config directory for the Claude Code CLI subprocess.
+ *
+ * Pointing CLAUDE_CONFIG_DIR here isolates the CLI from the host operator's
+ * personal `~/.claude` directory: the subprocess can neither fall back to a host
+ * login nor pollute the operator's real credentials. Elisa is a kids' app and
+ * must always run on the configured ANTHROPIC_API_KEY, never an ambient login.
+ */
+const ELISA_CLAUDE_CONFIG_DIR = path.join(os.homedir(), '.elisa', 'claude-cli-config');
+
+/**
+ * Build the environment for the CLI subprocess.
+ *
+ * In claude-agent-sdk 0.3.x, `options.env` REPLACES process.env for the spawned
+ * subprocess (it is not merged), so we spread process.env to preserve PATH and
+ * friends. We then force ANTHROPIC_API_KEY (kids' app: never ride a host login)
+ * and isolate CLAUDE_CONFIG_DIR to an Elisa-owned directory so the CLI cannot
+ * fall back to the operator's `~/.claude` credentials.
+ */
+function buildSubprocessEnv(): NodeJS.ProcessEnv {
+  // Best-effort: ensure the isolated config dir exists so the CLI has a writable home.
+  try {
+    fs.mkdirSync(ELISA_CLAUDE_CONFIG_DIR, { recursive: true });
+  } catch { /* best-effort; CLI will create/handle it if absent */ }
+
+  return {
+    ...process.env,
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '',
+    CLAUDE_CONFIG_DIR: ELISA_CLAUDE_CONFIG_DIR,
+  };
+}
+
+/**
  * Resolve the path to the native Claude Code CLI binary shipped with
  * `@anthropic-ai/claude-agent-sdk` (0.3.x). The CLI is a per-platform native
  * executable (`claude`, or `claude.exe` on Windows) delivered as the
@@ -211,6 +243,16 @@ export class AgentRunner {
 
     const isComplex = complexity !== undefined && complexity > EFFORT_COMPLEX_THRESHOLD;
 
+    // Build the subprocess environment. As of claude-agent-sdk 0.3.x, options.env
+    // REPLACES process.env for the CLI subprocess (it is not merged), so we must
+    // spread process.env ourselves or the subprocess loses everything (PATH, etc.).
+    //
+    // Elisa is a kids' app: every agent MUST run on the configured ANTHROPIC_API_KEY
+    // and must NEVER silently ride a host ~/.claude login. We force the key explicitly
+    // and point CLAUDE_CONFIG_DIR at an Elisa-owned directory so the CLI cannot fall
+    // back to (or write into) the operator's personal Claude credentials.
+    const subprocessEnv = buildSubprocessEnv();
+
     const conversation = query({
       prompt,
       options: {
@@ -222,6 +264,7 @@ export class AgentRunner {
         effort: isComplex ? 'max' : 'high',
         thinking: { type: 'adaptive' },
         maxBudgetUsd: isComplex ? 5.0 : 2.0,
+        env: subprocessEnv,
         ...electronExecConfig,
         ...(claudeCodePath ? { pathToClaudeCodeExecutable: claudeCodePath } : {}),
         ...(allowedTools ? { allowedTools } : {}),
