@@ -60,7 +60,7 @@ describe('impactEstimator', () => {
         { name: 'Reviewer', role: 'reviewer' },
       ],
     };
-    const result = estimate(spec);
+    const result = estimate(spec as any);
     expect(result.complexity).toBe('complex');
     expect(result.estimated_tasks).toBeGreaterThanOrEqual(8);
   });

@@ -146,8 +146,9 @@ export class Orchestrator {
     try {
       // Upgrade temp dir to persistent project directory when no explicit workspace was provided
       if (!this.userWorkspace) {
-        const goal = spec.nugget?.goal ?? spec.goal ?? `project-${this.session.id.slice(0, 8)}`;
-        this.nuggetDir = resolveProjectDir(goal as string);
+        // `(spec as ...).goal` is a legacy top-level field kept for backward compat with older specs
+        const goal = spec.nugget?.goal ?? (spec as { goal?: string }).goal ?? `project-${this.session.id.slice(0, 8)}`;
+        this.nuggetDir = resolveProjectDir(goal);
         this.userWorkspace = true;
       }
 

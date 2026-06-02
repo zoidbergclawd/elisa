@@ -32,7 +32,7 @@ export function createPlanningRouter({
 
   // GET /api/sessions/:id/planning -- get current planning state
   router.get('/', (req, res) => {
-    const sessionId = req.params.id;
+    const sessionId = (req.params as { id: string }).id;
     const entry = store.get(sessionId);
     if (!entry) {
       res.status(404).json({ detail: 'Session not found' });
@@ -56,7 +56,7 @@ export function createPlanningRouter({
 
   // POST /api/sessions/:id/planning/start -- begin planning
   router.post('/start', async (req, res) => {
-    const sessionId = req.params.id;
+    const sessionId = (req.params as { id: string }).id;
     const entry = store.get(sessionId);
     if (!entry) {
       res.status(404).json({ detail: 'Session not found' });
@@ -128,7 +128,7 @@ export function createPlanningRouter({
 
   // POST /api/sessions/:id/planning/answer -- structured answer
   router.post('/answer', async (req, res) => {
-    const sessionId = req.params.id;
+    const sessionId = (req.params as { id: string }).id;
     const entry = store.get(sessionId);
     if (!entry) {
       res.status(404).json({ detail: 'Session not found' });
@@ -235,7 +235,7 @@ export function createPlanningRouter({
 
   // POST /api/sessions/:id/planning/message -- free-text answer
   router.post('/message', async (req, res) => {
-    const sessionId = req.params.id;
+    const sessionId = (req.params as { id: string }).id;
     const entry = store.get(sessionId);
     if (!entry) {
       res.status(404).json({ detail: 'Session not found' });
@@ -300,7 +300,7 @@ export function createPlanningRouter({
 
   // POST /api/sessions/:id/planning/generate -- generate canvas blocks
   router.post('/generate', async (req, res) => {
-    const sessionId = req.params.id;
+    const sessionId = (req.params as { id: string }).id;
     const entry = store.get(sessionId);
     if (!entry) {
       res.status(404).json({ detail: 'Session not found' });

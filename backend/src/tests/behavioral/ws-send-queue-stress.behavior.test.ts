@@ -314,7 +314,7 @@ describe('WebSocket send queue stress', () => {
     expect(phase2.length).toBe(100);
 
     // Phase 1 messages all appear before phase 2 messages
-    const lastPhase1Idx = received.findLastIndex((m) => m.phase === 1);
+    const lastPhase1Idx = received.map((m) => m.phase).lastIndexOf(1);
     const firstPhase2Idx = received.findIndex((m) => m.phase === 2);
     expect(lastPhase1Idx).toBeLessThan(firstPhase2Idx);
 

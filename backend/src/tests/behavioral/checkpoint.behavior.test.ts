@@ -13,6 +13,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     status: 'done',
     agent_name: 'builder-1',
     dependencies: [],
+    acceptance_criteria: [],
     ...overrides,
   };
 }

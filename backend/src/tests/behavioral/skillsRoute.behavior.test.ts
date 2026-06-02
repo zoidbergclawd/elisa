@@ -98,7 +98,7 @@ describe('POST /api/skills/run - valid plan', () => {
       body: JSON.stringify({ plan }),
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body).toHaveProperty('session_id');
     expect(typeof body.session_id).toBe('string');
     expect(body.session_id.length).toBeGreaterThan(0);
@@ -121,7 +121,7 @@ describe('POST /api/skills/run - valid plan', () => {
       body: JSON.stringify({ plan, allSkills }),
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body).toHaveProperty('session_id');
   });
 });
@@ -135,7 +135,7 @@ describe('POST /api/skills/run - invalid plan (missing fields)', () => {
       body: JSON.stringify({}),
     });
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toBe('Invalid skill plan');
     expect(body.errors).toBeDefined();
     expect(Array.isArray(body.errors)).toBe(true);
@@ -149,7 +149,7 @@ describe('POST /api/skills/run - invalid plan (missing fields)', () => {
       body: JSON.stringify({ plan: { steps: [] } }),
     });
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toBe('Invalid skill plan');
   });
 
@@ -161,7 +161,7 @@ describe('POST /api/skills/run - invalid plan (missing fields)', () => {
       body: JSON.stringify({ plan: { skillName: 'test' } }),
     });
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toBe('Invalid skill plan');
   });
 
@@ -177,7 +177,7 @@ describe('POST /api/skills/run - invalid plan (missing fields)', () => {
       body: JSON.stringify({ plan }),
     });
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toBe('Invalid skill plan');
   });
 
@@ -194,7 +194,7 @@ describe('POST /api/skills/run - invalid plan (missing fields)', () => {
       body: JSON.stringify({ plan }),
     });
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toBe('Invalid skill plan');
   });
 });
@@ -212,7 +212,7 @@ describe('POST /api/skills/run - overly long strings', () => {
       body: JSON.stringify({ plan }),
     });
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toBe('Invalid skill plan');
   });
 
@@ -297,7 +297,7 @@ describe('POST /api/skills/:id/answer - invalid session', () => {
       body: JSON.stringify({ step_id: 'step-1', answers: { Color: 'blue' } }),
     });
     expect(res.status).toBe(404);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toBe('Skill session not found');
   });
 
@@ -308,7 +308,7 @@ describe('POST /api/skills/:id/answer - invalid session', () => {
       method: 'POST',
       headers: authHeaders(),
     });
-    const { session_id } = await createRes.json();
+    const { session_id } = await createRes.json() as any;
 
     const res = await fetch(`${baseUrl()}/api/skills/${session_id}/answer`, {
       method: 'POST',
@@ -316,7 +316,7 @@ describe('POST /api/skills/:id/answer - invalid session', () => {
       body: JSON.stringify({ step_id: 'step-1', answers: {} }),
     });
     expect(res.status).toBe(404);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toBe('Skill session not found');
   });
 
@@ -332,7 +332,7 @@ describe('POST /api/skills/:id/answer - invalid session', () => {
       headers: jsonAuthHeaders(),
       body: JSON.stringify({ plan }),
     });
-    const { session_id } = await runRes.json();
+    const { session_id } = await runRes.json() as any;
 
     const res = await fetch(`${baseUrl()}/api/skills/${session_id}/answer`, {
       method: 'POST',
@@ -340,7 +340,7 @@ describe('POST /api/skills/:id/answer - invalid session', () => {
       body: JSON.stringify({ step_id: 'step-1', answers: { Choice: 'A' } }),
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.status).toBe('ok');
   });
 });

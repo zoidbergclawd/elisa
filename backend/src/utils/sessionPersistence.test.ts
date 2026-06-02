@@ -5,19 +5,42 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { SessionPersistence } from './sessionPersistence.js';
-import type { BuildSession } from '../models/session.js';
+import type { BuildSession, Task, Agent } from '../models/session.js';
 
 function makeTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'elisa-persist-test-'));
+}
+
+function makeTask(overrides: Partial<Task> = {}): Task {
+  return {
+    id: 't1',
+    name: 'Task 1',
+    description: '',
+    status: 'done',
+    agent_name: 'builder',
+    dependencies: [],
+    acceptance_criteria: [],
+    ...overrides,
+  };
+}
+
+function makeAgent(overrides: Partial<Agent> = {}): Agent {
+  return {
+    name: 'builder',
+    role: 'builder',
+    persona: '',
+    status: 'idle',
+    ...overrides,
+  };
 }
 
 function makeSession(overrides: Partial<BuildSession> = {}): BuildSession {
   return {
     id: 'test-session-1',
     state: 'executing',
-    spec: { goal: 'test' },
-    tasks: [{ id: 't1', name: 'Task 1', status: 'done' }],
-    agents: [{ name: 'builder', role: 'builder', status: 'idle' }],
+    spec: { nugget: { goal: 'test' } },
+    tasks: [makeTask()],
+    agents: [makeAgent()],
     ...overrides,
   };
 }
@@ -116,12 +139,12 @@ describe('SessionPersistence', () => {
   it('preserves task and agent data through checkpoint/load cycle', () => {
     const session = makeSession({
       tasks: [
-        { id: 't1', name: 'Build UI', status: 'done' },
-        { id: 't2', name: 'Write tests', status: 'in_progress' },
+        makeTask({ id: 't1', name: 'Build UI', status: 'done' }),
+        makeTask({ id: 't2', name: 'Write tests', status: 'in_progress' }),
       ],
       agents: [
-        { name: 'builder-1', role: 'builder', status: 'working' },
-        { name: 'tester-1', role: 'tester', status: 'idle' },
+        makeAgent({ name: 'builder-1', role: 'builder', status: 'working' }),
+        makeAgent({ name: 'tester-1', role: 'tester', status: 'idle' }),
       ],
     });
     persistence.checkpoint(session);

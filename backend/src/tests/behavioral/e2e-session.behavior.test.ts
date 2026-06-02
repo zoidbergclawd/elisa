@@ -140,13 +140,14 @@ beforeAll(async () => {
         id: 'task-1',
         name: 'Build the app',
         description: 'Create a simple counter app',
+        status: 'pending',
         dependencies: [],
         agent_name: 'Builder Bot',
         acceptance_criteria: ['Counter renders'],
       },
     ],
     agents: [
-      { name: 'Builder Bot', role: 'builder', persona: 'A friendly bot' },
+      { name: 'Builder Bot', role: 'builder', persona: 'A friendly bot', status: 'idle' },
     ],
     plan_explanation: 'Single task to build the counter.',
   });

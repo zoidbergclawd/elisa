@@ -52,7 +52,7 @@ describe('POST /api/workspace/save', () => {
     });
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.status).toBe('saved');
 
     // Verify files were written
@@ -73,7 +73,7 @@ describe('POST /api/workspace/save', () => {
     });
 
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toBe('workspace_path is required');
   });
 
@@ -85,7 +85,7 @@ describe('POST /api/workspace/save', () => {
     });
 
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toBe('workspace_path is required');
   });
 
@@ -122,7 +122,7 @@ describe('POST /api/workspace/load', () => {
     });
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.workspace).toEqual({ blocks: [1, 2, 3] });
     expect(body.skills).toEqual([{ id: 'sk1' }]);
     expect(body.rules).toEqual([{ id: 'r1' }]);
@@ -137,7 +137,7 @@ describe('POST /api/workspace/load', () => {
     });
 
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toBe('workspace_path is required');
   });
 
@@ -149,7 +149,7 @@ describe('POST /api/workspace/load', () => {
     });
 
     expect(res.status).toBe(404);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toBe('Directory not found');
   });
 
@@ -165,7 +165,7 @@ describe('POST /api/workspace/load', () => {
     });
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.workspace).toEqual({});
     expect(body.skills).toEqual([]);
     expect(body.rules).toEqual([]);
@@ -184,7 +184,7 @@ describe('POST /api/workspace/load', () => {
     });
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     // Malformed JSON should fall back to defaults
     expect(body.workspace).toEqual({});
   });

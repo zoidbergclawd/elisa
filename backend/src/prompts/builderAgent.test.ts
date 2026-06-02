@@ -99,7 +99,7 @@ describe('formatStyle', () => {
   });
 
   it('ignores unknown keys', () => {
-    const result = formatStyle({ unknown_key: 'value' });
+    const result = formatStyle({ unknown_key: 'value' } as any);
     expect(result).toBe('No specific style preferences.');
   });
 

@@ -1,6 +1,6 @@
 /** Tests for POST /api/sessions/:id/chat endpoint. */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import express from 'express';
 import http from 'node:http';
 import { createSessionRouter } from '../../routes/sessions.js';
@@ -51,14 +51,14 @@ async function listen(app: express.Application): Promise<{ server: http.Server; 
 
 describe('POST /api/sessions/:id/chat', () => {
   let store: SessionStore;
-  let sendEvent: ReturnType<typeof vi.fn>;
+  let sendEvent: Mock<(id: string, evt: WSEvent) => Promise<void>>;
   let app: express.Application;
   let server: http.Server;
   let port: number;
 
   beforeEach(async () => {
     store = createMockStore();
-    sendEvent = vi.fn().mockResolvedValue(undefined);
+    sendEvent = vi.fn<(id: string, evt: WSEvent) => Promise<void>>().mockResolvedValue(undefined);
     app = makeApp(store, sendEvent);
     const result = await listen(app);
     server = result.server;
@@ -97,7 +97,7 @@ describe('POST /api/sessions/:id/chat', () => {
       body: JSON.stringify({ message: 'fix the bug' }),
     });
     expect(res.status).toBe(409);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toContain('done state');
   });
 
@@ -116,7 +116,7 @@ describe('POST /api/sessions/:id/chat', () => {
       body: JSON.stringify({ message: 'fix the bug' }),
     });
     expect(res.status).toBe(409);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toContain('orchestrator');
   });
 
@@ -136,7 +136,7 @@ describe('POST /api/sessions/:id/chat', () => {
       body: JSON.stringify({}),
     });
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toContain('message');
   });
 
@@ -156,7 +156,7 @@ describe('POST /api/sessions/:id/chat', () => {
       body: JSON.stringify({ message: 'Make the button red' }),
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.status).toBe('processing');
   });
 
@@ -182,7 +182,7 @@ describe('POST /api/sessions/:id/chat', () => {
       body: JSON.stringify({ message: 'Fix the bug' }),
     });
     expect(res.status).toBe(409);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toContain('already processing');
   });
 

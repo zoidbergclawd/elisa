@@ -55,7 +55,7 @@ describe('PROMPT-11: Tester tech stack section', () => {
       agentName: 'Test Bot',
       role: 'tester',
       persona: 'A detective',
-      task: { name: 'Test', description: 'Test it', acceptance_criteria: [] },
+      task: { name: 'Test', description: 'Test it', acceptance_criteria: [] } as any,
       spec: {
         nugget: { goal: 'Blink LED', type: 'hardware' },
         deployment: { target: 'esp32' },
@@ -72,7 +72,7 @@ describe('PROMPT-11: Tester tech stack section', () => {
       agentName: 'Test Bot',
       role: 'tester',
       persona: 'A detective',
-      task: { name: 'Test', description: 'Test it', acceptance_criteria: [] },
+      task: { name: 'Test', description: 'Test it', acceptance_criteria: [] } as any,
       spec: {
         nugget: { goal: 'A game', type: 'software' },
         deployment: { target: 'preview' },

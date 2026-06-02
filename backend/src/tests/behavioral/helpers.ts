@@ -66,7 +66,7 @@ export function createTestOrchestrator(spec: Record<string, any>): TestOrchestra
 // -- Mock configuration helpers --
 
 export function configurePlan(plan: Record<string, any>): void {
-  vi.mocked(MetaPlanner.prototype.plan).mockResolvedValue(plan);
+  vi.mocked(MetaPlanner.prototype.plan).mockResolvedValue(plan as any);
 }
 
 export function configureAgentSuccess(summary = 'Task completed successfully'): void {

@@ -80,7 +80,15 @@ describe('reviewerAgent SYSTEM_PROMPT', () => {
 });
 
 describe('reviewerAgent formatTaskPrompt', () => {
-  const baseParams = {
+  const baseParams: {
+    agentName: string;
+    role: string;
+    persona: string;
+    task: any;
+    spec: any;
+    predecessors: string[];
+    style?: any;
+  } = {
     agentName: 'Review Bot',
     role: 'reviewer',
     persona: 'A helpful teacher',
@@ -112,7 +120,7 @@ describe('reviewerAgent formatTaskPrompt', () => {
   it('omits acceptance criteria when empty', () => {
     const result = formatTaskPrompt({
       ...baseParams,
-      task: { name: 'R', description: 'D', acceptance_criteria: [] },
+      task: { name: 'R', description: 'D', acceptance_criteria: [] } as any,
     });
     expect(result).not.toContain('Acceptance Criteria');
   });
@@ -120,7 +128,7 @@ describe('reviewerAgent formatTaskPrompt', () => {
   it('omits acceptance criteria when undefined', () => {
     const result = formatTaskPrompt({
       ...baseParams,
-      task: { name: 'R', description: 'D' },
+      task: { name: 'R', description: 'D' } as any,
     });
     expect(result).not.toContain('Acceptance Criteria');
   });

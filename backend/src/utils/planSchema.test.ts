@@ -7,11 +7,12 @@ import {
   CanvasBlockSpecSchema,
   CanvasBlockSchema,
   LearningSummarySchema,
+  type PlanState,
 } from './planSchema.js';
 
 // --- Helpers ---
 
-function validPlanState() {
+function validPlanState(): PlanState {
   return {
     idea: 'A study buddy that quizzes kids on science',
     goal: { description: 'AI study buddy', confidence: 'solid' as const },

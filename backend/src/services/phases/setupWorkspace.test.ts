@@ -28,6 +28,7 @@ import { TaskDAG } from '../../utils/dag.js';
 import { ContextManager } from '../../utils/contextManager.js';
 import { TokenTracker } from '../../utils/tokenTracker.js';
 import type { PhaseContext } from './types.js';
+import type { Task, Agent } from '../../models/session.js';
 
 // -- Helpers --
 
@@ -56,7 +57,7 @@ function makeCtx(overrides: Partial<PhaseContext> = {}): PhaseContext {
   };
 }
 
-function makeTask(id: string, name: string, agentName: string, deps: string[] = []) {
+function makeTask(id: string, name: string, agentName: string, deps: string[] = []): Task {
   return {
     id, name,
     description: `Do ${name}`,
@@ -67,8 +68,8 @@ function makeTask(id: string, name: string, agentName: string, deps: string[] = 
   };
 }
 
-function makeAgent(name: string, role = 'builder') {
-  return { name, role, persona: 'helpful', status: 'idle' };
+function makeAgent(name: string, role = 'builder'): Agent {
+  return { name, role: role as Agent['role'], persona: 'helpful', status: 'idle' };
 }
 
 function makeDeps(
@@ -77,9 +78,9 @@ function makeDeps(
 ): ExecuteDeps {
   const tasks = overrides.tasks ?? [];
   const agents = overrides.agents ?? [];
-  const taskMap: Record<string, Record<string, any>> = {};
+  const taskMap: Record<string, Task> = {};
   for (const t of tasks) taskMap[t.id] = t;
-  const agentMap: Record<string, Record<string, any>> = {};
+  const agentMap: Record<string, Agent> = {};
   for (const a of agents) agentMap[a.name] = a;
   const dag = overrides.dag ?? new TaskDAG();
   if (!overrides.dag) {

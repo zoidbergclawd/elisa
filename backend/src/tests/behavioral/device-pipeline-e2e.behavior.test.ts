@@ -37,7 +37,7 @@ describe('Device plugin pipeline E2E', () => {
       agentName: 'HW Dev',
       role: 'builder',
       persona: 'embedded expert',
-      task: { name: 'Build sensor', description: 'Implement sensor reading' },
+      task: { name: 'Build sensor', description: 'Implement sensor reading' } as any,
       spec,
       predecessors: [],
       deviceRegistry: registry,

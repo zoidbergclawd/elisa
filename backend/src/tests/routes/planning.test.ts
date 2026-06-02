@@ -1,6 +1,6 @@
 /** Tests for Planning Mode route handlers: /api/sessions/:id/planning/* */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import express from 'express';
 import http from 'node:http';
 import { createPlanningRouter, buildPlanningReplayEvents } from '../../routes/planning.js';
@@ -100,7 +100,7 @@ async function listen(app: express.Application): Promise<{ server: http.Server; 
 describe('Planning routes', () => {
   let store: SessionStore;
   let planningService: PlanningService;
-  let sendEvent: ReturnType<typeof vi.fn>;
+  let sendEvent: Mock<(id: string, evt: WSEvent) => Promise<void>>;
   let app: express.Application;
   let server: http.Server;
   let port: number;
@@ -140,7 +140,7 @@ describe('Planning routes', () => {
     it('returns idle state when no planning session exists', async () => {
       const res = await fetch(url(`/api/sessions/${sessionId}/planning`));
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as any;
       expect(body.status).toBe('idle');
       expect(body.plan).toBeNull();
     });
@@ -151,7 +151,7 @@ describe('Planning routes', () => {
 
       const res = await fetch(url(`/api/sessions/${sessionId}/planning`));
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as any;
       expect(body.status).toBe('active');
       expect(body.plan).toBeDefined();
       expect(body.currentQuestion).toBeDefined();
@@ -176,7 +176,7 @@ describe('Planning routes', () => {
       });
 
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as any;
       expect(body.message).toBe('Great idea! What kind of project?');
       expect(body.question).toBeDefined();
       expect(body.plan).toBeDefined();
@@ -197,7 +197,7 @@ describe('Planning routes', () => {
       });
 
       expect(res.status).toBe(400);
-      const body = await res.json();
+      const body = await res.json() as any;
       expect(body.detail).toContain('idea');
     });
 
@@ -222,7 +222,7 @@ describe('Planning routes', () => {
       });
 
       expect(res.status).toBe(500);
-      const body = await res.json();
+      const body = await res.json() as any;
       expect(body.detail).toContain('already exists');
     });
 
@@ -262,7 +262,7 @@ describe('Planning routes', () => {
       });
 
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as any;
       expect(body.plan.deploy.target).toBe('web');
 
       const eventTypes = sendEvent.mock.calls.map((c: any[]) => c[1].type);
@@ -317,7 +317,7 @@ describe('Planning routes', () => {
         body: JSON.stringify({ optionValue: 'cli' }),
       });
       expect(res2.status).toBe(409);
-      const body = await res2.json();
+      const body = await res2.json() as any;
       expect(body.detail).toContain('follow-up question is still being generated');
     });
   });
@@ -342,7 +342,7 @@ describe('Planning routes', () => {
       });
 
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as any;
       expect(body.message).toBe('Science quizzes, cool!');
 
       const eventTypes = sendEvent.mock.calls.map((c: any[]) => c[1].type);
@@ -406,7 +406,7 @@ describe('Planning routes', () => {
       });
 
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as any;
       expect(body.blocks.blocks).toHaveLength(5);
 
       const eventTypes = sendEvent.mock.calls.map((c: any[]) => c[1].type);
@@ -424,7 +424,7 @@ describe('Planning routes', () => {
       });
 
       expect(res.status).toBe(500);
-      const body = await res.json();
+      const body = await res.json() as any;
       expect(body.detail).toContain('not ready');
     });
 
@@ -450,7 +450,7 @@ describe('Planning routes', () => {
       });
 
       expect(res.status).toBe(500);
-      const body = await res.json();
+      const body = await res.json() as any;
       expect(body.detail).toContain('No planning session');
     });
 
@@ -462,7 +462,7 @@ describe('Planning routes', () => {
       });
 
       expect(res.status).toBe(500);
-      const body = await res.json();
+      const body = await res.json() as any;
       expect(body.detail).toContain('No planning session');
     });
 
@@ -474,7 +474,7 @@ describe('Planning routes', () => {
       });
 
       expect(res.status).toBe(500);
-      const body = await res.json();
+      const body = await res.json() as any;
       expect(body.detail).toContain('No planning session');
     });
 
@@ -492,7 +492,7 @@ describe('Planning routes', () => {
       });
 
       expect(res.status).toBe(500);
-      const body = await res.json();
+      const body = await res.json() as any;
       expect(body.detail).toContain('No active question');
     });
 

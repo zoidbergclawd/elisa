@@ -82,7 +82,7 @@ describe('BOX-3 Deploy Integration: redeployClassifier', () => {
       }],
     };
 
-    const result = classifyChanges(oldSpec, newSpec);
+    const result = classifyChanges(oldSpec as any, newSpec as any);
     expect(result.action).toBe('firmware_required');
     expect(result.reasons.some(r => r.includes('WIFI_SSID'))).toBe(true);
   });
@@ -97,7 +97,7 @@ describe('BOX-3 Deploy Integration: redeployClassifier', () => {
       deployment: { target: 'device' },
     };
 
-    const result = classifyChanges(spec, spec);
+    const result = classifyChanges(spec as any, spec as any);
     expect(result.action).toBe('no_change');
     expect(result.reasons).toHaveLength(0);
   });
@@ -120,7 +120,7 @@ describe('BOX-3 Deploy Integration: redeployClassifier', () => {
       deployment: { target: 'device', auto_flash: false },
     };
 
-    const result = classifyChanges(oldSpec, newSpec);
+    const result = classifyChanges(oldSpec as any, newSpec as any);
     expect(result.action).toBe('config_only');
     expect(result.reasons.length).toBeGreaterThan(0);
   });

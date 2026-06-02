@@ -46,7 +46,7 @@ describe('GET /api/projects', () => {
   it('returns empty array when no projects exist', async () => {
     const res = await fetch(`${baseUrl}/api/projects`);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body).toEqual([]);
   });
 
@@ -63,7 +63,7 @@ describe('GET /api/projects', () => {
 
     const res = await fetch(`${baseUrl}/api/projects`);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body).toHaveLength(1);
     expect(body[0].slug).toBe('my-game');
     expect(body[0].goal).toBe('My Game');
@@ -95,7 +95,7 @@ describe('POST /api/sessions/:id/restore', () => {
     });
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.session_id).toBe('new-session-id');
     expect(body.session.state).toBe('done');
     expect(body.session.testResults.passed).toBe(3);
@@ -114,7 +114,7 @@ describe('POST /api/sessions/:id/restore', () => {
     });
 
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toBe('projectDir is required');
   });
 

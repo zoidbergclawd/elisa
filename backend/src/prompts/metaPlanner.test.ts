@@ -110,7 +110,7 @@ describe('buildMetaPlannerSystem', () => {
     it('excludes portal section when portals is not an array', () => {
       const result = buildMetaPlannerSystem({
         nugget: { goal: 'A game', type: 'software' },
-        portals: 'not-an-array',
+        portals: 'not-an-array' as any,
       });
       expect(result).not.toContain('## Portals');
     });

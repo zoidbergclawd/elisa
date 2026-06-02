@@ -1,6 +1,6 @@
 /** Tests for POST /api/sessions/:id/checkpoint endpoint. */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import express from 'express';
 import http from 'node:http';
 import { createSessionRouter } from '../../routes/sessions.js';
@@ -51,14 +51,14 @@ async function listen(app: express.Application): Promise<{ server: http.Server; 
 
 describe('POST /api/sessions/:id/checkpoint', () => {
   let store: SessionStore;
-  let sendEvent: ReturnType<typeof vi.fn>;
+  let sendEvent: Mock<(id: string, evt: WSEvent) => Promise<void>>;
   let app: express.Application;
   let server: http.Server;
   let port: number;
 
   beforeEach(async () => {
     store = createMockStore();
-    sendEvent = vi.fn().mockResolvedValue(undefined);
+    sendEvent = vi.fn<(id: string, evt: WSEvent) => Promise<void>>().mockResolvedValue(undefined);
     app = makeApp(store, sendEvent);
     const result = await listen(app);
     server = result.server;
@@ -98,7 +98,7 @@ describe('POST /api/sessions/:id/checkpoint', () => {
       body: JSON.stringify({ response: 'approve' }),
     });
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toContain('checkpoint_id');
   });
 
@@ -118,7 +118,7 @@ describe('POST /api/sessions/:id/checkpoint', () => {
       body: JSON.stringify({ checkpoint_id: 'cp-1', response: 'invalid' }),
     });
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toContain('response');
   });
 
@@ -139,7 +139,7 @@ describe('POST /api/sessions/:id/checkpoint', () => {
       body: JSON.stringify({ checkpoint_id: 'cp-1', response: 'approve', comment: 'looks good' }),
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.status).toBe('ok');
     expect(resolveCheckpoint).toHaveBeenCalledWith('cp-1', {
       response: 'approve',

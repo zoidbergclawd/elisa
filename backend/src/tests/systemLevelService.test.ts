@@ -27,7 +27,7 @@ describe('systemLevelService', () => {
     });
 
     it('defaults to explorer for unknown value', () => {
-      expect(getLevel({ workflow: { system_level: 'guru' } })).toBe('explorer');
+      expect(getLevel({ workflow: { system_level: 'guru' as any } })).toBe('explorer');
     });
 
     it('returns explorer when set', () => {

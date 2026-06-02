@@ -42,7 +42,7 @@ import { ContextManager } from '../../utils/contextManager.js';
 import { TokenTracker } from '../../utils/tokenTracker.js';
 import { MAX_TURNS_DEFAULT, MAX_TURNS_RETRY_INCREMENT } from '../../utils/constants.js';
 import type { PhaseContext } from '../../services/phases/types.js';
-import type { BuildSession } from '../../models/session.js';
+import type { BuildSession, Task, Agent } from '../../models/session.js';
 
 // -- Helpers --
 
@@ -71,7 +71,7 @@ function makeCtx(overrides: Partial<PhaseContext> = {}): PhaseContext {
   };
 }
 
-function makeTask(id: string, name: string, agentName: string, deps: string[] = []) {
+function makeTask(id: string, name: string, agentName: string, deps: string[] = []): Task {
   return {
     id,
     name,
@@ -83,7 +83,7 @@ function makeTask(id: string, name: string, agentName: string, deps: string[] = 
   };
 }
 
-function makeAgent(name: string, role = 'builder') {
+function makeAgent(name: string, role: Agent['role'] = 'builder'): Agent {
   return { name, role, persona: 'helpful', status: 'idle' };
 }
 
@@ -103,9 +103,9 @@ function makeDeps(
 ): ExecuteDeps {
   const tasks = overrides.tasks ?? [];
   const agents = overrides.agents ?? [];
-  const taskMap: Record<string, Record<string, any>> = {};
+  const taskMap: Record<string, Task> = {};
   for (const t of tasks) taskMap[t.id] = t;
-  const agentMap: Record<string, Record<string, any>> = {};
+  const agentMap: Record<string, Agent> = {};
   for (const a of agents) agentMap[a.name] = a;
   const dag = overrides.dag ?? new TaskDAG();
   if (!overrides.dag) {

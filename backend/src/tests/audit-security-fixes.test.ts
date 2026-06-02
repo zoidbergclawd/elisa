@@ -45,7 +45,7 @@ describe('P0 #1: Auth token production logging', () => {
     const token = 'secret-token-value';
 
     // Simulate the non-production guard
-    const env = 'development';
+    const env: string = 'development';
     if (env !== 'production') {
       console.log(`Auth token: ${token}`);
     }
@@ -67,6 +67,8 @@ describe('P0 #2: formatTaskPrompt sanitizes task.name and task.description', () 
       description: 'Create the main HTML page',
       agent_name: 'builder-1',
       status: 'pending',
+      dependencies: [],
+      acceptance_criteria: [],
       ...overrides,
     };
   }

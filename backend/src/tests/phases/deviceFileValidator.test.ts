@@ -618,7 +618,6 @@ describe('DeviceFileValidator integration with ExecutePhase', () => {
     // Constructing ExecutePhase with a deviceFileValidator should not throw
     // (we just verify it accepts the property, not run the full pipeline)
     expect(() => {
-      // @ts-expect-error -- partial deps for type check only
       new ExecutePhase({
         agentRunner: makeAgentRunner(),
         git: null,

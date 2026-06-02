@@ -122,7 +122,7 @@ describe('GET /api/health — API key live-check', () => {
     await startTestServer();
 
     const res = await fetch(`${baseUrl()}/api/health`);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.apiKey).toBe('missing');
     expect(body.status).toBe('degraded');
   });
@@ -135,7 +135,7 @@ describe('GET /api/health — API key live-check', () => {
     await new Promise(r => setTimeout(r, 100));
 
     const res = await fetch(`${baseUrl()}/api/health`);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.apiKey).toBe('valid');
     expect(body.status).toBe('ready');
   });
@@ -146,7 +146,7 @@ describe('GET /api/health — API key live-check', () => {
 
     // First check: missing
     const res1 = await fetch(`${baseUrl()}/api/health`);
-    const body1 = await res1.json();
+    const body1 = await res1.json() as any;
     expect(body1.apiKey).toBe('missing');
 
     // Set the env var (simulating config endpoint or manual set)
@@ -154,7 +154,7 @@ describe('GET /api/health — API key live-check', () => {
 
     // Second check: should detect the key and re-validate
     const res2 = await fetch(`${baseUrl()}/api/health`);
-    const body2 = await res2.json();
+    const body2 = await res2.json() as any;
     expect(body2.apiKey).toBe('valid');
   });
 
@@ -167,7 +167,7 @@ describe('GET /api/health — API key live-check', () => {
     await new Promise(r => setTimeout(r, 100));
 
     const res = await fetch(`${baseUrl()}/api/health`);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.apiKey).toBe('invalid');
     expect(body.apiKeyError).toBe('API key validation failed');
   });
@@ -180,14 +180,14 @@ describe('GET /api/health — API key live-check', () => {
 
     // First: valid
     const res1 = await fetch(`${baseUrl()}/api/health`);
-    expect((await res1.json()).apiKey).toBe('valid');
+    expect((await res1.json() as any).apiKey).toBe('valid');
 
     // Remove the key
     delete process.env.ANTHROPIC_API_KEY;
 
     // Now: missing
     const res2 = await fetch(`${baseUrl()}/api/health`);
-    expect((await res2.json()).apiKey).toBe('missing');
+    expect((await res2.json() as any).apiKey).toBe('missing');
   });
 });
 
@@ -202,7 +202,7 @@ describe('POST /api/internal/config', () => {
 
     // Verify initially missing
     const healthBefore = await fetch(`${baseUrl()}/api/health`);
-    expect((await healthBefore.json()).apiKey).toBe('missing');
+    expect((await healthBefore.json() as any).apiKey).toBe('missing');
 
     // Set key via config endpoint
     const res = await fetch(`${baseUrl()}/api/internal/config`, {
@@ -211,7 +211,7 @@ describe('POST /api/internal/config', () => {
       body: JSON.stringify({ apiKey: 'sk-propagated-key' }),
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.apiKey).toBe('valid');
 
     // Verify the env var was set
@@ -219,7 +219,7 @@ describe('POST /api/internal/config', () => {
 
     // Verify health endpoint now returns valid
     const healthAfter = await fetch(`${baseUrl()}/api/health`);
-    const healthBody = await healthAfter.json();
+    const healthBody = await healthAfter.json() as any;
     expect(healthBody.apiKey).toBe('valid');
     expect(healthBody.status).toBe('ready');
   });
@@ -233,7 +233,7 @@ describe('POST /api/internal/config', () => {
       body: JSON.stringify({}),
     });
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.detail).toBe('apiKey is required');
   });
 
@@ -292,7 +292,7 @@ describe('POST /api/internal/config', () => {
       body: JSON.stringify({ apiKey: 'sk-bad-key' }),
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.apiKey).toBe('invalid');
   });
 

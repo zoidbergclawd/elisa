@@ -7,6 +7,7 @@ import { MeetingRegistry } from '../../services/meetingRegistry.js';
 import { MeetingService } from '../../services/meetingService.js';
 import { SessionStore } from '../../services/sessionStore.js';
 import { createMeetingRouter } from '../../routes/meetings.js';
+import type { MeetingAgentService } from '../../services/meetingAgentService.js';
 import type { MeetingType } from '../../models/meeting.js';
 
 const TEST_MEETING_TYPE: MeetingType = {
@@ -36,9 +37,13 @@ function createTestApp() {
     sentEvents.push(event);
   };
 
+  const meetingAgentService = {
+    generateResponse: vi.fn().mockResolvedValue({ text: 'mock response', canvasUpdate: undefined }),
+  } as unknown as MeetingAgentService;
+
   const app = express();
   app.use(express.json());
-  app.use('/api/sessions/:sessionId/meetings', createMeetingRouter({ store, meetingService, sendEvent }));
+  app.use('/api/sessions/:sessionId/meetings', createMeetingRouter({ store, meetingService, meetingAgentService, sendEvent }));
   return app;
 }
 

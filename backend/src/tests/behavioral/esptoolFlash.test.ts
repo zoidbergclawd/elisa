@@ -46,8 +46,8 @@ import {
 
 function makeMockHardwareService() {
   return {
-    detectBoardFast: vi.fn(async () => null),
-    detectBoard: vi.fn(async () => null),
+    detectBoardFast: vi.fn(async (): Promise<{ port: string; boardType: string } | null> => null),
+    detectBoard: vi.fn(async (): Promise<{ port: string; boardType: string } | null> => null),
     flashFiles: vi.fn(async () => ({ success: true, message: 'OK' })),
     wipeBoard: vi.fn(async () => ({ success: true, removed: [] })),
     resetBoard: vi.fn(async () => {}),
